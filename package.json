@@ -1,0 +1,36 @@
+{
+  "name": "potomac-hq",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal operations platform for Potomac Solutions",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=26.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs",
+    "lint:boundaries:selftest": "node tools/boundaries/selftest.mjs",
+    "test:domain": "node --test \"src/*/domain/**/*.test.ts\"",
+    "test:unit": "node --test \"src/*/domain/**/*.test.ts\" \"src/*/application/**/*.test.ts\"",
+    "test:integration": "node --test \"src/*/infrastructure/**/*.test.ts\" \"src/*/api/**/*.test.ts\" \"test/integration/**/*.test.ts\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.ts\"",
+    "check": "npm run typecheck && npm run lint:boundaries && npm run lint:boundaries:selftest && npm run test:unit && npm run test:integration",
+    "release:prepare": "node tools/release/prepare.mjs",
+    "release:notes": "node tools/release/notes.mjs"
+  },
+  "dependencies": {
+    "@potomac-solutions/kit": "github:potomac-solutions/kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
+    "@zubra/compiler": "5.15.0",
+    "@zubra/runtime": "5.15.0",
+    "@zubra/server": "5.15.0",
+    "hono": "4.13.18"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "dependency-cruiser": "18.7.2",
+    "playwright": "1.65.1",
+    "typescript": "6.0.3"
+  }
+}
