@@ -1,0 +1,1 @@
+import "../domain/thing.ts";

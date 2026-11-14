@@ -1,0 +1,6 @@
+{
+  "source": "https://github.com/journey-to-code-org/zubra-ui",
+  "commit": "ba5737ea04d6079914283f94582172b1bdc2447d",
+  "note": "Zubra UI components are copied in with the shadcn CLI from this commit and never edited here. Fixes go upstream, then the component is copied again and this commit is updated. See docs/decisions/0001-stack.md.",
+  "components": []
+}

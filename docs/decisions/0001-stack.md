@@ -22,7 +22,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 
 | Part | Choice |
 | --- | --- |
-| Language | TypeScript, type-checked by `tsc`, run directly by Node |
+| Language | TypeScript 6, type-checked by `tsc`, run directly by Node |
 | Runtime | Node 26 (active LTS), pinned in the repo |
 | Dates and times | The built-in `Temporal` API. Domain code never uses `Date` |
 | HTTP | Hono |
@@ -37,6 +37,8 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Zubra packages | Exact versions, starting at 5.15.0 |
 | Kit | Installed from GitHub at an exact commit |
 | Zubra UI | Copied in through the shadcn CLI. A manifest records the upstream commit, starting at `ba5737e` |
+| Boundary lint | dependency-cruiser |
+| Package manager | npm |
 | Tests | `node:test` for domain and integration tests, Playwright for end-to-end tests |
 | CI | GitHub Actions |
 
@@ -89,12 +91,15 @@ Zubra UI has no tagged release and the kit is not on npm.
   states that volumes and backups are encrypted at rest with AES-256. Both
   were checked on 2026-11-14 and should be rechecked before production.
 
+- The kit (commit `41d3587`), `@zubra/server` 5.15.0 and Hono load and pass
+  the scaffold's integration tests on Node 26. Confirmed 2026-11-14.
+- TypeScript stays on version 6 until dependency-cruiser supports version 7,
+  whose compiler API it cannot read yet.
+
 ## Open items
 
 1. **Sending service**: Brevo or Resend. Needed before v0.1's sign-in work.
-2. **Confirm the kit and Zubra on Node 26** during scaffolding. The kit asks
-   for 22.13 or later. Anything that breaks is filed upstream.
-3. **Confirm on Railway**: that a service with a volume runs as a single
+2. **Confirm on Railway**: that a service with a volume runs as a single
    instance, and how long a deploy interrupts it.
 
 ## Sources
