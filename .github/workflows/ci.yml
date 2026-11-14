@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  domain-isolated:
+    name: Domain tests, nothing installed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # No npm install on purpose: domain rules must run with no Zubra, no UI
+      # framework and no other package present.
+      - run: node --test "src/*/domain/**/*.test.ts"
+
+  check:
+    name: Types, boundaries, unit and integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Fetch git dependencies over HTTPS
+        env:
+          KIT_READ_TOKEN: ${{ secrets.KIT_READ_TOKEN }}
+        run: |
+          if [ -n "$KIT_READ_TOKEN" ]; then
+            base="https://x-access-token:${KIT_READ_TOKEN}@github.com/"
+          else
+            base="https://github.com/"
+          fi
+          git config --global url."$base".insteadOf "ssh://git@github.com/"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint:boundaries
+      - run: npm run lint:boundaries:selftest
+      - run: npm run test:unit
+      - run: npm run test:integration
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Fetch git dependencies over HTTPS
+        env:
+          KIT_READ_TOKEN: ${{ secrets.KIT_READ_TOKEN }}
+        run: |
+          if [ -n "$KIT_READ_TOKEN" ]; then
+            base="https://x-access-token:${KIT_READ_TOKEN}@github.com/"
+          else
+            base="https://github.com/"
+          fi
+          git config --global url."$base".insteadOf "ssh://git@github.com/"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  changelog:
+    name: Changelog gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Only staging may be merged into main
+        if: github.base_ref == 'main' && github.head_ref != 'staging'
+        run: |
+          echo "Pull requests into main must come from staging."
+          exit 1
+      - name: CHANGELOG.md must change in every pull request into staging
+        if: github.base_ref == 'staging'
+        run: |
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- CHANGELOG.md; then
+            echo "This pull request does not touch CHANGELOG.md. Add a line under [Unreleased]."
+            exit 1
+          fi
+      - run: node tools/release/check.mjs "${{ github.base_ref }}"
