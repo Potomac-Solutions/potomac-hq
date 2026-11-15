@@ -24,6 +24,8 @@ src/<module>/application/      use cases, imports domain
 src/<module>/infrastructure/   database, storage and email adapters
 src/<module>/api/              HTTP routes, imports application
 src/<module>/ui/               Zubra components, imports api/contracts
+bin/                           commands that wire modules together (migrate)
+migrations/                    versioned SQL migrations, the only way the schema changes
 test/integration/              tests that cross modules or use real packages
 test/e2e/                      browser tests
 tools/                         boundary self-test and release scripts
