@@ -333,5 +333,5 @@ test("unknown addresses are 404, under /staff and elsewhere", async () => {
   const missing = await b.get("/nothing-here");
   assert.equal(missing.status, 404);
   assert.match(await missing.text(), /There is no page at this address/);
-  assert.equal((await b.raw("/", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "" })).status, 404);
+  assert.equal((await b.raw("/", { method: "POST", headers: { origin, "content-type": "application/x-www-form-urlencoded" }, body: "a=1" })).status, 404);
 });
