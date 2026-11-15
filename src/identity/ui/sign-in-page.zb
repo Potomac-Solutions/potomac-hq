@@ -13,7 +13,7 @@
   .hq-sign-in h1 { margin: 0; }
   .hq-sign-in form { display: grid; gap: 1rem; margin: 0; }
 </style>
-<hq-sign-in problem="" done="" needs-owner={false}>
+<hq-sign-in problem="" done="" needs-owner={false} email-enabled={false}>
   <div class="hq-sign-in">
     <h1>Sign in</h1>
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -24,5 +24,6 @@
       <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
       <div><action-button type="submit">Sign in</action-button></div>
     </form>
+    <p zb-if={emailEnabled}><a href="/forgot-password">Forgot your password?</a></p>
   </div>
 </hq-sign-in>

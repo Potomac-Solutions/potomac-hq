@@ -8,3 +8,4 @@ export { createFirstAdmin, type CreateFirstAdminDeps, type CreateFirstAdminError
 export type { UserStore } from "./application/ports.ts";
 export { establishUser, recordSessionEvent, type SessionDeps, type SessionEvent, type SignedInAccount } from "./application/session.ts";
 export type { RateLimit, UserStore as IdentityUserStore } from "./application/ports.ts";
+export { requestPasswordReset, type AccountDirectory, type PasswordResetDeps, type ResetMailer } from "./application/password-reset.ts";

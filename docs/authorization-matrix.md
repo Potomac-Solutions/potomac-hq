@@ -38,6 +38,7 @@ so that someone can see deal values without being an administrator.
 | --- | --- | --- | --- | --- | --- |
 | Sign in and sign out | none | Yes | Yes | Yes | No (v0.6) |
 | Change own password | none | Yes | Yes | Yes | No (v0.6) |
+| Ask for a password reset link by email | none | Yes | Yes | Yes | No (v0.6) |
 | View the list of users | `user.view` | Yes | Yes | Yes | No |
 | Invite a user | `user.invite` | Yes | No | No | No |
 | Disable or re-enable a user | `user.set-status` | Yes | No | No | No |
@@ -99,5 +100,11 @@ organization, and the cross-client test suite checks it on every merge.
 
 ## Open items
 
-1. **Whether refused attempts are written as activity events.** Not required
+1. **"Ask for a password reset link by email" was added while Mikey was away
+   (2026-11-15)**, as part of "password reset by email" in
+   `docs/scope-v0.1-v0.2.md`. Like signing in, anyone may ask. It answers the
+   same whether or not an account exists, sends only to an active HQ user,
+   and is limited to 5 asks an hour per address and 3 links an hour per
+   email. Needs Mikey's approval.
+2. **Whether refused attempts are written as activity events.** Not required
    by the roadmap. Useful once clients can sign in.

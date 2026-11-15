@@ -11,6 +11,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "user.signed-out": "signed out",
   "user.password-changed": "changed their password",
   "user.reset-link-issued": "A password reset link was issued",
+  "user.reset-link-emailed": "A password reset link was emailed",
   "client.created": "added a client",
   "client.status-changed": "changed a client’s status",
   "contact.created": "added a contact",
