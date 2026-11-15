@@ -54,7 +54,9 @@ async function bodyText(page: Page): Promise<string> {
 }
 
 test("set up the first admin, use the shell, sign out, and sign back in", async () => {
-  const page = await browser.newPage();
+  // axe needs a page from an explicit context.
+  const context = await browser.newContext();
+  const page = await context.newPage();
   // A blocked script, style or image, a failed request and a script error all land here.
   const problems: string[] = [];
   page.on("console", (message) => {
@@ -146,10 +148,15 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
     db.prepare("select action from activity_event order by rowid").all() as { action: string }[]
   ).map((event) => event.action);
   assert.deepEqual(actions, ["user.created", "user.signed-in", "user.signed-out", "user.signed-in"]);
-  await page.close();
+  await context.close();
 });
 
-test("the pages work with JavaScript turned off", async () => {
+test("the pages work with JavaScript turned off", async (t) => {
+  // Uses the account the first test set up.
+  if ((db.prepare("select count(*) as n from user").get()?.["n"] as number) === 0) {
+    t.skip("the first test did not create the account");
+    return;
+  }
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(origin + "/");
