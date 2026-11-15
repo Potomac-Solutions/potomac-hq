@@ -69,6 +69,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - A workaround for a Zubra router bug found here and reported upstream
   (journey-to-code-org/zubra#300): the shell imports no component that a
   page also uses, because one imported by both was rendered twice.
+- Deploy configuration for Railway: a Dockerfile, `railway.json` with a
+  health check and one replica, and a deploy workflow that ships `staging` to
+  the test environment and `main` to production after CI passes. It skips
+  until the Railway tokens and service name are set.
 
 ### Changed
 
@@ -85,3 +89,4 @@ moves those lines under a version heading. See `docs/conventions.md`.
   answered 200.
 - Outbound email will go through Brevo, wired in v0.2. Recorded in the stack
   decision, tool boundaries and scope.
+- CI also runs on pushes to `main`, so the deploy can wait for it.
