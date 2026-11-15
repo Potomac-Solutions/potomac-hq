@@ -59,3 +59,4 @@ Only `staging` may be merged into `main`. CI refuses anything else.
 | `npm run test:integration` | Tests against a real database and real packages |
 | `npm run test:e2e` | Browser tests |
 | `npm run check` | Everything except browser tests |
+| `npm run migrate` | Applies pending migrations to the database at `HQ_DATABASE_PATH` |

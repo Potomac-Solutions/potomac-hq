@@ -26,6 +26,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
   GitHub release when `staging` is merged into `main`.
 - Scope for v0.1 and v0.2, cut to the smallest version that supports the
   first slice (`docs/scope-v0.1-v0.2.md`).
+- Shared domain types: `Id`, `Money` (whole minor units plus a currency) and
+  a `Result` type for answers given as codes.
+- Migration runner: numbered, forward-only SQL migrations with checksums,
+  each applied in its own transaction, and an `npm run migrate` command.
+- Database helper that opens SQLite with foreign keys on and wraps work in a
+  transaction.
 
 ### Changed
 
