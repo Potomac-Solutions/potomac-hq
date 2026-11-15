@@ -78,3 +78,12 @@ declare module "@potomac-solutions/kit/notice" {
   };
   export function createNotices(options: { secret: string | Uint8Array }): Notices;
 }
+
+declare module "@potomac-solutions/kit/notify" {
+  export type NotifySend = (message: { channel: "sms" | "email"; to: string; subject: string; body: string }) => Promise<{ ok: true } | { error: string }>;
+  export type Notify = {
+    notify(to: { email?: string; sms?: string }, template: string, data?: Record<string, unknown>): Promise<{ ok: true; results: unknown[] } | { error: string; results?: unknown[] }>;
+  };
+  export function createNotify(options: { send: NotifySend; templates: Record<string, (data: any) => { subject?: string; body: string }> }): Notify;
+  export function outbox(): { sent: { channel: string; to: string; subject: string; body: string }[]; send: NotifySend };
+}
