@@ -13,3 +13,6 @@ export type UserStore = {
   /** The user who signs in with this kit staff account, or null. */
   findByStaffAccount(staffAccount: string): User | null;
 };
+
+/** True if this key may make another attempt now. */
+export type RateLimit = (key: string) => boolean;
