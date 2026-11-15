@@ -33,6 +33,12 @@ test("@zubra/server loads", async () => {
   assert.equal(typeof zubra.createZubra, "function");
 });
 
+test("@zubra/router loads", async () => {
+  const router = await import("@zubra/router");
+  assert.equal(typeof router.createRouter, "function");
+  assert.equal(typeof router.redirect, "function");
+});
+
 test("the kit's staff module loads", async () => {
   // The kit ships no type declarations yet. Typed wrappers come with v0.1.
   const specifier = "@potomac-solutions/kit/staff";

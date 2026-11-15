@@ -33,9 +33,9 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | File storage and backup copies | Cloudflare R2 |
 | Outbound email | Brevo or Resend (undecided), behind the kit's `notify` interface |
 | Node adapter | `@hono/node-server` 2.1.8, for the request listener only |
-| UI rendering | Server-rendered Zubra components through `@zubra/server`. No client framework in the internal app |
+| UI rendering | Server-rendered Zubra components through `@zubra/server`, served as pages by `@zubra/router`. No client framework in the internal app |
 | Second host framework | Held for the client portal at v0.6 |
-| Zubra packages | Exact versions, starting at 5.15.0 |
+| Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 5.17.0 |
 | Kit | Installed from GitHub at an exact commit |
 | Zubra UI | Copied in through the shadcn CLI. A manifest records the upstream commit, starting at `ba5737e` |
 | Boundary lint | dependency-cruiser |
@@ -92,8 +92,14 @@ Zubra UI has no tagged release and the kit is not on npm.
   states that volumes and backups are encrypted at rest with AES-256. Both
   were checked on 2026-11-14 and should be rechecked before production.
 
-- The kit (commit `41d3587`), `@zubra/server` 5.15.0 and Hono load and pass
-  the scaffold's integration tests on Node 26. Confirmed 2026-11-14.
+- The kit (commit `41d3587`), `@zubra/server` and Hono load and pass the
+  integration tests on Node 26. Confirmed 2026-11-14, on 5.15.0 and again on
+  5.17.0.
+- `@zubra/router` was adopted at 5.17.0, its first release. It serves pages
+  from components with no host framework, which is the shape HQ chose. Its
+  `load` receives the app's services through `context`, so UI files still
+  import no application or infrastructure code. Hono keeps the routes that
+  are not pages.
 - TypeScript stays on version 6 until dependency-cruiser supports version 7,
   whose compiler API it cannot read yet.
 

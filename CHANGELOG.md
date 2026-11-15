@@ -58,3 +58,5 @@ moves those lines under a version heading. See `docs/conventions.md`.
   `shared/domain` still imports nothing.
 - Boundary lint: a module may expose its infrastructure through
   `src/<module>/adapters.ts`, which only infrastructure code may import.
+- Zubra packages upgraded from 5.15.0 to 5.17.0, and `@zubra/router` 5.17.0
+  added. Nothing uses the router yet.
