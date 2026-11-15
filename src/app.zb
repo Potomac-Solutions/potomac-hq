@@ -1,0 +1,46 @@
+<!--
+  The shell around every page: a skip link, the top bar with the Potomac mark,
+  the main links and the signed-in person's account actions, then the page.
+  Signed out, the bar shows the mark alone.
+-->
+<script>
+  'use layout /'
+  import './shared/ui/zubra/nav-bar.zb'
+  import './shared/ui/zubra/action-button.zb'
+
+  export async function load({ context }) {
+    return { who: context.user ? context.user.name : '' }
+  }
+
+  const links = [{ label: 'Dashboard', href: '/', current: route.path === '/' }]
+</script>
+<style>
+  :host { display: block; min-height: 100vh; }
+  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; }
+  .hq-brand img { width: 1.75rem; height: 1.75rem; }
+  .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+  .hq-account { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
+  .hq-account form { display: inline; margin: 0; }
+  .hq-main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .hq-main:focus { outline: none; }
+</style>
+<hq-app who="" route={{}}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <nav-bar zb-if={who} href="/" links={links} label="Main">
+    <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+    <div slot="actions" class="hq-account">
+      <span class="hq-who">{who}</span>
+      <action-button variant="ghost" size="sm" href="/staff/password">Change password</action-button>
+      <form method="post" action="/staff/sign-out">
+        <action-button variant="outline" size="sm" type="submit">Sign out</action-button>
+      </form>
+    </div>
+  </nav-bar>
+  <header zb-else class="hq-signed-out">
+    <a class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+  </header>
+  <main id="main" class="hq-main" tabindex="-1">
+    <zb-slot></zb-slot>
+  </main>
+</hq-app>

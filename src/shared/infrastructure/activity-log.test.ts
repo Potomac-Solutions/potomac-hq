@@ -55,8 +55,9 @@ test("an event is stored exactly as recorded", () => {
     record_id: event.recordId,
     context: '{"from":"new","to":"consult-booked"}',
   });
-  // The time is a real UTC instant set by the server.
-  assert.equal(Temporal.Instant.from(event.occurredAt).toString(), event.occurredAt);
+  // The time is a real UTC instant set by the server, always the same width.
+  assert.match(event.occurredAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  assert.equal(Temporal.Instant.from(event.occurredAt).toString({ fractionalSecondDigits: 3 }), event.occurredAt);
 });
 
 test("an event with no actor is stored with an empty actor", () => {
