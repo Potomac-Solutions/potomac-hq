@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+### Security
+
+- Zubra packages upgraded from 5.17.0 to 5.19.0. 5.17.0 and 5.18.0 let some
+  requests past a guard: a path starting `//`, a page whose pattern was
+  spelled differently from its layout's, a `Host` header with a path in it,
+  and a `redirect()` to another site.
+
 ### Added
 
 - M0 discovery documents: workflow, tool boundaries, stack decision 0001,
@@ -113,6 +120,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   `src/<module>/adapters.ts`, which only infrastructure code may import.
 - Zubra packages upgraded from 5.15.0 to 5.17.0, and `@zubra/router` 5.17.0
   added. Nothing uses the router yet.
+- Pages now send `Cache-Control: private, no-store`, from `@zubra/router`
+  5.19.0. It was `no-store`.
 - The content security policy now allows scripts and stylesheets from HQ's
   own origin only. Nothing inline runs.
 - Boundary lint: UI code may import the design system in `src/shared/ui`.
