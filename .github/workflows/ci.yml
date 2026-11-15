@@ -53,6 +53,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint:boundaries
       - run: npm run lint:boundaries:selftest
+      - run: npm run lint:components
+      - run: npm run lint:zubra-ui
       - run: npm run test:unit
       - run: npm run test:integration
 
