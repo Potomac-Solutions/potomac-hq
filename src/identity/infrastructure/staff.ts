@@ -27,7 +27,12 @@ export function createHqStaffPages(options: {
   proxies: number;
   noticeSecret: string;
   render: (res: ServerResponse, title: string, body: string) => void;
-}): { pages: StaffPages; clientOf: (req: IncomingMessage) => string; readNotice: (url: URL) => { problem: string; done: string } } {
+}): {
+  pages: StaffPages;
+  clientOf: (req: IncomingMessage) => string;
+  readNotice: (url: URL) => { problem: string; done: string };
+  notices: { sign(location: string): string };
+} {
   const notices = createNotices({ secret: options.noticeSecret });
   const pages = staffPages({
     staff: options.staff,
@@ -42,5 +47,6 @@ export function createHqStaffPages(options: {
     pages,
     clientOf: (req) => clientAddress(req, { proxies: options.proxies }),
     readNotice: (url) => notices.read(url),
+    notices,
   };
 }
