@@ -32,3 +32,22 @@ export function addMoney(
 export function sameMoney(a: Money, b: Money): boolean {
   return a.minor === b.minor && a.currency === b.currency;
 }
+
+/**
+ * Reads an amount as people type it: "1250", "1,250.00", "$75.5". Whole
+ * dollars and cents only, never negative.
+ */
+export function parseAmount(text: string, currency: string): Result<Money, MoneyError | "not-an-amount"> {
+  const cleaned = text.trim().replace(/^\$/, "").trim();
+  if (!/^(\d{1,3}(,\d{3})+|\d+)(\.\d{1,2})?$/.test(cleaned)) return err("not-an-amount");
+  const [whole = "0", cents = ""] = cleaned.replace(/,/g, "").split(".");
+  return money(Number(whole) * 100 + Number(cents.padEnd(2, "0")), currency);
+}
+
+/** "$1,250.00" */
+export function formatMoney(value: Money): string {
+  const sign = value.minor < 0 ? "-" : "";
+  const abs = Math.abs(value.minor);
+  const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}$${whole}.${String(abs % 100).padStart(2, "0")}`;
+}
