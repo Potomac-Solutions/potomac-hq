@@ -17,7 +17,11 @@
     return { title: 'Potomac HQ', who: context.user ? context.user.name : '' }
   }
 
-  const links = [{ label: 'Dashboard', href: '/', current: route.path === '/' }]
+  const inCrm = route.path.startsWith('/clients') || route.path.startsWith('/opportunities') || route.path.startsWith('/projects')
+  const links = [
+    { label: 'Dashboard', href: '/', current: route.path === '/' },
+    { label: 'Clients', href: '/clients', current: inCrm },
+  ]
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
