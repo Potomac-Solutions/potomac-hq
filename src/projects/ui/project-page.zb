@@ -1,0 +1,35 @@
+<!--
+  A project. In v0.2 it is a stub with a name, a kind and a status; v0.3 adds
+  phases, milestones and tasks.
+-->
+<script>
+  'use route /projects/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.projectDetail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-project view={{ project: {} }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/clients/{view.clientId}">Client</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
+    <h1>{view.project.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="project-details">
+      <h2 id="project-details">Details</h2>
+      <dl class="hq-facts">
+        <dt>Kind</dt><dd>{view.project.kindLabel}</dd>
+        <dt>Status</dt><dd>{view.project.statusLabel}</dd>
+      </dl>
+      <p class="hq-muted" data-spaced>Phases, milestones and tasks arrive in v0.3.</p>
+    </section>
+  </div>
+</hq-project>

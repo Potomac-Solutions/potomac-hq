@@ -79,3 +79,34 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .plain-page .staff-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .plain-page .brand { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 1.25rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
 .plain-page .brand img { width: 2rem; height: 2rem; }
+
+/* Pages: panels, tables, forms and small labels. Components carry their own
+   styles; these are for plain markup inside pages. */
+.hq-page { display: grid; gap: 1.25rem; }
+.hq-page > h1 { margin: 0; }
+.hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+.hq-panel > h2 { margin-top: 0; }
+.hq-notices { display: grid; gap: 0.75rem; }
+.hq-crumbs { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
+.hq-table { width: 100%; border-collapse: collapse; }
+.hq-table th, .hq-table td { padding: 0.55rem 0.5rem; text-align: left; border-top: 1px solid var(--border); vertical-align: top; }
+.hq-table thead th { border-top: 0; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; }
+.hq-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0; }
+.hq-facts dt { color: var(--muted-foreground); }
+.hq-facts dd { margin: 0; }
+.hq-form { display: grid; gap: 1rem; max-width: 34rem; }
+.hq-form-row { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
+.hq-field { display: grid; gap: 0.35rem; }
+.hq-field label { font-weight: 600; font-size: 0.9rem; }
+.hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.5rem; padding: 0.45rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+.hq-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+.hq-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--primary); }
+.hq-button { display: inline-flex; align-items: center; height: 2.5rem; padding: 0 1rem; font: inherit; font-weight: 600; color: var(--primary-foreground); background: var(--primary); border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); cursor: pointer; text-decoration: none; }
+.hq-button.secondary { color: var(--foreground); background: var(--card); border-color: var(--border); }
+.hq-button:hover { filter: brightness(1.08); }
+.hq-tag { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: var(--muted); color: var(--foreground); }
+.hq-tag.due { border-color: var(--destructive); color: var(--destructive); background: var(--card); }
+.hq-muted { color: var(--muted-foreground); }
+.hq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
+.hq-actions form { margin: 0; }
+[data-spaced] { margin-top: 1rem; }
