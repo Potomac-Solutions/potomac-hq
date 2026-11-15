@@ -7,7 +7,8 @@
   'use layout /'
   // The shell imports no component that a page also uses. One imported by
   // both is rendered twice on the server, nested inside itself (found in
-  // @zubra/router 5.17.0, reported upstream). Until that is fixed, the account
+  // @zubra/router 5.17.0: https://github.com/journey-to-code-org/zubra/issues/300).
+  // Until that is fixed, the account
   // actions below are a plain link and a plain button, not action-button.
   import './shared/ui/zubra/nav-bar.zb'
 

@@ -137,7 +137,8 @@ test("every page has a title, and no component is rendered inside itself", async
     assert.equal(html.match(/<title>/g)?.length, 1, `${path}: one title`);
   }
   // A component imported by both the shell and a page was rendered twice,
-  // nested (reported upstream). The shell avoids that. This catches a return.
+  // nested (https://github.com/journey-to-code-org/zubra/issues/300). The shell
+  // avoids that. This catches a return.
   for (const html of [signedOut, await (await b.get("/")).text(), await (await b.get("/nothing-here")).text()]) {
     assert.doesNotMatch(html, /<button\b[^>]*>(?:(?!<\/button>)[\s\S])*<button\b/, "a button inside a button");
     assert.doesNotMatch(html, /data-zb-filled="[^"]*"[^>]*data-zb-filled=/, "a component filled twice");

@@ -66,6 +66,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
   JavaScript turned off.
 - A boundary check for `.zb` files, and automated accessibility checks (axe,
   WCAG 2.1 A and AA) on every screen in the browser tests.
+- A workaround for a Zubra router bug found here and reported upstream
+  (journey-to-code-org/zubra#300): the shell imports no component that a
+  page also uses, because one imported by both was rendered twice.
 
 ### Changed
 
