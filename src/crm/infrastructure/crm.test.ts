@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import * as crm from "../application/commands.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail } from "../application/queries.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } from "../application/queries.ts";
 import { sqliteUserStore } from "../../identity/adapters.ts";
 import type { RoleKey } from "../../identity/index.ts";
 import { sqliteProjectStore } from "../../projects/adapters.ts";
@@ -232,4 +232,48 @@ test("the database itself refuses what the rules refuse", () => {
   assert.throws(raw("update opportunity set follow_up_on = 'tuesday' where id = ?", opportunity.id), /CHECK/i);
   assert.throws(raw("insert into contact (id, organization_id, name, created_at, updated_at) values (?, ?, 'x', 'now', 'now')", newId(), client.id), /CHECK/i, "email or phone");
   assert.throws(raw("insert into contact (id, organization_id, name, phone, created_at, updated_at) values (?, ?, 'x', '1', 'now', 'now')", newId(), newId()), /FOREIGN KEY/i);
+});
+
+test("the pipeline groups open opportunities by stage, and leaves prices out for a member", () => {
+  const admin = user("admin");
+  const member = user("member");
+  const a = unwrap(crm.createClient(deps, admin, { name: "A" }));
+  const b = unwrap(crm.createClient(deps, admin, { name: "B" }));
+  const first = unwrap(crm.createOpportunity(deps, admin, a.id, { title: "First", leadSource: "phone", service: "website" }));
+  const second = unwrap(crm.createOpportunity(deps, admin, b.id, { title: "Second", leadSource: "phone", service: "website" }));
+  const lost = unwrap(crm.createOpportunity(deps, admin, b.id, { title: "Lost one", leadSource: "phone" }));
+  unwrap(crm.moveOpportunity(deps, admin, lost.id, { to: "lost", lostReason: "No budget" }));
+  unwrap(crm.moveOpportunity(deps, admin, second.id, { to: "consult-booked" }));
+  unwrap(crm.setOpportunityValue(deps, admin, first.id, { pricing: "fixed", amount: "1,500" }));
+  unwrap(crm.setOpportunityFollowUp(deps, admin, first.id, "2026-11-10"));
+
+  const view = unwrap(pipeline(deps, admin, "2026-11-15"));
+  assert.equal(view.openCount, 2);
+  assert.deepEqual(view.columns.map((c) => [c.stage, c.nextStage, c.items.map((i) => i.title)]), [
+    ["new", "consult-booked", ["First"]],
+    ["consult-booked", "consulted", ["Second"]],
+    ["consulted", "quoted", []],
+    ["quoted", "won", []],
+  ]);
+  const card = view.columns[0]?.items[0];
+  assert.equal(card?.price, "$1,500.00 fixed price");
+  assert.equal(card?.followUpDue, true);
+  assert.equal(card?.clientName, "A");
+
+  const memberView = unwrap(pipeline(deps, member, "2026-11-15"));
+  assert.equal(memberView.columns[0]?.items[0]?.price, "");
+  assert.ok(!JSON.stringify(memberView).includes("1,500"));
+  assert.deepEqual(pipeline(deps, user(null), "2026-11-15"), { ok: false, error: "forbidden" });
+});
+
+test("the clients list filters by status, and ignores a status that does not exist", () => {
+  const admin = user("admin");
+  const a = unwrap(crm.createClient(deps, admin, { name: "Prospect" }));
+  const b = unwrap(crm.createClient(deps, admin, { name: "Former" }));
+  unwrap(crm.setClientStatus(deps, admin, b.id, "former"));
+  assert.deepEqual(unwrap(listClients(deps, admin, { status: "former" })).clients.map((c) => c.name), ["Former"]);
+  assert.deepEqual(unwrap(listClients(deps, admin, { status: "prospective" })).clients.map((c) => c.id), [a.id]);
+  const all = unwrap(listClients(deps, admin, { status: "deleted" }));
+  assert.equal(all.status, "");
+  assert.equal(all.clients.length, 2);
 });
