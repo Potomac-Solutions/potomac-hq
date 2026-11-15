@@ -28,7 +28,7 @@ for now, and there are no existing clients to bring in.
 | --- | --- | --- |
 | Inviting, disabling and re-roling users | There is one user. The permissions stay in the matrix, the screens and services wait | When a second person joins, or v1.0 |
 | Password reset by email | Needs the sending service. Until then, a command run on the server prints a one-time reset link | v0.2, with reminders |
-| Choosing Brevo or Resend | Nothing in v0.1 sends email after the cut above | v0.2 |
+| Wiring the sending service (Brevo, chosen 2026-11-14) | Nothing in v0.1 sends email after the cut above | v0.2 |
 | Placeholder dashboard panels for pipeline and projects | Empty boxes are not real use | v0.2 fills them |
 | A dark theme and its toggle | Not needed to use HQ on day one. The Potomac theme defines its colours as light and dark pairs from the start, so adding dark mode later changes no component | v0.3. Tracked as issue #2 |
 
@@ -62,7 +62,7 @@ check and activity event, a route, a screen and an end-to-end test.
 | Pipeline view | Opportunities grouped by stage. Moving a stage is a button, not drag and drop |
 | Dashboard | Two panels added: open opportunities and follow-ups due |
 | Reminders | In-app only: the follow-ups-due panel |
-| Outbound email | The sending service is chosen and wired, used for password reset |
+| Outbound email | Brevo is wired behind the kit's `notify` interface, used for password reset |
 
 ### Cut from v0.2
 

@@ -83,3 +83,5 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - Boundary lint: UI code may import the design system in `src/shared/ui`.
 - The signed-out home page answers 401 with the sign-in form, where it
   answered 200.
+- Outbound email will go through Brevo, wired in v0.2. Recorded in the stack
+  decision, tool boundaries and scope.

@@ -25,7 +25,7 @@ it needs the client sign-in.
 | The books | Google Sheet | v0.5: one-way sync from HQ to the Google Sheet, plus CSV export | The ledger and tax records |
 | Payments | Cash or check, recorded by hand | v0.6: payment page in the portal | Card gateway (undecided) |
 | Inbound email | Gmail, reached through Cloudflare Email Routing | Nothing | Gmail and Cloudflare Email Routing |
-| Outbound email | n/a | v0.1: HQ sends through an adapter behind the kit's `notify` interface | Sending service: Brevo or Resend (undecided) |
+| Outbound email | A server command prints the password reset link | v0.2: HQ sends through an adapter behind the kit's `notify` interface | Sending service: Brevo |
 | Booking | Phone or email | v0.6: booking tool in the portal | Nothing |
 | Contract signing | Printed, signed and scanned | v0.4: typed acceptance recording name, time and proposal version | Nothing |
 | File storage | n/a | v0.3: file service with authorized downloads | Cloudflare R2 holds the bytes |
@@ -43,7 +43,7 @@ it needs the client sign-in.
 4. **Paper is always allowed.** A client can sign a printed agreement and pay
    cash. HQ records the result and, from v0.3, stores the scan.
 5. **Every outside service sits behind an interface in the infrastructure
-   layer** with one adapter, so replacing Brevo with Resend, or R2 with
+   layer** with one adapter, so replacing Brevo with another sender, or R2 with
    another store, changes one file.
 6. **Typed acceptance is checked with a lawyer before it is relied on for a
    large contract.**
@@ -59,6 +59,5 @@ it needs the client sign-in.
 
 ## Open items
 
-1. **Sending service.** Brevo or Resend. Needed before v0.1's sign-in work.
-2. **Card gateway.** Needed before v0.6.
-3. **Which Google Sheet, and its column layout.** Needed before v0.5.
+1. **Card gateway.** Needed before v0.6.
+2. **Which Google Sheet, and its column layout.** Needed before v0.5.
