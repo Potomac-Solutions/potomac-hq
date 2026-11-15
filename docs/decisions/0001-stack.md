@@ -32,6 +32,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Environments | Local, test and production. Test and production are Railway environments |
 | File storage and backup copies | Cloudflare R2 |
 | Outbound email | Brevo or Resend (undecided), behind the kit's `notify` interface |
+| Node adapter | `@hono/node-server` 2.1.8, for the request listener only |
 | UI rendering | Server-rendered Zubra components through `@zubra/server`. No client framework in the internal app |
 | Second host framework | Held for the client portal at v0.6 |
 | Zubra packages | Exact versions, starting at 5.15.0 |

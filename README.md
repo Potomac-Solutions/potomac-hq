@@ -2,8 +2,8 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: M0 (discovery) complete. v0.1 (foundation) has not started. The repo
-holds the scaffold only, with no features.
+Status: v0.1 (foundation) is in progress. Sign-in works. There is no shell,
+dashboard, deploy or backup yet.
 
 ## Read first
 
@@ -25,7 +25,9 @@ src/<module>/application/      use cases, imports domain
 src/<module>/infrastructure/   database, storage and email adapters
 src/<module>/api/              HTTP routes, imports application
 src/<module>/ui/               Zubra components, imports api/contracts
-bin/                           commands that wire modules together (migrate)
+src/app.ts                     the composition root: wires every layer together
+bin/                           commands: serve, migrate, reset-link
+types/                         type declarations for the kit
 migrations/                    versioned SQL migrations, the only way the schema changes
 test/integration/              tests that cross modules or use real packages
 test/e2e/                      browser tests
@@ -44,4 +46,23 @@ npm ci
 npm run check
 npx playwright install chromium   # once
 npm run test:e2e
+```
+
+To start HQ locally:
+
+```sh
+export HQ_DATABASE_PATH=data/hq.db
+export HQ_NOTICE_SECRET="$(openssl rand -base64 32)"
+npm run migrate
+npm start
+```
+
+The first start prints a one-time link for setting up the first admin. See
+`.env.example` for every setting.
+
+Forgot the password? HQ sends no email yet, so run this where the database
+lives:
+
+```sh
+npm run reset-link -- you@example.com
 ```
