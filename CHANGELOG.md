@@ -80,6 +80,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - `npm run backup`, `npm run backup:keygen` and `npm run restore`. Restore
   writes a new file, never over an existing one, and runs SQLite's integrity
   check.
+- v0.2's first slice, without pages yet: client organizations, contacts,
+  opportunities and project stubs (migration 0004), their rules, and their
+  services. Each service checks permission and writes an activity event in
+  the same transaction. A won opportunity makes its client active and can be
+  converted once into a project; monthly and yearly plans become ongoing
+  projects. Deal prices are left out of everything a member is given.
+- Amounts are read as people type them (`$1,250.00`) and shown the same way.
 
 ### Changed
 

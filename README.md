@@ -36,7 +36,7 @@ test/e2e/                      browser tests
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `dashboard`, `crm`. The import rules are in
+Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`. The import rules are in
 `.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
 files to the same rule. CI fails when one is broken.
 
