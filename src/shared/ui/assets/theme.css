@@ -110,3 +110,4 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }
 .hq-actions form { margin: 0; }
 [data-spaced] { margin-top: 1rem; }
+[data-gap] { margin-bottom: 1rem; }

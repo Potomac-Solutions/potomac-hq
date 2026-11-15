@@ -17,10 +17,10 @@
     return { title: 'Potomac HQ', who: context.user ? context.user.name : '' }
   }
 
-  const inCrm = route.path.startsWith('/clients') || route.path.startsWith('/opportunities') || route.path.startsWith('/projects')
   const links = [
     { label: 'Dashboard', href: '/', current: route.path === '/' },
-    { label: 'Clients', href: '/clients', current: inCrm },
+    { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
+    { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') || route.path.startsWith('/projects') },
   ]
 </script>
 <style>
