@@ -24,3 +24,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
   packages installed.
 - Release automation: a changelog gate on pull requests and an automatic
   GitHub release when `staging` is merged into `main`.
+- Scope for v0.1 and v0.2, cut to the smallest version that supports the
+  first slice (`docs/scope-v0.1-v0.2.md`).
+
+### Changed
+
+- Boundary lint: any module's domain may now import `src/shared/domain`.
+  `shared/domain` still imports nothing.

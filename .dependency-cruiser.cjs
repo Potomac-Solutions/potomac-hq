@@ -2,7 +2,8 @@
 // Implementation Roadmap ("Build approach"). CI fails on any violation.
 //
 // Layout: src/<module>/<layer>/..., with src/<module>/index.ts as the only
-// door into a module.
+// door into a module. One exception: any domain may import src/shared/domain,
+// which itself imports nothing (docs/scope-v0.1-v0.2.md).
 
 const UI_AND_FRAMEWORK_PACKAGES =
   "node_modules/(@zubra/[^/]+|zubra|@potomac-solutions/kit/components|hono|react|react-dom|preact|vue|svelte|@angular/[^/]+|solid-js|lit)(/|$)";
@@ -21,18 +22,20 @@ module.exports = {
     {
       name: "domain-imports-nothing-outside-itself",
       comment:
-        "domain may import only files in its own module's domain folder: no packages, no Node modules, no other layer, no other module.",
+        "domain may import only its own module's domain folder and src/shared/domain: no packages, no Node modules, no other layer, no other module.",
       severity: "error",
       from: { path: "^src/([^/]+)/domain/", pathNot: "\\.test\\.ts$" },
-      to: { pathNot: "^src/$1/domain/" },
+      to: { pathNot: ["^src/$1/domain/", "^src/shared/domain/"] },
     },
     {
       name: "domain-tests-stay-pure",
       comment:
-        "domain tests may import their own domain plus node:test and node:assert, nothing else.",
+        "domain tests may import their own domain, src/shared/domain, node:test and node:assert, nothing else.",
       severity: "error",
       from: { path: "^src/([^/]+)/domain/.+\\.test\\.ts$" },
-      to: { pathNot: ["^src/$1/domain/", "^(node:)?(test|assert)(/strict)?$"] },
+      to: {
+        pathNot: ["^src/$1/domain/", "^src/shared/domain/", "^(node:)?(test|assert)(/strict)?$"],
+      },
     },
     {
       name: "application-imports-domain-only",
@@ -47,9 +50,9 @@ module.exports = {
     {
       name: "no-other-module-internals",
       comment:
-        "a module is entered through src/<module>/index.ts only. Reaching into another module's folders is forbidden.",
+        "a module is entered through src/<module>/index.ts only. Reaching into another module's folders is forbidden. (Domain folders are held to the stricter domain rule above.)",
       severity: "error",
-      from: { path: "^src/([^/]+)/" },
+      from: { path: "^src/([^/]+)/", pathNot: "^src/[^/]+/domain/" },
       to: {
         path: "^src/[^/]+/",
         pathNot: ["^src/$1/", "^src/[^/]+/index\\.ts$"],
