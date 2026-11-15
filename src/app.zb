@@ -5,11 +5,15 @@
 -->
 <script>
   'use layout /'
+  // The shell imports no component that a page also uses. One imported by
+  // both is rendered twice on the server, nested inside itself (found in
+  // @zubra/router 5.17.0, reported upstream). Until that is fixed, the account
+  // actions below are a plain link and a plain button, not action-button.
   import './shared/ui/zubra/nav-bar.zb'
-  import './shared/ui/zubra/action-button.zb'
 
   export async function load({ context }) {
-    return { who: context.user ? context.user.name : '' }
+    // The default title. A page's own title replaces it.
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '' }
   }
 
   const links = [{ label: 'Dashboard', href: '/', current: route.path === '/' }]
@@ -22,6 +26,8 @@
   .hq-account { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
   .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
   .hq-account form { display: inline; margin: 0; }
+  .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.75rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
+  .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
   .hq-main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
   .hq-main:focus { outline: none; }
 </style>
@@ -31,9 +37,9 @@
     <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
     <div slot="actions" class="hq-account">
       <span class="hq-who">{who}</span>
-      <action-button variant="ghost" size="sm" href="/staff/password">Change password</action-button>
+      <a class="hq-account-action" href="/staff/password">Change password</a>
       <form method="post" action="/staff/sign-out">
-        <action-button variant="outline" size="sm" type="submit">Sign out</action-button>
+        <button class="hq-account-action" type="submit">Sign out</button>
       </form>
     </div>
   </nav-bar>

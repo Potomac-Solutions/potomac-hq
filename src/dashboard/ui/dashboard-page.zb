@@ -9,10 +9,10 @@
   import '../../shared/ui/zubra/empty-state.zb'
 
   export async function load({ context }) {
-    if (!context.signedIn) return show('identity/ui/sign-in-page', context.signIn, { status: 401 })
-    if (!context.user) return show('identity/ui/no-access', {}, { status: 403 })
+    if (!context.signedIn) return show('identity/ui/sign-in-page', { ...context.signIn, title: 'Sign in' }, { status: 401 })
+    if (!context.user) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     const feed = context.dashboard.recentActivity()
-    if (!feed.ok) return show('identity/ui/no-access', {}, { status: 403 })
+    if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     return {
       title: 'Dashboard',
       items: feed.value.items,

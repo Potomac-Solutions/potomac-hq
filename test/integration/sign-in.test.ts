@@ -123,6 +123,27 @@ test("no page carries an inline script or an inline style block, and the policy 
   }
 });
 
+test("every page has a title, and no component is rendered inside itself", async () => {
+  const signedOut = await (await browser().get("/")).text();
+  assert.match(signedOut, /<title>Sign in<\/title>/);
+  const b = await setUpOwner();
+  const pages: [string, RegExp][] = [
+    ["/", /<title>Dashboard<\/title>/],
+    ["/nothing-here", /<title>Page not found<\/title>/],
+  ];
+  for (const [path, title] of pages) {
+    const html = await (await b.get(path)).text();
+    assert.match(html, title, path);
+    assert.equal(html.match(/<title>/g)?.length, 1, `${path}: one title`);
+  }
+  // A component imported by both the shell and a page was rendered twice,
+  // nested (reported upstream). The shell avoids that. This catches a return.
+  for (const html of [signedOut, await (await b.get("/")).text(), await (await b.get("/nothing-here")).text()]) {
+    assert.doesNotMatch(html, /<button\b[^>]*>(?:(?!<\/button>)[\s\S])*<button\b/, "a button inside a button");
+    assert.doesNotMatch(html, /data-zb-filled="[^"]*"[^>]*data-zb-filled=/, "a component filled twice");
+  }
+});
+
 test("the theme, the mark and a component's script are served, and nothing else under /assets", async () => {
   const b = browser();
   const css = await b.get("/assets/theme.css");
