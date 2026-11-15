@@ -51,6 +51,21 @@ moves those lines under a version heading. See `docs/conventions.md`.
   link.
 - `npm start` and `npm run reset-link`, and `.env.example`.
 - An end-to-end test of the sign-in workflow in a real browser.
+- The application shell (`src/app.zb`), served by `@zubra/router`: a skip
+  link, the top bar with the Potomac mark, navigation and account actions,
+  and a 404 and 500 page inside the shell.
+- The Potomac theme for Zubra UI: the website's neutrals with the mark's blue
+  as the primary colour, every colour defined as a light and dark pair, and
+  a test that checks each pair against WCAG AA contrast.
+- Five Zubra UI components copied in at a pinned commit, with a check that
+  fails if a copy is edited.
+- The dashboard with its first panel, recent activity, read from the audit
+  table. Admins see everything. Managers and members see activity on client
+  records only.
+- Sign-in, no-access and dashboard pages as Zubra components. Pages work with
+  JavaScript turned off.
+- A boundary check for `.zb` files, and automated accessibility checks (axe,
+  WCAG 2.1 A and AA) on every screen in the browser tests.
 
 ### Changed
 
@@ -60,3 +75,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   `src/<module>/adapters.ts`, which only infrastructure code may import.
 - Zubra packages upgraded from 5.15.0 to 5.17.0, and `@zubra/router` 5.17.0
   added. Nothing uses the router yet.
+- The content security policy now allows scripts and stylesheets from HQ's
+  own origin only. Nothing inline runs.
+- Boundary lint: UI code may import the design system in `src/shared/ui`.
+- The signed-out home page answers 401 with the sign-in form, where it
+  answered 200.
