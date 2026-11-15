@@ -69,4 +69,7 @@ Only `staging` may be merged into `main`. CI refuses anything else.
 | `npm run check` | Everything except browser tests |
 | `npm start` | Starts HQ. Needs the settings in `.env.example` |
 | `npm run reset-link -- <email>` | Prints a one-time password reset link |
+| `npm run backup` | Takes one backup now |
+| `npm run backup:keygen -- <name>` | Makes the backup key pair. Run it on your own computer |
+| `npm run restore -- <file> <key> <new db>` | Opens a backup into a new database file and checks it |
 | `npm run migrate` | Applies pending migrations to the database at `HQ_DATABASE_PATH` |

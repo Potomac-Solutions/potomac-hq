@@ -73,6 +73,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
   health check and one replica, and a deploy workflow that ships `staging` to
   the test environment and `main` to production after CI passes. It skips
   until the Railway tokens and service name are set.
+- Nightly encrypted backups at 3:17 a.m. business time, to Cloudflare R2 or
+  a local folder. The server seals each backup with a public key and cannot
+  open it; only the private key can. Each backup, and each failure, is an
+  activity event.
+- `npm run backup`, `npm run backup:keygen` and `npm run restore`. Restore
+  writes a new file, never over an existing one, and runs SQLite's integrity
+  check.
 
 ### Changed
 

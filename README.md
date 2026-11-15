@@ -68,6 +68,15 @@ npm start
 The first start prints a one-time link for setting up the first admin. See
 `.env.example` for every setting.
 
+Backups: make the key pair on your own computer, give the server only the
+public key, and keep the private key and its passphrase somewhere safe.
+
+```sh
+HQ_BACKUP_KEY_PASSPHRASE='…' npm run backup:keygen -- ./hq-backup
+npm run backup                       # one backup now, with the server's settings
+HQ_BACKUP_KEY_PASSPHRASE='…' npm run restore -- <backup file> ./hq-backup.private.pem ./restored.db
+```
+
 Forgot the password? HQ sends no email yet, so run this where the database
 lives:
 
