@@ -1,0 +1,35 @@
+<!--
+  "Forgot your password?" Ask for a one-time link by email. The answer is the
+  same whether or not the email has an account.
+-->
+<script>
+  'use route /forgot-password'
+  import { redirect } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+
+  export async function load({ context }) {
+    if (context.user) return redirect('/')
+    return { title: 'Forgot your password?', emailEnabled: context.signIn.emailEnabled, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  :host { display: block; max-width: 26rem; margin: 2rem auto; }
+  .hq-sign-in { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-sign-in h1 { margin: 0; }
+  .hq-sign-in form { display: grid; gap: 1rem; margin: 0; }
+</style>
+<hq-forgot email-enabled={false} done="" problem="">
+  <div class="hq-sign-in">
+    <h1>Forgot your password?</h1>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    <form zb-if={emailEnabled} method="post" action="/forgot-password">
+      <p>Enter your email. If it has an account, we’ll send a link to set a new password.</p>
+      <text-field label="Email" name="email" type="email" autocomplete="username" required={true}></text-field>
+      <div><button class="hq-button" type="submit">Send the link</button></div>
+    </form>
+    <p zb-else>Email isn’t set up yet. Ask an administrator for a reset link.</p>
+    <p><a href="/">Back to sign in</a></p>
+  </div>
+</hq-forgot>
