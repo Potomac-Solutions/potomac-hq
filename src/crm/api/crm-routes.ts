@@ -74,10 +74,19 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     { done: (opportunity) => `/opportunities/${opportunity.id}`, back: (id) => `/clients/${id}`, message: "Opportunity opened." },
   );
 
-  post("/opportunities/:id/stage", (actor, f, id) => crm.moveOpportunity(deps.crm, actor, id as Id, { to: f["to"] ?? "", lostReason: f["lostReason"] ?? null }), {
-    done: (_, id) => `/opportunities/${id}`,
-    back: (id) => `/opportunities/${id}`,
-    message: "Stage changed.",
+  // A stage change from the pipeline goes back to the pipeline. Only that one
+  // place is accepted, so the form cannot send the browser anywhere else.
+  const stageReturn = (form: Record<string, string>, id: Id | null) => (form["returnTo"] === "pipeline" ? "/pipeline" : `/opportunities/${id}`);
+  app.post("/opportunities/:id/stage", async (c) => {
+    const raw = await c.req.parseBody();
+    const form: Record<string, string> = {};
+    for (const [key, value] of Object.entries(raw)) if (typeof value === "string") form[key] = value;
+    const parsed = parseId(c.req.param("id"));
+    if (!parsed.ok) return c.redirect(deps.sign(`/clients?problem=${encodeURIComponent(messageFor("not-found"))}`), 303);
+    const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null });
+    const place = answer.ok || answer.error !== "not-found" ? stageReturn(form, parsed.value) : "/clients";
+    const to = answer.ok ? `${place}?done=${encodeURIComponent("Stage changed.")}` : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
+    return c.redirect(deps.sign(to), 303);
   });
 
   post("/opportunities/:id/value", (actor, f, id) => crm.setOpportunityValue(deps.crm, actor, id as Id, { pricing: f["pricing"] ?? "", amount: f["amount"] ?? "" }), {

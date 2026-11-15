@@ -1,7 +1,8 @@
 // What the CRM's pages show. Each read checks permission. A deal's price is
 // left out entirely for anyone without `opportunity.view-value`.
 import { CLIENT_STATUS_LABELS, LEAD_SOURCE_LABELS, options, PRICING_LABELS, priceLabel, SERVICE_LABELS, SIZE_TIER_LABELS, STAGE_LABELS } from "../domain/labels.ts";
-import { isFollowUpDue, isOpen, nextStage, type Opportunity } from "../domain/opportunity.ts";
+import { isClientStatus } from "../domain/client.ts";
+import { isFollowUpDue, isOpen, nextStage, STAGES, type Opportunity } from "../domain/opportunity.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, type Id, type Result } from "../../shared/index.ts";
 import type { CrmDeps, Refused } from "./commands.ts";
@@ -9,6 +10,9 @@ import type { CrmDeps, Refused } from "./commands.ts";
 export type Option = { readonly value: string; readonly label: string };
 
 export type ClientListView = {
+  /** The status the list is filtered by, or "" for every client. */
+  readonly status: string;
+  readonly statuses: readonly Option[];
   readonly clients: readonly {
     readonly id: string;
     readonly name: string;
@@ -105,10 +109,17 @@ function row(opportunity: Opportunity, showValue: boolean): OpportunityRow {
   };
 }
 
-export function listClients(deps: CrmDeps, actorId: Id | null): Result<ClientListView, "forbidden"> {
+/** Every client, or only those with one status. An unknown status shows every client. */
+export function listClients(deps: CrmDeps, actorId: Id | null, filter: { readonly status?: string } = {}): Result<ClientListView, "forbidden"> {
   if (!may(deps, actorId, "client.view")) return err("forbidden");
+  const status = filter.status && isClientStatus(filter.status) ? filter.status : "";
   return ok({
-    clients: deps.clients.list().map((client) => ({
+    status,
+    statuses: options(CLIENT_STATUS_LABELS),
+    clients: deps.clients
+      .list()
+      .filter((client) => status === "" || client.status === status)
+      .map((client) => ({
       id: client.id,
       name: client.name,
       status: client.status,
@@ -217,4 +228,53 @@ export function followUpsDue(deps: CrmDeps, actorId: Id | null, today: string): 
       overdue: (o.followUpOn ?? "") < today,
     })),
   });
+}
+
+export type PipelineView = {
+  readonly columns: readonly {
+    readonly stage: string;
+    readonly label: string;
+    readonly nextStage: string;
+    readonly nextStageLabel: string;
+    readonly items: readonly {
+      readonly id: string;
+      readonly title: string;
+      readonly clientName: string;
+      readonly serviceLabel: string;
+      readonly followUpOn: string;
+      readonly followUpDue: boolean;
+      /** Empty for anyone who may not see deal values. */
+      readonly price: string;
+    }[];
+  }[];
+  readonly openCount: number;
+  readonly canMove: boolean;
+};
+
+/** Open opportunities grouped by stage, oldest first in each. */
+export function pipeline(deps: CrmDeps, actorId: Id | null, today: string): Result<PipelineView, "forbidden"> {
+  if (!may(deps, actorId, "opportunity.view")) return err("forbidden");
+  const showValue = may(deps, actorId, "opportunity.view-value");
+  const open = deps.opportunities.listOpen();
+  const columns = STAGES.filter((stage) => stage !== "won" && stage !== "lost").map((stage) => {
+    const next = STAGES[STAGES.indexOf(stage) + 1] ?? "";
+    return {
+      stage,
+      label: STAGE_LABELS[stage] ?? stage,
+      nextStage: next,
+      nextStageLabel: STAGE_LABELS[next] ?? next,
+      items: open
+        .filter((o) => o.stage === stage)
+        .map((o) => ({
+          id: o.id,
+          title: o.title,
+          clientName: o.clientName,
+          serviceLabel: o.service ? (SERVICE_LABELS[o.service] ?? o.service) : "Not chosen yet",
+          followUpOn: o.followUpOn ?? "",
+          followUpDue: isFollowUpDue(o, today),
+          price: showValue ? (priceLabel(o.pricing, o.value) ?? "") : "",
+        })),
+    };
+  });
+  return ok({ columns, openCount: open.length, canMove: may(deps, actorId, "opportunity.set-stage") });
 }

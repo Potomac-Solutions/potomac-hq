@@ -196,3 +196,34 @@ test("an address that is not a record is the 404 page", async () => {
   const missing = await admin.submit(`/opportunities/${newId()}/stage`, { to: "won" });
   assert.match(missing.html, /That record doesn’t exist\./);
 });
+
+test("the pipeline page lists open deals, moves one, and comes back", async () => {
+  const opened = await admin.submit(`${clientPath}/opportunities`, { title: "Second job", service: "application", leadSource: "referral" });
+  const id = opened.location.split("?")[0]?.split("/").pop() ?? "";
+  const page = visible(await (await admin.get("/pipeline")).text());
+  assert.match(page, /<h1>Pipeline<\/h1>/);
+  assert.match(page, new RegExp(`href="/opportunities/${id}"><strong>Second job</strong>`));
+  assert.doesNotMatch(page, /Bakery website/, "won deals are not in the pipeline");
+
+  const moved = await admin.submit(`/opportunities/${id}/stage`, { to: "consult-booked", returnTo: "pipeline" });
+  assert.match(moved.location, /^\/pipeline\?done=Stage\+changed\./);
+  assert.match(moved.html, /Stage changed\./);
+
+  const elsewhere = await admin.submit(`/opportunities/${id}/stage`, { to: "consulted", returnTo: "https://evil.example/" });
+  assert.match(elsewhere.location, new RegExp(`^/opportunities/${id}\\?`), "only the pipeline is accepted as a place to return to");
+
+  const dashboard = visible(await (await admin.get("/")).text());
+  assert.match(dashboard, /Open opportunities: 1/);
+});
+
+test("the clients list filters by status", async () => {
+  await admin.submit("/clients", { name: "Harpers Ferry Museum", sizeTier: "established" });
+  const active = visible(await (await admin.get("/clients?status=active")).text());
+  assert.match(active, /Mt\. Storm Bakery/);
+  assert.doesNotMatch(active, /Harpers Ferry Museum/);
+  assert.match(active, /<option value="active" selected>/);
+  const any = visible(await (await admin.get("/clients?status=nonsense")).text());
+  assert.match(any, /Harpers Ferry Museum/);
+  const none = visible(await (await admin.get("/clients?status=former")).text());
+  assert.match(none, /No clients have that status\./);
+});

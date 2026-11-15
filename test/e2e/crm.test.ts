@@ -160,6 +160,21 @@ test("prospect to project, through the pages", async () => {
   assert.match(await text(page, "section[aria-labelledby=recent-activity]"), /Mikey Nichols started a project/);
   assert.doesNotMatch(await text(page, "section[aria-labelledby=follow-ups-due]"), /Bakery website/, "a won deal's follow-up is no longer due");
 
+  // The pipeline: a second deal, moved on from its card.
+  await page.goto(origin + "/clients");
+  await page.getByRole("link", { name: "Mt. Storm Bakery" }).click();
+  const another = page.locator('form[action$="/opportunities"]');
+  await another.getByLabel("Title").fill("Online ordering app");
+  await another.getByLabel("Service").selectOption("application");
+  await another.getByRole("button", { name: "Open opportunity" }).click();
+  await page.waitForURL((url) => /^\/opportunities\//.test(url.pathname));
+  await page.getByRole("link", { name: "Pipeline" }).click();
+  await page.waitForURL((url) => url.pathname === "/pipeline");
+  await assertAccessible(page, "the pipeline");
+  await page.getByRole("button", { name: "Move to Consult booked: Online ordering app" }).click();
+  await page.waitForURL((url) => url.pathname === "/pipeline" && url.searchParams.has("done"));
+  assert.match(await text(page, "section[aria-labelledby=stage-consult-booked]"), /Online ordering app/);
+
   assert.deepEqual(problems, []);
   await page.close();
 });

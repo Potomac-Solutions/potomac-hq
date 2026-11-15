@@ -95,6 +95,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - The dashboard's second panel: follow-ups due, with overdue ones marked.
 - Form posts are refused unless the browser says they came from HQ itself,
   are plain forms, and are under 16 KB.
+- The pipeline (`/pipeline`): open opportunities grouped by stage, each
+  with a button that moves it to the next stage and comes back.
+- A status filter on the clients list, and an "Open opportunities" panel on
+  the dashboard with a count for each stage.
 
 ### Changed
 

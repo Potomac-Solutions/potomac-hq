@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from "./crm/adapters.ts";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, type CrmDeps } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, type CrmDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader } from "./dashboard/adapters.ts";
 import { recentActivity, type RecentActivityDeps } from "./dashboard/index.ts";
 import { createHqStaff, createHqStaffPages, memoryRateLimit, sqliteUserStore } from "./identity/adapters.ts";
@@ -86,7 +86,8 @@ export type PageContext = {
   forbidden(): Answer;
   readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity> };
   readonly crm: {
-    listClients(): ReturnType<typeof listClients>;
+    listClients(status?: string): ReturnType<typeof listClients>;
+    pipeline(): ReturnType<typeof pipeline>;
     clientDetail(id: string): ReturnType<typeof clientDetail>;
     opportunityDetail(id: string): ReturnType<typeof opportunityDetail>;
     followUpsDue(): ReturnType<typeof followUpsDue>;
@@ -186,7 +187,8 @@ export async function createApp(config: AppConfig): Promise<App> {
         forbidden,
         dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor) },
         crm: {
-          listClients: () => listClients(crmDeps, actor),
+          listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
+          pipeline: () => pipeline(crmDeps, actor, date),
           clientDetail: (id) => withId(id, (clientId) => clientDetail(crmDeps, actor, clientId)),
           opportunityDetail: (id) => withId(id, (opportunityId) => opportunityDetail(crmDeps, actor, opportunityId, date)),
           followUpsDue: () => followUpsDue(crmDeps, actor, date),

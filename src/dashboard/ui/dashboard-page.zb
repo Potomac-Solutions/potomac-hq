@@ -14,7 +14,10 @@
     const feed = context.dashboard.recentActivity()
     if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     const due = context.crm.followUpsDue()
+    const pipeline = context.crm.pipeline()
     return {
+      stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
+      openCount: pipeline.ok ? pipeline.value.openCount : 0,
       title: 'Dashboard',
       followUps: due.ok ? due.value.items : [],
       showFollowUps: due.ok,
@@ -32,13 +35,15 @@
   .hq-notices { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
   :host > .hq-panel + .hq-panel { margin-top: 1.25rem; }
   .hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-stages { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
+  .hq-stages li { display: flex; gap: 0.4rem; }
   .hq-activity { list-style: none; margin: 0; padding: 0; }
   .hq-activity li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
   .hq-activity li:first-child { border-top: 0; }
   .hq-activity time, .hq-scope { color: var(--muted-foreground); font-size: 0.9rem; }
   .hq-scope { margin: 0 0 0.5rem; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} done="" problem="">
   <h1>Dashboard</h1>
   <div zb-if={done || problem} class="hq-notices">
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -52,6 +57,13 @@
         <li><span><a href="/opportunities/{item.id}">{item.title}</a> · {item.clientName}</span> <span><time datetime={item.followUpOn}>{item.followUpOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
       </zb-each>
     </ul>
+  </section>
+  <section zb-if={showFollowUps} class="hq-panel" aria-labelledby="open-opportunities">
+    <h2 id="open-opportunities">Open opportunities: {openCount}</h2>
+    <ul class="hq-stages">
+      <zb-each items={stages} as="stage" key={stage.stage}><li><span>{stage.label}</span> <strong>{stage.count}</strong></li></zb-each>
+    </ul>
+    <p><a href="/pipeline">See the pipeline</a></p>
   </section>
   <section class="hq-panel" aria-labelledby="recent-activity">
     <h2 id="recent-activity">Recent activity</h2>

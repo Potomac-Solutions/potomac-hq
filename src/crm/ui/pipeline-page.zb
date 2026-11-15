@@ -1,0 +1,59 @@
+<!--
+  Every open opportunity, grouped by stage. A button moves one to the next
+  stage and comes back here. Prices show only for people who may see them.
+-->
+<script>
+  'use route /pipeline'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.pipeline()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Pipeline', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .hq-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; align-items: start; }
+  .hq-column { display: grid; gap: 0.75rem; }
+  .hq-column h2 { display: flex; justify-content: space-between; margin: 0; font-size: 1rem; }
+  .hq-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+  .hq-card { display: grid; gap: 0.35rem; padding: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-card p { margin: 0; }
+  .hq-card form { margin: 0.35rem 0 0; }
+  .hq-card .hq-button { height: 2rem; padding: 0 0.75rem; font-size: 0.85rem; }
+</style>
+<hq-pipeline view={{ columns: [], openCount: 0, canMove: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Pipeline</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <empty-state zb-if={view.openCount === 0} heading="No open opportunities">Open one from a client's page.</empty-state>
+    <div zb-else class="hq-columns">
+      <zb-each items={view.columns} as="column" key={column.stage}>
+        <section class="hq-column" aria-labelledby="stage-{column.stage}">
+          <h2 id="stage-{column.stage}"><span>{column.label}</span> <span class="hq-tag">{column.items.length}</span></h2>
+          <ul class="hq-cards">
+            <zb-each items={column.items} as="item" key={item.id}>
+              <li class="hq-card">
+                <p><a href="/opportunities/{item.id}"><strong>{item.title}</strong></a></p>
+                <p class="hq-muted">{item.clientName} · {item.serviceLabel}</p>
+                <p zb-if={item.price}>{item.price}</p>
+                <p zb-if={item.followUpOn}>Follow up {item.followUpOn} <span zb-if={item.followUpDue} class="hq-tag due">Due</span></p>
+                <form zb-if={view.canMove} method="post" action="/opportunities/{item.id}/stage">
+                  <input type="hidden" name="to" value={column.nextStage}>
+                  <input type="hidden" name="returnTo" value="pipeline">
+                  <button class="hq-button secondary" type="submit" aria-label="Move to {column.nextStageLabel}: {item.title}">Move to {column.nextStageLabel}</button>
+                </form>
+              </li>
+            </zb-each>
+          </ul>
+        </section>
+      </zb-each>
+    </div>
+  </div>
+</hq-pipeline>
