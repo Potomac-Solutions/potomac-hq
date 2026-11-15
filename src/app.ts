@@ -13,10 +13,12 @@ import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, t
 import { formatWhenIn, sqliteActivityReader } from "./dashboard/adapters.ts";
 import { recentActivity, type RecentActivityDeps } from "./dashboard/index.ts";
 import { createHqStaff, createHqStaffPages, memoryRateLimit, sqliteUserStore } from "./identity/adapters.ts";
+import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { establishUser, type SessionDeps, type SignedInAccount } from "./identity/index.ts";
+import { establishUser, requestPasswordReset, type SessionDeps, type SignedInAccount } from "./identity/index.ts";
 import { problemPage } from "./identity/ui/views.ts";
-import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
+import { createNotify } from "@potomac-solutions/kit/notify";
+import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database, type EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { sqliteProjectStore } from "./projects/adapters.ts";
 import { projectDetail } from "./projects/index.ts";
@@ -44,6 +46,8 @@ export type AppConfig = {
    * node_modules/.cache, which the container's user cannot write to.
    */
   readonly cacheDir?: string;
+  /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
+  readonly email?: EmailConfig | null;
 };
 
 export type App = {
@@ -77,7 +81,7 @@ export type PageContext = {
   /** A message from the last redirect, shown once. Only ever one the server signed. */
   readonly notice: { readonly problem: string; readonly done: string };
   /** Props for the sign-in page. */
-  readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean };
+  readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: string;
   /** The sign-in or no-access page when there is no active HQ user, otherwise null. Every page calls it first. */
@@ -174,7 +178,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       const user = who ? establishUser(sessionDeps, who) : null;
       const notice = readNotice(new URL(request.url));
       const actor = user?.id ?? null;
-      const signIn = { ...notice, needsOwner: staff.needsOwner() };
+      const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
       return {
@@ -205,8 +209,56 @@ export async function createApp(config: AppConfig): Promise<App> {
     const user = who ? establishUser(sessionDeps, who) : null;
     return user?.id ?? null;
   };
+  // "Forgot your password?" by email, when email is set up.
+  const email = config.email ?? null;
+  const resetMail = email
+    ? createNotify({
+        send: email.send,
+        templates: {
+          "password-reset": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Set a new password for Potomac HQ",
+            body: `Hi ${name},\n\nSomeone asked to set a new password for your Potomac HQ account. If it was you, open this link. It works once:\n\n${link}\n\nIf it wasn't you, ignore this email. Your password has not changed.\n\nPotomac Solutions`,
+          }),
+        },
+      })
+    : null;
+  const requestReset = resetMail && email
+    ? (address: string) =>
+        requestPasswordReset(
+          {
+            ...sessionDeps,
+            publicUrl: email.publicUrl,
+            log,
+            accounts: {
+              findActive: (wanted) => {
+                const one = staff.list().find((person) => person.email === wanted && !person.disabled);
+                return one ? { account: one.account, name: one.name } : null;
+              },
+              issueReset: async (target) => {
+                const owner = staff.list().find((person) => person.roles.includes("owner") && !person.disabled);
+                if (!owner) return null;
+                const made = await staff.resetLink({ account: owner.account }, target);
+                return made.ok ? made.token : null;
+              },
+            },
+            mail: async (to, message) => "ok" in (await resetMail.notify({ email: to }, "password-reset", message)),
+          },
+          address,
+        )
+    : null;
+
   const forms = new Hono();
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route(
+    "/",
+    forgotRoutes({
+      request: requestReset,
+      clientOf: (incoming) => clientOf(incoming as IncomingMessage),
+      allowPerAddress: memoryRateLimit({ max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: memoryRateLimit({ max: 3, windowMs: 60 * 60_000 }),
+      sign: (location) => notices.sign(location),
+    }),
+  );
   forms.notFound((c) => c.html(renderPage("Not found", problemPage({ title: "Not found", message: "There is no page at this address." })), 404));
   forms.onError((error, c) => {
     log(`Form post failed: ${c.req.method} ${c.req.path}`, error);

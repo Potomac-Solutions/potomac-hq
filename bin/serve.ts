@@ -7,11 +7,13 @@
 //   HQ_CACHE_DIR       a writable folder for compiled pages, inside the app's
 //                      folder so they can import its packages (the container sets it)
 //   HQ_BACKUP_*        nightly backups (see .env.example); off when unset
+//   HQ_BREVO_API_KEY,  outbound email for "Forgot your password?"; off when unset
+//   HQ_EMAIL_FROM
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
-import { backupConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
+import { backupConfigFrom, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -37,6 +39,7 @@ const app = await createApp({
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
   noticeSecret,
+  email: emailConfigFrom(process.env),
   ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });
 
