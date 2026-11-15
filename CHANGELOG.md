@@ -32,6 +32,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
   each applied in its own transaction, and an `npm run migrate` command.
 - Database helper that opens SQLite with foreign keys on and wraps work in a
   transaction.
+- Activity events: the append-only `activity_event` table (migration 0001),
+  with triggers that reject every update, delete and replace.
+- Audit helper `recordActivity`, which every use case calls inside the same
+  transaction as its change. It refuses context that names a secret.
 
 ### Changed
 
