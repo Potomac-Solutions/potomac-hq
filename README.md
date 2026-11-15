@@ -12,13 +12,14 @@ holds the scaffold only, with no features.
 - `docs/decisions/0001-stack.md`: the stack and why.
 - `docs/data-model.md`: the first slice of records.
 - `docs/authorization-matrix.md`: who may do what.
+- `docs/scope-v0.1-v0.2.md`: what v0.1 and v0.2 include and leave out.
 - `docs/conventions.md`: branches, releases and project rules.
 
 ## Layout
 
 ```
 src/<module>/index.ts          the only door into a module
-src/<module>/domain/           entities and rules, imports nothing
+src/<module>/domain/           entities and rules, imports only shared/domain
 src/<module>/application/      use cases, imports domain
 src/<module>/infrastructure/   database, storage and email adapters
 src/<module>/api/              HTTP routes, imports application
