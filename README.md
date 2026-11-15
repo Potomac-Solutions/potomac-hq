@@ -2,8 +2,9 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: v0.1 (foundation) is in progress. Sign-in, the shell and the
-dashboard's activity panel work. There is no deploy or backup yet.
+Status: v0.1's code is done; its deploy and backups wait on the Railway
+project and the R2 bucket. v0.2's first slice works: client, contact,
+opportunity, follow-up, project.
 
 ## Read first
 

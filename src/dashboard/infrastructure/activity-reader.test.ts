@@ -51,7 +51,7 @@ test("an admin sees every event, newest first, with the actor's name and a local
   assert.deepEqual(
     result.value.items.map((item) => [item.text, item.when, item.whenIso]),
     [
-      ["Mikey Nichols opportunity.stage-changed", "Nov 14, 2026, 9:05 PM", "2026-11-15T02:05:00Z"],
+      ["Mikey Nichols moved an opportunity to a new stage", "Nov 14, 2026, 9:05 PM", "2026-11-15T02:05:00Z"],
       ["A password reset link was issued", "Nov 14, 2026, 9:04 PM", "2026-11-15T02:04:00Z"],
       ["Mikey Nichols signed in", "Nov 14, 2026, 9:03 PM", "2026-11-15T02:03:00Z"],
     ],
@@ -70,7 +70,7 @@ test("a member sees activity on client records only, never sign-ins or user chan
     const result = recentActivity(deps, viewer);
     assert.ok(result.ok);
     assert.equal(result.value.everything, false);
-    assert.deepEqual(result.value.items.map((item) => item.text), ["New Hire opportunity.created", "Mikey Nichols client.created"]);
+    assert.deepEqual(result.value.items.map((item) => item.text), ["New Hire opened an opportunity", "Mikey Nichols added a client"]);
   }
 });
 

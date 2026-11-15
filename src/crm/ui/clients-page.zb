@@ -1,0 +1,55 @@
+<!--
+  Every client, and the form that adds one.
+-->
+<script>
+  'use route /clients'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.listClients()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Clients', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-clients view={{ clients: [], canCreate: false, sizeTiers: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Clients</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="client-list">
+      <h2 id="client-list">All clients</h2>
+      <empty-state zb-if={view.clients.length === 0} heading="No clients yet">Add the first one below.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Size</th><th scope="col">Open opportunities</th></tr></thead>
+        <tbody>
+          <zb-each items={view.clients} as="client" key={client.id}>
+            <tr><td><a href="/clients/{client.id}">{client.name}</a></td><td>{client.statusLabel}</td><td>{client.sizeTierLabel}</td><td>{client.openOpportunities}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+    <section zb-if={view.canCreate} class="hq-panel" aria-labelledby="new-client">
+      <h2 id="new-client">Add a client</h2>
+      <form method="post" action="/clients" class="hq-form">
+        <text-field label="Business name" name="name" required={true} autocomplete="organization"></text-field>
+        <div class="hq-field">
+          <label for="client-size">Size</label>
+          <select id="client-size" name="sizeTier">
+            <option value="">Not sure yet</option>
+            <zb-each items={view.sizeTiers} as="tier" key={tier.value}><option value={tier.value}>{tier.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Website" name="website" description="Optional, like example.com" autocomplete="url"></text-field>
+        <text-field label="Phone" name="phone" type="tel" autocomplete="tel"></text-field>
+        <text-field label="Address" name="address" rows={2} autocomplete="street-address"></text-field>
+        <div><button class="hq-button" type="submit">Add client</button></div>
+      </form>
+    </section>
+  </div>
+</hq-clients>

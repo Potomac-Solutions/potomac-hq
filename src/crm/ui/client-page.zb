@@ -1,0 +1,121 @@
+<!--
+  One client: its details and status, its contacts, and its opportunities,
+  with the forms that add to each.
+-->
+<script>
+  'use route /clients/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.clientDetail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.client.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/clients">Clients</a></p>
+    <h1>{view.client.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="client-details">
+      <h2 id="client-details">Details</h2>
+      <dl class="hq-facts">
+        <dt>Status</dt><dd>{view.client.statusLabel}</dd>
+        <dt>Size</dt><dd>{view.client.sizeTierLabel || "Not set"}</dd>
+        <dt>Website</dt><dd><a zb-if={view.client.website} href={view.client.website} rel="noopener noreferrer">{view.client.website}</a><span zb-else class="hq-muted">None</span></dd>
+        <dt>Phone</dt><dd>{view.client.phone || "None"}</dd>
+        <dt>Address</dt><dd>{view.client.address || "None"}</dd>
+      </dl>
+      <form zb-if={view.can.setStatus} method="post" action="/clients/{view.client.id}/status" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="client-status">Change status</label>
+          <select id="client-status" name="status">
+            <zb-each items={view.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === view.client.status}>{status.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Save status</button>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="client-contacts">
+      <h2 id="client-contacts">Contacts</h2>
+      <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
+        <tbody>
+          <zb-each items={view.contacts} as="contact" key={contact.id}>
+            <tr>
+              <td>{contact.name} <span zb-if={contact.isPrimary} class="hq-tag">Primary</span></td>
+              <td>{contact.title}</td>
+              <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
+              <td>{contact.phone}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={view.can.addContact} method="post" action="/clients/{view.client.id}/contacts" class="hq-form" data-spaced>
+        <h3>Add a contact</h3>
+        <text-field label="Name" name="name" required={true} autocomplete="name"></text-field>
+        <text-field label="Email" name="email" type="email" autocomplete="email" description="An email address or a phone number is needed."></text-field>
+        <text-field label="Phone" name="phone" type="tel" autocomplete="tel"></text-field>
+        <text-field label="Title" name="title" description="Optional, like Owner"></text-field>
+        <label class="hq-check"><input type="checkbox" name="isPrimary"> Primary contact</label>
+        <div><button class="hq-button" type="submit">Add contact</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.can.viewOpportunities} class="hq-panel" aria-labelledby="client-opportunities">
+      <h2 id="client-opportunities">Opportunities</h2>
+      <empty-state zb-if={view.opportunities.length === 0} heading="No opportunities yet">Open one when they ask about work.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Title</th><th scope="col">Service</th><th scope="col">Stage</th><th scope="col">Follow-up</th><th scope="col">Price</th></tr></thead>
+        <tbody>
+          <zb-each items={view.opportunities} as="opportunity" key={opportunity.id}>
+            <tr>
+              <td><a href="/opportunities/{opportunity.id}">{opportunity.title}</a></td>
+              <td>{opportunity.serviceLabel}</td>
+              <td>{opportunity.stageLabel}</td>
+              <td>{opportunity.followUpOn}</td>
+              <td>{opportunity.price}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={view.can.createOpportunity} method="post" action="/clients/{view.client.id}/opportunities" class="hq-form" data-spaced>
+        <h3>Open an opportunity</h3>
+        <text-field label="Title" name="title" required={true} description="Like: Bakery website"></text-field>
+        <div class="hq-field">
+          <label for="opportunity-service">Service</label>
+          <select id="opportunity-service" name="service">
+            <option value="">Not chosen yet</option>
+            <zb-each items={view.services} as="service" key={service.value}><option value={service.value}>{service.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="opportunity-source">How they found you</label>
+          <select id="opportunity-source" name="leadSource" required>
+            <zb-each items={view.leadSources} as="source" key={source.value}><option value={source.value}>{source.label}</option></zb-each>
+          </select>
+        </div>
+        <div zb-if={view.contacts.length > 0} class="hq-field">
+          <label for="opportunity-contact">Contact</label>
+          <select id="opportunity-contact" name="contactId">
+            <option value="">None</option>
+            <zb-each items={view.contacts} as="contact" key={contact.id}><option value={contact.id}>{contact.name}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Notes" name="summary" rows={3} description="Optional. What they need, from the first call."></text-field>
+        <div><button class="hq-button" type="submit">Open opportunity</button></div>
+      </form>
+    </section>
+  </div>
+</hq-client>

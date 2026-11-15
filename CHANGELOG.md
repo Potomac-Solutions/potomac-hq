@@ -87,6 +87,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
   converted once into a project; monthly and yearly plans become ongoing
   projects. Deal prices are left out of everything a member is given.
 - Amounts are read as people type them (`$1,250.00`) and shown the same way.
+- Pages for the first slice: the clients list, a client's page with its
+  contacts and opportunities, an opportunity's page with its stage, price,
+  follow-up and conversion, and a project's page. Every form posts to the
+  server and works with JavaScript turned off.
+- The dashboard's second panel: follow-ups due, with overdue ones marked.
+- Form posts are refused unless the browser says they came from HQ itself,
+  are plain forms, and are under 16 KB.
 
 ### Changed
 
