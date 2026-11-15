@@ -31,7 +31,7 @@ Status: approved 2026-11-14. Source: M0 discovery interview.
 ## Deploys
 
 After CI passes on a push, `staging` deploys to Railway's test environment
-and `main` to production (`.github/workflows/deploy.yml`). Migrations run when
+and `main` to production (the Deploy job in `.github/workflows/ci.yml`). Migrations run when
 the container starts, before HQ serves anything.
 
 Only `staging` may be merged into `main`. CI refuses anything else.

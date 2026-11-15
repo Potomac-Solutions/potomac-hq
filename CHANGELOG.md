@@ -71,8 +71,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
   page also uses, because one imported by both was rendered twice.
 - Deploy configuration for Railway: a Dockerfile, `railway.json` with a
   health check and one replica, and a deploy workflow that ships `staging` to
-  the test environment and `main` to production after CI passes. It skips
-  until the Railway tokens and service name are set.
+  the test environment and `main` to production after CI passes. It is the
+  last job in CI, and it skips until the Railway tokens and service name are
+  set.
 - Nightly encrypted backups at 3:17 a.m. business time, to Cloudflare R2 or
   a local folder. The server seals each backup with a public key and cannot
   open it; only the private key can. Each backup, and each failure, is an
