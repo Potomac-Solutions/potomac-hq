@@ -2,8 +2,7 @@
 //   HQ_DATABASE_PATH=data/hq.db npm run migrate
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { openDatabase } from "../src/shared/infrastructure/database.ts";
-import { migrate, MigrationError, readMigrations } from "../src/shared/infrastructure/migrations.ts";
+import { migrate, MigrationError, openDatabase, readMigrations } from "../src/shared/adapters.ts";
 
 const path = process.env["HQ_DATABASE_PATH"];
 if (!path) {

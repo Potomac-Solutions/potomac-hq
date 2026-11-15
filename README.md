@@ -19,6 +19,7 @@ holds the scaffold only, with no features.
 
 ```
 src/<module>/index.ts          the only door into a module
+src/<module>/adapters.ts       a second door, for infrastructure code and bin/ only
 src/<module>/domain/           entities and rules, imports only shared/domain
 src/<module>/application/      use cases, imports domain
 src/<module>/infrastructure/   database, storage and email adapters
