@@ -6,10 +6,12 @@
 //   HQ_PUBLIC_URL      the address people use, for printed links
 //   HQ_CACHE_DIR       a writable folder for compiled pages, inside the app's
 //                      folder so they can import its packages (the container sets it)
+//   HQ_BACKUP_*        nightly backups (see .env.example); off when unset
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { createApp } from "../src/app.ts";
-import { openDatabase } from "../src/shared/adapters.ts";
+import { BUSINESS_TIME_ZONE } from "../src/app.ts";
+import { backupConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -38,6 +40,20 @@ const app = await createApp({
   ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });
 
+// Backups: every night at 03:17 business time, if they are set up. A half-set
+// configuration stops the start, so a missing backup is never silent.
+const backup = backupConfigFrom(process.env);
+const stopBackups = backup
+  ? scheduleDaily(
+      () =>
+        runBackup({ db, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock: systemClock, newId, ...backup }).then((result) =>
+          console.log(`Backup saved: ${result.name} (${result.bytes} bytes) to ${backup.target.describe}.`),
+        ),
+      { zone: BUSINESS_TIME_ZONE, hour: 3, minute: 17, clock: systemClock, log: (message, error) => console.error(message, error ?? "") },
+    )
+  : null;
+console.log(backup ? `Nightly backups go to ${backup.target.describe}.` : "Backups are not set up. Nothing will be backed up.");
+
 const server = createServer(app.listener);
 server.listen(port, async () => {
   console.log(`Potomac HQ is listening on port ${port}.`);
@@ -47,6 +63,7 @@ server.listen(port, async () => {
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
+    stopBackups?.();
     server.close(() => {
       db.close();
       process.exit(0);
