@@ -173,7 +173,14 @@ for every sign-in.
 | `context` | JSON | What changed, for example the old and new stage |
 
 - **Append-only.** There is no code path that updates or deletes an event, and
-  database triggers reject any attempt.
+  database triggers reject any update, delete or replace.
+- **`actor_id` is not a foreign key.** The audit table must never be the
+  reason a change is refused. Users are disabled, never deleted, so the id
+  always resolves.
+- **`action` is a dotted lower-case key** and `record_type` is one lower-case
+  name.
+- **A context key that names a secret is refused**, at any depth: a password,
+  token, session, API key or card detail.
 - **Sensitive values are referenced, never copied in.** `context` never holds
   a password, a token or a payment detail.
 - The record change and its event are written in one transaction. If either
