@@ -18,10 +18,13 @@
     "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.ts\"",
     "check": "npm run typecheck && npm run lint:boundaries && npm run lint:boundaries:selftest && npm run test:unit && npm run test:integration",
     "migrate": "node bin/migrate.ts",
+    "start": "node bin/serve.ts",
+    "reset-link": "node bin/reset-link.ts",
     "release:prepare": "node tools/release/prepare.mjs",
     "release:notes": "node tools/release/notes.mjs"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.8",
     "@potomac-solutions/kit": "github:potomac-solutions/kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
     "@zubra/compiler": "5.15.0",
     "@zubra/runtime": "5.15.0",

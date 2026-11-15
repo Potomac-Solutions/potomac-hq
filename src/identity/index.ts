@@ -6,3 +6,5 @@ export type { User, UserError, UserStatus } from "./domain/user.ts";
 export { authorize, type Forbidden } from "./application/authorize.ts";
 export { createFirstAdmin, type CreateFirstAdminDeps, type CreateFirstAdminError } from "./application/create-first-admin.ts";
 export type { UserStore } from "./application/ports.ts";
+export { establishUser, recordSessionEvent, type SessionDeps, type SessionEvent, type SignedInAccount } from "./application/session.ts";
+export type { RateLimit, UserStore as IdentityUserStore } from "./application/ports.ts";
