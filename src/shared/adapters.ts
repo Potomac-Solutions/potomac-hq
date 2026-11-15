@@ -7,3 +7,7 @@ export { inTransaction, openDatabase, type Database } from "./infrastructure/dat
 export { newId } from "./infrastructure/ids.ts";
 export { migrate, MigrationError, readMigrations, type Migration, type MigrationProblem } from "./infrastructure/migrations.ts";
 export { sqliteTransact, systemClock } from "./infrastructure/system.ts";
+export { backupConfigFrom, type BackupConfig } from "./infrastructure/backup/config.ts";
+export { BackupFileError, open as openBackup, seal as sealBackup } from "./infrastructure/backup/envelope.ts";
+export { backupName, nextRun, runBackup, scheduleDaily, type BackupDeps, type BackupResult } from "./infrastructure/backup/run-backup.ts";
+export { directoryTarget, r2Target, type BackupTarget, type R2Config } from "./infrastructure/backup/targets.ts";

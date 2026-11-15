@@ -50,12 +50,18 @@ it needs the client sign-in.
 
 ## Data protection
 
-- The database is encrypted at rest.
-- A backup runs every day. Each backup is encrypted before it leaves the
-  server, with a key only Mikey holds. The key is never stored on the server
-  or in the repo.
-- Backup copies are kept in Cloudflare R2.
-- A restore is tested at every release, as the roadmap requires.
+- The database is encrypted at rest by the host (Railway volumes, AES-256).
+- A backup runs every night at 3:17 a.m. business time. Each one is a
+  consistent copy of the database, sealed before it leaves the server.
+- **Only Mikey can open a backup.** The server holds a public key, so it can
+  seal backups but never open them. Each backup gets a fresh AES-256-GCM key,
+  sealed with RSA-OAEP to that public key. The private key, protected by a
+  passphrase, never touches the server or the repo.
+- Backups go to Cloudflare R2, in a folder per environment.
+- Every backup, and every failed one, is written as an activity event.
+- A restore is tested at every release, as the roadmap requires:
+  `npm run restore` opens a backup into a new database file and runs SQLite's
+  integrity check.
 
 ## Open items
 
