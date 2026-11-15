@@ -2,7 +2,8 @@
 // Implementation Roadmap ("Build approach"). CI fails on any violation.
 //
 // Layout: src/<module>/<layer>/..., with src/<module>/index.ts as the only
-// door into a module. One exception: any domain may import src/shared/domain,
+// door into a module, plus src/<module>/adapters.ts for infrastructure code.
+// One exception: any domain may import src/shared/domain,
 // which itself imports nothing (docs/scope-v0.1-v0.2.md).
 
 const UI_AND_FRAMEWORK_PACKAGES =
@@ -55,8 +56,16 @@ module.exports = {
       from: { path: "^src/([^/]+)/", pathNot: "^src/[^/]+/domain/" },
       to: {
         path: "^src/[^/]+/",
-        pathNot: ["^src/$1/", "^src/[^/]+/index\\.ts$"],
+        pathNot: ["^src/$1/", "^src/[^/]+/(index|adapters)\\.ts$"],
       },
+    },
+    {
+      name: "adapters-door-is-for-infrastructure",
+      comment:
+        "src/<module>/adapters.ts exposes a module's infrastructure. Only infrastructure code may import it (bin/ commands sit outside src).",
+      severity: "error",
+      from: { path: "^src/[^/]+/(domain|application|api|ui)/" },
+      to: { path: "^src/[^/]+/adapters\\.ts$" },
     },
     {
       name: "infrastructure-not-api-or-ui",

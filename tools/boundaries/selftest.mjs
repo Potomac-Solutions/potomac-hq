@@ -20,6 +20,8 @@ const expected = {
   "src/alpha/application/bad-reaches-into-beta.ts": ["application-imports-domain-only", "no-other-module-internals"],
   "src/alpha/infrastructure/bad-uses-api.ts": ["infrastructure-not-api-or-ui"],
   "src/alpha/api/bad-uses-domain.ts": ["api-imports-application-only"],
+  "src/alpha/api/bad-uses-beta-adapters.ts": ["adapters-door-is-for-infrastructure"],
+  "src/alpha/application/bad-uses-beta-adapters.ts": ["adapters-door-is-for-infrastructure", "application-imports-domain-only"],
   "src/alpha/ui/bad-uses-application.ts": ["ui-imports-api-contracts-only"],
 };
 
