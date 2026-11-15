@@ -31,7 +31,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Host | Railway: one service with a persistent volume holding the database file |
 | Environments | Local, test and production. Test and production are Railway environments |
 | File storage and backup copies | Cloudflare R2 |
-| Outbound email | Brevo or Resend (undecided), behind the kit's `notify` interface |
+| Outbound email | Brevo, behind the kit's `notify` interface. Wired in v0.2 |
 | Node adapter | `@hono/node-server` 2.1.8, for the request listener only |
 | UI rendering | Server-rendered Zubra components through `@zubra/server`, served as pages by `@zubra/router`. No client framework in the internal app |
 | Second host framework | Held for the client portal at v0.6 |
@@ -117,8 +117,7 @@ Zubra UI has no tagged release and the kit is not on npm.
 
 ## Open items
 
-1. **Sending service**: Brevo or Resend. Needed before v0.1's sign-in work.
-2. **Confirm on Railway**: that a service with a volume runs as a single
+1. **Confirm on Railway**: that a service with a volume runs as a single
    instance, and how long a deploy interrupts it.
 
 ## Sources
