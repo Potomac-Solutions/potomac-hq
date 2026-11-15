@@ -36,8 +36,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
   with triggers that reject every update, delete and replace.
 - Audit helper `recordActivity`, which every use case calls inside the same
   transaction as its change. It refuses context that names a secret.
+- Users, roles and permissions (migration 0002), with the three roles seeded
+  to match `docs/authorization-matrix.md`.
+- `can()` and `authorize()`, the permission check every application service
+  runs first. It denies by default and reads roles from storage each time.
+- `createFirstAdmin`, which works only while HQ has no users.
+- A test that fails if the authorization matrix document and the code differ.
 
 ### Changed
 
 - Boundary lint: any module's domain may now import `src/shared/domain`.
   `shared/domain` still imports nothing.
+- Boundary lint: a module may expose its infrastructure through
+  `src/<module>/adapters.ts`, which only infrastructure code may import.
