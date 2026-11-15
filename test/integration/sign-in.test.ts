@@ -23,7 +23,7 @@ let logged: string[];
 
 async function start(attemptsPerMinute = 100): Promise<void> {
   logged = [];
-  app = createApp({
+  app = await createApp({
     db,
     secure: false,
     proxies: 0,
@@ -79,7 +79,7 @@ function browser() {
 }
 
 function events(): string[] {
-  return (db.prepare("select action from activity_event order by occurred_at, rowid").all() as { action: string }[]).map((e) => e.action);
+  return (db.prepare("select action from activity_event order by rowid").all() as { action: string }[]).map((e) => e.action);
 }
 
 function userCount(): number {
@@ -98,13 +98,64 @@ async function setUpOwner(b = browser()) {
 test("signed out, the home page is the sign-in form and says how to get started", async () => {
   const res = await browser().get("/");
   const html = await res.text();
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 401);
   assert.match(html, /<form[^>]+action="\/staff\/sign-in"/);
   assert.match(html, /Nobody has an account here yet/);
+  assert.doesNotMatch(html, /Sign out/);
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");
   assert.equal(res.headers.get("x-frame-options"), "DENY");
-  assert.match(res.headers.get("content-security-policy") ?? "", /default-src 'none'/);
   assert.equal(res.headers.get("cache-control"), "no-store");
+});
+
+test("no page carries an inline script or an inline style block, and the policy allows neither", async () => {
+  const b = await setUpOwner();
+  const policy = (await b.get("/")).headers.get("content-security-policy") ?? "";
+  assert.match(policy, /default-src 'none'/);
+  assert.match(policy, /script-src 'self'(;|$)/);
+  assert.match(policy, /style-src 'self'(;|$)/);
+  for (const path of ["/", "/nothing-here", "/staff/password"]) {
+    const html = await (await b.get(path)).text();
+    assert.doesNotMatch(html, /<style[\s>]/, path);
+    for (const script of html.matchAll(/<script\b[^>]*>/g)) {
+      assert.match(script[0], /^<script type="module" src="\/_zubra\/[^"]+"><?/, `${path}: ${script[0]}`);
+    }
+    assert.doesNotMatch(html, /\son[a-z]+=/, `${path}: inline event handler`);
+  }
+});
+
+test("every page has a title, and no component is rendered inside itself", async () => {
+  const signedOut = await (await browser().get("/")).text();
+  assert.match(signedOut, /<title>Sign in<\/title>/);
+  const b = await setUpOwner();
+  const pages: [string, RegExp][] = [
+    ["/", /<title>Dashboard<\/title>/],
+    ["/nothing-here", /<title>Page not found<\/title>/],
+  ];
+  for (const [path, title] of pages) {
+    const html = await (await b.get(path)).text();
+    assert.match(html, title, path);
+    assert.equal(html.match(/<title>/g)?.length, 1, `${path}: one title`);
+  }
+  // A component imported by both the shell and a page was rendered twice,
+  // nested (https://github.com/journey-to-code-org/zubra/issues/300). The shell
+  // avoids that. This catches a return.
+  for (const html of [signedOut, await (await b.get("/")).text(), await (await b.get("/nothing-here")).text()]) {
+    assert.doesNotMatch(html, /<button\b[^>]*>(?:(?!<\/button>)[\s\S])*<button\b/, "a button inside a button");
+    assert.doesNotMatch(html, /data-zb-filled="[^"]*"[^>]*data-zb-filled=/, "a component filled twice");
+  }
+});
+
+test("the theme, the mark and a component's script are served, and nothing else under /assets", async () => {
+  const b = browser();
+  const css = await b.get("/assets/theme.css");
+  assert.equal(css.status, 200);
+  assert.match(css.headers.get("content-type") ?? "", /^text\/css/);
+  assert.equal((await b.get("/assets/potomac-mark.webp")).headers.get("content-type"), "image/webp");
+  assert.equal((await b.get("/assets/..%2f..%2fpackage.json")).status, 404);
+  assert.equal((await b.get("/assets/theme.css.map")).status, 404);
+  const module = await b.get("/_zubra/components/app.js");
+  assert.equal(module.status, 200);
+  assert.match(module.headers.get("content-type") ?? "", /javascript/);
 });
 
 test("the health check answers without a session", async () => {
@@ -118,7 +169,11 @@ test("the setup link makes the first admin, signs them in, and records both", as
 
   const home = await b.get("/");
   assert.equal(home.status, 200);
-  assert.match(await home.text(), /signed in as Mikey Nichols/);
+  const html = await home.text();
+  assert.match(html, /<span class="hq-who">Mikey Nichols<\/span>/);
+  // The v0.1 gate: the dashboard shows your own sign-in in the activity panel.
+  assert.match(html, /<li><span>Mikey Nichols signed in<\/span> <time datetime="[^"]+Z">[^<]+<\/time><\/li>/);
+  assert.match(html, /Mikey Nichols was added as a user/);
 
   const user = db.prepare("select name, email, status from user").get();
   assert.deepEqual({ ...user }, { name: "Mikey Nichols", email: "mikey@example.com", status: "active" });
@@ -157,7 +212,7 @@ test("sign out, a wrong password, then the right one", async () => {
   const right = await b.post("/staff/sign-in", { email: "MIKEY@example.com", password: PASSWORD });
   assert.equal(right.status, 303);
   assert.ok(b.hasCookie());
-  assert.match(await (await b.get("/")).text(), /signed in as Mikey Nichols/);
+  assert.match(await (await b.get("/")).text(), /<span class="hq-who">Mikey Nichols<\/span>/);
 
   assert.deepEqual(events(), ["user.created", "user.signed-in", "user.signed-out", "user.signed-in"]);
 });
@@ -249,7 +304,9 @@ test("a kit account with no HQ user can sign in but gets no access and creates n
   assert.equal((await b.post("/staff/accept", { token: invite.token, name: "Stranger", password: PASSWORD })).status, 303);
   const home = await b.get("/");
   assert.equal(home.status, 403);
-  assert.match(await home.text(), /has not been given access/);
+  const html = await home.text();
+  assert.match(html, /has not been given access/);
+  assert.doesNotMatch(html, /signed in<\/span>/, "no activity is shown");
   assert.equal(userCount(), 1);
   assert.deepEqual(events(), ["user.created", "user.signed-in"]);
 });
@@ -259,6 +316,7 @@ test("a disabled HQ user gets no access, even with a live session", async () => 
   db.prepare("update user set status = 'disabled'").run();
   const home = await b.get("/");
   assert.equal(home.status, 403);
+  assert.doesNotMatch(await home.text(), /hq-activity/);
 });
 
 test("oversized and non-form posts are refused before the kit sees them", async () => {
@@ -272,5 +330,8 @@ test("oversized and non-form posts are refused before the kit sees them", async 
 test("unknown addresses are 404, under /staff and elsewhere", async () => {
   const b = browser();
   assert.equal((await b.get("/staff/nothing-here")).status, 404);
-  assert.equal((await b.get("/nothing-here")).status, 404);
+  const missing = await b.get("/nothing-here");
+  assert.equal(missing.status, 404);
+  assert.match(await missing.text(), /There is no page at this address/);
+  assert.equal((await b.raw("/", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "" })).status, 404);
 });

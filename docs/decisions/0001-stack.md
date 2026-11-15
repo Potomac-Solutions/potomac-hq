@@ -37,7 +37,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Second host framework | Held for the client portal at v0.6 |
 | Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 5.17.0 |
 | Kit | Installed from GitHub at an exact commit |
-| Zubra UI | Copied in through the shadcn CLI. A manifest records the upstream commit, starting at `ba5737e` |
+| Zubra UI | Source `.zb` files copied in from commit `ba5737e` into `src/shared/ui/zubra`. `zubra-ui.lock.json` records the commit and a checksum per file, and CI fails if a copy is edited |
 | Boundary lint | dependency-cruiser |
 | Package manager | npm |
 | Tests | `node:test` for domain and integration tests, Playwright for end-to-end tests |
@@ -102,6 +102,18 @@ Zubra UI has no tagged release and the kit is not on npm.
   are not pages.
 - TypeScript stays on version 6 until dependency-cruiser supports version 7,
   whose compiler API it cannot read yet.
+
+- Zubra UI's registry cannot be reached from the workspace HQ is built in,
+  so the shadcn CLI cannot run there. The same source files are copied from
+  a clone at the pinned commit instead. The checksum check replaces trust in
+  the CLI.
+- Zubra is run with `inline: false`, so pages carry no inline script or
+  style block and the content security policy allows neither. Inline style
+  attributes are allowed, because server-rendered Zubra UI components use
+  them (`nav-bar` at this commit).
+- UI files may import the design system in `src/shared/ui` as well as their
+  own module's `api/contracts`. Everything else a page needs reaches it
+  through `load`'s `context`.
 
 ## Open items
 

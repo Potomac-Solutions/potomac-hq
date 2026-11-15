@@ -1,0 +1,53 @@
+<!--
+  The dashboard. In v0.1 it has one panel: recent activity, read from the
+  audit table. Signed out, the sign-in form is shown at the same address.
+-->
+<script>
+  'use route /'
+  import { show } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+
+  export async function load({ context }) {
+    if (!context.signedIn) return show('identity/ui/sign-in-page', { ...context.signIn, title: 'Sign in' }, { status: 401 })
+    if (!context.user) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    const feed = context.dashboard.recentActivity()
+    if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    return {
+      title: 'Dashboard',
+      items: feed.value.items,
+      everything: feed.value.everything,
+      done: context.notice.done,
+      problem: context.notice.problem,
+    }
+  }
+
+  const empty = items.length === 0
+</script>
+<style>
+  :host { display: block; }
+  .hq-notices { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
+  .hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-activity { list-style: none; margin: 0; padding: 0; }
+  .hq-activity li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .hq-activity li:first-child { border-top: 0; }
+  .hq-activity time, .hq-scope { color: var(--muted-foreground); font-size: 0.9rem; }
+  .hq-scope { margin: 0 0 0.5rem; }
+</style>
+<hq-dashboard items={[]} everything={false} done="" problem="">
+  <h1>Dashboard</h1>
+  <div zb-if={done || problem} class="hq-notices">
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+  </div>
+  <section class="hq-panel" aria-labelledby="recent-activity">
+    <h2 id="recent-activity">Recent activity</h2>
+    <p class="hq-scope">{everything ? "Everything recorded in HQ, newest first." : "Changes to clients, opportunities and projects, newest first."}</p>
+    <empty-state zb-if={empty} heading="No activity yet">Changes to clients, opportunities and projects will be listed here.</empty-state>
+    <ol zb-else class="hq-activity">
+      <zb-each items={items} as="item" key={item.id}>
+        <li><span>{item.text}</span> <time datetime={item.whenIso}>{item.when}</time></li>
+      </zb-each>
+    </ol>
+  </section>
+</hq-dashboard>

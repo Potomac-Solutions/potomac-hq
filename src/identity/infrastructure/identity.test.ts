@@ -38,7 +38,7 @@ afterEach(() => {
 
 function events(): { actor_id: string | null; action: string; record_type: string; record_id: string; context: string }[] {
   return db
-    .prepare("select actor_id, action, record_type, record_id, context from activity_event order by occurred_at, id")
+    .prepare("select actor_id, action, record_type, record_id, context from activity_event order by rowid")
     .all()
     .map((row) => ({ ...row })) as never;
 }

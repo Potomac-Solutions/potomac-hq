@@ -1,6 +1,13 @@
 {
   "source": "https://github.com/journey-to-code-org/zubra-ui",
   "commit": "ba5737ea04d6079914283f94582172b1bdc2447d",
-  "note": "Zubra UI components are copied in with the shadcn CLI from this commit and never edited here. Fixes go upstream, then the component is copied again and this commit is updated. See docs/decisions/0001-stack.md.",
-  "components": []
+  "note": "Zubra UI components are copied from this commit into src/shared/ui/zubra and never edited here. Fixes go upstream, then the component is copied again and this file is updated. `npm run lint:zubra-ui` fails if a copy differs from its checksum. See docs/decisions/0001-stack.md.",
+  "directory": "src/shared/ui/zubra",
+  "components": {
+    "action-button.zb": "58c69727694a7bc15f46eea90ca31861de6f3c28b6df0c4631979cb2b2daa094",
+    "alert-banner.zb": "9166ce30747673eaddbdab48e79b149d5554e8d9e1e76365ee77443315aa4bef",
+    "empty-state.zb": "8a4330a9a166015b64f3d879198b9dd44d87c944ca7edc20d6c8c936ec48142d",
+    "nav-bar.zb": "8290e82938dcf2d451173ff589af115c726716b3ac17f5f2096a018d15d0aa42",
+    "text-field.zb": "7142109064942a63d60533fce8a09732024aca5ad828dfc8a94de6ba38426ecb"
+  }
 }

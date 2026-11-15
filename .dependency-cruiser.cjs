@@ -3,7 +3,8 @@
 //
 // Layout: src/<module>/<layer>/..., with src/<module>/index.ts as the only
 // door into a module, plus src/<module>/adapters.ts for infrastructure code.
-// One exception: any domain may import src/shared/domain,
+// Two exceptions: any ui may import the design system in src/shared/ui, and
+// any domain may import src/shared/domain,
 // which itself imports nothing (docs/scope-v0.1-v0.2.md).
 
 const UI_AND_FRAMEWORK_PACKAGES =
@@ -56,7 +57,7 @@ module.exports = {
       from: { path: "^src/([^/]+)/", pathNot: "^src/[^/]+/domain/" },
       to: {
         path: "^src/[^/]+/",
-        pathNot: ["^src/$1/", "^src/[^/]+/(index|adapters)\\.ts$"],
+        pathNot: ["^src/$1/", "^src/[^/]+/(index|adapters)\\.ts$", "^src/shared/ui/"],
       },
     },
     {
@@ -84,10 +85,18 @@ module.exports = {
     },
     {
       name: "ui-imports-api-contracts-only",
-      comment: "ui may import its own files and its module's api/contracts, nothing else in src.",
+      comment:
+        "ui may import its own files, its module's api/contracts and the design system in src/shared/ui, nothing else in src.",
       severity: "error",
       from: { path: "^src/([^/]+)/ui/" },
-      to: { path: "^src/", pathNot: "^src/$1/(ui|api/contracts)/" },
+      to: { path: "^src/", pathNot: ["^src/$1/(ui|api/contracts)/", "^src/shared/ui/"] },
+    },
+    {
+      name: "shared-ui-is-for-ui",
+      comment: "src/shared/ui is the design system. Only ui code may import it.",
+      severity: "error",
+      from: { path: "^src/[^/]+/(domain|application|infrastructure|api)/" },
+      to: { path: "^src/shared/ui/" },
     },
     {
       name: "no-circular",

@@ -2,8 +2,8 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: v0.1 (foundation) is in progress. Sign-in works. There is no shell,
-dashboard, deploy or backup yet.
+Status: v0.1 (foundation) is in progress. Sign-in, the shell and the
+dashboard's activity panel work. There is no deploy or backup yet.
 
 ## Read first
 
@@ -24,7 +24,9 @@ src/<module>/domain/           entities and rules, imports only shared/domain
 src/<module>/application/      use cases, imports domain
 src/<module>/infrastructure/   database, storage and email adapters
 src/<module>/api/              HTTP routes, imports application
-src/<module>/ui/               Zubra components, imports api/contracts
+src/<module>/ui/               Zubra components and pages, imports api/contracts and shared/ui
+src/shared/ui/                 the design system: theme, assets, Zubra UI copies
+src/app.zb, src/error.zb       the shell around every page, and the 404 and 500 page
 src/app.ts                     the composition root: wires every layer together
 bin/                           commands: serve, migrate, reset-link
 types/                         type declarations for the kit
@@ -34,8 +36,14 @@ test/e2e/                      browser tests
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `crm`. The import rules are in
-`.dependency-cruiser.cjs` and CI fails when one is broken.
+Modules so far: `shared`, `identity`, `dashboard`, `crm`. The import rules are in
+`.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
+files to the same rule. CI fails when one is broken.
+
+Pages are Zubra components served by `@zubra/router`. A page says its address
+with `'use route'`, and its `load` gets the app's services through `context`
+(`PageContext` in `src/app.ts`). A page file imports no application or
+infrastructure code.
 
 ## Run it
 

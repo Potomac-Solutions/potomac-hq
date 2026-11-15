@@ -1,0 +1,28 @@
+<!--
+  The sign-in form. It posts to the Potomac kit's sign-in route as a plain
+  form, so it works with or without JavaScript.
+-->
+<script>
+  import '../../shared/ui/zubra/action-button.zb'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+</script>
+<style>
+  :host { display: block; max-width: 26rem; margin: 2rem auto; }
+  .hq-sign-in { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-sign-in h1 { margin: 0; }
+  .hq-sign-in form { display: grid; gap: 1rem; margin: 0; }
+</style>
+<hq-sign-in problem="" done="" needs-owner={false}>
+  <div class="hq-sign-in">
+    <h1>Sign in</h1>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    <alert-banner zb-if={needsOwner} variant="info" heading="Nobody has an account here yet">The setup link is in the server log. It works once.</alert-banner>
+    <form method="post" action="/staff/sign-in">
+      <text-field label="Email" name="email" type="email" autocomplete="username" required={true}></text-field>
+      <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
+      <div><action-button type="submit">Sign in</action-button></div>
+    </form>
+  </div>
+</hq-sign-in>

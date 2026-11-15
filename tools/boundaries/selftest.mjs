@@ -23,6 +23,8 @@ const expected = {
   "src/alpha/api/bad-uses-beta-adapters.ts": ["adapters-door-is-for-infrastructure"],
   "src/alpha/application/bad-uses-beta-adapters.ts": ["adapters-door-is-for-infrastructure", "application-imports-domain-only"],
   "src/alpha/ui/bad-uses-application.ts": ["ui-imports-api-contracts-only"],
+  "src/alpha/api/bad-uses-shared-ui.ts": ["shared-ui-is-for-ui"],
+  "src/alpha/ui/bad-uses-beta-ui.ts": ["no-other-module-internals", "ui-imports-api-contracts-only"],
 };
 
 let json;

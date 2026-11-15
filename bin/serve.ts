@@ -28,7 +28,7 @@ const port = Number(process.env["PORT"] ?? 3000);
 const publicUrl = (process.env["HQ_PUBLIC_URL"] ?? `http://localhost:${port}`).replace(/\/$/, "");
 
 const db = openDatabase(databasePath);
-const app = createApp({
+const app = await createApp({
   db,
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),

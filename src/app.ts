@@ -2,16 +2,25 @@
 // adapters, hands them to the application services and routes, and returns a
 // Node request listener.
 import { getRequestListener } from "@hono/node-server";
+import { createRouter } from "@zubra/router";
+import { createZubra } from "@zubra/server";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { join } from "node:path";
+import { formatWhenIn, sqliteActivityReader } from "./dashboard/adapters.ts";
+import { recentActivity, type RecentActivityDeps } from "./dashboard/index.ts";
 import { createHqStaff, createHqStaffPages, memoryRateLimit, sqliteUserStore } from "./identity/adapters.ts";
-import { homeRoutes } from "./identity/api/home-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import type { SessionDeps, SignedInAccount } from "./identity/index.ts";
-import { noHqUser, problemPage, signedInHome } from "./identity/ui/views.ts";
+import { establishUser, type SessionDeps, type SignedInAccount } from "./identity/index.ts";
+import { problemPage } from "./identity/ui/views.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
+import { staticRoutes } from "./shared/api/static-routes.ts";
 import { recordActivity } from "./shared/index.ts";
-import { renderPage } from "./shared/ui/page.ts";
+import { loadAssets } from "./shared/ui/assets.ts";
+import { HEAD_LINKS, renderPage } from "./shared/ui/page.ts";
+
+/** "Due today" and the times people read are worked out here (docs/data-model.md). */
+export const BUSINESS_TIME_ZONE = "America/New_York";
 
 export type AppConfig = {
   /** An open database with every migration applied. */
@@ -35,24 +44,47 @@ export type App = {
   resetPath(email: string): Promise<string | null>;
 };
 
+// Nothing inline is allowed to run. Zubra is told to write no inline script
+// or style (`inline: false`), so every script and stylesheet comes from this
+// origin. Inline style attributes are allowed because server-rendered Zubra
+// UI components use them.
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "same-origin",
   "content-security-policy":
-    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
-export function createApp(config: AppConfig): App {
+/** What every page's `load` is given as `context`. UI files get the app's services only through this. */
+export type PageContext = {
+  /** True when a session is live, whether or not it maps to an HQ user. */
+  readonly signedIn: boolean;
+  /** The active HQ user, or null. */
+  readonly user: { readonly id: string; readonly name: string } | null;
+  /** A message from the last redirect, shown once. Only ever one the server signed. */
+  readonly notice: { readonly problem: string; readonly done: string };
+  /** Props for the sign-in page. */
+  readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean };
+  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity> };
+};
+
+export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
+  const users = sqliteUserStore(db);
   const sessionDeps: SessionDeps = {
-    users: sqliteUserStore(db),
+    users,
     activityLog: sqliteActivityLog(db),
     transact: sqliteTransact(db),
     clock: systemClock,
     newId,
+  };
+  const dashboardDeps: RecentActivityDeps = {
+    users,
+    activity: sqliteActivityReader(db),
+    formatWhen: formatWhenIn(BUSINESS_TIME_ZONE),
   };
 
   const staff = createHqStaff(db, { secure: config.secure });
@@ -84,44 +116,61 @@ export function createApp(config: AppConfig): App {
     log,
   });
 
-  const web = new Hono();
-  web.route(
-    "/",
-    homeRoutes({
-      session: (cookieHeader) => {
-        const who = staff.session(cookieHeader);
-        const signedIn = account(cookieHeader);
-        return who && signedIn ? { who: signedIn, barHtml: pages.bar(who) } : null;
-      },
-      sessionDeps,
-      readNotice,
-      views: { page: renderPage, signIn: (url) => pages.signIn(url), signedInHome, noHqUser },
-    }),
-  );
-  web.notFound((c) => c.html(renderPage("Not found", problemPage({ title: "Not found", message: "There is no page at this address." })), 404));
-  web.onError((error, c) => {
-    log("Unhandled error", error);
-    return c.html(renderPage("Something went wrong", problemPage({ title: "Something went wrong", message: "The error has been logged." })), 500);
+  // Pages: Zubra components under src, served by the router. `src/app.zb` is
+  // the shell and `src/error.zb` the 404 and 500 page.
+  const components = join(import.meta.dirname);
+  const zubra = createZubra({ components, inline: false });
+  const router = await createRouter({
+    zubra,
+    components,
+    lang: "en",
+    head: `<meta name="robots" content="noindex, nofollow">${HEAD_LINKS}`,
+    onError: (error, request) => log(`Page failed: ${request.method} ${new URL(request.url).pathname}`, error),
+    context: ({ request }): PageContext => {
+      const who = account(request.headers.get("cookie") ?? "");
+      const user = who ? establishUser(sessionDeps, who) : null;
+      const notice = readNotice(new URL(request.url));
+      return {
+        signedIn: who !== null,
+        user: user ? { id: user.id, name: user.name } : null,
+        notice,
+        signIn: { ...notice, needsOwner: staff.needsOwner() },
+        dashboard: { recentActivity: () => recentActivity(dashboardDeps, user?.id ?? null) },
+      };
+    },
   });
+
+  const web = new Hono();
+  web.route("/", staticRoutes({ assets: loadAssets() }));
   const handleWeb = getRequestListener(web.fetch);
+  const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+
+  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
+    if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
+    const url = new URL(req.url ?? "/", "http://hq.invalid");
+    const path = url.pathname;
+
+    if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);
+    if (isStatic(path)) return void (await handleWeb(req, res));
+    if (zubra.handle(req, res)) return; // the components' browser modules and stylesheets
+
+    // Pages show who is signed in, so they are never stored by a browser or proxy.
+    res.setHeader("cache-control", "no-store");
+    if (await router.handle(req, res)) return;
+    await router.notFound(req, res);
+  }
 
   return {
     listener(req, res) {
-      for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
-      if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
-      const url = new URL(req.url ?? "/", "http://hq.invalid");
-      if (url.pathname === "/staff" || url.pathname.startsWith("/staff/")) {
-        handleStaff(req, res, url).catch((error: unknown) => {
-          log("Unhandled error in a sign-in route", error);
-          if (!res.headersSent) {
-            sendHtml(res, 500, "Something went wrong", problemPage({ title: "Something went wrong", message: "The error has been logged." }));
-          } else {
-            res.end();
-          }
-        });
-        return;
-      }
-      void handleWeb(req, res);
+      handle(req, res).catch((error: unknown) => {
+        log(`Unhandled error: ${req.method} ${req.url}`, error);
+        if (!res.headersSent) {
+          sendHtml(res, 500, "Something went wrong", problemPage({ title: "Something went wrong", message: "The error has been logged." }));
+        } else {
+          res.end();
+        }
+      });
     },
     async setupPath() {
       const token = await staff.setup();
@@ -135,7 +184,7 @@ export function createApp(config: AppConfig): App {
       if (!target || !owner) return null;
       const made = await staff.resetLink({ account: owner.account }, target.account);
       if (!made.ok) return null;
-      const user = sessionDeps.users.findByStaffAccount(target.account);
+      const user = users.findByStaffAccount(target.account);
       // Run from the server by someone with access to it, so there is no
       // signed-in actor. The event still says it happened.
       if (user) {

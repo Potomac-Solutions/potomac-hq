@@ -1,0 +1,81 @@
+/* The Potomac theme for Zubra UI. The names are shadcn/ui's, which every Zubra
+   UI component reads. Neutrals come from potomac.solutions, the primary blue
+   from the Potomac mark. Every colour is a light and dark pair. Light is the
+   only one switched on for now: dark mode is issue #2. A test checks each
+   pair's contrast against WCAG AA. */
+:root {
+  color-scheme: light;
+  --radius: 0.5rem;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --background: #eaede8;
+  --foreground: #152b2b;
+  --card: #ffffff;
+  --card-foreground: #152b2b;
+  --popover: #ffffff;
+  --popover-foreground: #152b2b;
+  --primary: #0060b4;
+  --primary-foreground: #ffffff;
+  --secondary: #d9dfd8;
+  --secondary-foreground: #152b2b;
+  --muted: #dfe4dd;
+  --muted-foreground: #45595a;
+  --accent: #d3e4f4;
+  --accent-foreground: #0b3a66;
+  --destructive: #b42318;
+  --border: #c2cbc3;
+  --input: #7b8b86;
+  --ring: #0060b4;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #101820;
+  --foreground: #f3f7f5;
+  --card: #182830;
+  --card-foreground: #f3f7f5;
+  --popover: #182830;
+  --popover-foreground: #f3f7f5;
+  --primary: #5bb8f5;
+  --primary-foreground: #06223a;
+  --secondary: #22343e;
+  --secondary-foreground: #f3f7f5;
+  --muted: #1d2d36;
+  --muted-foreground: #a9b8b6;
+  --accent: #1e3a52;
+  --accent-foreground: #cfe8fb;
+  --destructive: #f97066;
+  --border: #2c404a;
+  --input: #71858f;
+  --ring: #5bb8f5;
+}
+
+/* The page itself. Components carry their own styles. */
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--background); color: var(--foreground); }
+body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; }
+a { color: var(--primary); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 1rem; }
+h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+
+.skip-link { position: absolute; left: 0.5rem; top: -4rem; padding: 0.5rem 0.75rem; background: var(--card); color: var(--foreground); border: 2px solid var(--ring); border-radius: var(--radius); z-index: 10; }
+.skip-link:focus { top: 0.5rem; }
+
+/* Pages the Potomac kit writes itself: the one-time link form and the change
+   password form. They are plain HTML inside a narrow column. */
+.plain-page { max-width: 30rem; margin: 3rem auto; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+.plain-page label { display: block; margin: 0.9rem 0; font-weight: 600; }
+.plain-page input { display: block; width: 100%; margin-top: 0.3rem; padding: 0.55rem 0.65rem; font: inherit; color: inherit; background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+.plain-page .hint { display: block; font-weight: 400; color: var(--muted-foreground); font-size: 0.9rem; }
+.plain-page .button { display: inline-flex; align-items: center; height: 2.5rem; padding: 0 1rem; font: inherit; font-weight: 600; color: var(--primary-foreground); background: var(--primary); border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+.plain-page .button.light { color: var(--foreground); background: var(--card); border-color: var(--border); }
+.plain-page .notice { margin: 0 0 1rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: calc(var(--radius) - 2px); background: var(--background); }
+.plain-page .notice.bad { border-left-color: var(--destructive); }
+.plain-page form.inline { display: inline; }
+.plain-page .staff-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.plain-page .brand { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 1.25rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
+.plain-page .brand img { width: 2rem; height: 2rem; }

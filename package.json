@@ -12,11 +12,13 @@
     "typecheck": "tsc --noEmit",
     "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs",
     "lint:boundaries:selftest": "node tools/boundaries/selftest.mjs",
+    "lint:components": "node tools/boundaries/zb-check.mjs && node tools/boundaries/zb-check.mjs --selftest",
+    "lint:zubra-ui": "node tools/zubra-ui/verify.mjs",
     "test:domain": "node --test \"src/*/domain/**/*.test.ts\"",
     "test:unit": "node --test \"src/*/domain/**/*.test.ts\" \"src/*/application/**/*.test.ts\"",
     "test:integration": "node --test \"src/*/infrastructure/**/*.test.ts\" \"src/*/api/**/*.test.ts\" \"test/integration/**/*.test.ts\"",
     "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.ts\"",
-    "check": "npm run typecheck && npm run lint:boundaries && npm run lint:boundaries:selftest && npm run test:unit && npm run test:integration",
+    "check": "npm run typecheck && npm run lint:boundaries && npm run lint:boundaries:selftest && npm run lint:components && npm run lint:zubra-ui && npm run test:unit && npm run test:integration",
     "migrate": "node bin/migrate.ts",
     "start": "node bin/serve.ts",
     "reset-link": "node bin/reset-link.ts",
@@ -33,6 +35,7 @@
     "hono": "4.13.18"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@types/node": "26.6.6",
     "dependency-cruiser": "18.7.2",
     "playwright": "1.65.1",

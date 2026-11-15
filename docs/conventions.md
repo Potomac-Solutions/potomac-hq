@@ -54,10 +54,12 @@ Only `staging` may be merged into `main`. CI refuses anything else.
 | `npm run typecheck` | Types |
 | `npm run lint:boundaries` | Layer and module import rules |
 | `npm run lint:boundaries:selftest` | That each import rule still catches a violation |
+| `npm run lint:components` | The same import rule for `.zb` component files, and its self-test |
+| `npm run lint:zubra-ui` | That copied Zubra UI components are unedited |
 | `npm run test:domain` | Domain tests only |
 | `npm run test:unit` | Domain and application tests |
 | `npm run test:integration` | Tests against a real database and real packages |
-| `npm run test:e2e` | Browser tests |
+| `npm run test:e2e` | Browser tests, including accessibility checks on every screen |
 | `npm run check` | Everything except browser tests |
 | `npm start` | Starts HQ. Needs the settings in `.env.example` |
 | `npm run reset-link -- <email>` | Prints a one-time password reset link |

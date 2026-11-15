@@ -12,7 +12,7 @@ if (!email || !databasePath) {
 }
 
 const db = openDatabase(databasePath);
-const app = createApp({ db, secure: false, proxies: 0, noticeSecret: "not-used-by-this-command-0000000000" });
+const app = await createApp({ db, secure: false, proxies: 0, noticeSecret: "not-used-by-this-command-0000000000" });
 const path = await app.resetPath(email);
 db.close();
 if (!path) {
