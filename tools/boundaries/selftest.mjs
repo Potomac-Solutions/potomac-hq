@@ -13,6 +13,8 @@ const expected = {
   "src/alpha/domain/bad-uses-node.ts": ["domain-imports-nothing-outside-itself"],
   "src/alpha/domain/bad-uses-application.ts": ["domain-imports-nothing-outside-itself"],
   "src/alpha/domain/bad.test.ts": ["domain-tests-stay-pure"],
+  "src/shared/domain/bad-uses-alpha.ts": ["domain-imports-nothing-outside-itself"],
+  "src/alpha/application/bad-reaches-into-shared-domain.ts": ["application-imports-domain-only", "no-other-module-internals"],
   "src/alpha/application/bad-uses-hono.ts": ["application-imports-domain-only", "core-no-zubra-or-ui-framework"],
   "src/alpha/application/bad-uses-infrastructure.ts": ["application-imports-domain-only"],
   "src/alpha/application/bad-reaches-into-beta.ts": ["application-imports-domain-only", "no-other-module-internals"],
