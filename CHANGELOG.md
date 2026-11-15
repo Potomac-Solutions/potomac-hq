@@ -99,6 +99,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   with a button that moves it to the next stage and comes back.
 - A status filter on the clients list, and an "Open opportunities" panel on
   the dashboard with a count for each stage.
+- Outbound email through Brevo, and "Forgot your password?": a one-time
+  link by email, answered the same whether or not the email has an account,
+  sent only to active users, and rate limited per address and per email. It
+  is off until the Brevo key and a sending address are set, and the sign-in
+  page shows the link only when it is on.
 
 ### Changed
 
