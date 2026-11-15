@@ -35,7 +35,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Node adapter | `@hono/node-server` 2.1.8, for the request listener only |
 | UI rendering | Server-rendered Zubra components through `@zubra/server`, served as pages by `@zubra/router`. No client framework in the internal app |
 | Second host framework | Held for the client portal at v0.6 |
-| Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 5.17.0 |
+| Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 5.19.0. Nothing older than 5.19.0: 5.17.0 and 5.18.0 have router guard bypasses |
 | Kit | Installed from GitHub at an exact commit |
 | Zubra UI | Source `.zb` files copied in from commit `ba5737e` into `src/shared/ui/zubra`. `zubra-ui.lock.json` records the commit and a checksum per file, and CI fails if a copy is edited |
 | Boundary lint | dependency-cruiser |
@@ -94,7 +94,7 @@ Zubra UI has no tagged release and the kit is not on npm.
 
 - The kit (commit `41d3587`), `@zubra/server` and Hono load and pass the
   integration tests on Node 26. Confirmed 2026-11-14, on 5.15.0 and again on
-  5.17.0.
+  5.17.0, and 2026-11-15 on 5.19.0.
 - `@zubra/router` was adopted at 5.17.0, its first release. It serves pages
   from components with no host framework, which is the shape HQ chose. Its
   `load` receives the app's services through `context`, so UI files still
