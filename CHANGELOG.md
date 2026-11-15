@@ -42,6 +42,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
   runs first. It denies by default and reads roles from storage each time.
 - `createFirstAdmin`, which works only while HQ has no users.
 - A test that fails if the authorization matrix document and the code differ.
+- Sign-in through the Potomac kit's `staff` module: a one-time setup link for
+  the first admin, sign-in, sign-out and change password, with accounts and
+  sessions stored in SQLite (migration 0003).
+- A rate limit on sign-in and link routes, a 16 KB limit on posted forms, and
+  security headers on every response.
+- An activity event for every sign-in, sign-out, password change and reset
+  link.
+- `npm start` and `npm run reset-link`, and `.env.example`.
+- An end-to-end test of the sign-in workflow in a real browser.
 
 ### Changed
 
