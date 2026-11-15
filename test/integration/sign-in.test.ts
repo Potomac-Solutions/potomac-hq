@@ -104,7 +104,8 @@ test("signed out, the home page is the sign-in form and says how to get started"
   assert.doesNotMatch(html, /Sign out/);
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");
   assert.equal(res.headers.get("x-frame-options"), "DENY");
-  assert.equal(res.headers.get("cache-control"), "no-store");
+  // HQ sends no-store; @zubra/router 5.19.0 adds private for a page whose load ran.
+  assert.match(res.headers.get("cache-control") ?? "", /(^|,\s*)no-store(\s*,|$)/);
 });
 
 test("no page carries an inline script or an inline style block, and the policy allows neither", async () => {
