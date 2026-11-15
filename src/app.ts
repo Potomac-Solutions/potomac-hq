@@ -34,6 +34,11 @@ export type AppConfig = {
   readonly log?: (message: string, error?: unknown) => void;
   /** Sign-in attempts allowed per address per minute. */
   readonly attemptsPerMinute?: number;
+  /**
+   * Where the router writes the server halves of pages. Defaults to
+   * node_modules/.cache, which the container's user cannot write to.
+   */
+  readonly cacheDir?: string;
 };
 
 export type App = {
@@ -123,6 +128,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const router = await createRouter({
     zubra,
     components,
+    ...(config.cacheDir ? { cacheDir: config.cacheDir } : {}),
     lang: "en",
     head: `<meta name="robots" content="noindex, nofollow">${HEAD_LINKS}`,
     onError: (error, request) => log(`Page failed: ${request.method} ${new URL(request.url).pathname}`, error),

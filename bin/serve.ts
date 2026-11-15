@@ -4,6 +4,8 @@
 //   HQ_SECURE          "true" when served over https (production)
 //   HQ_PROXIES         trusted proxies in front: 1 on Railway, 0 locally
 //   HQ_PUBLIC_URL      the address people use, for printed links
+//   HQ_CACHE_DIR       a writable folder for compiled pages, inside the app's
+//                      folder so they can import its packages (the container sets it)
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { createApp } from "../src/app.ts";
@@ -33,6 +35,7 @@ const app = await createApp({
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
   noticeSecret,
+  ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });
 
 const server = createServer(app.listener);

@@ -123,11 +123,12 @@ jobs:
             -e HQ_DATABASE_PATH=/tmp/hq.db \
             -e HQ_NOTICE_SECRET=ci-secret-ci-secret-ci-secret-ci-secret \
             potomac-hq:ci
+          # Run as the image's own unprivileged user, with the app files read-only to it.
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3000/healthz; then echo; break; fi
             sleep 1
           done
-          curl -fsS http://localhost:3000/healthz
+          curl -fsS http://localhost:3000/healthz || { docker logs hq; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/)" = "401"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/_zubra/components/app.js)" = "200"
           docker logs hq 2>&1 | sed -E 's/token=[A-Za-z0-9_-]+/token=[hidden]/'
