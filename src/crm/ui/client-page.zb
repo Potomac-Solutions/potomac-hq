@@ -8,16 +8,17 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/parts/notes-panel.zb'
 
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/clients">Clients</a></p>
     <h1>{view.client.name}</h1>
@@ -117,5 +118,6 @@
         <div><button class="hq-button" type="submit">Open opportunity</button></div>
       </form>
     </section>
+    <notes-panel notes={notes}></notes-panel>
   </div>
 </hq-client>

@@ -20,7 +20,9 @@
   const links = [
     { label: 'Dashboard', href: '/', current: route.path === '/' },
     { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
-    { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') || route.path.startsWith('/projects') },
+    { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
+    { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') },
+    { label: 'Board', href: '/board', current: route.path === '/board' },
   ]
 </script>
 <style>
@@ -42,7 +44,7 @@
     <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
     <div slot="actions" class="hq-account">
       <span class="hq-who">{who}</span>
-      <a class="hq-account-action" href="/staff/password">Change password</a>
+      <a class="hq-account-action" href="/settings">Settings</a>
       <form method="post" action="/staff/sign-out">
         <button class="hq-account-action" type="submit">Sign out</button>
       </form>

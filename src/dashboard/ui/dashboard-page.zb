@@ -15,7 +15,12 @@
     if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     const due = context.crm.followUpsDue()
     const pipeline = context.crm.pipeline()
+    const active = context.projects.active()
+    const deadlines = context.projects.deadlines()
     return {
+      projects: active.ok ? active.value.items : [],
+      showProjects: active.ok,
+      deadlines: deadlines.ok ? deadlines.value.items : [],
       stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
       openCount: pipeline.ok ? pipeline.value.openCount : 0,
       title: 'Dashboard',
@@ -43,7 +48,7 @@
   .hq-activity time, .hq-scope { color: var(--muted-foreground); font-size: 0.9rem; }
   .hq-scope { margin: 0 0 0.5rem; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} done="" problem="">
   <h1>Dashboard</h1>
   <div zb-if={done || problem} class="hq-notices">
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -64,6 +69,25 @@
       <zb-each items={stages} as="stage" key={stage.stage}><li><span>{stage.label}</span> <strong>{stage.count}</strong></li></zb-each>
     </ul>
     <p><a href="/pipeline">See the pipeline</a></p>
+  </section>
+  <section zb-if={showProjects} class="hq-panel" aria-labelledby="upcoming-deadlines">
+    <h2 id="upcoming-deadlines">Upcoming deadlines</h2>
+    <empty-state zb-if={deadlines.length === 0} heading="Nothing due in the next two weeks">Milestones and tasks with a due date show here as it gets close.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={deadlines} as="item" key={item.key}>
+        <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={showProjects} class="hq-panel" aria-labelledby="active-projects">
+    <h2 id="active-projects">Active projects: {projects.length}</h2>
+    <empty-state zb-if={projects.length === 0} heading="No active projects">A project starts when a won opportunity is turned into one.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={projects} as="project" key={project.id}>
+        <li><span><a href="/projects/{project.id}">{project.name}</a> · {project.clientName} <span class="hq-tag" data-health={project.health}>{project.healthLabel}</span></span> <span>{project.next || "No milestone set"} <span zb-if={project.nextOverdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/board">Open the board</a></p>
   </section>
   <section class="hq-panel" aria-labelledby="recent-activity">
     <h2 id="recent-activity">Recent activity</h2>
