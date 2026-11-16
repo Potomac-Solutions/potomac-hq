@@ -207,6 +207,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | Download a deliverable's file | The deliverable is theirs and has been shared with the client |
 | Approve a deliverable, or ask for changes with a reason | It is shared and waiting for a decision |
 | Read the updates Potomac posted, and send a message back | On their own project. Internal notes are never shown |
+| Send a file, and download a file they sent | On their own active project. Checked like every upload, at most 20 a day for a project |
 | Read a proposal and download its PDF | It is theirs, it was sent, and Potomac turned on sharing for it |
 | Accept or decline a proposal by typing their name | It is waiting for an answer |
 | Download an invoice's PDF | It is theirs and was sent. Drafts and voided invoices are not shown |

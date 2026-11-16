@@ -157,7 +157,7 @@
         <ul class="hq-notes">
           <zb-each items={portal.calls} as="call" key={call.id}>
             <li>
-              <p><strong>{call.who}</strong> asked for a call: {call.wanted}<span zb-if={call.note}>. “{call.note}”</span> <span class="hq-muted hq-small">{call.when}</span></p>
+              <p><strong>{call.who}</strong> asked for a call: {call.wanted}<span zb-if={call.note}>. “{call.note}”</span><span zb-if={call.phone}> Call <a href="tel:{call.phone}">{call.phone}</a>.</span> <span class="hq-muted hq-small">{call.when}</span></p>
               <p zb-if={call.status === "confirmed"}>Confirmed for {call.confirmedFor}<span zb-if={call.reply}>. “{call.reply}”</span></p>
               <p zb-if={call.status === "declined"}>Declined<span zb-if={call.reply}>. “{call.reply}”</span></p>
               <form zb-if={call.status === "requested" && portal.canRespond} method="post" action="/call-requests/{call.id}/answer" class="hq-form">

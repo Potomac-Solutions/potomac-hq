@@ -38,6 +38,14 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "opportunity-lost": "This proposal is no longer open. Get in touch with Potomac Solutions.",
   "wanted-missing": "Say when you would like the call.",
   "wanted-too-long": "That is too long.",
+  "phone-invalid": "That doesn’t look like a phone number. Use digits, like 304-555-0142.",
+  "project-closed": "This project is finished, so files can’t be added to it. Send a message instead.",
+  "too-many-files": "That is a lot of files for one day. Send the rest tomorrow, or ask Potomac Solutions for another way.",
+  "file-missing": "Choose a file first.",
+  "file-too-large": "That file is too big. Files can be up to 25 MB each.",
+  "file-name-invalid": "That file’s name can’t be used. Rename it and try again.",
+  "file-type-not-allowed": "That kind of file can’t be sent here. Photos, PDFs and documents can.",
+  "file-content-mismatch": "That file isn’t what its name says it is. Save it again and try once more.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
@@ -175,7 +183,22 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     back: (id) => `/portal/proposals/${id}`,
     message: "Thank you. Your answer is recorded.",
   });
-  post("/portal/calls", (session, f) => signedIn(session, (s) => client.requestCall(deps.portal, s, { wanted: f["wanted"] ?? "", note: f["note"] ?? null })), {
+  // A message from the home page. The project comes from the form, and the service checks it is theirs.
+  post(
+    "/portal/messages",
+    (session, f) =>
+      signedIn(session, (s) => {
+        const project = parseId(f["projectId"] ?? "");
+        return project.ok ? client.sendMessage(deps.portal, s, project.value, f["body"] ?? "") : { ok: false as const, error: "not-found" };
+      }),
+    { done: () => "/portal#message", back: () => "/portal#message", message: "Message sent to Potomac Solutions." },
+  );
+  post("/portal/projects/:id/files", (session, _f, id, files) => signedIn(session, (s) => client.sendFile(deps.portal, s, id as Id, files["file"] ?? null)), {
+    done: (_, id) => `/portal/projects/${id}#files`,
+    back: (id) => `/portal/projects/${id}#files`,
+    message: "File sent to Potomac Solutions.",
+  });
+  post("/portal/calls", (session, f) => signedIn(session, (s) => client.requestCall(deps.portal, s, { wanted: f["wanted"] ?? "", note: f["note"] ?? null, phone: f["phone"] ?? null })), {
     done: () => "/portal#calls",
     back: () => "/portal#calls",
     message: "Request sent. Potomac Solutions will confirm a time.",

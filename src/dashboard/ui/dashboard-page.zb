@@ -92,7 +92,7 @@
     <h2 id="calls-waiting">Calls clients asked for</h2>
     <ul class="hq-activity">
       <zb-each items={calls} as="call" key={call.id}>
-        <li><span><a href="/clients/{call.clientId}#portal">{call.clientName}</a> · {call.who}: {call.wanted}</span> <span class="hq-scope">{call.when}</span></li>
+        <li><span><a href="/clients/{call.clientId}#portal">{call.clientName}</a> · {call.who}: {call.wanted}<span zb-if={call.phone}> · {call.phone}</span></span> <span class="hq-scope">{call.when}</span></li>
       </zb-each>
     </ul>
   </section>

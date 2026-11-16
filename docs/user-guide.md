@@ -75,7 +75,10 @@ On a client's page, "Invite someone to the portal". They get a link, choose
 a password, and see only their own organization's projects, shared
 deliverables, shared proposals and sent invoices. They can approve work,
 accept a proposal by typing their name, send a message and ask for a call.
-Call requests show on your dashboard.
+Call requests show on your dashboard, with the number to call back on if
+they gave one. They can also send files on a project: photos, a menu, a
+price list. Those show on the project under "Files from the client". Open
+one only if you were expecting it.
 
 ## Knowing what is going on
 

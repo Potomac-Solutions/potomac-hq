@@ -606,6 +606,19 @@ A client asking for a call, and Potomac's answer. This is the booking tool of
 | `reply` | text | Potomac's words back |
 | `answered_by` | id | The HQ user who answered |
 
+### Files a client sends
+
+A client can send a file on one of their own active projects. It is a File
+like any other (v0.3), filed under owner type `client-upload` with the
+project as its owner, belonging to the client's organization and visible to
+it. `uploaded_by_client` names the client user, and `uploaded_by` is empty.
+A project takes at most 20 a day this way. Receiving one writes
+`file.received-from-client`, which shows in the project's history.
+
+A Call Request also carries `phone`: the number to call back on, as the
+client typed it. Optional. Digits with the usual punctuation, at least
+seven of them.
+
 ### What a client's actions do to other records
 
 - **Approving a deliverable, or asking for changes,** is the same change as

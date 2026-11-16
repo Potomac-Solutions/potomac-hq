@@ -80,18 +80,23 @@ export type CallRequest = {
   /** When they would like it, in their words. */
   readonly wanted: string;
   readonly note: string;
+  /** The number to call, as they typed it. Empty when they gave none. */
+  readonly phone: string;
   readonly status: CallStatus;
   readonly confirmedFor: string | null;
   readonly reply: string;
   readonly answeredBy: Id | null;
 };
 
-export function newCallRequest(ids: { readonly id: Id; readonly organizationId: Id; readonly clientUserId: Id }, input: { readonly wanted: string; readonly note?: string | null }): Result<CallRequest, "wanted-missing" | "wanted-too-long" | "note-too-long"> {
+export function newCallRequest(ids: { readonly id: Id; readonly organizationId: Id; readonly clientUserId: Id }, input: { readonly wanted: string; readonly note?: string | null; readonly phone?: string | null }): Result<CallRequest, "wanted-missing" | "wanted-too-long" | "note-too-long" | "phone-invalid"> {
   const wanted = requiredText(input.wanted, 200);
   if (!wanted.ok) return err(wanted.error === "missing" ? "wanted-missing" : "wanted-too-long");
   const note = optionalText(input.note, 1000);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, wanted: wanted.value, note: note.value ?? "", status: "requested", confirmedFor: null, reply: "", answeredBy: null });
+  // A number as people write one: digits with spaces, dashes, dots, brackets, a plus, or "ext".
+  const phone = (input.phone ?? "").trim().replace(/\s+/g, " ");
+  if (phone !== "" && (phone.length > 40 || !/^[0-9+().\- extEXT]+$/.test(phone) || phone.replace(/\D/g, "").length < 7)) return err("phone-invalid");
+  return ok({ ...ids, wanted: wanted.value, note: note.value ?? "", phone, status: "requested", confirmedFor: null, reply: "", answeredBy: null });
 }
 
 export function answerCall(request: CallRequest, input: { readonly answer: string; readonly confirmedFor?: string | null; readonly reply?: string | null }, by: Id): Result<CallRequest, "already-answered" | "invalid-answer" | "when-missing" | "when-too-long" | "reply-too-long"> {
