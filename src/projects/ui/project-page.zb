@@ -15,11 +15,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} money={false} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
     <h1>{p.name}</h1>
@@ -194,6 +194,27 @@
           <div><button class="hq-button" type="submit">Upload deliverable</button></div>
         </form>
       </details>
+    </section>
+
+    <section zb-if={updates.canView} class="hq-panel" id="updates" aria-labelledby="project-updates">
+      <h2 id="project-updates">Updates for the client</h2>
+      <p class="hq-muted hq-small">What you post here, the client reads in the portal. Their messages come back here. Notes, below, stay inside HQ.</p>
+      <p zb-if={updates.items.length === 0} class="hq-muted" data-spaced>No updates or messages yet.</p>
+      <ol zb-else class="hq-notes">
+        <zb-each items={updates.items} as="update" key={update.id}>
+          <li>
+            <p class="hq-prose">{update.body}</p>
+            <p class="hq-muted hq-small"><span zb-if={update.fromClient} class="hq-tag">From the client</span> {update.authorName}, <time datetime={update.whenIso}>{update.when}</time></p>
+          </li>
+        </zb-each>
+      </ol>
+      <form zb-if={updates.canPost} method="post" action="/projects/{p.id}/updates" class="hq-form" data-spaced>
+        <div class="hq-field">
+          <label for="update-body">Post an update for the client</label>
+          <textarea id="update-body" name="body" rows="3" required maxlength="5000"></textarea>
+        </div>
+        <div><button class="hq-button" type="submit">Post update</button></div>
+      </form>
     </section>
 
     <notes-panel notes={notes}></notes-panel>
