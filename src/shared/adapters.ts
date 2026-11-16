@@ -12,3 +12,4 @@ export { BackupFileError, open as openBackup, seal as sealBackup } from "./infra
 export { backupName, nextRun, runBackup, scheduleDaily, type BackupDeps, type BackupResult } from "./infrastructure/backup/run-backup.ts";
 export { directoryTarget, r2Target, type BackupTarget, type R2Config } from "./infrastructure/backup/targets.ts";
 export { brevoSender, emailConfigFrom, type EmailConfig, type Send } from "./infrastructure/email/brevo.ts";
+export { pdfDocument, type Column, type PdfDocument } from "./infrastructure/pdf.ts";
