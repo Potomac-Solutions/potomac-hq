@@ -11,6 +11,7 @@
 //   HQ_BREVO_API_KEY,  outbound email: reset links, invites, alerts; off when unset
 //   HQ_EMAIL_FROM
 //   HQ_ALERT_EMAIL     where errors are emailed; needs email set up; off when unset
+//   HQ_CLIENT_NOTICES  "on" to email clients when something is waiting in the portal; needs email
 //   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
 //   PORT               defaults to 3000
@@ -22,6 +23,7 @@ import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
+import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -53,6 +55,18 @@ if (alertTo && !email) {
 const monitor = createMonitor({ name: publicUrl, clock: systemClock, alert: alertTo && email ? { to: alertTo, send: email.send } : null });
 const log = (message: string, error?: unknown) => monitor.report(message, error);
 
+const contact = contactFrom(process.env);
+const clientNoticesSetting = (process.env["HQ_CLIENT_NOTICES"] ?? "").trim().toLowerCase();
+if (!["", "on", "off"].includes(clientNoticesSetting)) {
+  console.error('HQ_CLIENT_NOTICES must be "on" or "off".');
+  process.exit(2);
+}
+const clientNotices = clientNoticesSetting === "on";
+if (clientNotices && !email) {
+  console.error("HQ_CLIENT_NOTICES needs email set up: set HQ_BREVO_API_KEY and HQ_EMAIL_FROM.");
+  process.exit(2);
+}
+
 const db = openDatabase(databasePath);
 const app = await createApp({
   db,
@@ -61,7 +75,8 @@ const app = await createApp({
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
   noticeSecret,
   publicUrl,
-  contact: contactFrom(process.env),
+  contact,
+  clientNotices,
   email,
   ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });
@@ -106,6 +121,30 @@ const stopRetention = scheduleDaily(
   { zone: BUSINESS_TIME_ZONE, hour: 4, minute: 7, clock: systemClock, log, name: "retention run" },
 );
 
+// Notices: every minute, email Potomac's people about what clients did, and
+// clients about what is waiting for them if that is turned on.
+let stopNotices: (() => void) | null = null;
+if (email) {
+  const noticeDeps = createServices(db).portal;
+  const mail: Mail = async (message) => "ok" in (await email.send({ channel: "email", ...message }));
+  let busy = false;
+  const timer = setInterval(() => {
+    if (busy) return;
+    busy = true;
+    sendNotices(noticeDeps, mail, { publicUrl, toClients: clientNotices, phone: contact.phone })
+      .then((sent) => {
+        if (sent.failed > 0) log(`Notices: ${sent.failed} could not be emailed`);
+      })
+      .catch((error: unknown) => log("Notices: the run failed", error))
+      .finally(() => (busy = false));
+  }, 60_000);
+  timer.unref();
+  stopNotices = () => clearInterval(timer);
+  console.log(`Notices: Potomac's people are emailed when a client acts. Clients are ${clientNotices ? "" : "not "}emailed when something is waiting.`);
+} else {
+  console.log("Notices are off: email is not set up.");
+}
+
 // The knowledge base gets HQ's own documents, once each. An article someone
 // edited is never overwritten.
 try {
@@ -137,6 +176,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopBackups?.();
     stopSheet?.();
     stopRetention();
+    stopNotices?.();
     server.close(() => {
       db.close();
       process.exit(0);

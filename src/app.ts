@@ -27,7 +27,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientFiles, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, clientActivity, clientFiles, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
@@ -64,6 +64,8 @@ export type AppConfig = {
   readonly publicUrl?: string;
   /** A cheaper password hash for the portal, for tests only. */
   readonly passwordCost?: { N: number; r: number; p: number };
+  /** Whether clients are emailed when something is waiting for them. Off unless set. */
+  readonly clientNotices?: boolean;
   /** How a client reaches Potomac, shown in the portal. Each part is left out when empty. */
   readonly contact?: PortalContact;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
@@ -169,6 +171,7 @@ export type PageContext = {
     access(organizationId: string): ReturnType<typeof portalAccess>;
     updates(projectId: string): ReturnType<typeof projectUpdates>;
     files(projectId: string): ReturnType<typeof clientFiles>;
+    fromClients(): ReturnType<typeof clientActivity>;
     calls(): ReturnType<typeof callsWaiting>;
   };
   /** The client portal. Everything here is for the signed-in client's own organization. */
@@ -176,6 +179,8 @@ export type PageContext = {
     readonly session: { readonly name: string } | null;
     /** How to reach Potomac. Shown on every portal page, signed in or not. */
     readonly contact: PortalContact;
+    /** True when clients are emailed that something is waiting, so the page offers to turn it off. */
+    readonly notices: boolean;
     /** The portal's sign-in page when no client is signed in, otherwise null. Every portal page calls it first. */
     guard(): Answer | null;
     home(): ReturnType<typeof portalHome>;
@@ -292,11 +297,13 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return parsed.ok ? clientFiles(portalDeps, actor, parsed.value) : { canView: false, items: [] };
           },
+          fromClients: () => clientActivity(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
         },
         portal: {
           session: client ? { name: client.name } : null,
           contact,
+          notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
           guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in" }, { status: 401 })),
           // Each of these is given the session and nothing else to decide whose records to read.
           home: () => portalHome(portalDeps, client as NonNullable<typeof client>),

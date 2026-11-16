@@ -15,7 +15,7 @@ import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
 import type { NotesDeps } from "./notes/index.ts";
-import { createPortalAuth, sqliteCallStore, sqliteClientUserStore, sqliteUpdateStore } from "./portal/adapters.ts";
+import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserStore, sqliteUpdateStore } from "./portal/adapters.ts";
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
@@ -101,6 +101,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     clientUsers: sqliteClientUserStore(db),
     updates: sqliteUpdateStore(db),
     calls: sqliteCallStore(db),
+    events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
   return { session, staff, crm, dashboard, audit, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };

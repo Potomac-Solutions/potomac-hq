@@ -20,6 +20,7 @@
     const hours = context.time.thisWeek()
     const over = context.money.overBudget()
     const calls = context.portalAdmin.calls()
+    const fromClients = context.portalAdmin.fromClients()
     return {
       projects: active.ok ? active.value.items : [],
       showProjects: active.ok,
@@ -32,6 +33,7 @@
       openCount: pipeline.ok ? pipeline.value.openCount : 0,
       title: 'Dashboard',
       followUps: due.ok ? due.value.items : [],
+      fromClients: fromClients.items,
       showFollowUps: due.ok,
       items: feed.value.items,
       everything: feed.value.everything,
@@ -57,7 +59,7 @@
   .hq-actions form { margin: 0; }
   .hq-scope { margin: 0 0 0.5rem; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} calls={[]} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} calls={[]} from-clients={[]} done="" problem="">
   <h1>Dashboard</h1>
   <div zb-if={done || problem} class="hq-notices">
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -85,6 +87,15 @@
     <ul zb-else class="hq-activity">
       <zb-each items={deadlines} as="item" key={item.key}>
         <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={fromClients.length > 0} class="hq-panel" aria-labelledby="from-clients">
+    <h2 id="from-clients">From your clients</h2>
+    <p class="hq-muted hq-small">What clients did in the portal in the last two weeks, newest first.</p>
+    <ul class="hq-activity">
+      <zb-each items={fromClients} as="item" key={item.id}>
+        <li><a href={item.href}>{item.text}</a> <time class="hq-scope" datetime={item.whenIso}>{item.when}</time></li>
       </zb-each>
     </ul>
   </section>

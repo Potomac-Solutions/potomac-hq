@@ -183,6 +183,11 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     back: (id) => `/portal/proposals/${id}`,
     message: "Thank you. Your answer is recorded.",
   });
+  post("/portal/notices", (session, f) => signedIn(session, (s) => client.setNotices(deps.portal, s, f["on"] === "1")), {
+    done: () => "/portal#notices",
+    back: () => "/portal#notices",
+    message: "Saved.",
+  });
   // A message from the home page. The project comes from the form, and the service checks it is theirs.
   post(
     "/portal/messages",

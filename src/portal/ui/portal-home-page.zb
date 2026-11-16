@@ -11,10 +11,10 @@
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    return { title: 'Your portal', view: context.portal.home(), contact: context.portal.contact, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', view: context.portal.home(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} contact={{}} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -129,6 +129,15 @@
         <text-field label="The best number to reach you" name="phone" type="tel" autocomplete="tel" description="If it’s different from the one Potomac Solutions already has"></text-field>
         <text-field label="What about?" name="note" rows={2}></text-field>
         <div><button class="hq-button portal-big" type="submit">Ask for a call</button></div>
+      </form>
+    </section>
+
+    <section zb-if={emails} class="hq-panel" id="notices" aria-labelledby="portal-notices">
+      <h2 id="portal-notices">Emails from this portal</h2>
+      <p>{view.notices ? "You get an email when something is waiting for you here. It never includes prices or files, only that there is something to see." : "You are not emailed when something is waiting. Check back here to see what is new."}</p>
+      <form method="post" action="/portal/notices">
+        <input type="hidden" name="on" value={view.notices ? "0" : "1"}>
+        <button class="hq-button secondary portal-big" type="submit">{view.notices ? "Stop these emails" : "Email me when something is waiting"}</button>
       </form>
     </section>
 
