@@ -25,7 +25,7 @@
     <form method="post" action="/portal/sign-in" class="hq-form hq-panel">
       <text-field label="Email" name="email" type="email" autocomplete="username" required={true}></text-field>
       <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
-      <div><button class="hq-button" type="submit">Sign in</button></div>
+      <div><button class="hq-button portal-big" type="submit">Sign in</button></div>
     </form>
     <p class="hq-muted">Forgot your password, or never had one? Ask Potomac Solutions for a new link.</p>
   </div>

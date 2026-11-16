@@ -27,7 +27,7 @@
       <p>For <strong>{link.email}</strong>.</p>
       <text-field zb-if={link.invite} label="Your name" name="name" value={link.name} autocomplete="name" required={true}></text-field>
       <text-field label="Choose a password" name="password" type="password" autocomplete="new-password" minlength={10} required={true} description="At least 10 characters."></text-field>
-      <div><button class="hq-button" type="submit">Save and sign in</button></div>
+      <div><button class="hq-button portal-big" type="submit">Save and sign in</button></div>
     </form>
   </div>
 </hq-portal-accept>

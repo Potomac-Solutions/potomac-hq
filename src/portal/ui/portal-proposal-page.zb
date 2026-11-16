@@ -20,16 +20,27 @@
   .paper h2 { margin-top: 1.25rem; }
   .paper ul { margin: 0.25rem 0; padding-left: 1.25rem; }
   .paper p { margin: 0.35rem 0; }
+  .paper table { font-size: 0.95rem; }
 </style>
 <hq-portal-proposal view={{ document: { sections: [], lines: [], summary: {} } }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/portal">Your portal</a></p>
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{doc.title}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p><strong>{view.statusLabel}</strong><span zb-if={view.answered}>. {view.answered}</span> · <a href="/portal/proposals/{doc.proposalId}/pdf">Download as a PDF</a></p>
+    <p><strong>{view.statusLabel}</strong><span zb-if={view.answered}>. {view.answered}</span></p>
+
+    <section class="hq-panel portal-todo" aria-labelledby="pprop-cost">
+      <h2 id="pprop-cost">What it costs</h2>
+      <dl class="portal-figures">
+        <div><dt>Total</dt><dd>{doc.summary.price}</dd></div>
+        <div zb-if={doc.summary.deposit}><dt>To start</dt><dd>{doc.summary.deposit}</dd></div>
+        <div zb-if={doc.summary.deposit}><dt>Before launch</dt><dd>{doc.summary.balance}</dd></div>
+      </dl>
+      <p class="portal-links"><a zb-if={view.canAnswer} class="hq-button portal-big" href="#pprop-answer">Go to your answer</a> <a class="hq-button secondary portal-big" href="/portal/proposals/{doc.proposalId}/pdf">Download as a PDF</a></p>
+    </section>
 
     <article class="hq-panel paper">
       <p class="hq-muted">From Potomac Solutions. Version {doc.number}, sent {doc.sentWhen}.</p>
@@ -44,7 +55,7 @@
       </zb-each>
       <h2 id="pprop-estimate">Estimate</h2>
       <table class="hq-table" aria-labelledby="pprop-estimate">
-        <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
+        <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Amount</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
         <tbody>
           <zb-each items={doc.lines} as="line" key={line.key}><tr><td>{line.item}</td><td class="hq-number">{line.quantityLabel}</td><td class="hq-number">{line.rate}</td><td class="hq-number">{line.total}</td></tr></zb-each>
         </tbody>
@@ -62,8 +73,13 @@
           <label class="hq-check"><input type="radio" name="decision" value="declined" required> I decline</label>
         </fieldset>
         <text-field label="Type your full name" name="typedName" autocomplete="name" required={true} description="Typing your name here is your signature on this answer. It is recorded with today’s date and this version."></text-field>
-        <div><button class="hq-button" type="submit">Send my answer</button></div>
+        <div><button class="hq-button portal-big" type="submit">Send my answer</button></div>
       </form>
+      <div class="portal-pay" data-spaced>
+        <h3>What happens next</h3>
+        <p>If you accept, Potomac Solutions sends an invoice<span zb-if={doc.summary.deposit}> for the {doc.summary.deposit} to start</span>. Work begins when it is paid, and you can follow it here.</p>
+        <p>If you decline, nothing is owed. Not sure yet? Go back to your portal and send a message or ask for a call.</p>
+      </div>
     </section>
   </div>
 </hq-portal-proposal>

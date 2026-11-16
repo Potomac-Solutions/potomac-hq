@@ -1,6 +1,6 @@
 <!--
-  One of a client's own projects: progress and milestones, what has been
-  shared with them to approve, and updates from Potomac.
+  One of a client's own projects: where it stands and its steps, what has
+  been shared with them to approve, files they send in, and updates.
 -->
 <script>
   'use route /portal/projects/:id'
@@ -16,9 +16,9 @@
   }
   const p = view.project
 </script>
-<hq-portal-project view={{ project: {}, progress: {}, milestones: [], deliverables: [], updates: [] }} done="" problem="">
+<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [] }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/portal">Your portal</a></p>
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{p.name}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -26,53 +26,73 @@
     </div>
 
     <section class="hq-panel" aria-labelledby="pp-progress">
-      <h2 id="pp-progress">Progress</h2>
-      <dl class="hq-facts">
-        <dt>Status</dt><dd>{p.statusLabel}, {p.healthLabel}</dd>
-        <dt>Next milestone</dt><dd>{view.next || "None set"}</dd>
-        <dt zb-if={p.targetOn}>Target date</dt><dd zb-if={p.targetOn}>{p.targetOn}</dd>
-        <dt>Billable hours so far</dt><dd>{view.billableHours}</dd>
-        <dt zb-if={p.description}>About</dt><dd zb-if={p.description} class="hq-prose">{p.description}</dd>
-      </dl>
-      <p zb-if={view.progress.total > 0} data-spaced>{view.progress.done} of {view.progress.total} milestones done.</p>
-      <table zb-if={view.milestones.length > 0} class="hq-table">
-        <thead><tr><th scope="col">Milestone</th><th scope="col">Due</th><th scope="col">Done</th></tr></thead>
-        <tbody>
-          <zb-each items={view.milestones} as="milestone" key={milestone.id}>
-            <tr><td>{milestone.name}</td><td>{milestone.dueOn} <span zb-if={milestone.overdue} class="hq-tag due">Late</span></td><td>{milestone.done ? "Yes" : "Not yet"}</td></tr>
-          </zb-each>
-        </tbody>
-      </table>
+      <h2 id="pp-progress">Where it stands</h2>
+      <p><span class="hq-tag" data-tone={p.tone}>{p.standing}</span><span zb-if={view.next}> Next: {view.next}</span></p>
+      <p zb-if={p.target}>Planned finish: {p.target}</p>
+      <p zb-if={p.description} class="hq-prose">{p.description}</p>
+      <p zb-if={view.billableHours} class="hq-muted">Billable hours so far: {view.billableHours}</p>
+      <p zb-if={view.progress.total > 0} class="portal-progress" data-spaced><progress max={view.progress.total} value={view.progress.done} aria-label="Steps done"></progress> <span class="hq-muted">{view.progress.text}</span></p>
+      <ol zb-if={view.steps.length > 0} class="portal-steps">
+        <zb-each items={view.steps} as="step" key={step.id}>
+          <li data-done={step.done ? "yes" : "no"}>
+            <span class="portal-mark" aria-hidden="true">{step.done ? "✓" : ""}</span>
+            <span><strong>{step.name}</strong><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
+          </li>
+        </zb-each>
+      </ol>
     </section>
 
     <section class="hq-panel" id="deliverables" aria-labelledby="pp-deliverables">
-      <h2 id="pp-deliverables">Shared with you</h2>
-      <empty-state zb-if={view.deliverables.length === 0} heading="Nothing shared yet">Designs and documents appear here when they are ready for you.</empty-state>
-      <ul zb-else class="hq-notes">
+      <h2 id="pp-deliverables">For you to look at</h2>
+      <empty-state zb-if={view.deliverables.length === 0} heading="Nothing yet">Designs and documents appear here when they are ready for you.</empty-state>
+      <ul zb-else class="portal-cards">
         <zb-each items={view.deliverables} as="item" key={item.id}>
-          <li>
-            <p><strong>{item.title}</strong> · <a href="/portal/files/{item.fileId}" aria-label="Download {item.fileName}">{item.fileName}</a></p>
-            <p zb-if={item.description} class="hq-muted">{item.description}</p>
-            <p>{item.statusLabel}<span zb-if={item.decisionNote}>: “{item.decisionNote}”</span></p>
-            <div zb-if={item.awaiting} class="hq-actions">
+          <li class="portal-stack">
+            <div>
+              <p><strong>{item.title}</strong></p>
+              <p zb-if={item.description} class="hq-muted">{item.description}</p>
+              <p>{item.statusLabel}<span zb-if={item.decisionNote}>: “{item.decisionNote}”</span></p>
+            </div>
+            <p><a class="hq-button secondary portal-big" href="/portal/files/{item.fileId}">Open {item.fileName}</a></p>
+            <div zb-if={item.awaiting} class="portal-decide">
               <form method="post" action="/portal/deliverables/{item.id}/decision">
                 <input type="hidden" name="projectId" value={p.id}>
                 <input type="hidden" name="decision" value="approved">
-                <button class="hq-button" type="submit" aria-label="Approve: {item.title}">Approve</button>
+                <p class="hq-muted">Happy with it?</p>
+                <button class="hq-button portal-big" type="submit" aria-label="Approve: {item.title}">Approve</button>
               </form>
-              <form method="post" action="/portal/deliverables/{item.id}/decision" class="hq-form-row">
+              <form method="post" action="/portal/deliverables/{item.id}/decision" class="hq-form">
                 <input type="hidden" name="projectId" value={p.id}>
                 <input type="hidden" name="decision" value="changes-requested">
                 <div class="hq-field">
-                  <label for="changes-{item.id}">What should change in {item.title}?</label>
-                  <input id="changes-{item.id}" name="note" required maxlength="2000">
+                  <label for="changes-{item.id}">Or, what should change in {item.title}?</label>
+                  <textarea id="changes-{item.id}" name="note" rows="3" required maxlength="2000"></textarea>
                 </div>
-                <button class="hq-button secondary" type="submit" aria-label="Ask for changes: {item.title}">Ask for changes</button>
+                <div><button class="hq-button secondary portal-big" type="submit" aria-label="Ask for changes: {item.title}">Ask for changes</button></div>
               </form>
             </div>
           </li>
         </zb-each>
       </ul>
+    </section>
+
+    <section class="hq-panel" id="files" aria-labelledby="pp-files">
+      <h2 id="pp-files">Send us a file</h2>
+      <p class="hq-muted">Photos, your logo, a menu, a price list: anything the work needs from you.</p>
+      <ul zb-if={view.files.length > 0} class="hq-list" data-spaced>
+        <zb-each items={view.files} as="file" key={file.id}>
+          <li><a href="/portal/files/{file.id}">{file.name}</a> <span class="hq-muted">{file.size} · sent by {file.who}, <time datetime={file.whenIso}>{file.when}</time></span></li>
+        </zb-each>
+      </ul>
+      <form zb-if={p.open} method="post" action="/portal/projects/{p.id}/files" enctype="multipart/form-data" class="hq-form" data-spaced>
+        <div class="hq-field">
+          <label for="pp-file">Choose a file, or take a photo</label>
+          <input id="pp-file" name="file" type="file" required aria-describedby="pp-file-rules">
+          <p id="pp-file-rules" class="hq-muted hq-small">{view.fileRules} One at a time.</p>
+        </div>
+        <div><button class="hq-button portal-big" type="submit">Send file</button></div>
+      </form>
+      <p zb-else class="hq-muted" data-spaced>This project is finished, so files can’t be added to it.</p>
     </section>
 
     <section class="hq-panel" id="updates" aria-labelledby="pp-updates">
@@ -86,9 +106,9 @@
       <form method="post" action="/portal/projects/{p.id}/messages" class="hq-form" data-spaced>
         <div class="hq-field">
           <label for="pp-message">Send a message, or ask for a change</label>
-          <textarea id="pp-message" name="body" rows="3" required maxlength="5000"></textarea>
+          <textarea id="pp-message" name="body" rows="4" required maxlength="5000"></textarea>
         </div>
-        <div><button class="hq-button" type="submit">Send message</button></div>
+        <div><button class="hq-button portal-big" type="submit">Send message</button></div>
       </form>
     </section>
   </div>
