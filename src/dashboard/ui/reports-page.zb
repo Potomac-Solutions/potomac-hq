@@ -1,0 +1,115 @@
+<!--
+  Reports: the pipeline, project health, and budget against actual. For
+  admins and managers.
+-->
+<script>
+  'use route /reports'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const pipeline = context.reports.pipeline(url.searchParams.get('days') || '90')
+    const projects = context.reports.projects()
+    const budget = context.reports.budget()
+    if (!pipeline.ok || !projects.ok || !budget.ok) return context.forbidden()
+    return { title: 'Reports', pipeline: pipeline.value, projects: projects.value, budget: budget.value }
+  }
+</script>
+<style>
+  .rep-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; margin: 0 0 1rem; }
+  .rep-figures div { padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); }
+  .rep-figures dt { color: var(--muted-foreground); font-size: 0.85rem; }
+  .rep-figures dd { margin: 0.15rem 0 0; font-size: 1.35rem; font-weight: 700; }
+  .rep-over { font-weight: 700; }
+</style>
+<hq-reports pipeline={{ periods: [], stages: [], sources: [] }} projects={{ statuses: [], healths: [], late: [], attention: [] }} budget={{ rows: [], totals: {} }}>
+  <div class="hq-page">
+    <h1>Reports</h1>
+
+    <section class="hq-panel" aria-labelledby="rep-pipeline">
+      <h2 id="rep-pipeline">Pipeline</h2>
+      <form method="get" action="/reports" class="hq-form-row">
+        <div class="hq-field">
+          <label for="rep-days">Won and lost in</label>
+          <select id="rep-days" name="days">
+            <zb-each items={pipeline.periods} as="period" key={period.value}><option value={period.value} selected={period.value === pipeline.days}>{period.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Show</button>
+      </form>
+      <dl class="rep-figures" data-spaced>
+        <div><dt>Open now</dt><dd>{pipeline.open}</dd></div>
+        <div><dt>Won</dt><dd>{pipeline.won}</dd></div>
+        <div><dt>Lost</dt><dd>{pipeline.lost}</dd></div>
+        <div><dt>Win rate</dt><dd>{pipeline.winRate}</dd></div>
+        <div><dt>Fixed-price work won</dt><dd>{pipeline.wonFixed}</dd></div>
+      </dl>
+      <table class="hq-table">
+        <caption class="hq-caption">Open opportunities by stage</caption>
+        <thead><tr><th scope="col">Stage</th><th scope="col" class="hq-number">Open</th><th scope="col" class="hq-number">Fixed-price quotes</th></tr></thead>
+        <tbody>
+          <zb-each items={pipeline.stages} as="row" key={row.label}><tr><th scope="row">{row.label}</th><td class="hq-number">{row.count}</td><td class="hq-number">{row.fixed}</td></tr></zb-each>
+        </tbody>
+      </table>
+      <table zb-if={pipeline.sources.length > 0} class="hq-table" data-spaced>
+        <caption class="hq-caption">Where leads came from, all time</caption>
+        <thead><tr><th scope="col">Source</th><th scope="col" class="hq-number">Opportunities</th><th scope="col" class="hq-number">Won</th></tr></thead>
+        <tbody>
+          <zb-each items={pipeline.sources} as="row" key={row.label}><tr><th scope="row">{row.label}</th><td class="hq-number">{row.count}</td><td class="hq-number">{row.won}</td></tr></zb-each>
+        </tbody>
+      </table>
+      <p class="hq-muted hq-small" data-spaced>Quotes by the hour, month or year are counted but not added up: they have no total.</p>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="rep-projects">
+      <h2 id="rep-projects">Project health</h2>
+      <dl class="rep-figures">
+        <zb-each items={projects.statuses} as="row" key={row.label}><div><dt>{row.label}</dt><dd>{row.count}</dd></div></zb-each>
+      </dl>
+      <table class="hq-table">
+        <caption class="hq-caption">Active projects by health</caption>
+        <thead><tr><th scope="col">Health</th><th scope="col" class="hq-number">Projects</th></tr></thead>
+        <tbody>
+          <zb-each items={projects.healths} as="row" key={row.label}><tr><th scope="row">{row.label}</th><td class="hq-number">{row.count}</td></tr></zb-each>
+        </tbody>
+      </table>
+      <h3 data-spaced>Needs attention</h3>
+      <p zb-if={projects.attention.length === 0} class="hq-muted">Every active project is on track.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={projects.attention} as="item" key={item.id}>
+          <li><a href="/projects/{item.id}">{item.name}</a> <span class="hq-muted">{item.clientName}</span> <span class="hq-tag">{item.healthLabel}</span><span zb-if={item.next} class="hq-muted"> Next: {item.next}</span></li>
+        </zb-each>
+      </ul>
+      <h3 data-spaced>Late</h3>
+      <p zb-if={projects.late.length === 0} class="hq-muted">Nothing is late.</p>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">What</th><th scope="col">Project</th><th scope="col">Was due</th></tr></thead>
+        <tbody>
+          <zb-each items={projects.late} as="item" key={item.key}><tr><td>{item.kind}: <a href={item.href}>{item.title}</a></td><td>{item.projectName}</td><td>{item.dueOn}</td></tr></zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="rep-budget">
+      <h2 id="rep-budget">Budget against actual</h2>
+      <empty-state zb-if={budget.rows.length === 0} heading="No projects yet">Budgets show here once a project starts.</empty-state>
+      <div zb-else class="hq-scroll" tabindex="0" role="group" aria-labelledby="rep-budget">
+        <table class="hq-table">
+          <thead><tr><th scope="col">Project</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Of budget</th><th scope="col" class="hq-number">Cost</th><th scope="col" class="hq-number">Of budget</th><th scope="col" class="hq-number">Margin</th></tr></thead>
+          <tbody>
+            <zb-each items={budget.rows} as="row" key={row.id}>
+              <tr>
+                <th scope="row"><a href="/projects/{row.id}/money">{row.name}</a> <span zb-if={row.over} class="hq-tag">Over budget</span></th>
+                <td class="hq-number">{row.hours.actual}</td><td class="hq-number">{row.hours.budget || "Not set"}</td>
+                <td class="hq-number">{row.cost.actual}</td><td class="hq-number">{row.cost.budget || "Not set"}</td>
+                <td class="hq-number">{row.margin} <span zb-if={row.marginPercent} class="hq-muted">{row.marginPercent}</span></td>
+              </tr>
+            </zb-each>
+          </tbody>
+          <tfoot><tr><th scope="row">All projects</th><td></td><td></td><td class="hq-number">{budget.totals.cost}</td><td class="hq-number">{budget.totals.budget}</td><td class="hq-number">{budget.totals.margin}</td></tr></tfoot>
+        </table>
+      </div>
+      <p class="hq-muted hq-small" data-spaced>Margin is an operational estimate, not the books. <a href="/money">Open Money</a> for exports.</p>
+    </section>
+  </div>
+</hq-reports>

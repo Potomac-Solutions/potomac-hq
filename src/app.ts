@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -33,7 +33,7 @@ import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, listProjects, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -160,6 +160,11 @@ export type PageContext = {
     proposal(id: string): ReturnType<typeof portalProposal>;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
+  };
+  readonly reports: {
+    pipeline(days: string): ReturnType<typeof pipelineReport>;
+    projects(): ReturnType<typeof projectHealthReport>;
+    budget(): ReturnType<typeof financeOverview>;
   };
   readonly people: { list(): ReturnType<typeof listPeople> };
   readonly knowledge: {
@@ -334,6 +339,11 @@ export async function createApp(config: AppConfig): Promise<App> {
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
         can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok },
+        reports: {
+          pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
+          projects: () => projectHealthReport(projectsDeps, actor),
+          budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
+        },
         people: { list: () => listPeople(sessionDeps, actor) },
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),

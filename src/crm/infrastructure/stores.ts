@@ -135,6 +135,7 @@ export function sqliteOpportunityStore(db: Database): OpportunityStore {
       where o.stage not in ('won', 'lost')
       order by o.created_at, o.rowid`,
   );
+  const listAll = db.prepare(`select ${cols} from opportunity order by created_at, rowid`);
   const values = (o: Opportunity) => [o.service, o.stage, o.pricing, o.value?.minor ?? null, o.value?.currency ?? "USD", o.leadSource, o.followUpOn, o.summary, o.lostReason, o.closedAt] as const;
   return {
     insert(o, at) {
@@ -149,6 +150,9 @@ export function sqliteOpportunityStore(db: Database): OpportunityStore {
     },
     listFor(organizationId) {
       return (listFor.all(organizationId) as OpportunityRow[]).map(toOpportunity);
+    },
+    listAll() {
+      return (listAll.all() as OpportunityRow[]).map(toOpportunity);
     },
     listOpen() {
       return (listOpen.all() as (OpportunityRow & { client_name: string })[]).map((r) => ({ ...toOpportunity(r), clientName: r.client_name }));
