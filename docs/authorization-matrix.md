@@ -143,6 +143,9 @@ finance views need a permission a member does not hold by default.
 | View budgets, costs, margins and payment status | `finance.view` | Yes | Yes | No | No |
 | Set a project's budget, hourly rate and payment status | `finance.edit` | Yes | Yes | No | No |
 | Export time, expenses and summaries as CSV | `finance.export` | Yes | Yes | No | No |
+| View invoices, their payments and the PDF | `invoice.view` | Yes | Yes | No | No (v0.6: own organization's sent invoices only) |
+| Draft, send and void an invoice | `invoice.edit` | Yes | Yes | No | No |
+| Record a payment received | `payment.record` | Yes | Yes | No | No |
 
 Moving a task to "working on" starts the mover's timer under `task.edit`. A
 person without `time.log` moves the task and gets no timer. Someone else's

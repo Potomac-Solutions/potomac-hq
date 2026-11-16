@@ -99,9 +99,10 @@ still open.
 | Expenses with a receipt | Category, amount, day, note, and a receipt kept by the file service |
 | Budget per project, seeded from the accepted proposal | The baseline is the budget until one is set by hand |
 | Estimated against actual, per project and per phase | Hours and cost for the project. Hours for each phase |
-| Payment status | Not invoiced, deposit paid, invoiced, paid, with the invoice's reference. Set by hand |
+| Payment status | Not invoiced, deposit paid, invoiced, paid. It follows the project's invoices by itself, and can be set by hand |
+| Invoices (from `docs/tool-boundaries.md`, not the roadmap) | Numbered invoices with lines, sent and voided, a PDF, and payments received by cash, check or a gateway's reference |
 | Revenue and margin summary | On the Money page, labelled an operational estimate |
-| CSV export | Time, expenses, and budget against actual by project |
+| CSV export | Time, expenses, budget against actual by project, invoices, and payments |
 | Dashboard panels | Hours this week, and projects over budget |
 
 ### Decided here
@@ -113,9 +114,18 @@ still open.
   seen.
 - **A recurring plan is measured over its current month or year.**
 - **Removed entries and expenses stay in the table**, marked removed.
-- **The Google Sheet copy is built** (M0: "Finance syncs to a Google Sheet").
-  It is off until its two settings exist. It follows Google's published API
-  and is tested against a stand-in. It has not been run against a real sheet.
+- **The Google Sheet copy is built** (`docs/tool-boundaries.md`: a one-way
+  sync from HQ to the sheet). Which sheet and its layout were an open item
+  "needed before v0.5". Without an answer, HQ writes five tabs of its own,
+  each named with "HQ" in front, and replaces only those, so nothing Mikey
+  keeps in the sheet is touched. It is off until its two settings exist. It
+  follows Google's published API and is tested against a stand-in. It has
+  not been run against a real sheet.
+- **Invoices are in.** The roadmap leaves invoicing to an outside tool, but
+  the approved tool boundaries build it into HQ at v0.5, and that document
+  is the later decision.
+- **A payment's reference is refused if it looks like a card number**, to
+  keep rule 1 of the tool boundaries: HQ never sees one.
 - **Expenses are for admins and managers.** A member logs time only.
 
 ### Cut
@@ -123,6 +133,6 @@ still open.
 | Cut | Why | Lands |
 | --- | --- | --- |
 | Editing a time entry | Remove it and log it again | When it gets tedious |
-| Invoices and payments in HQ | M0 decided they are built in, not bought. The roadmap does not place them, and gateways are undecided | After v1.0, once a gateway is chosen |
-| Linking payment status to an accounting tool | There is none: accounting is to be built in | With invoices |
+| Invoices worked out from logged hours | An invoice's lines are typed, with amounts suggested from the budget | When hourly work is common enough to need it |
+| Emailing an invoice from HQ | The PDF is downloaded and sent by hand | With the portal |
 | Per-person hourly rates | One person works here | When a second person joins |

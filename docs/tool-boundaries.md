@@ -28,7 +28,7 @@ it needs the client sign-in.
 | Outbound email | A server command prints the password reset link | v0.2: HQ sends through an adapter behind the kit's `notify` interface | Sending service: Brevo |
 | Booking | Phone or email | v0.6: booking tool in the portal | Nothing |
 | Contract signing | Printed, signed and scanned | v0.4: typed acceptance recording name, time and proposal version | Nothing |
-| File storage | n/a | v0.3: file service with authorized downloads | Cloudflare R2 holds the bytes |
+| File storage | n/a | v0.3: file service with authorized downloads | Cloudflare R2 holds the bytes. *Built differently, pending approval: see decision 0002* |
 
 ## Rules
 
@@ -66,4 +66,11 @@ it needs the client sign-in.
 ## Open items
 
 1. **Card gateway.** Needed before v0.6.
-2. **Which Google Sheet, and its column layout.** Needed before v0.5.
+2. **Which Google Sheet, and its column layout.** Needed before v0.5. *Built
+   on 2026-11-16 without an answer: HQ writes five tabs of its own, named
+   "HQ Time", "HQ Expenses", "HQ Projects", "HQ Invoices" and "HQ Payments",
+   and replaces only those. It never touches another tab. The layout of
+   Mikey's own ledger tabs is still his to decide.*
+3. **The payment page and the booking tool in the portal** (both v0.6 in the
+   table above) are not built. The payment page waits on the card gateway.
+   See `docs/scope-v0.3-v1.0.md`.

@@ -165,14 +165,20 @@ moves those lines under a version heading. See `docs/conventions.md`.
   set by hand. A monthly or yearly plan is measured over its current
   period.
 - A Money page across every project, with CSV exports of time, expenses and
-  budget against actual. Each export is recorded. Text a spreadsheet would
-  run as a formula is defused.
+  budget against actual, invoices and payments. Each export is recorded.
+  Text a spreadsheet would run as a formula is defused.
+- Invoices, as the tool boundaries ask: numbered in order with no gaps,
+  drafted with lines, sent, voided, and downloaded as a PDF. Payments are
+  recorded against a sent invoice by cash, check or a gateway's reference,
+  and a reference that looks like a card number is refused. A project's
+  payment status follows its invoices by itself.
 - Finance records can be copied to a Google Sheet each night
-  (`HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT`). Off until both
-  are set. Not yet run against a real sheet.
+  (`HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT`), into tabs of
+  HQ's own that never touch anything else in the sheet. Off until both are
+  set. Not yet run against a real sheet.
 - Dashboard panels for hours this week and projects over budget.
-- Six permissions. Everyone logs their own time. Costs, budgets, expenses
-  and exports are for admins and managers.
+- Nine permissions. Everyone logs their own time. Costs, budgets, expenses,
+  invoices, payments and exports are for admins and managers.
 
 ### Changed
 

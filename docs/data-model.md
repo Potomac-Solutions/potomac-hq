@@ -484,14 +484,61 @@ defaults apply.
   because their price is for one period.
 - A project with no budget is never "over".
 
+### Invoice
+
+Invoicing is built into HQ (docs/tool-boundaries.md).
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `number` | integer | 1, 2, 3 in the order invoices are made, with no gaps. Shown as `INV-0001` |
+| `kind` | `deposit`, `balance`, `full`, `other` | What it is for |
+| `status` | `draft`, `sent`, `paid`, `void` | Starts `draft` |
+| `lines` | description and amount, each | At least one, at most 30 |
+| `total_minor`, `currency` | money | The lines added up. Above zero |
+| `issued_on` | date | Set to today when sent |
+| `due_on` | date | Optional |
+| `note` | text | Optional. Printed on the invoice |
+
+- A draft can gain lines. Sending locks it: it is what the client was asked
+  to pay.
+- A mistake is voided, never deleted. An invoice with a payment against it,
+  or a paid one, cannot be voided.
+- A sent or paid invoice has a PDF. A draft does not.
+
+### Payment
+
+Money received against a sent invoice. Written once.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `invoice_id` | id | The invoice must be `sent` |
+| `amount_minor`, `currency` | money | Above zero. Payments never add up to more than the invoice |
+| `method` | `cash`, `check`, `card`, `transfer`, `other` | `card` means through a gateway |
+| `received_on` | date | Not in the future |
+| `reference` | text | A check number or a gateway's reference. **Never a card number:** text that looks like one is refused |
+
+When payments reach an invoice's total it becomes `paid`. The project's
+payment status then follows by itself: sending an invoice makes it
+`invoiced`, a paid deposit makes it `deposit-paid`, and any other invoice
+paid with none left waiting makes it `paid`. It can still be set by hand,
+for a job invoiced on paper.
+
 ### Exports and the Google Sheet
 
-Three tables: every time entry, every expense, and budget against actual by
-project. Each downloads as CSV, and each export is an activity event. The
-same three are copied to a Google Sheet each night when one is set up,
-replacing what was there. HQ is where the records are kept: the sheet is a
-copy for reading. Text that a spreadsheet would run as a formula is defused
-in the CSV, and written as plain text to the sheet.
+Five tables: every time entry, every expense, budget against actual by
+project, every invoice, and every payment. Each downloads as CSV, and each
+export is an activity event.
+
+The Google Sheet is the book of record for taxes (docs/tool-boundaries.md,
+rule 2). When one is set up, HQ copies the five tables to it each night,
+into tabs of its own named "HQ Time", "HQ Expenses", "HQ Projects", "HQ
+Invoices" and "HQ Payments". It replaces only those tabs, touches nothing
+else in the sheet, and never reads the sheet back. Text that a spreadsheet
+would run as a formula is defused in the CSV, and written as plain text to
+the sheet.
 
 ## Storage for the kit
 
