@@ -1,0 +1,42 @@
+<!--
+  Every proposal, newest first. A proposal is started from its opportunity.
+-->
+<script>
+  'use route /proposals'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.proposals.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Proposals', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-proposals view={{ proposals: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Proposals</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="proposal-list">
+      <h2 id="proposal-list" class="sr-only">Proposal list</h2>
+      <empty-state zb-if={view.proposals.length === 0} heading="No proposals yet">Start one from an opportunity’s page, once you know what the client needs.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Proposal</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
+        <tbody>
+          <zb-each items={view.proposals} as="proposal" key={proposal.id}>
+            <tr>
+              <td><a href="/proposals/{proposal.id}">{proposal.title}</a></td>
+              <td>{proposal.clientName}</td>
+              <td>{proposal.statusLabel}</td>
+              <td>{proposal.version || "Not sent"}</td>
+              <td class="hq-number">{proposal.price}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-proposals>
