@@ -1,0 +1,94 @@
+// How an activity event reads to a person. Every module's history uses the
+// same words, so an action is described one way everywhere.
+const WORDING: Readonly<Record<string, string>> = {
+  "user.created": "was added as a user",
+  "user.signed-in": "signed in",
+  "user.signed-out": "signed out",
+  "user.password-changed": "changed their password",
+  "user.reset-link-issued": "A password reset link was issued",
+  "user.reset-link-emailed": "A password reset link was emailed",
+  "user.theme-changed": "changed their theme",
+  "user.invited": "invited a user",
+  "user.status-changed": "turned a user’s access on or off",
+  "user.roles-changed": "changed a user’s roles",
+  "client.created": "added a client",
+  "client.edited": "edited a client",
+  "client.status-changed": "changed a client’s status",
+  "contact.created": "added a contact",
+  "opportunity.created": "opened an opportunity",
+  "opportunity.stage-changed": "moved an opportunity to a new stage",
+  "opportunity.value-set": "priced an opportunity",
+  "opportunity.follow-up-set": "set a follow-up",
+  "opportunity.converted": "turned an opportunity into a project",
+  "project.created": "started a project",
+  "project.edited": "edited the project’s details",
+  "project.status-changed": "changed the project’s status",
+  "project.owner-changed": "changed the project’s owner",
+  "project.baseline-set": "set the project’s baseline from a proposal",
+  "project.payment-status-changed": "changed the project’s payment status",
+  "project.budget-set": "set the project’s budget",
+  "project.update-posted": "posted an update for the client",
+  "phase.added": "added a phase",
+  "milestone.added": "added a milestone",
+  "milestone.completed": "completed a milestone",
+  "milestone.reopened": "reopened a milestone",
+  "task.added": "added a task",
+  "task.edited": "edited a task",
+  "task.moved": "moved a task",
+  "note.added": "wrote a note",
+  "file.uploaded": "uploaded a file",
+  "file.downloaded": "downloaded a file",
+  "deliverable.added": "added a deliverable",
+  "deliverable.shared": "shared a deliverable with the client",
+  "deliverable.unshared": "stopped sharing a deliverable",
+  "deliverable.approved": "The client approved a deliverable",
+  "deliverable.changes-requested": "The client asked for changes to a deliverable",
+  "proposal.created": "drafted a proposal",
+  "proposal.edited": "edited a proposal",
+  "proposal.sent": "sent a proposal",
+  "proposal.accepted": "recorded a proposal as accepted",
+  "proposal.declined": "recorded a proposal as declined",
+  "proposal.shared": "shared a proposal with the client",
+  "proposal.unshared": "stopped sharing a proposal",
+  "agreement.recorded": "recorded a signed agreement",
+  "time.logged": "logged time",
+  "time.started": "started working",
+  "time.stopped": "stopped working",
+  "time.removed": "removed a time entry",
+  "expense.added": "recorded an expense",
+  "expense.removed": "removed an expense",
+  "finance.exported": "exported finance records",
+  "finance.sheet-synced": "Finance records were synced to the sheet",
+  "finance.sheet-sync-failed": "Syncing finance records to the sheet failed",
+  "client-user.invited": "invited a client to the portal",
+  "client-user.status-changed": "turned a client’s portal access on or off",
+  "client-user.signed-in": "A client signed in to the portal",
+  "client-user.signed-out": "A client signed out of the portal",
+  "client-user.password-set": "A client set their portal password",
+  "article.created": "wrote an article",
+  "article.edited": "edited an article",
+  "article.archived": "archived an article",
+  "decision.recorded": "recorded a decision",
+  "data.exported": "exported all of HQ’s data",
+  "retention.applied": "Old records were cleared under the retention policy",
+  "restore.drill-passed": "A restore drill passed",
+  "restore.drill-failed": "A restore drill failed",
+  "alert.sent": "An alert was sent",
+  "backup.completed": "A backup was saved",
+  "backup.failed": "A backup failed",
+};
+
+/**
+ * A short sentence ending for an action: "signed in". An action with no
+ * wording yet is shown by its key, so nothing is ever hidden.
+ */
+export function describeAction(action: string): string {
+  return WORDING[action] ?? action;
+}
+
+/** "Mikey Nichols signed in", or the wording alone when HQ acted by itself. */
+export function describeEvent(action: string, actorName: string | null): string {
+  const wording = describeAction(action);
+  if (/^[A-Z]/.test(wording)) return wording;
+  return actorName === null ? wording.charAt(0).toUpperCase() + wording.slice(1) : `${actorName} ${wording}`;
+}

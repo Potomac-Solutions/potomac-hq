@@ -1,8 +1,10 @@
 /* The Potomac theme for Zubra UI. The names are shadcn/ui's, which every Zubra
    UI component reads. Neutrals come from potomac.solutions, the primary blue
-   from the Potomac mark. Every colour is a light and dark pair. Light is the
-   only one switched on for now: dark mode is issue #2. A test checks each
-   pair's contrast against WCAG AA. */
+   from the Potomac mark. Every colour is a light and dark pair. A person picks
+   light, dark or their device's setting (Settings). The dark set below is
+   also served on its own as /assets/theme-dark.css, with `.dark` rewritten to
+   `:root`, so no script is needed to switch. A test checks each pair's
+   contrast against WCAG AA. */
 :root {
   color-scheme: light;
   --radius: 0.5rem;
@@ -111,3 +113,26 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-actions form { margin: 0; }
 [data-spaced] { margin-top: 1rem; }
 [data-gap] { margin-bottom: 1rem; }
+.hq-button.small { height: 2rem; padding: 0 0.75rem; font-size: 0.85rem; }
+.hq-inline { display: inline; margin: 0; }
+.hq-small { font-size: 0.85rem; margin: 0; }
+.hq-prose { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.hq-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--border); }
+.hq-tabs a { padding: 0.5rem 0.9rem; color: var(--foreground); text-decoration: none; font-weight: 600; border-bottom: 3px solid transparent; }
+.hq-tabs a[aria-current=page] { border-bottom-color: var(--primary); }
+.hq-tabs a:hover { background: var(--accent); color: var(--accent-foreground); }
+.hq-more { margin-top: 1rem; }
+.hq-more > summary { cursor: pointer; font-weight: 600; color: var(--primary); width: fit-content; }
+.hq-more[open] > summary { margin-bottom: 1rem; }
+.hq-more summary:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.hq-counts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
+.hq-counts li { display: flex; gap: 0.4rem; }
+.hq-log, .hq-notes { list-style: none; margin: 0; padding: 0; }
+.hq-log li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.hq-log li:first-child, .hq-notes li:first-child { border-top: 0; }
+.hq-log time { color: var(--muted-foreground); font-size: 0.9rem; }
+.hq-notes li { display: grid; gap: 0.25rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+.hq-tag[data-health=at-risk], .hq-tag[data-health=off-track] { border-color: var(--destructive); color: var(--destructive); background: var(--card); }
+.hq-number { text-align: right; font-variant-numeric: tabular-nums; }
+.hq-table th.hq-number, .hq-table td.hq-number { text-align: right; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
