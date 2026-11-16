@@ -1,0 +1,74 @@
+<!--
+  Tasks in columns by status. A card is dragged to another column to move it.
+  The same move works without a mouse, and with JavaScript off, through the
+  small form on each card. `board` is what `context.projects.board` returns.
+-->
+<script>
+  let over = ''
+  let dragged = ''
+
+  function start(event, id) {
+    dragged = id
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', id)
+  }
+  function drop(event, status) {
+    event.preventDefault()
+    over = ''
+    const id = event.dataTransfer.getData('text/plain') || dragged
+    dragged = ''
+    if (!/^[0-9a-f-]{36}$/.test(id)) return
+    const form = event.currentTarget.getRootNode().querySelector('#move-' + id)
+    const select = form ? form.querySelector('select') : null
+    if (!select || select.dataset.now === status) return
+    select.value = status
+    form.requestSubmit()
+  }
+</script>
+<style>
+  :host { display: block; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 1rem; align-items: start; }
+  .board-column { display: grid; gap: 0.75rem; align-content: start; min-height: 8rem; padding: 0.75rem; background: var(--muted); border: 2px solid transparent; border-radius: var(--radius); }
+  .board-over { border-color: var(--ring); }
+  .board-column h2 { display: flex; justify-content: space-between; margin: 0; font-size: 1rem; }
+  .board-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+  .board-card { display: grid; gap: 0.35rem; padding: 0.75rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .board-card[draggable=true] { cursor: grab; }
+  .board-card p { margin: 0; }
+  .board-meta { color: var(--muted-foreground); font-size: 0.85rem; }
+  .board-move { display: flex; gap: 0.4rem; margin: 0.35rem 0 0; }
+  .board-move select { flex: 1; min-width: 0; height: 2rem; padding: 0 0.4rem; font: inherit; font-size: 0.85rem; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+  .board-move button { height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .board-empty { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
+</style>
+<task-board board={{ columns: [], statuses: [], canMove: false, returnTo: "", project: null }}>
+  <div class="board">
+    <zb-each items={board.columns} as="column" key={column.status}>
+      <section class="board-column" class:board-over={over === column.status} aria-labelledby="column-{column.status}" ondragover={(event) => { event.preventDefault(); over = column.status }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.status)}>
+        <h2 id="column-{column.status}"><span>{column.label}</span> <span class="hq-tag">{column.cards.length}</span></h2>
+        <p zb-if={column.cards.length === 0} class="board-empty">Nothing here.</p>
+        <ul class="board-cards">
+          <zb-each items={column.cards} as="card" key={card.id}>
+            <li class="board-card" draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id)}>
+              <p><a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
+              <p zb-if={!board.project} class="board-meta">{card.projectName}</p>
+              <p class="board-meta">{card.assigneeName || "Nobody yet"}<span zb-if={card.estimate}> · {card.estimate} h</span></p>
+              <p zb-if={card.pressing || card.dueOn}>
+                <span zb-if={card.pressing} class="hq-tag">{card.priorityLabel}</span>
+                <span zb-if={card.dueOn}>Due {card.dueOn}</span>
+                <span zb-if={card.overdue} class="hq-tag due">Overdue</span>
+              </p>
+              <form zb-if={board.canMove} id="move-{card.id}" method="post" action="/tasks/{card.id}/status" class="board-move">
+                <input type="hidden" name="returnTo" value={board.returnTo}>
+                <select name="to" data-now={card.status} aria-label="Move {card.title} to">
+                  <zb-each items={board.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === card.status}>{status.label}</option></zb-each>
+                </select>
+                <button type="submit" aria-label="Move: {card.title}">Move</button>
+              </form>
+            </li>
+          </zb-each>
+        </ul>
+      </section>
+    </zb-each>
+  </div>
+</task-board>
