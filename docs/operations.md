@@ -33,6 +33,10 @@ Do it for the test environment first, then again for production.
    nothing ships before its checks pass.
 3. Add a **volume** to the service, mounted at `/data`. The database is one
    file on it. Without the volume, every deploy starts empty.
+   Railway mounts a volume owned by root, so also set `RAILWAY_RUN_UID=0`
+   (Railway's own instruction for images that do not run as root). HQ still
+   does not run as root: its start script hands `/data` to the unprivileged
+   `node` user and drops to it before anything else runs. CI checks this.
 4. Keep it at one replica. SQLite is one file and one writer.
 5. Set the variables in the table below.
 6. Give the service a domain. Production: `hq.potomac.solutions`.
@@ -42,6 +46,7 @@ Do it for the test environment first, then again for production.
 | Variable | Value | Needed |
 | --- | --- | --- |
 | `HQ_DATABASE_PATH` | `/data/hq.db` | Yes |
+| `RAILWAY_RUN_UID` | `0` | Yes, with a volume. Without it HQ cannot write its database and will not start |
 | `HQ_NOTICE_SECRET` | 32 or more random characters: `openssl rand -base64 32`. Different in each environment | Yes |
 | `HQ_SECURE` | `true` | Yes |
 | `HQ_PROXIES` | `1` | Yes |
@@ -177,6 +182,7 @@ Zubra packages are pinned to one exact version.
 | What you see | Look at |
 | --- | --- |
 | The site does not answer | Railway: is the service running, and what does the end of its log say? A failed migration stops the start and names the migration |
+| The log says "unable to open database file" or "permission denied" | `RAILWAY_RUN_UID=0` is not set, or the volume is not mounted at `/data` |
 | "Something went wrong" on a page | The log line with `"level":"error"` at that time. It has the address and the stack |
 | Nobody can sign in | Is `HQ_SECURE=true` and the address https? Is `HQ_PROXIES=1`? |
 | You are locked out | In Railway's shell: `npm run reset-link -- you@example.com` prints a one-time link |

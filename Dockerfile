@@ -29,4 +29,6 @@ USER node
 EXPOSE 3000
 # Migrations run on every start, before HQ serves anything. They are
 # forward-only and recorded, so a start with nothing to apply changes nothing.
-CMD ["sh", "-c", "node bin/migrate.ts && exec node bin/serve.ts"]
+# bin/start.sh also handles Railway's root-owned volume: started as root, it
+# hands the database's folder to `node` and drops to that user.
+CMD ["sh", "bin/start.sh"]
