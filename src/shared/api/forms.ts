@@ -23,9 +23,9 @@ type PostContext = {
 
 type PostApp = { post(path: string, handler: (c: never) => Promise<Response>): unknown };
 
-export type FormPostDeps = {
-  /** The signed-in HQ user's id, or null. */
-  readonly actorOf: (cookieHeader: string) => Id | null;
+export type FormPostDeps<A = Id | null> = {
+  /** Who the request is from: the signed-in HQ user's id, or in the portal the client's session. Null when nobody. */
+  readonly actorOf: (cookieHeader: string) => A;
   /** Signs the one-line message in a location. */
   readonly sign: (location: string) => string;
   readonly messageFor: (code: string) => string;
@@ -68,10 +68,10 @@ function isFile(value: unknown): value is { name: string; size: number; arrayBuf
  * fields, the `:id` from the address (already checked to be an id) and any
  * uploaded files.
  */
-export function formPosts(app: PostApp, deps: FormPostDeps) {
+export function formPosts<A = Id | null>(app: PostApp, deps: FormPostDeps<A>) {
   return function post<V>(
     path: string,
-    run: (actor: Id | null, form: FormFields, id: Id | null, files: FormFiles) => ({ ok: true; value: V } | { ok: false; error: string }) | Promise<{ ok: true; value: V } | { ok: false; error: string }>,
+    run: (actor: A, form: FormFields, id: Id | null, files: FormFiles) => ({ ok: true; value: V } | { ok: false; error: string }) | Promise<{ ok: true; value: V } | { ok: false; error: string }>,
     places: Places<V>,
   ): void {
     app.post(path, (async (c: PostContext) => {
