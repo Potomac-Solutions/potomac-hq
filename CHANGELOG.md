@@ -137,6 +137,23 @@ moves those lines under a version heading. See `docs/conventions.md`.
   setting on a new Settings page. It needs no script.
 - Eight permissions for the above, held by every role.
 
+- v0.4 Proposals. A proposal is started from an opportunity, filled from a
+  template for its service, and edited as a working copy: four sections and
+  a table of estimate lines with a total, the hours and, for a fixed quote,
+  the deposit of one third.
+- Sending makes a numbered version that can never change (database triggers
+  refuse it), prices the opportunity and moves it to quoted. Editing after
+  that makes the next version, and the old ones stay readable.
+- Each version has a page laid out for reading and printing, and a PDF that
+  HQ writes itself, with no package added.
+- Recording the client's answer notes who, when, how and to which version.
+  Accepting wins the opportunity, starts its project and sets the project's
+  baseline from the accepted estimate, as one change.
+- A signed agreement is recorded against an accepted proposal: where the
+  paper is kept, or a scan of it.
+- Four proposal permissions, held by admins and managers. A member is sent
+  no proposal and no baseline.
+
 ### Changed
 
 - The top bar's "Change password" link is now "Settings", which links on to

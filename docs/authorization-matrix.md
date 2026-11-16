@@ -112,6 +112,24 @@ does all the client work except deal values.
 `project.edit` now covers a project's name, description, health and dates.
 Choosing your own theme needs no permission, like changing your own password.
 
+### Proposals (v0.4)
+
+Decided 2026-11-16 while Mikey was away. Needs his approval. A proposal is
+all prices, so these follow `opportunity.view-value`: admin and manager only.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| View proposals, their versions and the PDF | `proposal.view` | Yes | Yes | No | No (v0.6: own organization's shared proposals only) |
+| Start a proposal and edit its working copy | `proposal.edit` | Yes | Yes | No | No |
+| Send a version, and share a proposal with the client | `proposal.send` | Yes | Yes | No | No |
+| Record the client's answer and the signed agreement | `proposal.decide` | Yes | Yes | No | No |
+
+Sending a proposal prices its opportunity and moves it to `quoted`. Accepting
+one wins the opportunity, starts the project and sets its baseline. Each is
+one change under the proposal's own permission: the person does not also need
+`opportunity.set-value` or `opportunity.convert`. A project's baseline is
+shown only to those with `opportunity.view-value`.
+
 ## Client users
 
 The Client user column is a placeholder. Until v0.6 a client user cannot sign
