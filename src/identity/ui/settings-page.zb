@@ -1,0 +1,37 @@
+<!--
+  A person's own settings: the theme, and the way to change their password.
+-->
+<script>
+  'use route /settings'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    return { title: 'Settings', theme: context.settings.theme, themes: context.settings.themes, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-settings theme="system" themes={[]} done="" problem="">
+  <div class="hq-page">
+    <h1>Settings</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="settings-theme">
+      <h2 id="settings-theme">Theme</h2>
+      <form method="post" action="/settings/theme" class="hq-form-row">
+        <div class="hq-field">
+          <label for="theme">Colours</label>
+          <select id="theme" name="theme">
+            <zb-each items={themes} as="option" key={option.value}><option value={option.value} selected={option.value === theme}>{option.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button" type="submit">Save theme</button>
+      </form>
+    </section>
+    <section class="hq-panel" aria-labelledby="settings-password">
+      <h2 id="settings-password">Password</h2>
+      <p><a href="/staff/password">Change your password</a></p>
+    </section>
+  </div>
+</hq-settings>

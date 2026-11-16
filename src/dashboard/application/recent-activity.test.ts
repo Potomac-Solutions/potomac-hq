@@ -14,6 +14,10 @@ function deps(access: Access | null): RecentActivityDeps & { asked: { scope: str
     insert: () => {},
     accessFor: () => access,
     findByStaffAccount: () => null,
+    get: () => null,
+    list: () => [],
+    themeOf: () => "system",
+    setTheme: () => {},
   };
   const activity: ActivityReader = {
     recent(scope, limit) {

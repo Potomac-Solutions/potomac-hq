@@ -29,6 +29,15 @@ export const PERMISSIONS = [
   "project.edit",
   "project.set-status",
   "project.set-owner",
+  // v0.3
+  "project.plan",
+  "task.view",
+  "task.edit",
+  "note.view",
+  "note.add",
+  "file.upload",
+  "file.download",
+  "deliverable.edit",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
