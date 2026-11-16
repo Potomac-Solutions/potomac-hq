@@ -220,6 +220,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
   that say what they did not cover.
 - Three permissions: everyone reads the knowledge base, and admins and
   managers write in it and see reports.
+- The container's start script handles Railway's root-owned volume: started
+  as root it hands the database's folder to the unprivileged user and drops
+  to it. `docs/operations.md` says to set `RAILWAY_RUN_UID=0`.
 
 ### Changed
 
