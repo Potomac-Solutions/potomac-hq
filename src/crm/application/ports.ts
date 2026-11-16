@@ -29,4 +29,6 @@ export type OpportunityStore = {
   listOpen(): (Opportunity & { readonly clientName: string })[];
   /** Open opportunities with a follow-up on or before `date`, soonest first. */
   dueBy(date: string): (Opportunity & { readonly clientName: string })[];
+  /** Every opportunity, open or closed, oldest first. For reports. */
+  listAll(): Opportunity[];
 };

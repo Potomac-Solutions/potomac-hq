@@ -11,3 +11,6 @@ export type { RateLimit, UserStore as IdentityUserStore } from "./application/po
 export { requestPasswordReset, type AccountDirectory, type PasswordResetDeps, type ResetMailer } from "./application/password-reset.ts";
 export { isTheme, THEME_LABELS, THEMES, type Theme } from "./domain/theme.ts";
 export { changeTheme, type PreferenceDeps } from "./application/preferences.ts";
+export { inviteUser, issueUserLink, listPeople, ROLE_LABELS, setUserRoles, setUserStatus, withdrawInvite, type InviteView, type ManageUsersDeps, type PeopleView, type PersonView, type UserLink } from "./application/manage-users.ts";
+export type { AccountAdmin, InviteStore } from "./application/ports.ts";
+export type { UserInvite } from "./domain/user.ts";

@@ -3,8 +3,9 @@
 import { CLIENT_STATUS_LABELS, LEAD_SOURCE_LABELS, options, PRICING_LABELS, priceLabel, SERVICE_LABELS, SIZE_TIER_LABELS, STAGE_LABELS } from "../domain/labels.ts";
 import { isClientStatus } from "../domain/client.ts";
 import { isFollowUpDue, isOpen, nextStage, STAGES, type Opportunity } from "../domain/opportunity.ts";
+import { pipelineNumbers } from "../domain/pipeline-report.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, ok, type Id, type Result } from "../../shared/index.ts";
+import { err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
 import type { CrmDeps, Refused } from "./commands.ts";
 
 export type Option = { readonly value: string; readonly label: string };
@@ -277,4 +278,41 @@ export function pipeline(deps: CrmDeps, actorId: Id | null, today: string): Resu
     };
   });
   return ok({ columns, openCount: open.length, canMove: may(deps, actorId, "opportunity.set-stage") });
+}
+
+export type PipelineReportView = {
+  readonly days: number;
+  readonly periods: readonly { readonly value: number; readonly label: string }[];
+  readonly stages: readonly { readonly label: string; readonly count: number; readonly fixed: string }[];
+  readonly open: number;
+  readonly won: number;
+  readonly lost: number;
+  readonly winRate: string;
+  readonly wonFixed: string;
+  readonly sources: readonly { readonly label: string; readonly count: number; readonly won: number }[];
+};
+
+const REPORT_PERIODS = [30, 90, 365] as const;
+
+/**
+ * The pipeline report. Permission: `report.view`, and `opportunity.view-value`
+ * because it adds up quotes.
+ */
+export function pipelineReport(deps: CrmDeps, actorId: Id | null, today: string, days: number): Result<PipelineReportView, "forbidden"> {
+  if (!may(deps, actorId, "report.view") || !may(deps, actorId, "opportunity.view-value")) return err("forbidden");
+  const period = (REPORT_PERIODS as readonly number[]).includes(days) ? days : 90;
+  const since = `${Temporal.PlainDate.from(today).subtract({ days: period }).toString()}T00:00:00Z`;
+  const numbers = pipelineNumbers(deps.opportunities.listAll(), since);
+  const dollars = (minor: number) => formatMoney({ minor, currency: "USD" });
+  return ok({
+    days: period,
+    periods: REPORT_PERIODS.map((value) => ({ value, label: value === 365 ? "The last year" : `The last ${value} days` })),
+    stages: numbers.stages.map((row) => ({ label: STAGE_LABELS[row.stage] ?? row.stage, count: row.count, fixed: dollars(row.fixedMinor) })),
+    open: numbers.open,
+    won: numbers.won,
+    lost: numbers.lost,
+    winRate: numbers.winRate === null ? "Nothing closed" : `${numbers.winRate}%`,
+    wonFixed: dollars(numbers.wonFixedMinor),
+    sources: numbers.sources.map((row) => ({ label: LEAD_SOURCE_LABELS[row.source] ?? row.source, count: row.count, won: row.won })),
+  });
 }

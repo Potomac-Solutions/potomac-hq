@@ -1,0 +1,68 @@
+<!--
+  One article or decision: its text, its revisions, and the form to edit it.
+-->
+<script>
+  'use route /knowledge/:slug'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import './article-body.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.knowledge.article(params.slug)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.article.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .kb-meta { color: var(--muted-foreground); font-size: 0.9rem; }
+</style>
+<hq-article view={{ article: { tags: [] }, blocks: [], revisions: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/knowledge">Knowledge base</a></p>
+    <h1>{view.article.title}</h1>
+    <p class="kb-meta">{view.article.kindLabel} · {view.article.category}<span zb-if={view.article.decidedOn}> · Decided {view.article.decidedOn}</span> · Revision {view.article.revision}<zb-each items={view.article.tags} as="tag" key={tag}> · <a href="/knowledge?tag={tag}">{tag}</a></zb-each></p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={view.article.archived} variant="warning">This is archived. It is kept for the record and may be out of date.</alert-banner>
+
+    <section class="hq-panel" aria-label="The article">
+      <hq-article-body blocks={view.blocks}></hq-article-body>
+    </section>
+
+    <section zb-if={view.canEdit} class="hq-panel" aria-labelledby="kb-change">
+      <h2 id="kb-change">Change it</h2>
+      <details zb-if={!view.article.archived} class="hq-more">
+        <summary>Edit</summary>
+        <form method="post" action="/articles/{view.article.id}" class="hq-form">
+          <input type="hidden" name="slug" value={view.article.slug}>
+          <text-field label="Title" name="title" value={view.article.title} required={true} autocomplete="off"></text-field>
+          <text-field label="Category" name="category" value={view.article.category} required={true} autocomplete="off"></text-field>
+          <text-field label="Tags" name="tags" value={view.article.tagsText} autocomplete="off" description="Separate them with commas"></text-field>
+          <div class="hq-field">
+            <label for="kb-body">Text</label>
+            <textarea id="kb-body" name="body" rows="20" required>{view.article.body}</textarea>
+          </div>
+          <div><button class="hq-button" type="submit">Save as a new revision</button></div>
+        </form>
+      </details>
+      <form method="post" action="/articles/{view.article.id}/archive" class="hq-form-row" data-spaced>
+        <input type="hidden" name="slug" value={view.article.slug}>
+        <input type="hidden" name="archived" value={view.article.archived ? "0" : "1"}>
+        <button class="hq-button secondary" type="submit">{view.article.archived ? "Bring it back" : "Archive it"}</button>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="kb-revisions">
+      <h2 id="kb-revisions">Revisions</h2>
+      <ul class="hq-list">
+        <zb-each items={view.revisions} as="one" key={one.revision}>
+          <li><a href="/knowledge/{view.article.slug}/revisions/{one.revision}">Revision {one.revision}</a> <span zb-if={one.current} class="hq-tag">Current</span> <span class="hq-muted">{one.who}, <time datetime={one.whenIso}>{one.when}</time></span></li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-article>

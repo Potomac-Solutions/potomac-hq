@@ -392,3 +392,39 @@ export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days =
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
 }
+
+export type ProjectHealthReportView = {
+  readonly statuses: readonly { readonly label: string; readonly count: number }[];
+  readonly healths: readonly { readonly label: string; readonly count: number }[];
+  readonly active: number;
+  readonly late: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string }[];
+  readonly attention: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly healthLabel: string; readonly next: string }[];
+};
+
+/** The project health report. Permission: `report.view` and `project.view`. */
+export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Result<ProjectHealthReportView, "forbidden"> {
+  if (!may(deps, actorId, "report.view") || !may(deps, actorId, "project.view")) return err("forbidden");
+  const today = deps.today();
+  const all = deps.projects.list();
+  const active = all.filter((project) => project.status === "active");
+  const lateMilestones = deps.milestones
+    .listOpen()
+    .filter((milestone) => isMilestoneOverdue(milestone, today))
+    .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "" }));
+  const lateTasks = deps.tasks
+    .listBoard("9999")
+    .filter((task) => isTaskOverdue(task, today))
+    .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "" }));
+  return ok({
+    statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),
+    healths: Object.keys(HEALTH_LABELS).map((health) => ({ label: HEALTH_LABELS[health] ?? health, count: active.filter((project) => project.health === health).length })),
+    active: active.length,
+    late: [...lateMilestones, ...lateTasks].sort((a, b) => a.dueOn.localeCompare(b.dueOn)),
+    attention: active
+      .filter((project) => project.health !== "on-track")
+      .map((project) => {
+        const next = nextMilestone(deps.milestones.listFor(project.id));
+        return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${next.dueOn}` : next.name) : "" };
+      }),
+  });
+}

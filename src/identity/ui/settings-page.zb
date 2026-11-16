@@ -7,10 +7,10 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Settings', theme: context.settings.theme, themes: context.settings.themes, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Settings', theme: context.settings.theme, themes: context.settings.themes, audit: context.can.audit, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-settings theme="system" themes={[]} done="" problem="">
+<hq-settings theme="system" themes={[]} audit={false} done="" problem="">
   <div class="hq-page">
     <h1>Settings</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -32,6 +32,13 @@
     <section class="hq-panel" aria-labelledby="settings-password">
       <h2 id="settings-password">Password</h2>
       <p><a href="/staff/password">Change your password</a></p>
+    </section>
+    <section class="hq-panel" aria-labelledby="settings-hq">
+      <h2 id="settings-hq">Potomac HQ</h2>
+      <ul class="hq-list">
+        <li><a href="/people">People</a> <span class="hq-muted">Who can sign in, and their roles</span></li>
+        <li zb-if={audit}><a href="/activity">Audit history</a> <span class="hq-muted">Everything that has been done in HQ</span></li>
+      </ul>
     </section>
   </div>
 </hq-settings>

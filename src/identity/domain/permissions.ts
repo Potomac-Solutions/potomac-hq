@@ -58,6 +58,10 @@ export const PERMISSIONS = [
   "portal.manage",
   "project.post-update",
   "call.respond",
+  // v1.0
+  "knowledge.view",
+  "knowledge.edit",
+  "report.view",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -90,6 +94,8 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "invoice.edit",
   "payment.record",
   "portal.manage",
+  "knowledge.edit",
+  "report.view",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

@@ -1,8 +1,8 @@
-import type { UserStore } from "../application/ports.ts";
+import type { InviteStore, UserStore } from "../application/ports.ts";
 import type { Access } from "../domain/access.ts";
-import { isPermission, type Permission } from "../domain/permissions.ts";
+import { isPermission, isRoleKey, ROLE_KEYS, type Permission, type RoleKey } from "../domain/permissions.ts";
 import { isTheme } from "../domain/theme.ts";
-import type { User, UserStatus } from "../domain/user.ts";
+import type { User, UserInvite, UserStatus } from "../domain/user.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -42,7 +42,37 @@ export function sqliteUserStore(db: Database): UserStore {
     `insert into user_preference (user_id, theme, updated_at) values (?, ?, ?)
      on conflict (user_id) do update set theme = excluded.theme, updated_at = excluded.updated_at`,
   );
+  const byEmail = db.prepare(`select ${columns} from user where email = ?`);
+  const rolesOf = db.prepare("select r.key from user_role ur join role r on r.id = ur.role_id where ur.user_id = ?");
+  const clearRoles = db.prepare("delete from user_role where user_id = ?");
+  const setStatus = db.prepare("update user set status = ?, updated_at = ? where id = ?");
+  const touch = db.prepare("update user set updated_at = ? where id = ?");
+  const otherAdmins = db.prepare(
+    `select count(*) as n from user u join user_role ur on ur.user_id = u.id join role r on r.id = ur.role_id
+      where r.key = 'admin' and u.status = 'active' and u.id <> ?`,
+  );
   return {
+    findByEmail(email) {
+      const row = byEmail.get(email) as UserRow | undefined;
+      return row ? toUser(row) : null;
+    },
+    rolesOf(userId) {
+      const held = (rolesOf.all(userId) as { key: string }[]).map((row) => row.key);
+      return ROLE_KEYS.filter((key) => held.includes(key));
+    },
+    setRoles(userId, roles, at) {
+      clearRoles.run(userId);
+      for (const role of roles) {
+        if (insertUserRole.run(userId, role).changes !== 1) throw new Error(`Unknown role: ${role}`);
+      }
+      touch.run(at, userId);
+    },
+    setStatus(userId, status, at) {
+      setStatus.run(status, at, userId);
+    },
+    activeAdminsOtherThan(userId) {
+      return otherAdmins.get(userId)?.["n"] as number;
+    },
     get(userId) {
       const row = byId.get(userId) as UserRow | undefined;
       return row ? toUser(row) : null;
@@ -80,6 +110,45 @@ export function sqliteUserStore(db: Database): UserStore {
     findByStaffAccount(staffAccount) {
       const row = byStaffAccount.get(staffAccount) as UserRow | undefined;
       return row ? toUser(row) : null;
+    },
+  };
+}
+
+type InviteRow = { id: string; email: string; name: string; roles: string; invited_by: string; created_at: string };
+
+function toInvite(row: InviteRow): UserInvite & { createdAt: string } {
+  const roles = (JSON.parse(row.roles) as unknown[]).filter((key): key is RoleKey => typeof key === "string" && isRoleKey(key));
+  return { id: row.id as Id, email: row.email, name: row.name, roles, invitedBy: row.invited_by as Id, createdAt: row.created_at };
+}
+
+export function sqliteInviteStore(db: Database): InviteStore {
+  const columns = "id, email, name, roles, invited_by, created_at";
+  const insert = db.prepare(`insert into user_invite (${columns}) values (?, ?, ?, ?, ?, ?)`);
+  const byEmail = db.prepare(`select ${columns} from user_invite where email = ?`);
+  const byId = db.prepare(`select ${columns} from user_invite where id = ?`);
+  const all = db.prepare(`select ${columns} from user_invite order by created_at, id`);
+  const remove = db.prepare("delete from user_invite where id = ?");
+  const removeOld = db.prepare("delete from user_invite where created_at < ?");
+  return {
+    insert(invite, at) {
+      insert.run(invite.id, invite.email, invite.name, JSON.stringify(invite.roles), invite.invitedBy, at);
+    },
+    byEmail(email) {
+      const row = byEmail.get(email) as InviteRow | undefined;
+      return row ? toInvite(row) : null;
+    },
+    get(id) {
+      const row = byId.get(id) as InviteRow | undefined;
+      return row ? toInvite(row) : null;
+    },
+    list() {
+      return (all.all() as InviteRow[]).map(toInvite);
+    },
+    remove(id) {
+      remove.run(id);
+    },
+    removeOlderThan(instant) {
+      return Number(removeOld.run(instant).changes);
     },
   };
 }
