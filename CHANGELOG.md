@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-16
+
 ### Security
 
 - Zubra packages upgraded from 5.17.0 to 5.19.0. 5.17.0 and 5.18.0 let some

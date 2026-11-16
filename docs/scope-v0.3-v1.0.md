@@ -229,6 +229,11 @@ still open.
 - **Alerts go by email only**, through the same Brevo account. If Brevo is
   down, the error is still in the log.
 - **Reports are for admins and managers**, like the money they show.
+- **The first release is numbered 0.9.0, not 1.0.0.** Everything in the
+  roadmap through v1.0 is built, but v1.0's gates are open: no real restore
+  drill, no independent review, and nobody has used HQ for real work. 1.0.0
+  is kept for when they close. Mikey can change the number before he merges
+  the release.
 
 ### Cut
 
