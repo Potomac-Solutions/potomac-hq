@@ -13,10 +13,10 @@
     if (stop) return stop
     const view = context.projects.tasks(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Tasks: ' + view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} done="" problem="">
+<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a></p>
     <h1>Tasks</h1>
@@ -28,6 +28,7 @@
       <a href="/projects/{view.project.id}">Overview</a>
       <a href="/projects/{view.project.id}/tasks" aria-current="page">Tasks</a>
       <a href="/projects/{view.project.id}/board">Board</a>
+      <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
     <section class="hq-panel" aria-labelledby="task-list">
       <h2 id="task-list" class="sr-only">Task list</h2>

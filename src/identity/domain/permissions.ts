@@ -43,6 +43,13 @@ export const PERMISSIONS = [
   "proposal.edit",
   "proposal.send",
   "proposal.decide",
+  // v0.5
+  "time.log",
+  "time.view-all",
+  "expense.edit",
+  "finance.view",
+  "finance.edit",
+  "finance.export",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -66,6 +73,11 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "proposal.edit",
   "proposal.send",
   "proposal.decide",
+  "time.view-all",
+  "expense.edit",
+  "finance.view",
+  "finance.edit",
+  "finance.export",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

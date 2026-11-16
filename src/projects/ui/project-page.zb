@@ -15,11 +15,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
     <h1>{p.name}</h1>
@@ -31,6 +31,7 @@
       <a href="/projects/{p.id}" aria-current="page">Overview</a>
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/tasks">Tasks</a>
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/board">Board</a>
+      <a zb-if={money} href="/projects/{p.id}/money">Money</a>
     </nav>
 
     <section class="hq-panel" aria-labelledby="project-details">

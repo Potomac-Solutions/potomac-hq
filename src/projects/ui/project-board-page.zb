@@ -11,10 +11,10 @@
     if (stop) return stop
     const view = context.projects.board(params.id, url.searchParams.get('mine') === '1')
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Board: ' + view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Board: ' + view.value.project.name, view: view.value, money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-project-board view={{ project: {}, columns: [], statuses: [] }} done="" problem="">
+<hq-project-board view={{ project: {}, columns: [], statuses: [] }} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a></p>
     <h1>Board</h1>
@@ -26,6 +26,7 @@
       <a href="/projects/{view.project.id}">Overview</a>
       <a href="/projects/{view.project.id}/tasks">Tasks</a>
       <a href="/projects/{view.project.id}/board" aria-current="page">Board</a>
+      <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
     <p><a zb-if={view.mine} href="/projects/{view.project.id}/board">Show everyone’s tasks</a><a zb-else href="/projects/{view.project.id}/board?mine=1">Show only mine</a> · <a href="/projects/{view.project.id}/tasks">Add a task</a></p>
     <task-board board={view}></task-board>
