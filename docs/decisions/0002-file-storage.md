@@ -7,8 +7,14 @@ by: Claude, under "roll until it is ready to deploy".
 
 v0.3 adds deliverables, and v0.5 adds receipts. The roadmap asks for a file
 service that stores files outside the web root, authorizes every download on
-the server, and records uploads and downloads. Where the bytes live was left
-open in M0 ("File storage: to be decided").
+the server, and records uploads and downloads.
+
+**This departs from two approved documents.** Decision 0001's table says
+"File storage and backup copies: Cloudflare R2", and `docs/tool-boundaries.md`
+says "Cloudflare R2 holds the bytes". The plan's status note of November 15
+lists file storage as still open. With Mikey away, and no R2 keys set, the
+choice below was made so that uploads work the day HQ is deployed. If he
+prefers R2 for the bytes, as first written, the change is one adapter.
 
 Three facts shaped the choice:
 
@@ -41,7 +47,12 @@ and `get`. The SQLite adapter is the only one today.
   backup is read into memory to seal it, so it should move to R2 before the
   database nears a gigabyte.
 - Moving to R2 later means writing one adapter for `BlobStore` and a command
-  that copies the rows out. No application code changes.
+  that copies the rows out. `BlobStore` is called inside a database
+  transaction, and R2 is reached over the network, so that adapter also
+  means uploading before the transaction opens. The use cases that store a
+  file (`addDeliverable`, `addExpense`, `recordAgreement`) would change in
+  that one way.
+- Every file still reaches R2, sealed, inside the nightly backup.
 - A second volume or bucket would have needed its own backup and its own
   restore step. This choice avoids both until they are needed.
 

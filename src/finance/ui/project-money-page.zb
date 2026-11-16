@@ -1,0 +1,200 @@
+<!--
+  One project's money: estimate against actual for hours and cost, by phase,
+  with its payment status, expenses and time. A management view, not the
+  books.
+-->
+<script>
+  'use route /projects/:id/money'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.money.project(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Money: ' + view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+  const s = view.summary
+  const id = view.project.id
+</script>
+<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{id}">{view.project.name}</a></p>
+    <h1>Money</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <nav class="hq-tabs" aria-label="Project">
+      <a href="/projects/{id}">Overview</a>
+      <a href="/projects/{id}/tasks">Tasks</a>
+      <a href="/projects/{id}/board">Board</a>
+      <a href="/projects/{id}/money" aria-current="page">Money</a>
+    </nav>
+
+    <section class="hq-panel" aria-labelledby="money-standing">
+      <h2 id="money-standing">Estimate against actual, {view.period}</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Measure</th><th scope="col" class="hq-number">Budget</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Hours</th><td class="hq-number">{s.hours.budget || "None set"}</td><td class="hq-number">{s.hours.actual}</td><td><span zb-if={s.hours.over} class="hq-tag due">Over</span><span zb-else-if={s.hours.budget}>Within</span></td></tr>
+          <tr><th scope="row">Cost</th><td class="hq-number">{s.cost.budget || "None set"}</td><td class="hq-number">{s.cost.actual}</td><td><span zb-if={s.cost.over} class="hq-tag due">Over</span><span zb-else-if={s.cost.budget}>Within</span></td></tr>
+        </tbody>
+      </table>
+      <dl class="hq-facts" data-spaced>
+        <dt>Time, at the hourly rate</dt><dd>{s.timeCost}</dd>
+        <dt>Expenses</dt><dd>{s.expenses}</dd>
+        <dt>Billable hours</dt><dd>{s.billableHours}</dd>
+        <dt zb-if={s.margin}>Margin</dt><dd zb-if={s.margin}>{s.margin}<span zb-if={s.marginPercent}> ({s.marginPercent})</span> <span zb-if={s.marginNegative} class="hq-tag due">Losing money</span></dd>
+      </dl>
+      <p class="hq-muted hq-small" data-spaced>An operational estimate: the budget less time at the hourly rate and expenses. It is not the books.<span zb-if={view.fromProposal}> The budget is the accepted proposal’s.</span></p>
+      <details zb-if={view.can.edit} class="hq-more">
+        <summary>Set the budget by hand</summary>
+        <form method="post" action="/projects/{id}/budget" class="hq-form">
+          <text-field label="Budget in dollars" name="amount" inputmode="decimal" value={view.budgetForm.amount} description="Leave empty to use the accepted proposal’s."></text-field>
+          <text-field label="Budget in hours" name="hours" inputmode="decimal" value={view.budgetForm.hours} description="Leave empty to use the accepted proposal’s."></text-field>
+          <text-field label="What an hour costs, in dollars" name="rate" inputmode="decimal" value={view.budgetForm.rate} required={true}></text-field>
+          <div><button class="hq-button" type="submit">Save budget</button></div>
+        </form>
+      </details>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="money-phases">
+      <h2 id="money-phases">Hours by phase</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Phase</th><th scope="col" class="hq-number">Estimated</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
+        <tbody>
+          <zb-each items={view.phases} as="phase" key={phase.key}>
+            <tr><th scope="row">{phase.name}</th><td class="hq-number">{phase.estimate || "None"}</td><td class="hq-number">{phase.actual}</td><td><span zb-if={phase.over} class="hq-tag due">Over</span></td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p class="hq-muted hq-small" data-spaced>A phase’s estimate is its tasks’ estimates added up. Time counts for the phase of the task it was logged on.</p>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="money-payment">
+      <h2 id="money-payment">Payment</h2>
+      <p><strong>{view.payment.statusLabel}</strong><span zb-if={view.payment.invoiceRef}>. Invoice {view.payment.invoiceRef}</span></p>
+      <form zb-if={view.can.edit} method="post" action="/projects/{id}/payment" class="hq-form-row">
+        <div class="hq-field">
+          <label for="payment-status">Payment status</label>
+          <select id="payment-status" name="status">
+            <zb-each items={view.paymentStatuses} as="status" key={status.value}><option value={status.value} selected={status.value === view.payment.status}>{status.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Invoice number or link" name="invoiceRef" value={view.payment.invoiceRef}></text-field>
+        <button class="hq-button secondary" type="submit">Save payment status</button>
+      </form>
+    </section>
+
+    <section zb-if={view.can.viewInvoices} class="hq-panel" id="invoices" aria-labelledby="money-invoices">
+      <h2 id="money-invoices">Invoices</h2>
+      <empty-state zb-if={view.invoices.length === 0} heading="No invoices yet">Draft one for the deposit, the balance or the full amount.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Issued</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
+        <tbody>
+          <zb-each items={view.invoices} as="invoice" key={invoice.id}>
+            <tr>
+              <td><a href="/invoices/{invoice.id}">{invoice.label}</a></td>
+              <td>{invoice.kindLabel}</td>
+              <td>{invoice.statusLabel} <span zb-if={invoice.overdue} class="hq-tag due">Overdue</span></td>
+              <td>{invoice.issuedOn}</td>
+              <td>{invoice.dueOn}</td>
+              <td class="hq-number">{invoice.total}</td>
+              <td class="hq-number">{invoice.status === "void" ? "" : invoice.owed}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <details zb-if={view.can.editInvoices} class="hq-more">
+        <summary>Draft an invoice</summary>
+        <form method="post" action="/projects/{id}/invoices" class="hq-form">
+          <div class="hq-field">
+            <label for="invoice-kind">What it is for</label>
+            <select id="invoice-kind" name="kind" required>
+              <zb-each items={view.invoiceKinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="Description" name="description" required={true} description="What the client reads. Like: Deposit, one third of the quote"></text-field>
+          <text-field label="Invoice amount in dollars" name="amount" inputmode="decimal" required={true} description={view.invoiceForm.full ? "From the budget: a deposit would be " + view.invoiceForm.deposit + ", the balance not yet invoiced is " + (view.invoiceForm.balance || "0.00") + ", the full amount is " + view.invoiceForm.full + "." : "No budget is set, so there is nothing to suggest."}></text-field>
+          <text-field label="Due" name="dueOn" type="date"></text-field>
+          <text-field label="Note on the invoice" name="note" rows={2}></text-field>
+          <div><button class="hq-button" type="submit">Draft invoice</button></div>
+        </form>
+      </details>
+    </section>
+
+    <section class="hq-panel" id="expenses" aria-labelledby="money-expenses">
+      <h2 id="money-expenses">Expenses</h2>
+      <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">Record what this job costs beyond time: hosting, software, a contractor.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Category</th><th scope="col" class="hq-number">Amount</th><th scope="col">Note</th><th scope="col">Receipt</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.expenses} as="expense" key={expense.id}>
+            <tr>
+              <td>{expense.on}</td>
+              <td>{expense.categoryLabel}</td>
+              <td class="hq-number">{expense.amount}</td>
+              <td>{expense.note}</td>
+              <td><a zb-if={expense.receiptFileId && view.can.download} href="/files/{expense.receiptFileId}">{expense.receiptName}</a></td>
+              <td>
+                <form zb-if={view.can.addExpense} method="post" action="/expenses/{expense.id}/remove" class="hq-inline">
+                  <input type="hidden" name="returnTo" value="/projects/{id}/money">
+                  <button class="hq-button secondary small" type="submit" aria-label="Remove the {expense.amount} expense on {expense.on}">Remove</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <details zb-if={view.can.addExpense} class="hq-more">
+        <summary>Record an expense</summary>
+        <form method="post" action="/projects/{id}/expenses" enctype="multipart/form-data" class="hq-form">
+          <div class="hq-field">
+            <label for="expense-category">Category</label>
+            <select id="expense-category" name="category" required>
+              <zb-each items={view.categories} as="category" key={category.value}><option value={category.value}>{category.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="Expense amount in dollars" name="amount" inputmode="decimal" required={true}></text-field>
+          <text-field label="Day" name="on" type="date" value={view.today} required={true}></text-field>
+          <text-field label="What it was for" name="note"></text-field>
+          <div class="hq-field">
+            <label for="expense-receipt">Receipt</label>
+            <input id="expense-receipt" name="receipt" type="file" aria-describedby="expense-receipt-help">
+            <p id="expense-receipt-help" class="hq-muted hq-small">Optional. A PDF or an image, up to 25 MB.</p>
+          </div>
+          <div><button class="hq-button" type="submit">Record expense</button></div>
+        </form>
+      </details>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="money-time">
+      <h2 id="money-time">Time logged</h2>
+      <empty-state zb-if={view.entries.length === 0} heading="No time yet">Time is logged from the Time page, or by the timer when a task is being worked on.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Task</th><th scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.entries} as="entry" key={entry.id}>
+            <tr>
+              <td>{entry.on}</td>
+              <td>{entry.taskTitle}</td>
+              <td>{entry.who}</td>
+              <td class="hq-number">{entry.running ? "Running" : entry.hours}<span zb-if={!entry.billable && !entry.running} class="hq-muted"> (not billable)</span></td>
+              <td>{entry.note}</td>
+              <td>
+                <form zb-if={view.can.removeTime && !entry.running} method="post" action="/time/{entry.id}/remove" class="hq-inline">
+                  <input type="hidden" name="returnTo" value="/projects/{id}/money">
+                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} hours on {entry.on} by {entry.who}">Remove</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p data-spaced><a href="/time">Log time</a></p>
+    </section>
+  </div>
+</hq-project-money>

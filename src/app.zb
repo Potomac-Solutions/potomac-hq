@@ -14,16 +14,18 @@
 
   export async function load({ context }) {
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '' }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', can: context.can }
   }
 
   const links = [
     { label: 'Dashboard', href: '/', current: route.path === '/' },
     { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
     { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
-    { label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') },
+    ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') }] : []),
     { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') },
     { label: 'Board', href: '/board', current: route.path === '/board' },
+    ...(can.time ? [{ label: 'Time', href: '/time', current: route.path === '/time' }] : []),
+    ...(can.money ? [{ label: 'Money', href: '/money', current: route.path === '/money' }] : []),
   ]
 </script>
 <style>
@@ -39,7 +41,7 @@
   .hq-main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
   .hq-main:focus { outline: none; }
 </style>
-<hq-app who="" route={{}}>
+<hq-app who="" route={{}} can={{}}>
   <a class="skip-link" href="#main">Skip to content</a>
   <nav-bar zb-if={who} href="/" links={links} label="Main">
     <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>

@@ -7,12 +7,16 @@
 //   HQ_CACHE_DIR       a writable folder for compiled pages, inside the app's
 //                      folder so they can import its packages (the container sets it)
 //   HQ_BACKUP_*        nightly backups (see .env.example); off when unset
+//   HQ_SHEETS_*        the Google Sheet finance records are copied to each night; off when unset
 //   HQ_BREVO_API_KEY,  outbound email for "Forgot your password?"; off when unset
 //   HQ_EMAIL_FROM
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
+import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
+import { syncFinanceSheet } from "../src/finance/index.ts";
+import { createServices } from "../src/services.ts";
 import { backupConfigFrom, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
@@ -57,6 +61,21 @@ const stopBackups = backup
   : null;
 console.log(backup ? `Nightly backups go to ${backup.target.describe}.` : "Backups are not set up. Nothing will be backed up.");
 
+// The finance sheet: every night at 03:47 business time, if it is set up.
+const sheet = sheetConfigFrom(process.env);
+const sheetTarget = sheet ? googleSheetTarget(sheet) : null;
+const stopSheet = sheetTarget
+  ? scheduleDaily(() => syncFinanceSheet(createServices(db).finance, sheetTarget).then((result) => console.log(`Finance sheet updated: ${result.rows} rows.`)), {
+      zone: BUSINESS_TIME_ZONE,
+      hour: 3,
+      minute: 47,
+      clock: systemClock,
+      log: (message, error) => console.error(message, error ?? ""),
+      name: "finance sheet update",
+    })
+  : null;
+console.log(sheetTarget ? `Finance records are copied each night to ${sheetTarget.describe}.` : "The finance sheet is not set up. Use the CSV exports.");
+
 const server = createServer(app.listener);
 server.listen(port, async () => {
   console.log(`Potomac HQ is listening on port ${port}.`);
@@ -67,6 +86,7 @@ server.listen(port, async () => {
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopBackups?.();
+    stopSheet?.();
     server.close(() => {
       db.close();
       process.exit(0);

@@ -24,6 +24,11 @@ export type ProjectsDeps = FilesDeps & {
   readonly today: () => string;
   /** Formats a UTC instant for people, in the business time zone. */
   readonly formatWhen: (instant: string) => string;
+  /**
+   * Told about a task's move, inside the move's transaction. The timer
+   * listens here: marking a task "working on" starts it (docs/workflow.md, B6).
+   */
+  readonly onTaskMoved?: (actorId: Id, task: Task, from: string) => void;
 };
 
 export type Refused = "forbidden" | "not-found";
@@ -212,6 +217,7 @@ export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: I
     if (!moved.ok) return moved;
     deps.tasks.update(moved.value, at);
     recordActivity(deps, { actorId, action: "task.moved", recordType: "task", recordId: taskId, context: { projectId: task.projectId, from: task.status, to: moved.value.status } });
+    deps.onTaskMoved?.(actorId, moved.value, task.status);
     return ok(moved.value);
   });
 }

@@ -1,0 +1,41 @@
+// What each refusal code says to a person.
+const MESSAGES: Readonly<Record<string, string>> = {
+  forbidden: "You don’t have permission to do that.",
+  "not-found": "That record doesn’t exist.",
+  "task-not-in-project": "Choose a project or one of its tasks from the list.",
+  "invalid-date": "Enter a date.",
+  "date-in-future": "That day hasn’t happened yet.",
+  "invalid-hours": "Enter hours like 1.5.",
+  "hours-missing": "Enter how many hours.",
+  "too-long-for-a-day": "One entry can’t be longer than a day. Split it across days.",
+  "note-too-long": "That note is too long.",
+  "not-running": "No timer is running.",
+  "invalid-category": "Choose a category from the list.",
+  "not-an-amount": "Enter an amount like 1,250.00.",
+  "amount-must-be-positive": "Enter an amount above zero.",
+  "rate-must-be-positive": "Enter an hourly rate above zero.",
+  "invalid-payment-status": "Choose a payment status from the list.",
+  "invoice-ref-too-long": "That invoice reference is too long.",
+  "invalid-invoice-kind": "Choose what the invoice is for.",
+  "description-missing": "Enter what the line is for.",
+  "description-too-long": "That description is too long.",
+  "not-a-draft": "This invoice has been sent, so it can’t change. Void it and make a new one.",
+  "too-many-lines": "An invoice can have at most 30 lines.",
+  "already-void": "That invoice is already void.",
+  "already-paid": "That invoice is paid. A paid invoice stays as it is.",
+  "has-payments": "Money has been received against that invoice, so it can’t be voided.",
+  "not-sent": "Send the invoice before recording a payment.",
+  "more-than-is-owed": "That is more than is owed on this invoice.",
+  "invalid-payment-method": "Choose how it was paid.",
+  "reference-too-long": "That reference is too long.",
+  "looks-like-a-card-number": "That looks like a card number. HQ never keeps one. Enter the gateway’s reference instead.",
+  "file-missing": "Choose a file to upload.",
+  "file-too-large": "That file is larger than 25 MB.",
+  "file-name-invalid": "That file’s name can’t be used. Rename it and try again.",
+  "file-type-not-allowed": "That kind of file can’t be uploaded. Use a PDF or an image.",
+  "file-content-mismatch": "That file isn’t what its name says it is.",
+};
+
+export function messageFor(code: string): string {
+  return MESSAGES[code] ?? "That didn’t work. Try again.";
+}

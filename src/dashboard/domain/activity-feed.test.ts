@@ -12,6 +12,6 @@ test("an action HQ took by itself stands alone, capitalised", () => {
 });
 
 test("an action with no wording is shown by its key, never hidden", () => {
-  assert.equal(describeAction("invoice.sent"), "invoice.sent");
-  assert.equal(describeEvent("invoice.sent", "Mikey Nichols"), "Mikey Nichols invoice.sent");
+  assert.equal(describeAction("widget.frobbed"), "widget.frobbed");
+  assert.equal(describeEvent("widget.frobbed", "Mikey Nichols"), "Mikey Nichols widget.frobbed");
 });

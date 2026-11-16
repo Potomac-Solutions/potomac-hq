@@ -1,0 +1,89 @@
+<!--
+  A week of time. The timer starts by itself when a task is marked "working
+  on". Time can also be typed in here afterwards.
+-->
+<script>
+  'use route /time'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.time.sheet(url.searchParams.get('week') ?? '', url.searchParams.get('everyone') === '1')
+    if (!view.ok) return context.forbidden()
+    return { title: 'Time', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+  const all = view.everyone ? '&everyone=1' : ''
+</script>
+<hq-time view={{ week: {}, entries: [], targets: [], timer: {} }} done="" problem="">
+  <div class="hq-page">
+    <h1>Time</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section zb-if={view.timer.running} class="hq-panel" aria-labelledby="time-timer">
+      <h2 id="time-timer">Working on</h2>
+      <p><strong>{view.timer.label}</strong>, for {view.timer.since}.</p>
+      <form method="post" action="/timer/stop">
+        <input type="hidden" name="returnTo" value="/time">
+        <button class="hq-button" type="submit">Stop the timer</button>
+      </form>
+    </section>
+    <p zb-else class="hq-muted">No timer is running. It starts when you move a task to “Working on”.</p>
+
+    <section class="hq-panel" aria-labelledby="time-log">
+      <h2 id="time-log">Log time</h2>
+      <empty-state zb-if={view.targets.length === 0} heading="No active projects">Time is logged against a project.</empty-state>
+      <form zb-else method="post" action="/time" class="hq-form">
+        <div class="hq-field">
+          <label for="time-target">Project or task</label>
+          <select id="time-target" name="target" required>
+            <zb-each items={view.targets} as="target" key={target.value}><option value={target.value}>{target.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Day" name="on" type="date" value={view.today} required={true}></text-field>
+        <text-field label="Hours" name="hours" inputmode="decimal" required={true} description="Like 1.5"></text-field>
+        <text-field label="What you did" name="note"></text-field>
+        <label class="hq-check"><input type="checkbox" name="billable" checked> Billable</label>
+        <div><button class="hq-button" type="submit">Log time</button></div>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="time-week">
+      <h2 id="time-week">{view.week.isThisWeek ? "This week" : "Week of " + view.week.from}{view.everyone ? ", everyone" : ""}</h2>
+      <p>
+        <a href="/time?week={view.week.previous}{all}">Earlier</a> ·
+        <a zb-if={!view.week.isThisWeek} href="/time?week={view.week.next}{all}">Later</a><span zb-if={!view.week.isThisWeek}> · </span>
+        <a zb-if={!view.week.isThisWeek} href="/time{view.everyone ? '?everyone=1' : ''}">This week</a><span zb-if={!view.week.isThisWeek && view.canSeeEveryone}> · </span>
+        <a zb-if={view.canSeeEveryone && !view.everyone} href="/time?week={view.week.from}&everyone=1">Show everyone’s</a>
+        <a zb-if={view.everyone} href="/time?week={view.week.from}">Show only mine</a>
+      </p>
+      <p><strong>{view.total} hours</strong>, {view.billable} billable. {view.week.from} to {view.week.to}.</p>
+      <empty-state zb-if={view.entries.length === 0} heading="Nothing logged this week">Move a task to “Working on”, or log time above.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Day</th><th scope="col">Project</th><th scope="col">Task</th><th zb-if={view.everyone} scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.entries} as="entry" key={entry.id}>
+            <tr>
+              <td>{entry.on}</td>
+              <td><a href="/projects/{entry.projectId}">{entry.projectName}</a></td>
+              <td>{entry.taskTitle}</td>
+              <td zb-if={view.everyone}>{entry.who}</td>
+              <td class="hq-number">{entry.running ? "Running" : entry.hours}<span zb-if={!entry.billable && !entry.running} class="hq-muted"> (not billable)</span></td>
+              <td>{entry.note}</td>
+              <td>
+                <form zb-if={!entry.running} method="post" action="/time/{entry.id}/remove" class="hq-inline">
+                  <input type="hidden" name="returnTo" value="/time">
+                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} hours on {entry.on}, {entry.projectName}">Remove</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-time>

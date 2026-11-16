@@ -29,8 +29,8 @@ test("hours are read as people type them", () => {
   assert.deepEqual(parseHours(""), { ok: true, value: null });
   assert.deepEqual(parseHours("2"), { ok: true, value: 120 });
   assert.deepEqual(parseHours("0.25"), { ok: true, value: 15 });
-  assert.deepEqual(parseHours("-1"), { ok: false, error: "invalid-estimate" });
-  assert.deepEqual(parseHours("99999"), { ok: false, error: "invalid-estimate" });
+  assert.deepEqual(parseHours("-1"), { ok: false, error: "invalid-hours" });
+  assert.deepEqual(parseHours("99999"), { ok: false, error: "invalid-hours" });
   assert.equal(formatHours(90), "1.5");
   assert.equal(formatHours(120), "2");
   assert.equal(formatHours(15), "0.25");

@@ -11,11 +11,11 @@
     if (stop) return stop
     const view = context.projects.task(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.task.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), done: context.notice.done, problem: context.notice.problem }
   }
   const t = view.task
 </script>
-<hq-task view={{ task: {}, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false }} done="" problem="">
+<hq-task view={{ task: {}, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{t.projectId}">{t.projectName}</a> / <a href="/projects/{t.projectId}/tasks">Tasks</a></p>
     <h1>{t.title}</h1>
@@ -31,6 +31,7 @@
         <dt>Priority</dt><dd>{t.priorityLabel}</dd>
         <dt>Due</dt><dd>{t.dueOn || "Not set"} <span zb-if={t.overdue} class="hq-tag due">Overdue</span></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
+        <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged} hours<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
         <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>
       </dl>
       <div class="hq-actions" data-spaced>
@@ -44,7 +45,12 @@
           </div>
           <button class="hq-button" type="submit">Move task</button>
         </form>
+        <form zb-if={timer.running} method="post" action="/timer/stop">
+          <input type="hidden" name="returnTo" value="/tasks/{t.id}">
+          <button class="hq-button secondary" type="submit">Stop the timer</button>
+        </form>
       </div>
+      <p zb-if={timer.can && view.canEdit && !timer.running} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
     </section>
     <section zb-if={view.canEdit} class="hq-panel" aria-labelledby="task-edit">
       <h2 id="task-edit">Edit</h2>
