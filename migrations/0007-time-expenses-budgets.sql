@@ -55,6 +55,45 @@ create table project_finance (
   updated_at     text not null
 ) strict;
 
+-- Invoices and the payments received against them (docs/tool-boundaries.md:
+-- invoicing is built into HQ). Numbers run 1, 2, 3 with no gaps: a mistake is
+-- voided, never deleted.
+create table invoice (
+  id          text primary key,
+  project_id  text not null references project (id),
+  number      integer not null unique check (number > 0),
+  kind        text not null check (kind in ('deposit', 'balance', 'full', 'other')),
+  status      text not null check (status in ('draft', 'sent', 'paid', 'void')),
+  lines       text not null check (json_valid(lines) and json_type(lines) = 'array'),
+  total_minor integer not null check (total_minor > 0),
+  currency    text not null default 'USD' check (currency = 'USD'),
+  issued_on   text check (issued_on is null or issued_on glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  due_on      text check (due_on is null or due_on glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  note        text not null default '',
+  created_by  text not null references user (id),
+  created_at  text not null,
+  updated_at  text not null,
+  check (status = 'draft' or status = 'void' or issued_on is not null)
+) strict;
+
+create index invoice_by_project on invoice (project_id);
+
+-- Money received. Written once. `reference` is a check number or a gateway's
+-- reference, never a card number (docs/tool-boundaries.md, rule 1).
+create table payment (
+  id           text primary key,
+  invoice_id   text not null references invoice (id),
+  amount_minor integer not null check (amount_minor > 0),
+  currency     text not null default 'USD' check (currency = 'USD'),
+  method       text not null check (method in ('cash', 'check', 'card', 'transfer', 'other')),
+  received_on  text not null check (received_on glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  reference    text not null default '',
+  recorded_by  text not null references user (id),
+  created_at   text not null
+) strict;
+
+create index payment_by_invoice on payment (invoice_id);
+
 -- New permissions (docs/authorization-matrix.md, "v0.5"). Everyone logs their
 -- own time. Money is for admins and managers.
 insert into role_permission (role_id, permission)
@@ -63,5 +102,6 @@ select role.id, 'time.log' from role;
 insert into role_permission (role_id, permission)
 select role.id, added.column1
   from role,
-       (values ('time.view-all'), ('expense.edit'), ('finance.view'), ('finance.edit'), ('finance.export')) as added
+       (values ('time.view-all'), ('expense.edit'), ('finance.view'), ('finance.edit'), ('finance.export'),
+               ('invoice.view'), ('invoice.edit'), ('payment.record')) as added
  where role.key in ('admin', 'manager');
