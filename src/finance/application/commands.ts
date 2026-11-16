@@ -1,0 +1,176 @@
+// The finance module's changes: time, the timer, expenses, budgets and
+// payment status. Each one checks permission first, makes its change and
+// writes its activity event in one transaction, and answers with a code.
+import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
+import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
+import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
+import type { CrmDeps } from "../../crm/index.ts";
+import { saveFile, type UploadError } from "../../files/index.ts";
+import { authorize } from "../../identity/index.ts";
+import type { ProjectsDeps, Task } from "../../projects/index.ts";
+import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import type { ExpenseStore, FinanceStore, PhaseEstimates, TimeStore } from "./ports.ts";
+
+export type FinanceDeps = ProjectsDeps &
+  Pick<CrmDeps, "opportunities"> & {
+    readonly time: TimeStore;
+    readonly expenses: ExpenseStore;
+    readonly finance: FinanceStore;
+    readonly phaseEstimates: PhaseEstimates;
+  };
+
+export type Refused = "forbidden" | "not-found";
+
+function allowed(deps: FinanceDeps, actorId: Id | null, action: string): actorId is Id {
+  return actorId !== null && authorize(deps, actorId, action).ok;
+}
+
+/** Logs time the actor worked. `taskId`, when given, must be a task of the project. */
+export function logTime(deps: FinanceDeps, actorId: Id | null, where: { readonly projectId: Id; readonly taskId?: Id | null }, input: TimeInput): Result<TimeEntry, Refused | "task-not-in-project" | TimeError> {
+  if (!allowed(deps, actorId, "time.log")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(where.projectId)) return err("not-found");
+    if (where.taskId && deps.tasks.get(where.taskId)?.projectId !== where.projectId) return err("task-not-in-project");
+    const entry = logEntry({ id: deps.newId(), projectId: where.projectId, taskId: where.taskId ?? null, userId: actorId }, input, deps.today());
+    if (!entry.ok) return entry;
+    deps.time.insert(entry.value, deps.clock());
+    recordActivity(deps, {
+      actorId,
+      action: "time.logged",
+      recordType: "time-entry",
+      recordId: entry.value.id,
+      context: { projectId: where.projectId, taskId: entry.value.taskId, on: entry.value.workedOn, minutes: entry.value.minutes, billable: entry.value.billable },
+    });
+    return ok(entry.value);
+  });
+}
+
+/** Stops one running entry and records it. For use inside a transaction. */
+function stop(deps: FinanceDeps, actorId: Id | null, entry: TimeEntry): TimeEntry | null {
+  const at = deps.clock();
+  const stopped = stopEntry(entry, at);
+  if (!stopped.ok) return null;
+  deps.time.update(stopped.value, at);
+  recordActivity(deps, { actorId, action: "time.stopped", recordType: "time-entry", recordId: entry.id, context: { projectId: entry.projectId, taskId: entry.taskId, minutes: stopped.value.minutes } });
+  return stopped.value;
+}
+
+/** Stops the actor's own running timer. */
+export function stopTimer(deps: FinanceDeps, actorId: Id | null): Result<TimeEntry, "forbidden" | "not-running"> {
+  if (!allowed(deps, actorId, "time.log")) return err("forbidden");
+  return deps.transact(() => {
+    const running = deps.time.running(actorId);
+    const stopped = running ? stop(deps, actorId, running) : null;
+    return stopped ? ok(stopped) : err("not-running");
+  });
+}
+
+/**
+ * The timer's side of a task move (docs/workflow.md, B6). Marking a task
+ * "working on" starts the mover's timer on it, stopping any other timer they
+ * had running. Moving a task out of "working on" stops every timer running on
+ * it. It has no transaction of its own: the projects module calls it inside
+ * the move's. Someone who may not log time simply gets no timer.
+ */
+export function applyTaskMove(deps: FinanceDeps, actorId: Id, task: Task, from: string): void {
+  if (from === "doing" && task.status !== "doing") {
+    for (const entry of deps.time.runningOnTask(task.id)) stop(deps, actorId, entry);
+    return;
+  }
+  if (task.status !== "doing" || from === "doing" || !authorize(deps, actorId, "time.log").ok) return;
+  const other = deps.time.running(actorId);
+  if (other) stop(deps, actorId, other);
+  const at = deps.clock();
+  const entry = startEntry({ id: deps.newId(), projectId: task.projectId, taskId: task.id, userId: actorId }, at, deps.today());
+  deps.time.insert(entry, at);
+  recordActivity(deps, { actorId, action: "time.started", recordType: "time-entry", recordId: entry.id, context: { projectId: task.projectId, taskId: task.id } });
+}
+
+/** Removes a mistaken entry. Your own, or anyone's with `time.view-all`. */
+export function removeTime(deps: FinanceDeps, actorId: Id | null, entryId: Id): Result<TimeEntry, Refused> {
+  if (!allowed(deps, actorId, "time.log")) return err("forbidden");
+  return deps.transact(() => {
+    const entry = deps.time.get(entryId);
+    if (!entry) return err("not-found");
+    // Someone else's entry is "not found" to a person who may only see their own.
+    if (entry.userId !== actorId && !authorize(deps, actorId, "time.view-all").ok) return err("not-found");
+    deps.time.remove(entryId, deps.clock());
+    recordActivity(deps, { actorId, action: "time.removed", recordType: "time-entry", recordId: entryId, context: { projectId: entry.projectId, minutes: entry.minutes, on: entry.workedOn, ownerId: entry.userId } });
+    return ok(entry);
+  });
+}
+
+export function addExpense(
+  deps: FinanceDeps,
+  actorId: Id | null,
+  projectId: Id,
+  input: ExpenseInput & { readonly receipt?: { readonly name: string; readonly bytes: Uint8Array } | null },
+): Result<Expense, Refused | ExpenseError | UploadError> {
+  if (!allowed(deps, actorId, "expense.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const id = deps.newId();
+    // Check the words before storing the receipt, so a bad amount stores nothing.
+    const draft = newExpense({ id, projectId, recordedBy: actorId, receiptFileId: null }, input, deps.today());
+    if (!draft.ok) return draft;
+    let receiptFileId: Id | null = null;
+    if (input.receipt) {
+      const file = saveFile(deps, actorId, { ...input.receipt, ownerType: "expense-receipt", ownerId: id, organizationId: project.organizationId, projectId });
+      if (!file.ok) return file;
+      receiptFileId = file.value.id;
+    }
+    const expense = { ...draft.value, receiptFileId };
+    deps.expenses.insert(expense, deps.clock());
+    recordActivity(deps, {
+      actorId,
+      action: "expense.added",
+      recordType: "expense",
+      recordId: id,
+      context: { projectId, category: expense.category, minor: expense.amount.minor, currency: expense.amount.currency, on: expense.spentOn, hasReceipt: receiptFileId !== null },
+    });
+    return ok(expense);
+  });
+}
+
+export function removeExpense(deps: FinanceDeps, actorId: Id | null, expenseId: Id): Result<Expense, Refused> {
+  if (!allowed(deps, actorId, "expense.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const expense = deps.expenses.get(expenseId);
+    if (!expense) return err("not-found");
+    deps.expenses.remove(expenseId, deps.clock());
+    recordActivity(deps, { actorId, action: "expense.removed", recordType: "expense", recordId: expenseId, context: { projectId: expense.projectId, minor: expense.amount.minor } });
+    return ok(expense);
+  });
+}
+
+export function setProjectBudget(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: BudgetInput): Result<ProjectFinance, Refused | BudgetError> {
+  if (!allowed(deps, actorId, "finance.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(projectId)) return err("not-found");
+    const changed = setBudget(deps.finance.get(projectId) ?? defaultFinance(projectId), input);
+    if (!changed.ok) return changed;
+    deps.finance.save(changed.value, deps.clock());
+    recordActivity(deps, {
+      actorId,
+      action: "project.budget-set",
+      recordType: "project",
+      recordId: projectId,
+      context: { minor: changed.value.budget?.minor ?? null, minutes: changed.value.budgetMinutes, rateMinor: changed.value.rate.minor },
+    });
+    return ok(changed.value);
+  });
+}
+
+export function setProjectPayment(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: { readonly status: string; readonly invoiceRef?: string | null }): Result<ProjectFinance, Refused | "invalid-payment-status" | "invoice-ref-too-long"> {
+  if (!allowed(deps, actorId, "finance.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(projectId)) return err("not-found");
+    const before = deps.finance.get(projectId) ?? defaultFinance(projectId);
+    const changed = setPayment(before, input);
+    if (!changed.ok) return changed;
+    deps.finance.save(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to: changed.value.paymentStatus, invoiceRef: changed.value.invoiceRef } });
+    return ok(changed.value);
+  });
+}
