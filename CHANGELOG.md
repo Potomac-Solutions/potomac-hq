@@ -180,6 +180,22 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - Nine permissions. Everyone logs their own time. Costs, budgets, expenses,
   invoices, payments and exports are for admins and managers.
 
+- v0.6 Client portal, at `/portal`. A client user is separate from an HQ
+  user, belongs to one client organization, and holds no HQ permission.
+  They are invited from the client's page and get in by a link that works
+  once: emailed when email is set up, shown once to the inviter when it is
+  not.
+- In the portal a client sees their projects with milestones, downloads
+  shared deliverables and approves them or asks for changes, reads a shared
+  proposal and accepts or declines it by typing their name, downloads sent
+  invoices, reads updates and writes back, and asks for a call.
+- On HQ's side: a portal panel on each client, updates on each project, and
+  call requests on the dashboard. Four permissions. Inviting a client and
+  switching their access is for admins and managers.
+- An isolation suite that runs on every merge. It signs in as one client
+  and tries every portal page, download and form against another client's
+  records, and every HQ page and form with a client's session.
+
 ### Changed
 
 - The top bar shows only what the signed-in person may open: Proposals and

@@ -540,11 +540,90 @@ else in the sheet, and never reads the sheet back. Text that a spreadsheet
 would run as a formula is defused in the CSV, and written as plain text to
 the sheet.
 
+## v0.6: the client portal
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+### Client User
+
+Someone at a client who may sign in to the portal. Separate from a User: a
+client user has no role and no permission, and belongs to exactly one client
+organization.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `organization_id` | id | Never changes |
+| `name` | text | Required |
+| `email` | text | Lower case, unique across all client users |
+| `status` | `invited`, `active`, `disabled` | `invited` until they use their link |
+| `portal_account` | text | The account they sign in with. Empty until they accept |
+| `invited_by` | id | The HQ user who invited them |
+
+- A client user gets in by a link that works once and lasts a week. With
+  email set up the link is emailed to them. Without it, it is shown once to
+  the person who made it, to send by hand. The link is never stored, and
+  never written to the activity log.
+- Using the link sets their password, makes them `active` and signs them in.
+- A new link is how a forgotten password is fixed.
+- Turning access off makes them `disabled`, ends their sessions at once, and
+  refuses their password and any link. Turning it back on makes them
+  `active` if they had set a password, and `invited` if not.
+- Passwords and sessions are kept by a second instance of the kit's `staff`
+  module, in `kit_document` collections that start `portal:`, with a cookie
+  of its own (`hq_portal`). An HQ session and a portal session cannot stand
+  in for each other.
+
+### Project Update
+
+What Potomac tells a client about a project, and what the client writes
+back. One list, oldest first. Not the same as a Note: notes are internal and
+never reach the portal.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | |
+| `user_id` | id, optional | Set when Potomac wrote it |
+| `client_user_id` | id, optional | Set when the client wrote it. Exactly one of the two is set |
+| `body` | text | Required, 5,000 characters at most |
+
+Written once. Never edited or removed.
+
+### Call Request
+
+A client asking for a call, and Potomac's answer. This is the booking tool of
+`docs/tool-boundaries.md` at its smallest: there is no calendar.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `organization_id`, `client_user_id` | id | Taken from the client's session |
+| `wanted` | text | When they would like to talk, in their words |
+| `note` | text | What about |
+| `status` | `requested`, `confirmed`, `declined` | Answered once |
+| `confirmed_for` | text | Required when confirmed |
+| `reply` | text | Potomac's words back |
+| `answered_by` | id | The HQ user who answered |
+
+### What a client's actions do to other records
+
+- **Approving a deliverable, or asking for changes,** is the same change as
+  when Potomac records it (v0.3), with `decided_by_client` set to the client
+  user. Asking for changes needs a reason.
+- **Accepting a proposal** is the same change as when Potomac records it
+  (v0.4): the opportunity is won, its project starts, and the baseline is
+  set, as one change. The decision's `method` is `portal`, `by_name` is the
+  name they typed, and `recorded_by` is empty.
+- Every one of these writes an activity event with no HQ actor and the
+  client user's id in its context.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store
 adapter. That adapter uses one table, `kit_document` (`collection`, `key`,
-`fields`), in the same database. No HQ code reads it directly.
+`fields`), in the same database. No HQ code reads it directly. The portal's
+accounts are in the same table, in collections that start `portal:`.
 
 ## Open items
 

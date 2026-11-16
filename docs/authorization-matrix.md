@@ -151,11 +151,47 @@ Moving a task to "working on" starts the mover's timer under `task.edit`. A
 person without `time.log` moves the task and gets no timer. Someone else's
 time entry answers "not found" to a person who may see only their own.
 
+### The client portal, HQ's side (v0.6)
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See who at a client has portal access, and what clients wrote | `portal.view` | Yes | Yes | Yes | No |
+| Invite a client user, make them a new link, turn their access off or on | `portal.manage` | Yes | Yes | No | No |
+| Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
+| Confirm or decline a call a client asked for | `call.respond` | Yes | Yes | Yes | No |
+
 ## Client users
 
-The Client user column is a placeholder. Until v0.6 a client user cannot sign
-in at all. At v0.6 every client permission is scoped to the client's own
-organization, and the cross-client test suite checks it on every merge.
+A client user holds none of the permissions above, and no role. They sign in
+at `/portal` with an account that is kept apart from HQ's accounts, and an HQ
+session is nobody in the portal. What a client user may do is fixed in the
+portal's own services (`src/portal/application/client-side.ts`). Each one
+takes the signed-in client's session, and reads and writes only records of
+that session's organization. A record of another client, or one that was
+never shared, answers "not found", the same as a record that does not exist.
+
+| A client user may | Only when |
+| --- | --- |
+| See their organization's projects: status, health, milestones, the next one | The project belongs to their organization |
+| Download a deliverable's file | The deliverable is theirs and has been shared with the client |
+| Approve a deliverable, or ask for changes with a reason | It is shared and waiting for a decision |
+| Read the updates Potomac posted, and send a message back | On their own project. Internal notes are never shown |
+| Read a proposal and download its PDF | It is theirs, it was sent, and Potomac turned on sharing for it |
+| Accept or decline a proposal by typing their name | It is waiting for an answer |
+| Download an invoice's PDF | It is theirs and was sent. Drafts and voided invoices are not shown |
+| Ask for a call, and see the answer | Always |
+
+A client user never sees: another client, internal notes, tasks, time,
+expenses, budgets, costs, margins, an opportunity's value, the pipeline, an
+unshared proposal, a draft deliverable, a draft invoice, or any HQ page.
+
+`test/integration/portal-isolation.test.ts` checks this on every merge. It
+signs in as one client and tries every portal page, download and form
+against another client's records, then every HQ page and every HQ form with
+the client's session. The lists of HQ pages and forms are read from the
+source, so a page added later is tried without anyone remembering to add it.
 
 ## Open items
 
@@ -166,4 +202,5 @@ organization, and the cross-client test suite checks it on every merge.
    and is limited to 5 asks an hour per address and 3 links an hour per
    email. Needs Mikey's approval.
 2. **Whether refused attempts are written as activity events.** Not required
-   by the roadmap. Useful once clients can sign in.
+   by the roadmap. Clients can sign in from v0.6, and a refused attempt is
+   still not written.
