@@ -11,6 +11,8 @@ import { applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteUserStore, type Staff } from "./identity/adapters.ts";
 import type { SessionDeps } from "./identity/index.ts";
+import { sqliteArticleStore } from "./knowledge/adapters.ts";
+import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
 import type { NotesDeps } from "./notes/index.ts";
 import { createPortalAuth, sqliteCallStore, sqliteClientUserStore, sqliteUpdateStore } from "./portal/adapters.ts";
@@ -34,6 +36,7 @@ export type Services = {
   readonly audit: AuditDeps;
   readonly projects: ProjectsDeps;
   readonly notes: NotesDeps;
+  readonly knowledge: KnowledgeDeps;
   readonly proposals: ProposalsDeps;
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
@@ -90,6 +93,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
+  const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = { ...crm, ...projects, proposals: sqliteProposalStore(db) };
   const portal: PortalDeps = {
     ...proposals,
@@ -99,5 +103,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     calls: sqliteCallStore(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
-  return { session, staff, crm, dashboard, audit, projects, notes, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { session, staff, crm, dashboard, audit, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

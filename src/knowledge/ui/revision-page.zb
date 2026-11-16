@@ -1,0 +1,27 @@
+<!--
+  One saved revision of an article, as it was.
+-->
+<script>
+  'use route /knowledge/:slug/revisions/:n'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import './article-body.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.knowledge.revision(params.slug, params.n)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: `${view.value.title}, revision ${view.value.revision}`, view: view.value }
+  }
+</script>
+<hq-article-revision view={{ tags: [], blocks: [] }}>
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/knowledge">Knowledge base</a> / <a href="/knowledge/{view.slug}">{view.currentTitle}</a></p>
+    <h1>{view.title}</h1>
+    <p class="hq-muted">Revision {view.revision} · {view.category} · Saved by {view.who}, {view.when}</p>
+    <alert-banner zb-if={!view.current} variant="warning">This is an older revision. The current one may say something else.</alert-banner>
+    <section class="hq-panel" aria-label="Text">
+      <hq-article-body blocks={view.blocks}></hq-article-body>
+    </section>
+  </div>
+</hq-article-revision>

@@ -23,6 +23,8 @@ import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { problemPage, userLinkPage } from "./identity/ui/views.ts";
+import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
+import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
@@ -160,6 +162,11 @@ export type PageContext = {
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
   readonly people: { list(): ReturnType<typeof listPeople> };
+  readonly knowledge: {
+    list(query: Record<string, string>): ReturnType<typeof listArticles>;
+    article(slug: string): ReturnType<typeof articleDetail>;
+    revision(slug: string, number: string): ReturnType<typeof articleRevision>;
+  };
   readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
@@ -173,9 +180,9 @@ const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement)$/;
-// Forms with long text in them: a proposal's sections.
-const LONG_FORM_PATHS = /^\/proposals\/[0-9a-f-]{36}$/;
-const MAX_LONG_FORM_BYTES = 128 * 1024;
+// Forms with long text in them: a proposal's sections, and an article.
+const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36})$/;
+const MAX_LONG_FORM_BYTES = 256 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {
@@ -328,6 +335,11 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok },
         people: { list: () => listPeople(sessionDeps, actor) },
+        knowledge: {
+          list: (query) => listArticles(services.knowledge, actor, query),
+          article: (slug) => articleDetail(services.knowledge, actor, slug),
+          revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
+        },
         settings: { theme: user ? users.themeOf(user.id) : "system", themes },
       };
     },
@@ -437,6 +449,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       linkPage: (view) => renderPage("Send this link", userLinkPage(view)),
     }),
   );
+  forms.route("/", knowledgeRoutes({ knowledge: services.knowledge, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

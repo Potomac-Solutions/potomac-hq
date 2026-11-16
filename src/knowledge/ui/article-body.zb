@@ -1,0 +1,36 @@
+<!--
+  An article's body, shown from its blocks. Every piece is printed as text.
+-->
+<style>
+  :host { display: block; }
+  .kb-body h2 { font-size: 1.25rem; margin: 1.5rem 0 0.5rem; }
+  .kb-body h3 { font-size: 1.1rem; margin: 1.25rem 0 0.4rem; }
+  .kb-body h4 { font-size: 1rem; margin: 1rem 0 0.3rem; }
+  .kb-body p, .kb-body ul, .kb-body ol { margin: 0.6rem 0; line-height: 1.6; max-width: 46rem; }
+  .kb-body ul, .kb-body ol { padding-left: 1.4rem; }
+  .kb-body li { margin: 0.25rem 0; }
+  .kb-body pre { margin: 0.75rem 0; padding: 0.75rem 1rem; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; font-size: 0.875rem; line-height: 1.5; }
+  .kb-scroll { overflow-x: auto; margin: 0.75rem 0; }
+  .kb-body table { border-collapse: collapse; font-size: 0.9rem; }
+  .kb-body th, .kb-body td { text-align: left; vertical-align: top; padding: 0.4rem 0.75rem 0.4rem 0; border-bottom: 1px solid var(--border); }
+  .kb-body > :first-child { margin-top: 0; }
+</style>
+<hq-article-body blocks={[]}>
+  <div class="kb-body">
+    <zb-each items={blocks} as="block" key={block.key}>
+      <h2 zb-if={block.type === "heading" && block.level === 2}>{block.text}</h2>
+      <h3 zb-if={block.type === "heading" && block.level === 3}>{block.text}</h3>
+      <h4 zb-if={block.type === "heading" && block.level === 4}>{block.text}</h4>
+      <p zb-if={block.type === "paragraph"}>{block.text}</p>
+      <ul zb-if={block.type === "list" && !block.ordered}><zb-each items={block.items} as="item" key={item.key}><li>{item.text}</li></zb-each></ul>
+      <ol zb-if={block.type === "list" && block.ordered}><zb-each items={block.items} as="item" key={item.key}><li>{item.text}</li></zb-each></ol>
+      <pre zb-if={block.type === "code"} tabindex="0"><code>{block.text}</code></pre>
+      <div zb-if={block.type === "table"} class="kb-scroll" tabindex="0" role="group" aria-label="Table">
+        <table>
+          <thead><tr><zb-each items={block.header} as="cell" key={cell.key}><th scope="col">{cell.text}</th></zb-each></tr></thead>
+          <tbody><zb-each items={block.rows} as="row" key={row.key}><tr><zb-each items={row.cells} as="cell" key={cell.key}><td>{cell.text}</td></zb-each></tr></zb-each></tbody>
+        </table>
+      </div>
+    </zb-each>
+  </div>
+</hq-article-body>
