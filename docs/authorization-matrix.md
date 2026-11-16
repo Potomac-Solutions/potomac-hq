@@ -130,6 +130,24 @@ one change under the proposal's own permission: the person does not also need
 `opportunity.set-value` or `opportunity.convert`. A project's baseline is
 shown only to those with `opportunity.view-value`.
 
+### Time, expenses and budgets (v0.5)
+
+Decided 2026-11-16 while Mikey was away. Needs his approval. The roadmap says
+finance views need a permission a member does not hold by default.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Log your own time, run your timer, see and remove your own entries | `time.log` | Yes | Yes | Yes | No |
+| See and remove everyone's time entries | `time.view-all` | Yes | Yes | No | No |
+| Record and remove expenses | `expense.edit` | Yes | Yes | No | No |
+| View budgets, costs, margins and payment status | `finance.view` | Yes | Yes | No | No |
+| Set a project's budget, hourly rate and payment status | `finance.edit` | Yes | Yes | No | No |
+| Export time, expenses and summaries as CSV | `finance.export` | Yes | Yes | No | No |
+
+Moving a task to "working on" starts the mover's timer under `task.edit`. A
+person without `time.log` moves the task and gets no timer. Someone else's
+time entry answers "not found" to a person who may see only their own.
+
 ## Client users
 
 The Client user column is a placeholder. Until v0.6 a client user cannot sign

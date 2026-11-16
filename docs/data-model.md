@@ -412,6 +412,87 @@ One per launch service, in code (`src/proposals/domain/templates.ts`), with
 the list prices from `docs/workflow.md`. A template only fills a new draft:
 every word and number can be changed before sending.
 
+## v0.5: time, expenses and budgets
+
+Decided 2026-11-16 while Mikey was away. Needs his approval. This is a
+management view. It is not the book of record, and its revenue and margin are
+operational estimates.
+
+### Time Entry
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `task_id` | id | Optional. Must be a task of the same project |
+| `user_id` | User id | Who worked. Always the person logging it |
+| `worked_on` | date | Not in the future |
+| `minutes` | integer | Whole minutes, at most a day. Empty while the timer is running |
+| `note` | text | Optional |
+| `billable` | yes or no | Starts yes |
+| `started_at` | time | Set for entries the timer made |
+| `removed_at` | time | Set when a mistaken entry is removed. The row stays |
+
+**The timer** (docs/workflow.md, B6):
+
+- Moving a task to `doing` ("working on") starts the mover's timer on it, in
+  the same transaction as the move.
+- A person has at most one timer running. Starting another stops the first
+  and logs its time.
+- Moving a task out of `doing` stops every timer running on it.
+- Time is rounded up to the minute. A timer left running is capped at 12
+  hours when it is stopped.
+
+### Expense
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `category` | `software`, `hosting`, `domain`, `contractor`, `hardware`, `travel`, `supplies`, `other` | Required |
+| `amount_minor`, `currency` | money | Above zero |
+| `spent_on` | date | Not in the future |
+| `note` | text | Optional |
+| `receipt_file_id` | File id | Optional. Kept by the file service, never visible to the client |
+| `removed_at` | time | Set when removed. The row stays |
+
+### Project Finance
+
+One row per project, made the first time something is set. Without a row the
+defaults apply.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `project_id` | id | |
+| `budget_minor` | money | Set by hand. Empty means the accepted proposal's total |
+| `budget_minutes` | integer | Set by hand. Empty means the accepted proposal's hours |
+| `rate_minor` | money | What an hour of work is counted as costing. Starts at $75 |
+| `payment_status` | `not-invoiced`, `deposit-paid`, `invoiced`, `paid` | Starts `not-invoiced`. Set by hand |
+| `invoice_ref` | text | The invoice's number or link |
+
+### Estimate against actual
+
+- **Hours:** the budget's hours against time logged.
+- **Cost:** the budget amount against time at the project's rate, plus
+  expenses.
+- **Margin:** the budget amount less that cost. Labelled an operational
+  estimate everywhere it is shown.
+- **By phase:** a phase's estimate is its tasks' estimates added up. Time
+  counts for the phase of the task it was logged on.
+- **The period:** a one-time job is measured over all time. A monthly plan is
+  measured over the current month and a yearly one over the current year,
+  because their price is for one period.
+- A project with no budget is never "over".
+
+### Exports and the Google Sheet
+
+Three tables: every time entry, every expense, and budget against actual by
+project. Each downloads as CSV, and each export is an activity event. The
+same three are copied to a Google Sheet each night when one is set up,
+replacing what was there. HQ is where the records are kept: the sheet is a
+copy for reading. Text that a spreadsheet would run as a formula is defused
+in the CSV, and written as plain text to the sheet.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store

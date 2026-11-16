@@ -154,7 +154,30 @@ moves those lines under a version heading. See `docs/conventions.md`.
 - Four proposal permissions, held by admins and managers. A member is sent
   no proposal and no baseline.
 
+- v0.5 Time and budgets. The timer starts by itself when a task is moved to
+  "working on" and stops when it is moved on, logging the time. Time can
+  also be typed in on a new Time page, which shows a week at a time.
+- Expenses on a project, each with a category, an amount, a day and an
+  optional receipt kept by the file service.
+- A Money tab on each project: hours and cost against the budget, hours by
+  phase, margin as an operational estimate, payment status and the
+  invoice's reference. The budget is the accepted proposal's until one is
+  set by hand. A monthly or yearly plan is measured over its current
+  period.
+- A Money page across every project, with CSV exports of time, expenses and
+  budget against actual. Each export is recorded. Text a spreadsheet would
+  run as a formula is defused.
+- Finance records can be copied to a Google Sheet each night
+  (`HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT`). Off until both
+  are set. Not yet run against a real sheet.
+- Dashboard panels for hours this week and projects over budget.
+- Six permissions. Everyone logs their own time. Costs, budgets, expenses
+  and exports are for admins and managers.
+
 ### Changed
+
+- The top bar shows only what the signed-in person may open: Proposals and
+  Money are not offered to a member.
 
 - The top bar's "Change password" link is now "Settings", which links on to
   the change password page.

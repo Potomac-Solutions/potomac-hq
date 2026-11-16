@@ -87,3 +87,42 @@ still open.
 | Editing templates in HQ | Eight fixed ones are enough to start | When the wording has settled from real proposals |
 | Emailing the proposal from HQ | The PDF is downloaded and sent by hand, as the workflow says | With the portal, where the client reads it |
 | A "valid until" date | Not asked for | If quotes start going stale |
+
+## v0.5 Time, expenses and budgets
+
+### Kept
+
+| Roadmap line | Smallest version built |
+| --- | --- |
+| Time entries with a quick-entry form | One form on the Time page: a project or one of its tasks, a day, hours, a note. A week at a time, yours or everyone's |
+| The timer (M0 decision) | Starts when a task is moved to "working on" and stops when it is moved on. One per person |
+| Expenses with a receipt | Category, amount, day, note, and a receipt kept by the file service |
+| Budget per project, seeded from the accepted proposal | The baseline is the budget until one is set by hand |
+| Estimated against actual, per project and per phase | Hours and cost for the project. Hours for each phase |
+| Payment status | Not invoiced, deposit paid, invoiced, paid, with the invoice's reference. Set by hand |
+| Revenue and margin summary | On the Money page, labelled an operational estimate |
+| CSV export | Time, expenses, and budget against actual by project |
+| Dashboard panels | Hours this week, and projects over budget |
+
+### Decided here
+
+- **An hour of work is counted at $75**, the consulting rate, until a
+  project's own rate is set. This is what "cost" means for one person's time.
+- **"Deposit paid" is a payment status.** The roadmap lists three. The
+  workflow says work starts only after the deposit, so that step needs to be
+  seen.
+- **A recurring plan is measured over its current month or year.**
+- **Removed entries and expenses stay in the table**, marked removed.
+- **The Google Sheet copy is built** (M0: "Finance syncs to a Google Sheet").
+  It is off until its two settings exist. It follows Google's published API
+  and is tested against a stand-in. It has not been run against a real sheet.
+- **Expenses are for admins and managers.** A member logs time only.
+
+### Cut
+
+| Cut | Why | Lands |
+| --- | --- | --- |
+| Editing a time entry | Remove it and log it again | When it gets tedious |
+| Invoices and payments in HQ | M0 decided they are built in, not bought. The roadmap does not place them, and gateways are undecided | After v1.0, once a gateway is chosen |
+| Linking payment status to an accounting tool | There is none: accounting is to be built in | With invoices |
+| Per-person hourly rates | One person works here | When a second person joins |
