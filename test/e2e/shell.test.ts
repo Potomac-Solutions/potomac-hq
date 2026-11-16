@@ -109,8 +109,11 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
   await page.getByRole("link", { name: "Back to the dashboard" }).click();
   await page.waitForURL((url) => url.pathname === "/");
 
-  // The change password page, written by the kit.
-  await page.getByRole("link", { name: "Change password" }).click();
+  // Settings, then the change password page, written by the kit.
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.waitForURL((url) => url.pathname === "/settings");
+  await assertAccessible(page, "the settings page");
+  await page.getByRole("link", { name: "Change your password" }).click();
   await page.waitForURL((url) => url.pathname === "/staff/password");
   await assertAccessible(page, "the change password page");
   await page.goto(origin + "/");

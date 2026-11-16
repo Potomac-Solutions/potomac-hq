@@ -10,7 +10,6 @@ import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } 
 import { sqliteUserStore } from "../../identity/adapters.ts";
 import type { RoleKey } from "../../identity/index.ts";
 import { sqliteProjectStore } from "../../projects/adapters.ts";
-import { projectDetail } from "../../projects/index.ts";
 import { migrate, newId, openDatabase, readMigrations, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from "./stores.ts";
@@ -94,12 +93,8 @@ test("the slice end to end: prospect, contact, opportunity, follow-up, won, proj
   assert.equal(project.name, "Bakery website");
   assert.deepEqual(crm.convertOpportunity(deps, mikey, opportunity.id), { ok: false, error: "already-converted" });
 
-  const page = unwrap(projectDetail(deps, mikey, project.id));
-  assert.deepEqual(page, {
-    project: { id: project.id, name: "Bakery website", kindLabel: "Ongoing plan", statusLabel: "Active" },
-    clientId: client.id,
-    opportunityId: opportunity.id,
-  });
+  const stored = deps.projects.get(project.id);
+  assert.deepEqual({ client: stored?.organizationId, opportunity: stored?.opportunityId, status: stored?.status, health: stored?.health }, { client: client.id, opportunity: opportunity.id, status: "active", health: "on-track" });
 
   assert.deepEqual(
     events().map((e) => `${e.action} ${e.type}`),

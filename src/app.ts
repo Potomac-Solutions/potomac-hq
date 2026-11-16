@@ -7,27 +7,30 @@ import { createZubra } from "@zubra/server";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from "./crm/adapters.ts";
-import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, type CrmDeps } from "./crm/index.ts";
-import { formatWhenIn, sqliteActivityReader } from "./dashboard/adapters.ts";
-import { recentActivity, type RecentActivityDeps } from "./dashboard/index.ts";
-import { createHqStaff, createHqStaffPages, memoryRateLimit, sqliteUserStore } from "./identity/adapters.ts";
-import { forgotRoutes } from "./identity/api/forgot-routes.ts";
-import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { establishUser, requestPasswordReset, type SessionDeps, type SignedInAccount } from "./identity/index.ts";
-import { problemPage } from "./identity/ui/views.ts";
 import { createNotify } from "@potomac-solutions/kit/notify";
-import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database, type EmailConfig } from "./shared/adapters.ts";
+import { crmRoutes } from "./crm/api/crm-routes.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } from "./crm/index.ts";
+import { recentActivity } from "./dashboard/index.ts";
+import { fileRoutes } from "./files/api/file-routes.ts";
+import { MAX_FILE_BYTES } from "./files/index.ts";
+import { createHqStaff, createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
+import { forgotRoutes } from "./identity/api/forgot-routes.ts";
+import { settingsRoutes } from "./identity/api/settings-routes.ts";
+import { staffRoutes } from "./identity/api/staff-routes.ts";
+import { establishUser, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { problemPage } from "./identity/ui/views.ts";
+import { noteRoutes } from "./notes/api/note-routes.ts";
+import { listNotes } from "./notes/index.ts";
+import { projectRoutes } from "./projects/api/project-routes.ts";
+import { activeProjects, board, listProjects, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { createServices } from "./services.ts";
+import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
-import { sqliteProjectStore } from "./projects/adapters.ts";
-import { projectDetail } from "./projects/index.ts";
 import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
-import { loadAssets } from "./shared/ui/assets.ts";
-import { HEAD_LINKS, renderPage } from "./shared/ui/page.ts";
+import { loadAssets, themeLinks } from "./shared/ui/assets.ts";
+import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
-/** "Due today" and the times people read are worked out here (docs/data-model.md). */
-export const BUSINESS_TIME_ZONE = "America/New_York";
+export { BUSINESS_TIME_ZONE } from "./services.ts";
 
 export type AppConfig = {
   /** An open database with every migration applied. */
@@ -96,7 +99,18 @@ export type PageContext = {
     opportunityDetail(id: string): ReturnType<typeof opportunityDetail>;
     followUpsDue(): ReturnType<typeof followUpsDue>;
   };
-  readonly projects: { projectDetail(id: string): ReturnType<typeof projectDetail> };
+  readonly projects: {
+    list(status?: string): ReturnType<typeof listProjects>;
+    overview(id: string): ReturnType<typeof projectOverview>;
+    tasks(id: string): ReturnType<typeof projectTasks>;
+    /** One project's board, or every active project's when `projectId` is "". */
+    board(projectId: string, mine: boolean): ReturnType<typeof board>;
+    task(id: string): ReturnType<typeof taskDetail>;
+    active(): ReturnType<typeof activeProjects>;
+    deadlines(): ReturnType<typeof upcomingDeadlines>;
+  };
+  readonly notes: { list(recordType: string, recordId: string): ReturnType<typeof listNotes> };
+  readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
 /** An id from an address. Anything that is not one is simply not found. */
@@ -106,32 +120,19 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 }
 
 const MAX_FORM_BYTES = 16 * 1024;
+// Forms that carry a file. Only these addresses accept one, and each has its
+// own size limit: the file, plus room for the form's other fields.
+const UPLOAD_PATHS = /^\/projects\/[0-9a-f-]{36}\/deliverables$/;
+const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const users = sqliteUserStore(db);
-  const sessionDeps: SessionDeps = {
-    users,
-    activityLog: sqliteActivityLog(db),
-    transact: sqliteTransact(db),
-    clock: systemClock,
-    newId,
-  };
-  const crmDeps: CrmDeps = {
-    ...sessionDeps,
-    clients: sqliteClientStore(db),
-    contacts: sqliteContactStore(db),
-    opportunities: sqliteOpportunityStore(db),
-    projects: sqliteProjectStore(db),
-  };
-  const today = () => Temporal.Now.plainDateISO(BUSINESS_TIME_ZONE).toString();
-  const dashboardDeps: RecentActivityDeps = {
-    users,
-    activity: sqliteActivityReader(db),
-    formatWhen: formatWhenIn(BUSINESS_TIME_ZONE),
-  };
+  const services = createServices(db);
+  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, today } = services;
+  const users = sessionDeps.users;
+  const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
   const staff = createHqStaff(db, { secure: config.secure });
   const sendHtml = (res: ServerResponse, status: number, title: string, body: string) => {
@@ -171,7 +172,12 @@ export async function createApp(config: AppConfig): Promise<App> {
     components,
     ...(config.cacheDir ? { cacheDir: config.cacheDir } : {}),
     lang: "en",
-    head: `<meta name="robots" content="noindex, nofollow">${HEAD_LINKS}`,
+    // The theme a signed-in person chose. Signed out, the device decides.
+    head: ({ request }) => {
+      const who = account(request.headers.get("cookie") ?? "");
+      const user = who ? users.findByStaffAccount(who.account) : null;
+      return `<meta name="robots" content="noindex, nofollow">${themeLinks(user ? users.themeOf(user.id) : "system")}${ICON_LINK}`;
+    },
     onError: (error, request) => log(`Page failed: ${request.method} ${new URL(request.url).pathname}`, error),
     context: ({ request }): PageContext => {
       const who = account(request.headers.get("cookie") ?? "");
@@ -197,7 +203,22 @@ export async function createApp(config: AppConfig): Promise<App> {
           opportunityDetail: (id) => withId(id, (opportunityId) => opportunityDetail(crmDeps, actor, opportunityId, date)),
           followUpsDue: () => followUpsDue(crmDeps, actor, date),
         },
-        projects: { projectDetail: (id) => withId(id, (projectId) => projectDetail(crmDeps, actor, projectId)) },
+        projects: {
+          list: (status) => listProjects(projectsDeps, actor, { status: status ?? "" }),
+          overview: (id) => withId(id, (projectId) => projectOverview(projectsDeps, actor, projectId)),
+          tasks: (id) => withId(id, (projectId) => projectTasks(projectsDeps, actor, projectId)),
+          board: (id, mine) => (id === "" ? board(projectsDeps, actor, { mine }) : withId(id, (projectId) => board(projectsDeps, actor, { projectId, mine }))),
+          task: (id) => withId(id, (taskId) => taskDetail(projectsDeps, actor, taskId)),
+          active: () => activeProjects(projectsDeps, actor),
+          deadlines: () => upcomingDeadlines(projectsDeps, actor),
+        },
+        notes: {
+          list: (recordType, recordId) => {
+            const id = parseId(recordId);
+            return id.ok ? listNotes(notesDeps, actor, recordType, id.value) : { recordType, recordId, canAdd: false, items: [] };
+          },
+        },
+        settings: { theme: user ? users.themeOf(user.id) : "system", themes },
       };
     },
   });
@@ -249,6 +270,9 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   const forms = new Hono();
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",
     forgotRoutes({
@@ -279,6 +303,11 @@ export async function createApp(config: AppConfig): Promise<App> {
   const web = new Hono();
   web.route("/", staticRoutes({ assets: loadAssets() }));
   const handleWeb = getRequestListener(web.fetch);
+  // Downloads. Each one is authorized by the file service.
+  const downloads = new Hono();
+  downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: () => null }));
+  downloads.notFound((c) => c.text("Not found", 404));
+  const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -297,13 +326,15 @@ export async function createApp(config: AppConfig): Promise<App> {
       // so the size limit cannot be walked around with a streamed body.
       const length = req.headers["content-length"] === undefined ? Number.NaN : Number(req.headers["content-length"]);
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
-      if (type !== "application/x-www-form-urlencoded") return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      if (!(length >= 0 && length <= MAX_FORM_BYTES)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
+      const upload = type === "multipart/form-data" && UPLOAD_PATHS.test(path);
+      if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
+      if (!(length >= 0 && length <= (upload ? MAX_UPLOAD_BYTES : MAX_FORM_BYTES))) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/")) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

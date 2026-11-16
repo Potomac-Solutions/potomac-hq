@@ -2,7 +2,7 @@
 
 Status: approved 2026-11-14.
 
-This lists every action in v0.1 and v0.2 and which role may take it. Each row
+This lists every action in HQ and which role may take it. Each row
 is one permission key. Each application service checks its key with
 `can(user, action, record)` before doing anything.
 
@@ -91,6 +91,26 @@ total on the dashboard, need `opportunity.view-value` too.
 | Edit a project's name | `project.edit` | Yes | Yes | Yes | No |
 | Complete or cancel a project | `project.set-status` | Yes | Yes | Yes | No |
 | Change a project's owner | `project.set-owner` | Yes | Yes | No | No |
+
+### Projects, tasks, notes and files (v0.3)
+
+Decided 2026-11-16 while Mikey was away. Needs his approval. Every role holds
+all eight, on the same reasoning as the client permissions above: a member
+does all the client work except deal values.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Add phases and milestones, and mark a milestone done | `project.plan` | Yes | Yes | Yes | No |
+| View tasks and the board | `task.view` | Yes | Yes | Yes | No |
+| Add, edit and move tasks | `task.edit` | Yes | Yes | Yes | No |
+| Read notes on a record you may see | `note.view` | Yes | Yes | Yes | No |
+| Write a note on a record you may see | `note.add` | Yes | Yes | Yes | No |
+| Upload a file | `file.upload` | Yes | Yes | Yes | No |
+| Download a file | `file.download` | Yes | Yes | Yes | No (v0.6: own organization's shared files only) |
+| Add a deliverable, share it with the client or stop sharing | `deliverable.edit` | Yes | Yes | Yes | No |
+
+`project.edit` now covers a project's name, description, health and dates.
+Choosing your own theme needs no permission, like changing your own password.
 
 ## Client users
 

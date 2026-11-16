@@ -7,3 +7,6 @@ export { addMoney, formatMoney, isCurrency, money, parseAmount, sameMoney, CURRE
 export { err, ok, type Err, type Ok, type Result } from "./domain/result.ts";
 export type { ActivityLog, Clock, IdSource, Transact } from "./application/ports.ts";
 export { InvalidActivityError, recordActivity, type ActivityDeps } from "./application/record-activity.ts";
+export { calendarDate, optionalEmail, optionalText, requiredText } from "./domain/fields.ts";
+export { describeAction, describeEvent } from "./domain/wording.ts";
+export { formPosts, readForm, withMessage, type FormAnswer, type FormFields, type FormFiles, type FormPostDeps, type Places, type UploadedFile } from "./api/forms.ts";

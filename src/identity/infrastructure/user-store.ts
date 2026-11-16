@@ -1,6 +1,7 @@
 import type { UserStore } from "../application/ports.ts";
 import type { Access } from "../domain/access.ts";
 import { isPermission, type Permission } from "../domain/permissions.ts";
+import { isTheme } from "../domain/theme.ts";
 import type { User, UserStatus } from "../domain/user.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
@@ -35,7 +36,27 @@ export function sqliteUserStore(db: Database): UserStore {
       where ur.user_id = ?`,
   );
 
+  const listUsers = db.prepare(`select ${columns} from user order by name collate nocase, id`);
+  const themeOf = db.prepare("select theme from user_preference where user_id = ?");
+  const setTheme = db.prepare(
+    `insert into user_preference (user_id, theme, updated_at) values (?, ?, ?)
+     on conflict (user_id) do update set theme = excluded.theme, updated_at = excluded.updated_at`,
+  );
   return {
+    get(userId) {
+      const row = byId.get(userId) as UserRow | undefined;
+      return row ? toUser(row) : null;
+    },
+    list() {
+      return (listUsers.all() as UserRow[]).map(toUser);
+    },
+    themeOf(userId) {
+      const theme = (themeOf.get(userId) as { theme: string } | undefined)?.theme;
+      return theme !== undefined && isTheme(theme) ? theme : "system";
+    },
+    setTheme(userId, theme, at) {
+      setTheme.run(userId, theme, at);
+    },
     count() {
       return countUsers.get()?.["n"] as number;
     },

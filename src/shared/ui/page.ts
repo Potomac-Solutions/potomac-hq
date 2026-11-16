@@ -7,8 +7,9 @@ export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-export const HEAD_LINKS =
-  '<link rel="stylesheet" href="/assets/theme.css"><link rel="icon" href="/assets/potomac-mark.webp" type="image/webp">';
+export const ICON_LINK = '<link rel="icon" href="/assets/potomac-mark.webp" type="image/webp">';
+/** Pages the kit writes have no signed-in person to ask, so they follow the device's light or dark setting. */
+export const HEAD_LINKS = `<link rel="stylesheet" href="/assets/theme.css"><link rel="stylesheet" href="/assets/theme-dark.css" media="(prefers-color-scheme: dark)">${ICON_LINK}`;
 
 export function renderPage(title: string, bodyHtml: string): string {
   return `<!doctype html>

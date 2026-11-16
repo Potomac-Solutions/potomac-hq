@@ -1,0 +1,28 @@
+<!--
+  A record's notes, newest first, and the form that adds one. Used on the
+  client, opportunity and project pages. `notes` is what `context.notes.list`
+  returns.
+-->
+<notes-panel notes={{ items: [], canAdd: false, recordType: "", recordId: "" }}>
+  <section class="hq-panel" id="notes" aria-labelledby="notes-heading">
+    <h2 id="notes-heading">Notes</h2>
+    <p zb-if={notes.items.length === 0} class="hq-muted">No notes yet.</p>
+    <ol zb-else class="hq-notes">
+      <zb-each items={notes.items} as="note" key={note.id}>
+        <li>
+          <p class="hq-prose">{note.body}</p>
+          <p class="hq-muted hq-small">{note.authorName}, <time datetime={note.whenIso}>{note.when}</time></p>
+        </li>
+      </zb-each>
+    </ol>
+    <form zb-if={notes.canAdd} method="post" action="/notes" class="hq-form" data-spaced>
+      <input type="hidden" name="recordType" value={notes.recordType}>
+      <input type="hidden" name="recordId" value={notes.recordId}>
+      <div class="hq-field">
+        <label for="note-body">Add a note</label>
+        <textarea id="note-body" name="body" rows="3" required maxlength="5000"></textarea>
+      </div>
+      <div><button class="hq-button" type="submit">Add note</button></div>
+    </form>
+  </section>
+</notes-panel>

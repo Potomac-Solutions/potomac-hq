@@ -2,9 +2,8 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: v0.1's code is done; its deploy and backups wait on the Railway
-project and the R2 bucket. v0.2's first slice works: client, contact,
-opportunity, follow-up, project.
+Status: v0.1 to v0.3 are built on `staging` and nothing is deployed yet. The
+deploy and backups wait on the Railway project and the R2 bucket.
 
 ## Read first
 
@@ -14,6 +13,9 @@ opportunity, follow-up, project.
 - `docs/data-model.md`: the first slice of records.
 - `docs/authorization-matrix.md`: who may do what.
 - `docs/scope-v0.1-v0.2.md`: what v0.1 and v0.2 include and leave out.
+- `docs/scope-v0.3-v1.0.md`: the same for the later releases, with the
+  decisions made while building them.
+- `docs/decisions/0002-file-storage.md`: where uploaded files are kept.
 - `docs/conventions.md`: branches, releases and project rules.
 
 ## Layout
@@ -28,16 +30,18 @@ src/<module>/api/              HTTP routes, imports application
 src/<module>/ui/               Zubra components and pages, imports api/contracts and shared/ui
 src/shared/ui/                 the design system: theme, assets, Zubra UI copies
 src/app.zb, src/error.zb       the shell around every page, and the 404 and 500 page
+src/services.ts                builds every module's stores and services from one database
 src/app.ts                     the composition root: wires every layer together
 bin/                           commands: serve, migrate, reset-link
 types/                         type declarations for the kit
 migrations/                    versioned SQL migrations, the only way the schema changes
 test/integration/              tests that cross modules or use real packages
+test/support/                  setup the integration and browser tests share
 test/e2e/                      browser tests
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`. The import rules are in
+Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`. The import rules are in
 `.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
 files to the same rule. CI fails when one is broken.
 

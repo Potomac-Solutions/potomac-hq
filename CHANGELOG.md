@@ -112,7 +112,37 @@ moves those lines under a version heading. See `docs/conventions.md`.
   is off until the Brevo key and a sending address are set, and the sign-in
   page shows the link only when it is on.
 
+- v0.3 Projects. A project now has an owner, a health, start and target
+  dates and a description, with phases, milestones and tasks under it. The
+  next milestone is always worked out from the plan. Built while Mikey was
+  away: the open decisions it settled are in `docs/scope-v0.3-v1.0.md`.
+- The projects list (`/projects`), a project's task list and board, a board
+  across every active project (`/board`) with "only mine", and a page for
+  each task. Cards are dragged between columns. Each card also has a small
+  form that does the same, so the board works from the keyboard and with
+  JavaScript turned off.
+- Drag and drop on the pipeline, beside the existing buttons.
+- A file service: uploads are limited to 25 MB and a fixed list of types,
+  each checked against the file's first bytes. Every download is authorized
+  on the server and sent as an attachment, and uploads and downloads are
+  activity events. Files are kept in the database, so the nightly backup
+  holds them (decision 0002).
+- Deliverables on a project: a title, a file, and a switch that shares it
+  with the client.
+- Notes on clients, opportunities and projects. A note is written once.
+- A project's history, read from the audit table.
+- Dashboard panels for active projects and for milestones and tasks due in
+  the next two weeks.
+- Dark mode (issue #2). Each person chooses light, dark or their device's
+  setting on a new Settings page. It needs no script.
+- Eight permissions for the above, held by every role.
+
 ### Changed
+
+- The top bar's "Change password" link is now "Settings", which links on to
+  the change password page.
+- Shared test setup lives in `test/support/`, and the services are wired in
+  one place (`src/services.ts`) for the app and the tests alike.
 
 - Boundary lint: any module's domain may now import `src/shared/domain`.
   `shared/domain` still imports nothing.

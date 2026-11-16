@@ -17,5 +17,25 @@ export function loadAssets(): ReadonlyMap<string, Asset> {
   for (const [name, type] of Object.entries(FILES)) {
     assets.set(name, { body: new Uint8Array(readFileSync(join(dir, name))), type });
   }
+  assets.set("theme-dark.css", { body: new TextEncoder().encode(darkTheme(readFileSync(join(dir, "theme.css"), "utf8"))), type: "text/css; charset=utf-8" });
   return assets;
+}
+
+/**
+ * The theme's dark colours as their own stylesheet: the `.dark` block of
+ * theme.css with its selector rewritten to `:root`. Linking it switches the
+ * whole page to dark with no script and no class on <html>.
+ */
+export function darkTheme(css: string): string {
+  const start = css.indexOf("\n.dark {");
+  const end = css.indexOf("\n}", start);
+  if (start === -1 || end === -1) throw new Error("theme.css has no .dark block");
+  return `:root {${css.slice(start + "\n.dark {".length, end)}\n}\n`;
+}
+
+/** The stylesheet links for a theme choice. "system" follows the device. */
+export function themeLinks(theme: "system" | "light" | "dark"): string {
+  const base = '<link rel="stylesheet" href="/assets/theme.css">';
+  if (theme === "light") return base;
+  return `${base}<link rel="stylesheet" href="/assets/theme-dark.css"${theme === "system" ? ' media="(prefers-color-scheme: dark)"' : ""}>`;
 }
