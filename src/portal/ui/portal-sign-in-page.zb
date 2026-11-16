@@ -1,0 +1,32 @@
+<!--
+  The portal's sign-in form. Shown at /portal/sign-in, and in place of any
+  portal page when nobody is signed in.
+-->
+<script>
+  'use route /portal/sign-in'
+  import { redirect } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    if (context.portal.session) return redirect('/portal')
+    return { title: 'Sign in', done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  :host { display: block; max-width: 26rem; }
+</style>
+<hq-portal-sign-in done="" problem="">
+  <div class="hq-page">
+    <h1>Sign in to your client portal</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <form method="post" action="/portal/sign-in" class="hq-form hq-panel">
+      <text-field label="Email" name="email" type="email" autocomplete="username" required={true}></text-field>
+      <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
+      <div><button class="hq-button" type="submit">Sign in</button></div>
+    </form>
+    <p class="hq-muted">Forgot your password, or never had one? Ask Potomac Solutions for a new link.</p>
+  </div>
+</hq-portal-sign-in>

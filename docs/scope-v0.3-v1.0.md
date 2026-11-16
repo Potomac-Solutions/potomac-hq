@@ -136,3 +136,55 @@ still open.
 | Invoices worked out from logged hours | An invoice's lines are typed, with amounts suggested from the budget | When hourly work is common enough to need it |
 | Emailing an invoice from HQ | The PDF is downloaded and sent by hand | With the portal |
 | Per-person hourly rates | One person works here | When a second person joins |
+
+## v0.6 Client portal
+
+### Kept
+
+| Roadmap line | Smallest version built |
+| --- | --- |
+| Client users, separate from HQ users | A `client_user` belongs to one client organization, has no role and no permission, and signs in at `/portal` |
+| Invite and sign-in | A link that works once. Emailed when email is set up, and shown once to the inviter when it is not |
+| Project status and milestones | Their projects with status, health, milestones and the next one due |
+| Deliverables with approve or request changes | The shared ones only, with the file. Asking for changes needs a reason |
+| Proposals, with acceptance | Only a proposal Potomac turned sharing on for. Accepted or declined by typing a name |
+| Invoices | A list of sent invoices with what is left to pay, and the PDF |
+| Messages | One list of updates per project. Potomac posts, the client writes back |
+| Booking (from `docs/tool-boundaries.md`, not the roadmap) | The client asks for a call in their own words. Potomac confirms a time or declines |
+| The isolation suite | `test/integration/portal-isolation.test.ts`, run on every merge |
+
+### Decided here
+
+- **The portal's accounts use the kit's `staff` module a second time**, with
+  its own collections and its own cookie. Writing a second password and
+  session system by hand was the other choice, and the kit's is already
+  tested. An HQ account and a portal account are different things even with
+  the same email address.
+- **The portal lives in the same app, under `/portal`.** No second host and
+  no second deploy.
+- **A client cannot reset their own password.** They ask Potomac, who makes
+  them a new link. A self-serve reset needs email working, and it is one
+  more public form to defend.
+- **Typing a name is recorded as the client's answer**, with the name, the
+  day, the version and "in the client portal". **Whether a typed name is
+  enough for the agreement in West Virginia needs a lawyer's answer.** Until
+  then the signed agreement of v0.4 is still how the paper is kept.
+- **Sharing a proposal to the portal is switched on per proposal**, and is
+  off to start.
+- **A client is told about nothing by email.** They see updates when they
+  sign in. Potomac sees a client's message on the project and a call
+  request on the dashboard.
+- **Members may post updates and answer call requests.** Inviting a client
+  and switching access is for admins and managers.
+
+### Cut
+
+| Cut | Why | Lands |
+| --- | --- | --- |
+| The payment page | The card gateway is not chosen (`docs/tool-boundaries.md`, open item 1), and HQ must never see a card number. An invoice shows what is owed and says how to pay | When the gateway is chosen |
+| A calendar for booking | A request and an answer do the job for one person's calendar | When requests are frequent |
+| Self-serve password reset and password change | See above | With email in real use |
+| Email notices to clients | Needs wording Mikey approves, and unsubscribe handling | After the portal's first real client |
+| Files sent by the client | A client's upload is a new way in for bad files | When a project needs it |
+| Several organizations for one client user | One email, one organization | When someone needs it |
+

@@ -9,10 +9,12 @@ import type { RecentActivityDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
-import { sqliteUserStore } from "./identity/adapters.ts";
+import { sqliteKitStore, sqliteUserStore } from "./identity/adapters.ts";
 import type { SessionDeps } from "./identity/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
 import type { NotesDeps } from "./notes/index.ts";
+import { createPortalAuth, sqliteCallStore, sqliteClientUserStore, sqliteUpdateStore } from "./portal/adapters.ts";
+import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
@@ -31,6 +33,7 @@ export type Services = {
   readonly notes: NotesDeps;
   readonly proposals: ProposalsDeps;
   readonly finance: FinanceDeps;
+  readonly portal: PortalDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -38,7 +41,16 @@ export type Services = {
   readonly formatWhen: (instant: string) => string;
 };
 
-export function createServices(db: Database, options: { readonly clock?: Clock; readonly today?: () => string } = {}): Services {
+export type ServiceOptions = {
+  readonly clock?: Clock;
+  readonly today?: () => string;
+  /** True when served over https: the portal's cookie is then bound to this host. */
+  readonly secure?: boolean;
+  /** A cheaper password hash, for tests only. */
+  readonly passwordCost?: { N: number; r: number; p: number };
+};
+
+export function createServices(db: Database, options: ServiceOptions = {}): Services {
   const clock = options.clock ?? systemClock;
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
@@ -73,5 +85,13 @@ export function createServices(db: Database, options: { readonly clock?: Clock; 
   const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const proposals: ProposalsDeps = { ...crm, ...projects, proposals: sqliteProposalStore(db) };
-  return { session, crm, dashboard, projects, notes, proposals, finance, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const portal: PortalDeps = {
+    ...proposals,
+    ...finance,
+    clientUsers: sqliteClientUserStore(db),
+    updates: sqliteUpdateStore(db),
+    calls: sqliteCallStore(db),
+    auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
+  };
+  return { session, crm, dashboard, projects, notes, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

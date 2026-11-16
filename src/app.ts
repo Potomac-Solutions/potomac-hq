@@ -22,6 +22,9 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { problemPage } from "./identity/ui/views.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
+import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
+import { callsWaiting, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { linkPage } from "./portal/ui/views.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
@@ -53,6 +56,10 @@ export type AppConfig = {
    * node_modules/.cache, which the container's user cannot write to.
    */
   readonly cacheDir?: string;
+  /** The address people use, such as https://hq.potomac.solutions. Put in front of one-time links. */
+  readonly publicUrl?: string;
+  /** A cheaper password hash for the portal, for tests only. */
+  readonly passwordCost?: { N: number; r: number; p: number };
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
 };
@@ -133,6 +140,23 @@ export type PageContext = {
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
   readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean };
+  /** What HQ's own users see about the portal. */
+  readonly portalAdmin: {
+    access(organizationId: string): ReturnType<typeof portalAccess>;
+    updates(projectId: string): ReturnType<typeof projectUpdates>;
+    calls(): ReturnType<typeof callsWaiting>;
+  };
+  /** The client portal. Everything here is for the signed-in client's own organization. */
+  readonly portal: {
+    readonly session: { readonly name: string } | null;
+    /** The portal's sign-in page when no client is signed in, otherwise null. Every portal page calls it first. */
+    guard(): Answer | null;
+    home(): ReturnType<typeof portalHome>;
+    project(id: string): ReturnType<typeof portalProject>;
+    proposal(id: string): ReturnType<typeof portalProposal>;
+    /** What a one-time link is for, without using it. */
+    link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
+  };
   readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
@@ -155,8 +179,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db);
-  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, today } = services;
+  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}) });
+  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -166,7 +190,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     res.writeHead(status, { "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html) });
     res.end(html);
   };
-  const { pages, clientOf, readNotice, notices } = createHqStaffPages({
+  const { pages, clientOf: clientAddressOf, readNotice, notices } = createHqStaffPages({
     staff,
     secure: config.secure,
     proxies: config.proxies,
@@ -182,7 +206,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const handleStaff = staffRoutes({
     handle: (req, res, url, form) => pages.handle(req, res, url, form),
     session: account,
-    clientOf,
+    clientOf: clientAddressOf,
     allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
     sessionDeps,
     problem: (res, status, title, message) => sendHtml(res, status, title, problemPage({ title, message })),
@@ -213,7 +237,39 @@ export async function createApp(config: AppConfig): Promise<App> {
       const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
+      const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
+      const missing = <T,>(): Result<T, "not-found"> => err("not-found");
       return {
+        portalAdmin: {
+          access: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? portalAccess(portalDeps, actor, parsed.value) : { canView: false, canManage: false, users: [], calls: [], canRespond: false };
+          },
+          updates: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? projectUpdates(portalDeps, actor, parsed.value) : { canView: false, canPost: false, items: [] };
+          },
+          calls: () => callsWaiting(portalDeps, actor),
+        },
+        portal: {
+          session: client ? { name: client.name } : null,
+          guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in" }, { status: 401 })),
+          // Each of these is given the session and nothing else to decide whose records to read.
+          home: () => portalHome(portalDeps, client as NonNullable<typeof client>),
+          project: (id) => {
+            const parsed = parseId(id);
+            return client && parsed.ok ? portalProject(portalDeps, client, parsed.value) : missing();
+          },
+          proposal: (id) => {
+            const parsed = parseId(id);
+            return client && parsed.ok ? portalProposal(portalDeps, client, parsed.value) : missing();
+          },
+          link: (token) => {
+            const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
+            const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
+            return found && user && user.status !== "disabled" ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
+          },
+        },
         signedIn: who !== null,
         user: user ? { id: user.id, name: user.name } : null,
         notice,
@@ -323,13 +379,47 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, actorOf, sign: (location) => notices.sign(location) }));
+  const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  const publicUrl = (config.publicUrl ?? "").replace(/\/$/, "");
+  const inviteMail = email
+    ? createNotify({
+        send: email.send,
+        templates: {
+          "portal-link": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Your Potomac Solutions client portal",
+            body: `Hi ${name},\n\nPotomac Solutions has set up a client portal for you. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nIn the portal you can follow your project, approve work and send messages.\n\nPotomac Solutions`,
+          }),
+        },
+      })
+    : null;
+  forms.route(
+    "/",
+    staffPortalRoutes({
+      portal: portalDeps,
+      actorOf,
+      sign: (location) => notices.sign(location),
+      publicUrl,
+      mailLink: inviteMail ? async (to, link) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-link", { name: to.name, link })) : null,
+      linkPage: (view) => renderPage("Send this link", linkPage(view)),
+    }),
+  );
+  forms.route(
+    "/",
+    clientPortalRoutes({
+      portal: portalDeps,
+      clientOf,
+      sign: (location) => notices.sign(location),
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+    }),
+  );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",
     forgotRoutes({
       request: requestReset,
-      clientOf: (incoming) => clientOf(incoming as IncomingMessage),
+      clientOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowPerAddress: memoryRateLimit({ max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: memoryRateLimit({ max: 3, windowMs: 60 * 60_000 }),
       sign: (location) => notices.sign(location),
@@ -357,7 +447,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
-  downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: () => null }));
+  downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
@@ -389,7 +480,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/invoices\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

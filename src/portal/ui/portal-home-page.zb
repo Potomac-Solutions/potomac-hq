@@ -1,0 +1,76 @@
+<!--
+  A client's home in the portal: their projects, proposals waiting for an
+  answer, invoices, and calls they have asked for.
+-->
+<script>
+  'use route /portal'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    return { title: 'Your portal', view: context.portal.home(), done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-portal-home view={{ projects: [], proposals: [], invoices: [], calls: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>{view.organizationName}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="portal-projects">
+      <h2 id="portal-projects">Your projects</h2>
+      <empty-state zb-if={view.projects.length === 0} heading="No projects yet">When work starts, you can follow it here.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Project</th><th scope="col">Status</th><th scope="col">Next milestone</th><th scope="col">Progress</th></tr></thead>
+        <tbody>
+          <zb-each items={view.projects} as="project" key={project.id}>
+            <tr><td><a href="/portal/projects/{project.id}">{project.name}</a></td><td>{project.statusLabel}, {project.healthLabel}</td><td>{project.next || "None set"}</td><td>{project.progress}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section zb-if={view.proposals.length > 0} class="hq-panel" aria-labelledby="portal-proposals">
+      <h2 id="portal-proposals">Proposals</h2>
+      <ul class="hq-log">
+        <zb-each items={view.proposals} as="proposal" key={proposal.id}>
+          <li><span><a href="/portal/proposals/{proposal.id}">{proposal.title}</a></span> <span>{proposal.waiting ? "Waiting for your answer" : proposal.statusLabel}</span></li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={view.invoices.length > 0} class="hq-panel" aria-labelledby="portal-invoices">
+      <h2 id="portal-invoices">Invoices</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
+        <tbody>
+          <zb-each items={view.invoices} as="invoice" key={invoice.id}>
+            <tr><td><a href="/portal/invoices/{invoice.id}/pdf" aria-label="Download invoice {invoice.label} as a PDF">{invoice.label}</a></td><td>{invoice.projectName}</td><td>{invoice.statusLabel}</td><td>{invoice.dueOn}</td><td class="hq-number">{invoice.total}</td><td class="hq-number">{invoice.owed}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p class="hq-muted hq-small" data-spaced>Pay by cash or check to Potomac Solutions. Paying by card here is not available yet.</p>
+    </section>
+
+    <section class="hq-panel" id="calls" aria-labelledby="portal-calls">
+      <h2 id="portal-calls">Ask for a call</h2>
+      <ul zb-if={view.calls.length > 0} class="hq-log" data-gap>
+        <zb-each items={view.calls} as="call" key={call.id}>
+          <li>
+            <span>You asked for: {call.wanted}</span>
+            <span><strong zb-if={call.status === "confirmed"}>Confirmed for {call.confirmedFor}</strong><span zb-if={call.status === "requested"}>Waiting for Potomac Solutions</span><span zb-if={call.status === "declined"}>Not possible</span><span zb-if={call.reply}>. “{call.reply}”</span></span>
+          </li>
+        </zb-each>
+      </ul>
+      <form method="post" action="/portal/calls" class="hq-form">
+        <text-field label="When would you like to talk?" name="wanted" required={true} description="Like: Thursday afternoon, or any morning next week"></text-field>
+        <text-field label="What about?" name="note" rows={2}></text-field>
+        <div><button class="hq-button" type="submit">Ask for a call</button></div>
+      </form>
+    </section>
+  </div>
+</hq-portal-home>

@@ -19,6 +19,7 @@
     const deadlines = context.projects.deadlines()
     const hours = context.time.thisWeek()
     const over = context.money.overBudget()
+    const calls = context.portalAdmin.calls()
     return {
       projects: active.ok ? active.value.items : [],
       showProjects: active.ok,
@@ -26,6 +27,7 @@
       hours: hours.ok ? hours.value : null,
       over: over.ok ? over.value.items : [],
       showOver: over.ok,
+      calls: calls.ok ? calls.value.items : [],
       stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
       openCount: pipeline.ok ? pipeline.value.openCount : 0,
       title: 'Dashboard',
@@ -55,7 +57,7 @@
   .hq-actions form { margin: 0; }
   .hq-scope { margin: 0 0 0.5rem; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} calls={[]} done="" problem="">
   <h1>Dashboard</h1>
   <div zb-if={done || problem} class="hq-notices">
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -83,6 +85,14 @@
     <ul zb-else class="hq-activity">
       <zb-each items={deadlines} as="item" key={item.key}>
         <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={calls.length > 0} class="hq-panel" aria-labelledby="calls-waiting">
+    <h2 id="calls-waiting">Calls clients asked for</h2>
+    <ul class="hq-activity">
+      <zb-each items={calls} as="call" key={call.id}>
+        <li><span><a href="/clients/{call.clientId}#portal">{call.clientName}</a> · {call.who}: {call.wanted}</span> <span class="hq-scope">{call.when}</span></li>
       </zb-each>
     </ul>
   </section>

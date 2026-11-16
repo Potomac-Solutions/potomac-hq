@@ -192,3 +192,23 @@ export function idIn(location: string): string {
   assert.ok(match, `no id in ${location}`);
   return match[0];
 }
+
+/** A cheap password hash for portal accounts in tests. Production uses the kit's default. */
+export const TEST_PASSWORD_COST = { N: 1024, r: 8, p: 1 };
+
+/**
+ * Invites someone at a client to the portal as `admin`, uses the one-time
+ * link shown to the inviter, and returns a browser stand-in signed in as
+ * that client.
+ */
+export async function clientSignedIn(t: TestApp, admin: Client, organizationId: string, name: string, email: string): Promise<Client> {
+  const invited = await admin.post(`/clients/${organizationId}/portal-users`, { name, email });
+  assert.equal(invited.status, 200, `invite: ${invited.status} ${invited.headers.get("location") ?? ""}`);
+  const token = /\/portal\/accept\?token=([A-Za-z0-9_-]{43})/.exec(await invited.text())?.[1] ?? "";
+  assert.ok(token, "the inviter is shown the link");
+  const b = httpClient(t.origin);
+  const accepted = await b.post("/portal/accept", { token, name, password: PASSWORD });
+  assert.equal(accepted.status, 303);
+  assert.match(accepted.headers.get("location") ?? "", /^\/portal\?done=/);
+  return b;
+}

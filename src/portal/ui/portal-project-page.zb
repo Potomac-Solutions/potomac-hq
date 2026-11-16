@@ -1,0 +1,95 @@
+<!--
+  One of a client's own projects: progress and milestones, what has been
+  shared with them to approve, and updates from Potomac.
+-->
+<script>
+  'use route /portal/projects/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context, params }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = context.portal.project(params.id)
+    if (!view.ok) return notFound()
+    return { title: view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+  const p = view.project
+</script>
+<hq-portal-project view={{ project: {}, progress: {}, milestones: [], deliverables: [], updates: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Your portal</a></p>
+    <h1>{p.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="pp-progress">
+      <h2 id="pp-progress">Progress</h2>
+      <dl class="hq-facts">
+        <dt>Status</dt><dd>{p.statusLabel}, {p.healthLabel}</dd>
+        <dt>Next milestone</dt><dd>{view.next || "None set"}</dd>
+        <dt zb-if={p.targetOn}>Target date</dt><dd zb-if={p.targetOn}>{p.targetOn}</dd>
+        <dt>Billable hours so far</dt><dd>{view.billableHours}</dd>
+        <dt zb-if={p.description}>About</dt><dd zb-if={p.description} class="hq-prose">{p.description}</dd>
+      </dl>
+      <p zb-if={view.progress.total > 0} data-spaced>{view.progress.done} of {view.progress.total} milestones done.</p>
+      <table zb-if={view.milestones.length > 0} class="hq-table">
+        <thead><tr><th scope="col">Milestone</th><th scope="col">Due</th><th scope="col">Done</th></tr></thead>
+        <tbody>
+          <zb-each items={view.milestones} as="milestone" key={milestone.id}>
+            <tr><td>{milestone.name}</td><td>{milestone.dueOn} <span zb-if={milestone.overdue} class="hq-tag due">Late</span></td><td>{milestone.done ? "Yes" : "Not yet"}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="hq-panel" id="deliverables" aria-labelledby="pp-deliverables">
+      <h2 id="pp-deliverables">Shared with you</h2>
+      <empty-state zb-if={view.deliverables.length === 0} heading="Nothing shared yet">Designs and documents appear here when they are ready for you.</empty-state>
+      <ul zb-else class="hq-notes">
+        <zb-each items={view.deliverables} as="item" key={item.id}>
+          <li>
+            <p><strong>{item.title}</strong> · <a href="/portal/files/{item.fileId}" aria-label="Download {item.fileName}">{item.fileName}</a></p>
+            <p zb-if={item.description} class="hq-muted">{item.description}</p>
+            <p>{item.statusLabel}<span zb-if={item.decisionNote}>: “{item.decisionNote}”</span></p>
+            <div zb-if={item.awaiting} class="hq-actions">
+              <form method="post" action="/portal/deliverables/{item.id}/decision">
+                <input type="hidden" name="projectId" value={p.id}>
+                <input type="hidden" name="decision" value="approved">
+                <button class="hq-button" type="submit" aria-label="Approve: {item.title}">Approve</button>
+              </form>
+              <form method="post" action="/portal/deliverables/{item.id}/decision" class="hq-form-row">
+                <input type="hidden" name="projectId" value={p.id}>
+                <input type="hidden" name="decision" value="changes-requested">
+                <div class="hq-field">
+                  <label for="changes-{item.id}">What should change in {item.title}?</label>
+                  <input id="changes-{item.id}" name="note" required maxlength="2000">
+                </div>
+                <button class="hq-button secondary" type="submit" aria-label="Ask for changes: {item.title}">Ask for changes</button>
+              </form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" id="updates" aria-labelledby="pp-updates">
+      <h2 id="pp-updates">Updates and messages</h2>
+      <p zb-if={view.updates.length === 0} class="hq-muted">No updates yet.</p>
+      <ol zb-else class="hq-notes">
+        <zb-each items={view.updates} as="update" key={update.id}>
+          <li><p class="hq-prose">{update.body}</p><p class="hq-muted hq-small">{update.fromClient ? "You: " + update.authorName : update.authorName}, <time datetime={update.whenIso}>{update.when}</time></p></li>
+        </zb-each>
+      </ol>
+      <form method="post" action="/portal/projects/{p.id}/messages" class="hq-form" data-spaced>
+        <div class="hq-field">
+          <label for="pp-message">Send a message, or ask for a change</label>
+          <textarea id="pp-message" name="body" rows="3" required maxlength="5000"></textarea>
+        </div>
+        <div><button class="hq-button" type="submit">Send message</button></div>
+      </form>
+    </section>
+  </div>
+</hq-portal-project>

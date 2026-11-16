@@ -189,6 +189,7 @@ export function sqliteDeliverableStore(db: Database): DeliverableStore {
   const columns = "id, project_id, title, description, file_id, status, shared_at, decided_at, decision_note, created_by";
   const insert = db.prepare(`insert into deliverable (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update deliverable set title = ?, description = ?, status = ?, shared_at = ?, decided_at = ?, decision_note = ?, updated_at = ? where id = ?");
+  const decider = db.prepare("update deliverable set decided_by_client = ? where id = ?");
   const get = db.prepare(`select ${columns} from deliverable where id = ?`);
   const listFor = db.prepare(
     `select ${columns.split(", ").map((c) => `d.${c}`).join(", ")}, f.name as file_name, f.size_bytes as file_size
@@ -205,6 +206,9 @@ export function sqliteDeliverableStore(db: Database): DeliverableStore {
     get(id) {
       const row = get.get(id) as Row | undefined;
       return row ? toDeliverable(row) : null;
+    },
+    recordDecider(id, clientUserId) {
+      decider.run(clientUserId, id);
     },
     listFor(projectId) {
       return (listFor.all(projectId) as Row[]).map((r): DeliverableRow => ({ ...toDeliverable(r), fileName: text(r, "file_name"), fileSize: r["file_size"] as number }));

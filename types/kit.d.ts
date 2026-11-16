@@ -36,6 +36,10 @@ declare module "@potomac-solutions/kit/staff" {
     resetLink(by: { account: string }, account: string): Promise<{ ok: true; token: string } | Failed>;
     setDisabled(by: { account: string }, account: string, disabled: boolean): Promise<{ ok: true } | Failed>;
     endSessions(account: string): Promise<number>;
+    signOut(input: unknown): Promise<{ ok: true; cookie: string }>;
+    peek(token: string): { kind: "invite" | "reset"; email: string; name: string; setup: boolean } | null;
+    invite(by: { account: string }, who: { email: string; name?: string; roles?: string[] }): Promise<{ ok: true; token: string } | Failed>;
+    setRoles(by: { account: string }, account: string, roles: string[]): Promise<{ ok: true } | Failed>;
   };
 
   export function createStaff(options: {

@@ -43,6 +43,7 @@ const app = await createApp({
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
   noticeSecret,
+  publicUrl,
   email: emailConfigFrom(process.env),
   ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });
