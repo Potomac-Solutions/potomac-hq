@@ -3,19 +3,21 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
+import { addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import type { CrmDeps } from "../../crm/index.ts";
 import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import type { ExpenseStore, FinanceStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { ExpenseStore, FinanceStore, InvoiceStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
   Pick<CrmDeps, "opportunities"> & {
     readonly time: TimeStore;
     readonly expenses: ExpenseStore;
     readonly finance: FinanceStore;
+    readonly invoices: InvoiceStore;
     readonly phaseEstimates: PhaseEstimates;
   };
 
@@ -172,5 +174,91 @@ export function setProjectPayment(deps: FinanceDeps, actorId: Id | null, project
     deps.finance.save(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to: changed.value.paymentStatus, invoiceRef: changed.value.invoiceRef } });
     return ok(changed.value);
+  });
+}
+
+export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(projectId)) return err("not-found");
+    const invoice = newInvoice({ id: deps.newId(), projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+    if (!invoice.ok) return invoice;
+    deps.invoices.insert(invoice.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { projectId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
+    return ok(invoice.value);
+  });
+}
+
+export function addLineToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly description: string; readonly amount: string }): Result<Invoice, Refused | "not-a-draft" | "too-many-lines" | "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const changed = addInvoiceLine(invoice, input);
+    if (!changed.ok) return changed;
+    deps.invoices.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.line-added", recordType: "invoice", recordId: invoiceId, context: { projectId: invoice.projectId, number: invoice.number, minor: changed.value.total.minor } });
+    return ok(changed.value);
+  });
+}
+
+/** Moves the project's payment status on when one of its invoices changes, and records it. Inside a transaction. */
+function followInvoice(deps: FinanceDeps, actorId: Id, changed: Invoice): void {
+  const to = paymentStatusAfter(changed, deps.invoices.listForProject(changed.projectId));
+  const before = deps.finance.get(changed.projectId) ?? defaultFinance(changed.projectId);
+  if (to === null || to === before.paymentStatus) return;
+  deps.finance.save({ ...before, paymentStatus: to, invoiceRef: before.invoiceRef }, deps.clock());
+  recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: changed.projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
+}
+
+/** Sends a draft: it gets today's date and can no longer be edited. The project becomes "invoiced". */
+export function sendInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<Invoice, Refused | "not-a-draft"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const sent = sendInvoice(invoice, deps.today());
+    if (!sent.ok) return sent;
+    deps.invoices.update(sent.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: invoiceId, context: { projectId: invoice.projectId, number: invoice.number, minor: sent.value.total.minor } });
+    followInvoice(deps, actorId, sent.value);
+    return ok(sent.value);
+  });
+}
+
+export function voidInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<Invoice, Refused | "already-void" | "already-paid" | "has-payments"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    if (invoice.paidMinor > 0) return err("has-payments");
+    const voided = voidInvoice(invoice);
+    if (!voided.ok) return voided;
+    deps.invoices.update(voided.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.voided", recordType: "invoice", recordId: invoiceId, context: { projectId: invoice.projectId, number: invoice.number } });
+    return ok(voided.value);
+  });
+}
+
+/** Records money received against a sent invoice. When it is paid in full, the project's payment status follows. */
+export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: PaymentInput): Result<{ invoice: Invoice; payment: Payment }, Refused | PaymentError> {
+  if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const received = receivePayment(invoice, invoice.paidMinor, { id: deps.newId(), recordedBy: actorId }, input, deps.today());
+    if (!received.ok) return received;
+    const at = deps.clock();
+    deps.invoices.insertPayment(received.value.payment, at);
+    if (received.value.invoice.status !== invoice.status) deps.invoices.update(received.value.invoice, at);
+    recordActivity(deps, {
+      actorId,
+      action: "payment.recorded",
+      recordType: "payment",
+      recordId: received.value.payment.id,
+      context: { projectId: invoice.projectId, invoiceId, number: invoice.number, minor: received.value.payment.amount.minor, method: received.value.payment.method, on: received.value.payment.receivedOn, paidInFull: received.value.invoice.status === "paid" },
+    });
+    followInvoice(deps, actorId, received.value.invoice);
+    return ok(received.value);
   });
 }

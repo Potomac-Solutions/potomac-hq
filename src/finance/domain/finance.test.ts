@@ -94,3 +94,51 @@ test("a recurring plan is measured over its own period", () => {
   assert.equal(budgetPeriod("fixed", "2026-02-10").label, "so far");
   assert.equal(budgetPeriod(null, "2026-02-10").label, "so far");
 });
+
+test("an invoice is drafted, sent, and paid by what is received against it", async () => {
+  const { addInvoiceLine, invoiceLabel, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice } = await import("./invoice.ts");
+  const base = { id: id(1), projectId: id(2), number: 7, createdBy: id(3) };
+  assert.equal(invoiceLabel(7), "INV-0007");
+  const made = newInvoice(base, { kind: "deposit", description: "Deposit, one third", amount: "800", dueOn: "2026-11-30" });
+  assert.ok(made.ok);
+  assert.deepEqual([made.value.status, made.value.total.minor, made.value.issuedOn], ["draft", 80000, null]);
+  assert.deepEqual(newInvoice(base, { kind: "tip", description: "x", amount: "1" }), { ok: false, error: "invalid-invoice-kind" });
+  assert.deepEqual(newInvoice(base, { kind: "full", description: " ", amount: "1" }), { ok: false, error: "description-missing" });
+  assert.deepEqual(newInvoice(base, { kind: "full", description: "x", amount: "0" }), { ok: false, error: "amount-must-be-positive" });
+
+  const two = addInvoiceLine(made.value, { description: "Stock photos", amount: "37.50" });
+  assert.ok(two.ok);
+  assert.equal(two.value.total.minor, 83750);
+
+  const pay = { amount: "400", method: "check", on: TODAY, reference: "Check 1041" };
+  assert.deepEqual(receivePayment(two.value, 0, { id: id(5), recordedBy: id(3) }, pay, TODAY), { ok: false, error: "not-sent" });
+  const sent = sendInvoice(two.value, TODAY);
+  assert.ok(sent.ok);
+  assert.deepEqual([sent.value.status, sent.value.issuedOn], ["sent", TODAY]);
+  assert.deepEqual(addInvoiceLine(sent.value, { description: "x", amount: "1" }), { ok: false, error: "not-a-draft" });
+  assert.deepEqual(sendInvoice(sent.value, TODAY), { ok: false, error: "not-a-draft" });
+
+  const part = receivePayment(sent.value, 0, { id: id(5), recordedBy: id(3) }, pay, TODAY);
+  assert.ok(part.ok);
+  assert.equal(part.value.invoice.status, "sent", "part paid is still waiting");
+  assert.deepEqual(receivePayment(sent.value, 40000, { id: id(6), recordedBy: id(3) }, { ...pay, amount: "500" }, TODAY), { ok: false, error: "more-than-is-owed" });
+  assert.deepEqual(receivePayment(sent.value, 0, { id: id(6), recordedBy: id(3) }, { ...pay, method: "barter" }, TODAY), { ok: false, error: "invalid-payment-method" });
+  assert.deepEqual(receivePayment(sent.value, 0, { id: id(6), recordedBy: id(3) }, { ...pay, on: "2026-12-01" }, TODAY), { ok: false, error: "date-in-future" });
+  assert.deepEqual(receivePayment(sent.value, 0, { id: id(6), recordedBy: id(3) }, { ...pay, method: "card", reference: "4242 4242 4242 4242" }, TODAY), { ok: false, error: "looks-like-a-card-number" });
+  const rest = receivePayment(sent.value, 40000, { id: id(6), recordedBy: id(3) }, { ...pay, amount: "437.50", method: "cash", reference: "" }, TODAY);
+  assert.ok(rest.ok);
+  assert.equal(rest.value.invoice.status, "paid");
+
+  assert.deepEqual(voidInvoice(rest.value.invoice), { ok: false, error: "already-paid" });
+  const voided = voidInvoice(sent.value);
+  assert.ok(voided.ok);
+  assert.deepEqual(voidInvoice(voided.value), { ok: false, error: "already-void" });
+
+  // What a change to an invoice says about the project's payment.
+  const balance = { ...sent.value, id: id(8), kind: "balance" as const };
+  assert.equal(paymentStatusAfter(sent.value, [sent.value]), "invoiced");
+  assert.equal(paymentStatusAfter(rest.value.invoice, [rest.value.invoice]), "deposit-paid");
+  assert.equal(paymentStatusAfter(rest.value.invoice, [rest.value.invoice, balance]), "invoiced", "the balance is still waiting");
+  assert.equal(paymentStatusAfter({ ...balance, status: "paid" }, [rest.value.invoice, { ...balance, status: "paid" }]), "paid");
+  assert.equal(paymentStatusAfter(voided.value, [voided.value]), null);
+});

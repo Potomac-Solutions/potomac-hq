@@ -6,8 +6,8 @@ import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from ".
 import type { CrmDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader } from "./dashboard/adapters.ts";
 import type { RecentActivityDeps } from "./dashboard/index.ts";
-import { sqliteExpenseStore, sqliteFinanceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyTaskMove, type FinanceDeps } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
+import { applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import { sqliteUserStore } from "./identity/adapters.ts";
 import type { SessionDeps } from "./identity/index.ts";
@@ -31,6 +31,7 @@ export type Services = {
   readonly notes: NotesDeps;
   readonly proposals: ProposalsDeps;
   readonly finance: FinanceDeps;
+  readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: () => string;
@@ -69,8 +70,8 @@ export function createServices(db: Database, options: { readonly clock?: Clock; 
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const proposals: ProposalsDeps = { ...crm, ...projects, proposals: sqliteProposalStore(db) };
-  return { session, crm, dashboard, projects, notes, proposals, finance, renderProposalPdf, today, formatWhen };
+  return { session, crm, dashboard, projects, notes, proposals, finance, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

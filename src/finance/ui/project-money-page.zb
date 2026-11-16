@@ -19,7 +19,7 @@
   const s = view.summary
   const id = view.project.id
 </script>
-<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], can: {}, categories: [], paymentStatuses: [] }} done="" problem="">
+<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{id}">{view.project.name}</a></p>
     <h1>Money</h1>
@@ -89,6 +89,43 @@
       </form>
     </section>
 
+    <section zb-if={view.can.viewInvoices} class="hq-panel" id="invoices" aria-labelledby="money-invoices">
+      <h2 id="money-invoices">Invoices</h2>
+      <empty-state zb-if={view.invoices.length === 0} heading="No invoices yet">Draft one for the deposit, the balance or the full amount.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Issued</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
+        <tbody>
+          <zb-each items={view.invoices} as="invoice" key={invoice.id}>
+            <tr>
+              <td><a href="/invoices/{invoice.id}">{invoice.label}</a></td>
+              <td>{invoice.kindLabel}</td>
+              <td>{invoice.statusLabel} <span zb-if={invoice.overdue} class="hq-tag due">Overdue</span></td>
+              <td>{invoice.issuedOn}</td>
+              <td>{invoice.dueOn}</td>
+              <td class="hq-number">{invoice.total}</td>
+              <td class="hq-number">{invoice.status === "void" ? "" : invoice.owed}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <details zb-if={view.can.editInvoices} class="hq-more">
+        <summary>Draft an invoice</summary>
+        <form method="post" action="/projects/{id}/invoices" class="hq-form">
+          <div class="hq-field">
+            <label for="invoice-kind">What it is for</label>
+            <select id="invoice-kind" name="kind" required>
+              <zb-each items={view.invoiceKinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="Description" name="description" required={true} description="What the client reads. Like: Deposit, one third of the quote"></text-field>
+          <text-field label="Invoice amount in dollars" name="amount" inputmode="decimal" required={true} description={view.invoiceForm.full ? "From the budget: a deposit would be " + view.invoiceForm.deposit + ", the balance not yet invoiced is " + (view.invoiceForm.balance || "0.00") + ", the full amount is " + view.invoiceForm.full + "." : "No budget is set, so there is nothing to suggest."}></text-field>
+          <text-field label="Due" name="dueOn" type="date"></text-field>
+          <text-field label="Note on the invoice" name="note" rows={2}></text-field>
+          <div><button class="hq-button" type="submit">Draft invoice</button></div>
+        </form>
+      </details>
+    </section>
+
     <section class="hq-panel" id="expenses" aria-labelledby="money-expenses">
       <h2 id="money-expenses">Expenses</h2>
       <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">Record what this job costs beyond time: hosting, software, a contractor.</empty-state>
@@ -121,9 +158,9 @@
               <zb-each items={view.categories} as="category" key={category.value}><option value={category.value}>{category.label}</option></zb-each>
             </select>
           </div>
-          <text-field label="Amount in dollars" name="amount" inputmode="decimal" required={true}></text-field>
+          <text-field label="Expense amount in dollars" name="amount" inputmode="decimal" required={true}></text-field>
           <text-field label="Day" name="on" type="date" value={view.today} required={true}></text-field>
-          <text-field label="Note" name="note"></text-field>
+          <text-field label="What it was for" name="note"></text-field>
           <div class="hq-field">
             <label for="expense-receipt">Receipt</label>
             <input id="expense-receipt" name="receipt" type="file" aria-describedby="expense-receipt-help">

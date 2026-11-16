@@ -56,6 +56,8 @@
         <li><a href="/exports/time.csv">Time, every entry (CSV)</a></li>
         <li><a href="/exports/expenses.csv">Expenses (CSV)</a></li>
         <li><a href="/exports/projects.csv">Budget against actual, by project (CSV)</a></li>
+        <li><a href="/exports/invoices.csv">Invoices (CSV)</a></li>
+        <li><a href="/exports/payments.csv">Payments received (CSV)</a></li>
       </ul>
     </section>
   </div>

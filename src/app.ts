@@ -13,7 +13,7 @@ import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } 
 import { recentActivity } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { financeOverview, hoursThisWeek, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
+import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaff, createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
@@ -129,6 +129,7 @@ export type PageContext = {
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
+    invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
   readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean };
@@ -264,6 +265,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
           overBudget: () => projectsOverBudget(financeDeps, actor),
+          invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
         can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok },
         settings: { theme: user ? users.themeOf(user.id) : "system", themes },
@@ -357,7 +359,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: () => null }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
-  downloads.route("/", financeDownloads({ finance: financeDeps, actorOf }));
+  downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -387,7 +389,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/invoices\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

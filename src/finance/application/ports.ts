@@ -1,5 +1,6 @@
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
+import type { Invoice, Payment } from "../domain/invoice.ts";
 import type { TimeEntry } from "../domain/time.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -45,4 +46,23 @@ export type FinanceStore = {
 /** Each phase's estimate: its tasks' estimates added up. */
 export type PhaseEstimates = {
   forProject(projectId: Id): { readonly phaseId: Id | null; readonly minutes: number }[];
+};
+
+export type InvoiceRow = Invoice & { readonly projectName: string; readonly clientName: string; readonly organizationId: Id; readonly paidMinor: number };
+
+export type InvoiceStore = {
+  /** The number the next invoice takes: one more than the highest so far. */
+  nextNumber(): number;
+  insert(invoice: Invoice, at: string): void;
+  update(invoice: Invoice, at: string): void;
+  get(id: Id): InvoiceRow | null;
+  /** A project's invoices, newest first. */
+  listForProject(projectId: Id): InvoiceRow[];
+  /** Every invoice, oldest first. */
+  list(): InvoiceRow[];
+  insertPayment(payment: Payment, at: string): void;
+  /** An invoice's payments, oldest first. */
+  payments(invoiceId: Id): Payment[];
+  /** Every payment with its invoice's number and names, oldest first. */
+  allPayments(): (Payment & { readonly number: number; readonly projectName: string; readonly clientName: string })[];
 };

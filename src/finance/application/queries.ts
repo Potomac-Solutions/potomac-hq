@@ -2,13 +2,14 @@
 // Costs, budgets and margins need `finance.view`, which a member does not
 // hold. Revenue and margin here are operational estimates, not the books.
 import { budgetPeriod, defaultFinance, standing, type Budget, type Standing } from "../domain/budget.ts";
-import { CATEGORY_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
+import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
+import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
 import { authorize } from "../../identity/index.ts";
 import type { Project } from "../../projects/index.ts";
 import { err, formatHours, formatMoney, ok, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
-import type { TimeRow } from "./ports.ts";
+import type { InvoiceRow, TimeRow } from "./ports.ts";
 
 export type Option = { readonly value: string; readonly label: string };
 
@@ -169,7 +170,11 @@ export type ProjectMoneyView = {
   readonly budgetForm: { readonly amount: string; readonly hours: string; readonly rate: string };
   readonly expenses: readonly { readonly id: string; readonly on: string; readonly categoryLabel: string; readonly amount: string; readonly note: string; readonly receiptFileId: string; readonly receiptName: string }[];
   readonly entries: readonly EntryView[];
-  readonly can: { readonly edit: boolean; readonly addExpense: boolean; readonly export: boolean; readonly download: boolean; readonly removeTime: boolean };
+  readonly invoices: readonly InvoiceRowView[];
+  /** Amounts to offer in the new-invoice form, worked out from the budget and what is already invoiced. */
+  readonly invoiceForm: { readonly deposit: string; readonly balance: string; readonly full: string };
+  readonly invoiceKinds: readonly Option[];
+  readonly can: { readonly edit: boolean; readonly addExpense: boolean; readonly export: boolean; readonly download: boolean; readonly removeTime: boolean; readonly viewInvoices: boolean; readonly editInvoices: boolean };
   readonly categories: readonly Option[];
   readonly paymentStatuses: readonly Option[];
   readonly today: string;
@@ -212,7 +217,12 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
       receiptName: expense.receiptName ?? "",
     })),
     entries: deps.time.listForProject(projectId, 50).map(entryView),
+    invoices: may(deps, actorId, "invoice.view") ? deps.invoices.listForProject(projectId).map((invoice) => invoiceRowView(invoice, today)) : [],
+    invoiceForm: invoiceSuggestions(m.budget.amount, deps.invoices.listForProject(projectId)),
+    invoiceKinds: options(INVOICE_KIND_LABELS),
     can: {
+      viewInvoices: may(deps, actorId, "invoice.view"),
+      editInvoices: may(deps, actorId, "invoice.edit"),
       edit: may(deps, actorId, "finance.edit"),
       addExpense: may(deps, actorId, "expense.edit"),
       export: may(deps, actorId, "finance.export"),
@@ -223,6 +233,121 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
     paymentStatuses: options(PAYMENT_LABELS),
     today,
   });
+}
+
+export type InvoiceRowView = {
+  readonly id: string;
+  readonly label: string;
+  readonly kindLabel: string;
+  readonly status: string;
+  readonly statusLabel: string;
+  readonly total: string;
+  readonly paid: string;
+  readonly owed: string;
+  readonly issuedOn: string;
+  readonly dueOn: string;
+  readonly overdue: boolean;
+};
+
+function invoiceRowView(invoice: InvoiceRow, today = "9999-12-31"): InvoiceRowView {
+  return {
+    id: invoice.id,
+    label: invoiceLabel(invoice.number),
+    kindLabel: INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind,
+    status: invoice.status,
+    statusLabel: INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status,
+    total: formatMoney(invoice.total),
+    paid: formatMoney(usd(invoice.paidMinor)),
+    owed: formatMoney(usd(invoice.total.minor - invoice.paidMinor)),
+    issuedOn: invoice.issuedOn ?? "",
+    dueOn: invoice.dueOn ?? "",
+    overdue: invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < today,
+  };
+}
+
+const plain = (minor: number): string => (minor > 0 ? (minor / 100).toFixed(2) : "");
+
+/** What a deposit, the balance and the full amount would be, from the budget and what is already invoiced. */
+function invoiceSuggestions(budget: Money | null, invoices: readonly Invoice[]): { deposit: string; balance: string; full: string } {
+  if (budget === null) return { deposit: "", balance: "", full: "" };
+  const invoiced = invoices.filter((invoice) => invoice.status !== "void").reduce((sum, invoice) => sum + invoice.total.minor, 0);
+  return { deposit: plain(depositShare(budget.minor)), balance: plain(budget.minor - invoiced), full: plain(budget.minor) };
+}
+
+export type InvoiceView = {
+  readonly invoice: InvoiceRowView & { readonly note: string; readonly draft: boolean };
+  readonly project: { readonly id: string; readonly name: string };
+  readonly clientName: string;
+  readonly lines: readonly { readonly key: string; readonly description: string; readonly amount: string }[];
+  readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly methodLabel: string; readonly reference: string }[];
+  readonly owedPlain: string;
+  readonly can: { readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean };
+  readonly methods: readonly Option[];
+  readonly today: string;
+};
+
+export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<InvoiceView, Refused> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const invoice = deps.invoices.get(invoiceId);
+  if (!invoice) return err("not-found");
+  const today = deps.today();
+  const edit = may(deps, actorId, "invoice.edit");
+  return ok({
+    invoice: { ...invoiceRowView(invoice, today), note: invoice.note, draft: invoice.status === "draft" },
+    project: { id: invoice.projectId, name: invoice.projectName },
+    clientName: invoice.clientName,
+    lines: invoice.lines.map((line, index) => ({ key: String(index), description: line.description, amount: formatMoney(line.amount) })),
+    payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: payment.receivedOn, amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),
+    owedPlain: plain(invoice.total.minor - invoice.paidMinor),
+    can: {
+      addLine: edit && invoice.status === "draft",
+      send: edit && invoice.status === "draft",
+      void: edit && (invoice.status === "draft" || invoice.status === "sent") && invoice.paidMinor === 0,
+      pay: invoice.status === "sent" && may(deps, actorId, "payment.record"),
+    },
+    methods: options(METHOD_LABELS),
+    today,
+  });
+}
+
+/** An invoice laid out for the PDF. */
+export type InvoiceDocument = {
+  readonly label: string;
+  readonly clientName: string;
+  readonly projectName: string;
+  readonly issuedOn: string;
+  readonly dueOn: string;
+  readonly lines: readonly { readonly description: string; readonly amount: string }[];
+  readonly total: string;
+  readonly paid: string;
+  readonly owed: string;
+  readonly note: string;
+  readonly fileName: string;
+};
+
+export function documentForInvoice(invoice: InvoiceRow): InvoiceDocument {
+  const view = invoiceRowView(invoice);
+  return {
+    label: view.label,
+    clientName: invoice.clientName,
+    projectName: invoice.projectName,
+    issuedOn: view.issuedOn,
+    dueOn: view.dueOn,
+    lines: invoice.lines.map((line) => ({ description: line.description, amount: formatMoney(line.amount) })),
+    total: view.total,
+    paid: invoice.paidMinor > 0 ? view.paid : "",
+    owed: view.owed,
+    note: invoice.note,
+    fileName: `${view.label}.pdf`,
+  };
+}
+
+/** A sent or paid invoice as a document. A draft has no PDF: it is not an invoice yet. */
+export function invoiceDocument(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<InvoiceDocument, Refused> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const invoice = deps.invoices.get(invoiceId);
+  if (!invoice || invoice.status === "draft" || invoice.status === "void") return err("not-found");
+  return ok(documentForInvoice(invoice));
 }
 
 export type FinanceOverviewView = {
@@ -296,7 +421,7 @@ export function projectsOverBudget(deps: FinanceDeps, actorId: Id | null): Resul
 
 export type CsvFile = { readonly fileName: string; readonly csv: string };
 export type FinanceTable = { readonly header: readonly string[]; readonly rows: readonly (readonly Cell[])[] };
-export const FINANCE_TABLES = ["time", "expenses", "projects"] as const;
+export const FINANCE_TABLES = ["time", "expenses", "projects", "invoices", "payments"] as const;
 const ALL_TIME = { from: "0000-01-01", to: "9999-12-31" };
 
 /** One of the three finance tables, as the CSV exports and the Google Sheet both show it. Null for an unknown name. */
@@ -340,6 +465,20 @@ export function financeTable(deps: FinanceDeps, what: string, today: string): Fi
       }),
     };
   }
+  if (what === "invoices") {
+    return {
+      header: ["Number", "Client", "Project", "For", "Status", "Issued", "Due", "Total", "Received", "Owed"],
+      rows: deps.invoices
+        .list()
+        .map((i) => [invoiceLabel(i.number), i.clientName, i.projectName, INVOICE_KIND_LABELS[i.kind] ?? i.kind, i.status, i.issuedOn ?? "", i.dueOn ?? "", i.total.minor / 100, i.paidMinor / 100, i.status === "void" ? 0 : (i.total.minor - i.paidMinor) / 100]),
+    };
+  }
+  if (what === "payments") {
+    return {
+      header: ["Received", "Invoice", "Client", "Project", "Amount", "Currency", "Method", "Reference"],
+      rows: deps.invoices.allPayments().map((p) => [p.receivedOn, invoiceLabel(p.number), p.clientName, p.projectName, p.amount.minor / 100, p.amount.currency, METHOD_LABELS[p.method] ?? p.method, p.reference]),
+    };
+  }
   return null;
 }
 
@@ -358,7 +497,11 @@ export function exportFinance(deps: FinanceDeps, actorId: Id | null, what: strin
   return ok({ fileName: `hq-${what}-${today}.csv`, csv: toCsv(table.header, table.rows) });
 }
 
-/** Somewhere the three finance tables are copied to: the Google Sheet (docs/tool-boundaries.md). */
+/**
+ * Somewhere the finance tables are copied to: the Google Sheet, which is the
+ * book of record for taxes (docs/tool-boundaries.md, rule 2). The copy runs
+ * one way. HQ never reads the sheet back.
+ */
 export type SheetTarget = {
   readonly describe: string;
   /** Replaces the whole content of each named tab. */
@@ -366,15 +509,16 @@ export type SheetTarget = {
 };
 
 /**
- * Copies the three finance tables to the sheet, replacing what was there. HQ
- * does this by itself each night, so the event has no actor. HQ stays the
- * place the records are kept: the sheet is a copy for reading.
+ * Copies the finance tables to tabs of their own in the sheet, replacing what
+ * those tabs held. The tabs are named "HQ Time", "HQ Expenses" and so on, so
+ * nothing Mikey keeps in the sheet himself is ever touched. HQ does this by
+ * itself each night, so the event has no actor.
  */
 export async function syncFinanceSheet(deps: FinanceDeps, target: SheetTarget): Promise<{ readonly rows: number }> {
   const today = deps.today();
   const tabs = FINANCE_TABLES.map((what) => {
     const table = financeTable(deps, what, today) as FinanceTable;
-    return { name: what.charAt(0).toUpperCase() + what.slice(1), rows: [table.header, ...table.rows] };
+    return { name: `HQ ${what.charAt(0).toUpperCase()}${what.slice(1)}`, rows: [table.header, ...table.rows] };
   });
   const rows = tabs.reduce((sum, tab) => sum + tab.rows.length - 1, 0);
   try {
