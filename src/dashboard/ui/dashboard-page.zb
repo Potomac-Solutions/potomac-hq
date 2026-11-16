@@ -1,0 +1,151 @@
+<!--
+  The dashboard: follow-ups that are due, and recent activity read from the
+  audit table. Signed out, the sign-in form is shown at the same address.
+-->
+<script>
+  'use route /'
+  import { show } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+
+  export async function load({ context }) {
+    if (!context.signedIn) return show('identity/ui/sign-in-page', { ...context.signIn, title: 'Sign in' }, { status: 401 })
+    if (!context.user) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    const feed = context.dashboard.recentActivity()
+    if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    const due = context.crm.followUpsDue()
+    const pipeline = context.crm.pipeline()
+    const active = context.projects.active()
+    const deadlines = context.projects.deadlines()
+    const hours = context.time.thisWeek()
+    const over = context.money.overBudget()
+    const calls = context.portalAdmin.calls()
+    const fromClients = context.portalAdmin.fromClients()
+    return {
+      projects: active.ok ? active.value.items : [],
+      showProjects: active.ok,
+      deadlines: deadlines.ok ? deadlines.value.items : [],
+      hours: hours.ok ? hours.value : null,
+      over: over.ok ? over.value.items : [],
+      showOver: over.ok,
+      calls: calls.ok ? calls.value.items : [],
+      stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
+      openCount: pipeline.ok ? pipeline.value.openCount : 0,
+      title: 'Dashboard',
+      followUps: due.ok ? due.value.items : [],
+      fromClients: fromClients.items,
+      showFollowUps: due.ok,
+      items: feed.value.items,
+      everything: feed.value.everything,
+      done: context.notice.done,
+      problem: context.notice.problem,
+    }
+  }
+
+  const empty = items.length === 0
+</script>
+<style>
+  :host { display: block; }
+  .hq-notices { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
+  :host > .hq-panel + .hq-panel { margin-top: 1.25rem; }
+  .hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-stages { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
+  .hq-stages li { display: flex; gap: 0.4rem; }
+  .hq-activity { list-style: none; margin: 0; padding: 0; }
+  .hq-activity li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .hq-activity li:first-child { border-top: 0; }
+  .hq-activity time, .hq-scope { color: var(--muted-foreground); font-size: 0.9rem; }
+  .hq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .hq-actions form { margin: 0; }
+  .hq-scope { margin: 0 0 0.5rem; }
+</style>
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} calls={[]} from-clients={[]} done="" problem="">
+  <h1>Dashboard</h1>
+  <div zb-if={done || problem} class="hq-notices">
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+  </div>
+  <section zb-if={showFollowUps} class="hq-panel" aria-labelledby="follow-ups-due">
+    <h2 id="follow-ups-due">Follow-ups due</h2>
+    <empty-state zb-if={followUps.length === 0} heading="Nothing due">Follow-ups set on an opportunity show here on their day.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={followUps} as="item" key={item.id}>
+        <li><span><a href="/opportunities/{item.id}">{item.title}</a> · {item.clientName}</span> <span><time datetime={item.followUpOn}>{item.followUpOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={showFollowUps} class="hq-panel" aria-labelledby="open-opportunities">
+    <h2 id="open-opportunities">Open opportunities: {openCount}</h2>
+    <ul class="hq-stages">
+      <zb-each items={stages} as="stage" key={stage.stage}><li><span>{stage.label}</span> <strong>{stage.count}</strong></li></zb-each>
+    </ul>
+    <p><a href="/pipeline">See the pipeline</a></p>
+  </section>
+  <section zb-if={showProjects} class="hq-panel" aria-labelledby="upcoming-deadlines">
+    <h2 id="upcoming-deadlines">Upcoming deadlines</h2>
+    <empty-state zb-if={deadlines.length === 0} heading="Nothing due in the next two weeks">Milestones and tasks with a due date show here as it gets close.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={deadlines} as="item" key={item.key}>
+        <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={fromClients.length > 0} class="hq-panel" aria-labelledby="from-clients">
+    <h2 id="from-clients">From your clients</h2>
+    <p class="hq-muted hq-small">What clients did in the portal in the last two weeks, newest first.</p>
+    <ul class="hq-activity">
+      <zb-each items={fromClients} as="item" key={item.id}>
+        <li><a href={item.href}>{item.text}</a> <time class="hq-scope" datetime={item.whenIso}>{item.when}</time></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={calls.length > 0} class="hq-panel" aria-labelledby="calls-waiting">
+    <h2 id="calls-waiting">Calls clients asked for</h2>
+    <ul class="hq-activity">
+      <zb-each items={calls} as="call" key={call.id}>
+        <li><span><a href="/clients/{call.clientId}#portal">{call.clientName}</a> · {call.who}: {call.wanted}<span zb-if={call.phone}> · {call.phone}</span></span> <span class="hq-scope">{call.when}</span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={hours} class="hq-panel" aria-labelledby="hours-this-week">
+    <h2 id="hours-this-week">Hours this week</h2>
+    <p><strong>{hours.mine}</strong> logged by you<span zb-if={hours.showEveryone}>, {hours.everyone} by everyone</span>.</p>
+    <p zb-if={hours.timer.running}>Your timer is running on <strong>{hours.timer.label}</strong>, for {hours.timer.since}.</p>
+    <div class="hq-actions">
+      <form zb-if={hours.timer.running} method="post" action="/timer/stop">
+        <input type="hidden" name="returnTo" value="/">
+        <button class="hq-button secondary" type="submit">Stop the timer</button>
+      </form>
+      <a href="/time">Log time</a>
+    </div>
+  </section>
+  <section zb-if={showOver} class="hq-panel" aria-labelledby="over-budget">
+    <h2 id="over-budget">Projects over budget</h2>
+    <empty-state zb-if={over.length === 0} heading="None">Every active project is within its hours and its budget.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={over} as="project" key={project.id}>
+        <li><span><a href="/projects/{project.id}/money">{project.name}</a> · {project.clientName}</span> <span>{project.why}</span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={showProjects} class="hq-panel" aria-labelledby="active-projects">
+    <h2 id="active-projects">Active projects: {projects.length}</h2>
+    <empty-state zb-if={projects.length === 0} heading="No active projects">A project starts when a won opportunity is turned into one.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={projects} as="project" key={project.id}>
+        <li><span><a href="/projects/{project.id}">{project.name}</a> · {project.clientName} <span class="hq-tag" data-health={project.health}>{project.healthLabel}</span></span> <span>{project.next || "No milestone set"} <span zb-if={project.nextOverdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/board">Open the board</a></p>
+  </section>
+  <section class="hq-panel" aria-labelledby="recent-activity">
+    <h2 id="recent-activity">Recent activity</h2>
+    <p class="hq-scope">{everything ? "Everything recorded in HQ, newest first." : "Changes to clients, opportunities and projects, newest first."} <a zb-if={everything} href="/activity">See the full history</a></p>
+    <empty-state zb-if={empty} heading="No activity yet">Changes to clients, opportunities and projects will be listed here.</empty-state>
+    <ol zb-else class="hq-activity">
+      <zb-each items={items} as="item" key={item.id}>
+        <li><span>{item.text}</span> <time datetime={item.whenIso}>{item.when}</time></li>
+      </zb-each>
+    </ol>
+  </section>
+</hq-dashboard>

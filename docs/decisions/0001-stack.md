@@ -22,7 +22,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 
 | Part | Choice |
 | --- | --- |
-| Language | TypeScript, type-checked by `tsc`, run directly by Node |
+| Language | TypeScript 6, type-checked by `tsc`, run directly by Node |
 | Runtime | Node 26 (active LTS), pinned in the repo |
 | Dates and times | The built-in `Temporal` API. Domain code never uses `Date` |
 | HTTP | Hono |
@@ -31,12 +31,15 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Host | Railway: one service with a persistent volume holding the database file |
 | Environments | Local, test and production. Test and production are Railway environments |
 | File storage and backup copies | Cloudflare R2 |
-| Outbound email | Brevo or Resend (undecided), behind the kit's `notify` interface |
-| UI rendering | Server-rendered Zubra components through `@zubra/server`. No client framework in the internal app |
+| Outbound email | Brevo, behind the kit's `notify` interface. Wired in v0.2 |
+| Node adapter | `@hono/node-server` 2.1.8, for the request listener only |
+| UI rendering | Server-rendered Zubra components through `@zubra/server`, served as pages by `@zubra/router`. No client framework in the internal app |
 | Second host framework | Held for the client portal at v0.6 |
-| Zubra packages | Exact versions, starting at 5.15.0 |
+| Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 5.19.0. Nothing older than 5.19.0: 5.17.0 and 5.18.0 have router guard bypasses |
 | Kit | Installed from GitHub at an exact commit |
-| Zubra UI | Copied in through the shadcn CLI. A manifest records the upstream commit, starting at `ba5737e` |
+| Zubra UI | Source `.zb` files copied in from commit `ba5737e` into `src/shared/ui/zubra`. `zubra-ui.lock.json` records the commit and a checksum per file, and CI fails if a copy is edited |
+| Boundary lint | dependency-cruiser |
+| Package manager | npm |
 | Tests | `node:test` for domain and integration tests, Playwright for end-to-end tests |
 | CI | GitHub Actions |
 
@@ -89,12 +92,32 @@ Zubra UI has no tagged release and the kit is not on npm.
   states that volumes and backups are encrypted at rest with AES-256. Both
   were checked on 2026-11-14 and should be rechecked before production.
 
+- The kit (commit `41d3587`), `@zubra/server` and Hono load and pass the
+  integration tests on Node 26. Confirmed 2026-11-14, on 5.15.0 and again on
+  5.17.0, and 2026-11-15 on 5.19.0.
+- `@zubra/router` was adopted at 5.17.0, its first release. It serves pages
+  from components with no host framework, which is the shape HQ chose. Its
+  `load` receives the app's services through `context`, so UI files still
+  import no application or infrastructure code. Hono keeps the routes that
+  are not pages.
+- TypeScript stays on version 6 until dependency-cruiser supports version 7,
+  whose compiler API it cannot read yet.
+
+- Zubra UI's registry cannot be reached from the workspace HQ is built in,
+  so the shadcn CLI cannot run there. The same source files are copied from
+  a clone at the pinned commit instead. The checksum check replaces trust in
+  the CLI.
+- Zubra is run with `inline: false`, so pages carry no inline script or
+  style block and the content security policy allows neither. Inline style
+  attributes are allowed, because server-rendered Zubra UI components use
+  them (`nav-bar` at this commit).
+- UI files may import the design system in `src/shared/ui` as well as their
+  own module's `api/contracts`. Everything else a page needs reaches it
+  through `load`'s `context`.
+
 ## Open items
 
-1. **Sending service**: Brevo or Resend. Needed before v0.1's sign-in work.
-2. **Confirm the kit and Zubra on Node 26** during scaffolding. The kit asks
-   for 22.13 or later. Anything that breaks is filed upstream.
-3. **Confirm on Railway**: that a service with a volume runs as a single
+1. **Confirm on Railway**: that a service with a volume runs as a single
    instance, and how long a deploy interrupts it.
 
 ## Sources

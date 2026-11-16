@@ -1,0 +1,83 @@
+<!--
+  A project's tasks as a list, most pressing first, and the form that adds
+  one.
+-->
+<script>
+  'use route /projects/:id/tasks'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.tasks(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a></p>
+    <h1>Tasks</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <nav class="hq-tabs" aria-label="Project">
+      <a href="/projects/{view.project.id}">Overview</a>
+      <a href="/projects/{view.project.id}/tasks" aria-current="page">Tasks</a>
+      <a href="/projects/{view.project.id}/board">Board</a>
+      <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
+    </nav>
+    <section class="hq-panel" aria-labelledby="task-list">
+      <h2 id="task-list" class="sr-only">Task list</h2>
+      <empty-state zb-if={view.tasks.length === 0} heading="No tasks yet">Break the work into pieces someone can pick up.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Who</th><th scope="col">Priority</th><th scope="col">Due</th><th scope="col">Estimate</th></tr></thead>
+        <tbody>
+          <zb-each items={view.tasks} as="task" key={task.id}>
+            <tr>
+              <td><a href="/tasks/{task.id}">{task.title}</a></td>
+              <td>{task.statusLabel}</td>
+              <td>{task.assigneeName || "Nobody yet"}</td>
+              <td>{task.priorityLabel}</td>
+              <td>{task.dueOn} <span zb-if={task.overdue} class="hq-tag due">Overdue</span></td>
+              <td>{task.estimate ? task.estimate + " h" : ""}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+    <section zb-if={view.canAdd} class="hq-panel" aria-labelledby="task-add">
+      <h2 id="task-add">Add a task</h2>
+      <form method="post" action="/projects/{view.project.id}/tasks" class="hq-form">
+        <text-field label="Title" name="title" required={true} description="Like: Draft the menu page"></text-field>
+        <div class="hq-field">
+          <label for="task-assignee">Who</label>
+          <select id="task-assignee" name="assigneeId">
+            <option value="">Nobody yet</option>
+            <zb-each items={view.form.people} as="person" key={person.value}><option value={person.value}>{person.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="task-priority">Priority</label>
+          <select id="task-priority" name="priority">
+            <zb-each items={view.form.priorities} as="priority" key={priority.value}><option value={priority.value} selected={priority.value === "normal"}>{priority.label}</option></zb-each>
+          </select>
+        </div>
+        <div zb-if={view.form.phases.length > 0} class="hq-field">
+          <label for="task-phase">Phase</label>
+          <select id="task-phase" name="phaseId">
+            <option value="">None</option>
+            <zb-each items={view.form.phases} as="phase" key={phase.value}><option value={phase.value}>{phase.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Due" name="dueOn" type="date"></text-field>
+        <text-field label="Estimate in hours" name="estimate" inputmode="decimal" description="Like 1.5"></text-field>
+        <text-field label="Details" name="description" rows={3}></text-field>
+        <div><button class="hq-button" type="submit">Add task</button></div>
+      </form>
+    </section>
+  </div>
+</hq-project-tasks>

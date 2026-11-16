@@ -1,0 +1,64 @@
+<!--
+  Every project's budget against actual, with a revenue and margin summary,
+  and the CSV exports. A management view, not the books.
+-->
+<script>
+  'use route /money'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.money.overview()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Money', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-money view={{ rows: [], totals: {}, canExport: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Money</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="money-summary">
+      <h2 id="money-summary">Revenue and margin, an operational estimate</h2>
+      <dl class="hq-facts">
+        <dt>Budgets, every project</dt><dd>{view.totals.budget}</dd>
+        <dt>Cost so far</dt><dd>{view.totals.cost}</dd>
+        <dt>Margin</dt><dd><strong>{view.totals.margin}</strong></dd>
+      </dl>
+      <p class="hq-muted hq-small" data-spaced>Budgets come from accepted proposals unless set by hand. Cost is time at each project’s hourly rate plus expenses. A recurring plan is measured over its current month or year. This is not the books.</p>
+    </section>
+    <section class="hq-panel" aria-labelledby="money-projects">
+      <h2 id="money-projects">By project</h2>
+      <empty-state zb-if={view.rows.length === 0} heading="No projects yet">A project starts when a won opportunity is turned into one.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Cost</th><th scope="col" class="hq-number">Margin</th><th scope="col">Payment</th></tr></thead>
+        <tbody>
+          <zb-each items={view.rows} as="row" key={row.id}>
+            <tr>
+              <td><a href="/projects/{row.id}/money">{row.name}</a> <span zb-if={row.over} class="hq-tag due">Over budget</span><span zb-if={!row.active} class="hq-muted"> (closed)</span></td>
+              <td>{row.clientName}</td>
+              <td class="hq-number">{row.hours.actual}<span zb-if={row.hours.budget}> of {row.hours.budget}</span></td>
+              <td class="hq-number">{row.cost.actual}<span zb-if={row.cost.budget}> of {row.cost.budget}</span></td>
+              <td class="hq-number">{row.margin}<span zb-if={row.marginPercent}> ({row.marginPercent})</span></td>
+              <td>{row.paymentLabel}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+    <section zb-if={view.canExport} class="hq-panel" aria-labelledby="money-exports">
+      <h2 id="money-exports">Exports</h2>
+      <p>Each opens in a spreadsheet. Every export is recorded.</p>
+      <ul>
+        <li><a href="/exports/time.csv">Time, every entry (CSV)</a></li>
+        <li><a href="/exports/expenses.csv">Expenses (CSV)</a></li>
+        <li><a href="/exports/projects.csv">Budget against actual, by project (CSV)</a></li>
+        <li><a href="/exports/invoices.csv">Invoices (CSV)</a></li>
+        <li><a href="/exports/payments.csv">Payments received (CSV)</a></li>
+      </ul>
+    </section>
+  </div>
+</hq-money>

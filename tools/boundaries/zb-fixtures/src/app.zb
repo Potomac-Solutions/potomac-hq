@@ -1,0 +1,5 @@
+<script>
+  import './alpha/ui/ok.zb'
+  import './shared/ui/part.zb'
+</script>
+<x-app><zb-slot></zb-slot></x-app>

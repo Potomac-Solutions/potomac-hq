@@ -1,0 +1,64 @@
+<!--
+  The shell around every page: a skip link, the top bar with the Potomac mark,
+  the main links and the signed-in person's account actions, then the page.
+  Signed out, the bar shows the mark alone.
+-->
+<script>
+  'use layout /'
+  // The shell imports no component that a page also uses. One imported by
+  // both is rendered twice on the server, nested inside itself (found in
+  // @zubra/router 5.17.0: https://github.com/journey-to-code-org/zubra/issues/300).
+  // Until that is fixed, the account
+  // actions below are a plain link and a plain button, not action-button.
+  import './shared/ui/zubra/nav-bar.zb'
+
+  export async function load({ context }) {
+    // The default title. A page's own title replaces it.
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', can: context.can }
+  }
+
+  const links = [
+    { label: 'Dashboard', href: '/', current: route.path === '/' },
+    { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
+    { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
+    ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') }] : []),
+    { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') },
+    { label: 'Board', href: '/board', current: route.path === '/board' },
+    ...(can.time ? [{ label: 'Time', href: '/time', current: route.path === '/time' }] : []),
+    ...(can.money ? [{ label: 'Money', href: '/money', current: route.path === '/money' }] : []),
+    ...(can.reports ? [{ label: 'Reports', href: '/reports', current: route.path === '/reports' }] : []),
+    { label: 'Knowledge', href: '/knowledge', current: route.path.startsWith('/knowledge') },
+  ]
+</script>
+<style>
+  :host { display: block; min-height: 100vh; }
+  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; }
+  .hq-brand img { width: 1.75rem; height: 1.75rem; }
+  .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+  .hq-account { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
+  .hq-account form { display: inline; margin: 0; }
+  .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.75rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
+  .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
+  .hq-main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .hq-main:focus { outline: none; }
+</style>
+<hq-app who="" route={{}} can={{}}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <nav-bar zb-if={who} href="/" links={links} label="Main">
+    <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+    <div slot="actions" class="hq-account">
+      <span class="hq-who">{who}</span>
+      <a class="hq-account-action" href="/settings">Settings</a>
+      <form method="post" action="/staff/sign-out">
+        <button class="hq-account-action" type="submit">Sign out</button>
+      </form>
+    </div>
+  </nav-bar>
+  <header zb-else class="hq-signed-out">
+    <a class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+  </header>
+  <main id="main" class="hq-main" tabindex="-1">
+    <zb-slot></zb-slot>
+  </main>
+</hq-app>

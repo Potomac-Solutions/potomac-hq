@@ -1,0 +1,34 @@
+# Potomac HQ's container. Railway builds it from this file (railway.json).
+FROM node:26-slim
+
+ENV NODE_ENV=production
+# The router writes compiled pages here. It must be inside /app, because the
+# compiled pages import packages from /app/node_modules. Everything else in
+# /app stays read-only to the user HQ runs as.
+ENV HQ_CACHE_DIR=/app/.cache/zubra-router
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+# Git is needed only to fetch the kit, which is pinned to a commit.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && npm ci --omit=dev \
+ && apt-get purge -y git \
+ && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/* /root/.npm
+
+COPY bin ./bin
+# HQ's own documents, put into the knowledge base when it starts.
+COPY docs ./docs
+COPY migrations ./migrations
+COPY src ./src
+COPY types ./types
+RUN mkdir -p /app/.cache && chown node:node /app/.cache
+
+USER node
+EXPOSE 3000
+# Migrations run on every start, before HQ serves anything. They are
+# forward-only and recorded, so a start with nothing to apply changes nothing.
+# bin/start.sh also handles Railway's root-owned volume: started as root, it
+# hands the database's folder to `node` and drops to that user.
+CMD ["sh", "bin/start.sh"]

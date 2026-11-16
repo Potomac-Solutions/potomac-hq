@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  domain-isolated:
+    name: Domain tests, nothing installed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # No npm install on purpose: domain rules must run with no Zubra, no UI
+      # framework and no other package present.
+      - run: node --test "src/*/domain/**/*.test.ts"
+
+  check:
+    name: Types, boundaries, unit and integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Fetch git dependencies over HTTPS
+        env:
+          KIT_READ_TOKEN: ${{ secrets.KIT_READ_TOKEN }}
+        run: |
+          if [ -n "$KIT_READ_TOKEN" ]; then
+            base="https://x-access-token:${KIT_READ_TOKEN}@github.com/"
+          else
+            base="https://github.com/"
+          fi
+          git config --global url."$base".insteadOf "ssh://git@github.com/"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint:boundaries
+      - run: npm run lint:boundaries:selftest
+      - run: npm run lint:components
+      - run: npm run lint:zubra-ui
+      - run: npm run test:unit
+      - run: npm run test:integration
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Fetch git dependencies over HTTPS
+        env:
+          KIT_READ_TOKEN: ${{ secrets.KIT_READ_TOKEN }}
+        run: |
+          if [ -n "$KIT_READ_TOKEN" ]; then
+            base="https://x-access-token:${KIT_READ_TOKEN}@github.com/"
+          else
+            base="https://github.com/"
+          fi
+          git config --global url."$base".insteadOf "ssh://git@github.com/"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  changelog:
+    name: Changelog gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Only staging may be merged into main
+        if: github.base_ref == 'main' && github.head_ref != 'staging'
+        run: |
+          echo "Pull requests into main must come from staging."
+          exit 1
+      - name: CHANGELOG.md must change in every pull request into staging
+        if: github.base_ref == 'staging'
+        run: |
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- CHANGELOG.md; then
+            echo "This pull request does not touch CHANGELOG.md. Add a line under [Unreleased]."
+            exit 1
+          fi
+      - run: node tools/release/check.mjs "${{ github.base_ref }}"
+
+  container:
+    name: Container builds and starts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: docker build -t potomac-hq:ci .
+      - name: Start it and wait for the health check
+        run: |
+          docker run -d --name hq -p 3000:3000 \
+            -e HQ_DATABASE_PATH=/tmp/hq.db \
+            -e HQ_NOTICE_SECRET=ci-secret-ci-secret-ci-secret-ci-secret \
+            potomac-hq:ci
+          # Run as the image's own unprivileged user, with the app files read-only to it.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/healthz; then echo; break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/healthz || { docker logs hq; exit 1; }
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/_zubra/components/app.js)" = "200"
+          docker logs hq 2>&1 | sed -E 's/token=[A-Za-z0-9_-]+/token=[hidden]/'
+      - name: Started as root on a root-owned volume, as on Railway, it still runs unprivileged
+        run: |
+          docker volume create hq-data
+          docker run -d --name hq-railway --user 0 -p 3001:3000 -v hq-data:/data \
+            -e RAILWAY_RUN_UID=0 \
+            -e HQ_DATABASE_PATH=/data/hq.db \
+            -e HQ_NOTICE_SECRET=ci-secret-ci-secret-ci-secret-ci-secret \
+            potomac-hq:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/healthz; then echo; break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3001/healthz || { docker logs hq-railway; exit 1; }
+          # The server process is `node` (uid 1000), not root, and the database is its own.
+          test "$(docker exec hq-railway sh -c 'stat -c %u /proc/1')" = "1000" || { docker exec hq-railway sh -c 'stat -c %u /proc/1; ls -ln /data'; exit 1; }
+          test "$(docker exec hq-railway stat -c %u /data/hq.db)" = "1000"
+          # A restart keeps the records: the first admin's setup link is offered once per database.
+          docker restart hq-railway
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/healthz; then echo; break; fi
+            sleep 1
+          done
+          test "$(docker exec hq-railway sh -c 'ls /data | grep -c "^hq.db$"')" = "1"
+
+  # Deploys a push once every check above has passed: staging to Railway's
+  # test environment, main to production. Each environment has its own project
+  # token, so neither can touch the other. Until the secrets and the service
+  # name exist, it says so and succeeds.
+  #
+  # Needs, in the repo's settings:
+  #   secret   RAILWAY_TOKEN_TEST         project token for the test environment
+  #   secret   RAILWAY_TOKEN_PRODUCTION   project token for the production environment
+  #   variable RAILWAY_SERVICE            the HQ service's name in Railway
+  deploy:
+    name: Deploy
+    if: github.event_name == 'push'
+    needs: [domain-isolated, check, e2e, container]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ github.ref_name == 'main' && 'production' || 'test' }}
+      RAILWAY_TOKEN: ${{ github.ref_name == 'main' && secrets.RAILWAY_TOKEN_PRODUCTION || secrets.RAILWAY_TOKEN_TEST }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+    steps:
+      - name: Check the deploy is set up
+        id: ready
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_SERVICE" ]; then
+            echo "Skipped: the Railway token for $TARGET or the RAILWAY_SERVICE variable is not set yet."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+      - name: Deploy the commit CI tested
+        if: steps.ready.outputs.ready == 'true'
+        run: npx --yes @railway/cli@5.71.1 up --ci --service "$RAILWAY_SERVICE" --environment "$TARGET"

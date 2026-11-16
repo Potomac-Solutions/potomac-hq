@@ -1,0 +1,84 @@
+<!--
+  The full audit history: every activity event, newest first, with filters.
+  For admins only.
+-->
+<script>
+  'use route /activity'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const q = (name) => url.searchParams.get(name) || ''
+    const view = context.dashboard.audit({ actor: q('actor'), recordType: q('recordType'), action: q('action'), from: q('from'), to: q('to'), page: q('page') })
+    if (!view.ok) return context.forbidden()
+    return { title: 'Audit history', view: view.value }
+  }
+</script>
+<style>
+  .audit-list { list-style: none; margin: 0; padding: 0; }
+  .audit-list li { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .audit-list li:first-child { border-top: 0; }
+  .audit-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; }
+  .audit-list time, .audit-more { color: var(--muted-foreground); font-size: 0.85rem; }
+  .audit-more { overflow-wrap: anywhere; margin: 0.15rem 0 0; }
+  .audit-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+</style>
+<hq-audit view={{ items: [], filter: {}, people: [], recordTypes: [] }}>
+  <div class="hq-page">
+    <h1>Audit history</h1>
+    <p class="hq-muted">Every change made in HQ is written here when it happens. Nothing here can be edited or removed.</p>
+
+    <section class="hq-panel" aria-labelledby="audit-filters">
+      <h2 id="audit-filters">Narrow it down</h2>
+      <form method="get" action="/activity" class="hq-form-row">
+        <div class="hq-field">
+          <label for="audit-actor">Who</label>
+          <select id="audit-actor" name="actor">
+            <option value="">Anyone</option>
+            <zb-each items={view.people} as="person" key={person.value}><option value={person.value} selected={person.value === view.filter.actor}>{person.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="audit-type">Kind of record</label>
+          <select id="audit-type" name="recordType">
+            <option value="">Any</option>
+            <zb-each items={view.recordTypes} as="type" key={type}><option value={type} selected={type === view.filter.recordType}>{type}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="audit-action">Action starts with</label>
+          <input id="audit-action" name="action" value={view.filter.action} placeholder="invoice." autocomplete="off">
+        </div>
+        <div class="hq-field">
+          <label for="audit-from">From day</label>
+          <input id="audit-from" name="from" type="date" value={view.filter.from}>
+        </div>
+        <div class="hq-field">
+          <label for="audit-to">To day</label>
+          <input id="audit-to" name="to" type="date" value={view.filter.to}>
+        </div>
+        <button class="hq-button" type="submit">Show</button>
+        <a zb-if={view.filtered} class="hq-button secondary" href="/activity">Clear</a>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="audit-events">
+      <h2 id="audit-events">{view.total} {view.total === 1 ? "event" : "events"}</h2>
+      <empty-state zb-if={view.items.length === 0} heading="Nothing matches">Change the filters, or clear them.</empty-state>
+      <ul zb-else class="audit-list">
+        <zb-each items={view.items} as="item" key={item.id}>
+          <li>
+            <div class="audit-head"><span>{item.text}</span><time datetime={item.whenIso}>{item.when}</time></div>
+            <p class="audit-more">{item.record}<span zb-if={item.detail}> · {item.detail}</span></p>
+          </li>
+        </zb-each>
+      </ul>
+      <nav class="audit-pages" aria-label="Pages" data-spaced>
+        <a zb-if={view.previous} href={view.previous}>Newer</a>
+        <span class="hq-muted">Page {view.page} of {view.pages}</span>
+        <a zb-if={view.next} href={view.next}>Older</a>
+        <a href={view.exportHref}>Download these as CSV</a>
+      </nav>
+    </section>
+  </div>
+</hq-audit>

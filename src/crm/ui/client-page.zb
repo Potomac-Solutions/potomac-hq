@@ -1,0 +1,186 @@
+<!--
+  One client: its details and status, its contacts, and its opportunities,
+  with the forms that add to each.
+-->
+<script>
+  'use route /clients/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/parts/notes-panel.zb'
+
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.clientDetail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/clients">Clients</a></p>
+    <h1>{view.client.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="client-details">
+      <h2 id="client-details">Details</h2>
+      <dl class="hq-facts">
+        <dt>Status</dt><dd>{view.client.statusLabel}</dd>
+        <dt>Size</dt><dd>{view.client.sizeTierLabel || "Not set"}</dd>
+        <dt>Website</dt><dd><a zb-if={view.client.website} href={view.client.website} rel="noopener noreferrer">{view.client.website}</a><span zb-else class="hq-muted">None</span></dd>
+        <dt>Phone</dt><dd>{view.client.phone || "None"}</dd>
+        <dt>Address</dt><dd>{view.client.address || "None"}</dd>
+      </dl>
+      <form zb-if={view.can.setStatus} method="post" action="/clients/{view.client.id}/status" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="client-status">Change status</label>
+          <select id="client-status" name="status">
+            <zb-each items={view.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === view.client.status}>{status.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Save status</button>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="client-contacts">
+      <h2 id="client-contacts">Contacts</h2>
+      <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
+        <tbody>
+          <zb-each items={view.contacts} as="contact" key={contact.id}>
+            <tr>
+              <td>{contact.name} <span zb-if={contact.isPrimary} class="hq-tag">Primary</span></td>
+              <td>{contact.title}</td>
+              <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
+              <td>{contact.phone}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={view.can.addContact} method="post" action="/clients/{view.client.id}/contacts" class="hq-form" data-spaced>
+        <h3>Add a contact</h3>
+        <text-field label="Name" name="name" required={true} autocomplete="name"></text-field>
+        <text-field label="Email" name="email" type="email" autocomplete="email" description="An email address or a phone number is needed."></text-field>
+        <text-field label="Phone" name="phone" type="tel" autocomplete="tel"></text-field>
+        <text-field label="Title" name="title" description="Optional, like Owner"></text-field>
+        <label class="hq-check"><input type="checkbox" name="isPrimary"> Primary contact</label>
+        <div><button class="hq-button" type="submit">Add contact</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.can.viewOpportunities} class="hq-panel" aria-labelledby="client-opportunities">
+      <h2 id="client-opportunities">Opportunities</h2>
+      <empty-state zb-if={view.opportunities.length === 0} heading="No opportunities yet">Open one when they ask about work.</empty-state>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Title</th><th scope="col">Service</th><th scope="col">Stage</th><th scope="col">Follow-up</th><th scope="col">Price</th></tr></thead>
+        <tbody>
+          <zb-each items={view.opportunities} as="opportunity" key={opportunity.id}>
+            <tr>
+              <td><a href="/opportunities/{opportunity.id}">{opportunity.title}</a></td>
+              <td>{opportunity.serviceLabel}</td>
+              <td>{opportunity.stageLabel}</td>
+              <td>{opportunity.followUpOn}</td>
+              <td>{opportunity.price}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={view.can.createOpportunity} method="post" action="/clients/{view.client.id}/opportunities" class="hq-form" data-spaced>
+        <h3>Open an opportunity</h3>
+        <text-field label="Title" name="title" required={true} description="Like: Bakery website"></text-field>
+        <div class="hq-field">
+          <label for="opportunity-service">Service</label>
+          <select id="opportunity-service" name="service">
+            <option value="">Not chosen yet</option>
+            <zb-each items={view.services} as="service" key={service.value}><option value={service.value}>{service.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="opportunity-source">How they found you</label>
+          <select id="opportunity-source" name="leadSource" required>
+            <zb-each items={view.leadSources} as="source" key={source.value}><option value={source.value}>{source.label}</option></zb-each>
+          </select>
+        </div>
+        <div zb-if={view.contacts.length > 0} class="hq-field">
+          <label for="opportunity-contact">Contact</label>
+          <select id="opportunity-contact" name="contactId">
+            <option value="">None</option>
+            <zb-each items={view.contacts} as="contact" key={contact.id}><option value={contact.id}>{contact.name}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Notes" name="summary" rows={3} description="Optional. What they need, from the first call."></text-field>
+        <div><button class="hq-button" type="submit">Open opportunity</button></div>
+      </form>
+    </section>
+    <section zb-if={portal.canView} class="hq-panel" id="portal" aria-labelledby="client-portal">
+      <h2 id="client-portal">Client portal</h2>
+      <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.</p>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Person</th><th scope="col">Email</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
+        <tbody>
+          <zb-each items={portal.users} as="person" key={person.id}>
+            <tr>
+              <td>{person.name}</td>
+              <td>{person.email}</td>
+              <td>{person.statusLabel}</td>
+              <td>
+                <form zb-if={portal.canManage && person.status !== "disabled"} method="post" action="/portal-users/{person.id}/link" class="hq-inline">
+                  <input type="hidden" name="organizationId" value={view.client.id}>
+                  <button class="hq-button secondary small" type="submit" aria-label="Send a new link to {person.name}">New link</button>
+                </form>
+                <form zb-if={portal.canManage} method="post" action="/portal-users/{person.id}/access" class="hq-inline">
+                  <input type="hidden" name="organizationId" value={view.client.id}>
+                  <input type="hidden" name="on" value={person.status === "disabled" ? "1" : "0"}>
+                  <button class="hq-button secondary small" type="submit" aria-label="{person.status === 'disabled' ? 'Turn access on' : 'Turn access off'} for {person.name}">{person.status === "disabled" ? "Turn access on" : "Turn access off"}</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <details zb-if={portal.canManage} class="hq-more">
+        <summary>Invite someone to the portal</summary>
+        <form method="post" action="/clients/{view.client.id}/portal-users" class="hq-form">
+          <text-field label="Their name" name="name" required={true} autocomplete="off"></text-field>
+          <text-field label="Their email" name="email" type="email" required={true} autocomplete="off" description="They get a one-time link to choose a password. They will see only this client’s projects."></text-field>
+          <div><button class="hq-button" type="submit">Invite to the portal</button></div>
+        </form>
+      </details>
+      <div zb-if={portal.calls.length > 0} data-spaced>
+        <h3>Calls they asked for</h3>
+        <ul class="hq-notes">
+          <zb-each items={portal.calls} as="call" key={call.id}>
+            <li>
+              <p><strong>{call.who}</strong> asked for a call: {call.wanted}<span zb-if={call.note}>. “{call.note}”</span><span zb-if={call.phone}> Call <a href="tel:{call.phone}">{call.phone}</a>.</span> <span class="hq-muted hq-small">{call.when}</span></p>
+              <p zb-if={call.status === "confirmed"}>Confirmed for {call.confirmedFor}<span zb-if={call.reply}>. “{call.reply}”</span></p>
+              <p zb-if={call.status === "declined"}>Declined<span zb-if={call.reply}>. “{call.reply}”</span></p>
+              <form zb-if={call.status === "requested" && portal.canRespond} method="post" action="/call-requests/{call.id}/answer" class="hq-form">
+                <input type="hidden" name="organizationId" value={view.client.id}>
+                <div class="hq-field">
+                  <label for="call-answer-{call.id}">Answer {call.who}</label>
+                  <select id="call-answer-{call.id}" name="answer"><option value="confirmed">Confirm a time</option><option value="declined">Decline</option></select>
+                </div>
+                <div class="hq-field">
+                  <label for="call-when-{call.id}">Day and time, if confirming</label>
+                  <input id="call-when-{call.id}" name="confirmedFor" maxlength="100">
+                </div>
+                <div class="hq-field">
+                  <label for="call-reply-{call.id}">Reply to {call.who}</label>
+                  <input id="call-reply-{call.id}" name="reply" maxlength="1000">
+                </div>
+                <div><button class="hq-button secondary" type="submit" aria-label="Send answer to {call.who}">Send answer</button></div>
+              </form>
+            </li>
+          </zb-each>
+        </ul>
+      </div>
+    </section>
+    <notes-panel notes={notes}></notes-panel>
+  </div>
+</hq-client>

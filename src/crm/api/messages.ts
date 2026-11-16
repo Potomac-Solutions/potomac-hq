@@ -1,0 +1,41 @@
+// What each refusal code says to a person.
+const MESSAGES: Readonly<Record<string, string>> = {
+  forbidden: "You don’t have permission to do that.",
+  "not-found": "That record doesn’t exist.",
+  "name-missing": "Enter a name.",
+  "name-too-long": "That name is too long.",
+  "invalid-size-tier": "Choose a size from the list.",
+  "invalid-website": "Enter a website address, like example.com.",
+  "invalid-phone": "Enter a phone number with at least seven digits.",
+  "address-too-long": "That address is too long.",
+  "invalid-status": "Choose a status from the list.",
+  unchanged: "Nothing changed.",
+  "invalid-email": "Enter an email address, like name@example.com.",
+  "email-or-phone-required": "Enter an email address or a phone number.",
+  "title-too-long": "That title is too long.",
+  "title-missing": "Enter a title for the opportunity.",
+  "invalid-lead-source": "Choose how they found you.",
+  "invalid-service": "Choose a service from the list.",
+  "summary-too-long": "That summary is too long.",
+  "contact-not-at-client": "That contact belongs to a different client.",
+  closed: "This opportunity is closed. A deal that comes back is a new opportunity.",
+  "invalid-stage": "Choose a stage from the list.",
+  "not-the-next-stage": "Stages move forward one at a time.",
+  "service-required": "Choose the service before moving past a consult.",
+  "price-required": "This needs a price first. An admin or manager sets it.",
+  "lost-reason-required": "Say why it was lost.",
+  "lost-reason-too-long": "That reason is too long.",
+  "invalid-pricing": "Choose how it is priced.",
+  "free-must-be-zero": "A free job has no price.",
+  "value-must-be-positive": "Enter a price above zero.",
+  "not-an-amount": "Enter an amount like 1,250.00.",
+  "not-whole-minor-units": "Enter an amount like 1,250.00.",
+  "unknown-currency": "Enter an amount in dollars.",
+  "invalid-date": "Enter a date.",
+  "not-won": "Only a won opportunity becomes a project.",
+  "already-converted": "This opportunity is already a project.",
+};
+
+export function messageFor(code: string): string {
+  return MESSAGES[code] ?? "That didn’t work. Try again.";
+}

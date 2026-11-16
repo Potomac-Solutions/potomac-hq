@@ -1,0 +1,43 @@
+<!--
+  The frame around every portal page. It is its own frame, not HQ's: a client
+  never sees HQ's navigation. The foot of every page says how to reach
+  Potomac by phone, for someone who would rather talk.
+-->
+<script>
+  'use layout /portal root'
+  export async function load({ context }) {
+    return { title: 'Potomac Solutions client portal', who: context.portal.session ? context.portal.session.name : '', contact: context.portal.contact }
+  }
+</script>
+<style>
+  :host { display: block; min-height: 100vh; overflow-wrap: anywhere; }
+  .portal-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); }
+  .portal-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
+  .portal-brand img { width: 1.75rem; height: 1.75rem; }
+  .portal-who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; color: var(--muted-foreground); font-size: 0.9rem; }
+  .portal-who form { margin: 0; }
+  .portal-out { min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .portal-main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+  .portal-main:focus { outline: none; }
+  .portal-foot { max-width: 46rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted-foreground); font-size: 0.95rem; }
+  .portal-foot p { margin: 0.25rem 0; }
+  .portal-foot a { font-weight: 600; }
+</style>
+<hq-portal who="" contact={{}}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="portal-bar">
+    <a class="portal-brand" href="/portal"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac Solutions</a>
+    <div zb-if={who} class="portal-who">
+      <span>{who}</span>
+      <form method="post" action="/portal/sign-out"><button class="portal-out" type="submit">Sign out</button></form>
+    </div>
+  </header>
+  <main id="main" class="portal-main" tabindex="-1">
+    <zb-slot></zb-slot>
+  </main>
+  <footer zb-if={contact.phone || contact.email} class="portal-foot">
+    <p><strong>Rather talk to a person?</strong></p>
+    <p zb-if={contact.phone}>Call Potomac Solutions at <a href="tel:{contact.phone}">{contact.phone}</a>.</p>
+    <p zb-if={contact.email}>Or write to <a href="mailto:{contact.email}">{contact.email}</a>.</p>
+  </footer>
+</hq-portal>
