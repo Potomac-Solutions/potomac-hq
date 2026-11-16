@@ -187,7 +187,7 @@ const MAX_FORM_BYTES = 16 * 1024;
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement)$/;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36})$/;
-const MAX_LONG_FORM_BYTES = 256 * 1024;
+const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {

@@ -10,7 +10,7 @@ const fields = { title: " Restore  drill ", category: "Operations", tags: "Backu
 test("a new article is cleaned up and starts at revision 1", () => {
   const made = newArticle(id, "restore-drill", fields, "2026-11-16");
   assert.deepEqual(made, { ok: true, value: { id, kind: "article", slug: "restore-drill", title: "Restore drill", category: "Operations", tags: ["backups", "railway"], body: "Run it.\nThen check.", status: "current", decidedOn: null, revision: 1 } });
-  for (const [change, error] of [[{ title: " " }, "title-missing"], [{ category: "" }, "category-missing"], [{ body: "\n" }, "body-missing"], [{ body: "x".repeat(60_001) }, "body-too-long"], [{ kind: "memo" }, "invalid-kind"], [{ tags: Array.from({ length: 13 }, (_v, n) => `t${n}`).join(",") }, "too-many-tags"]] as const) {
+  for (const [change, error] of [[{ title: " " }, "title-missing"], [{ category: "" }, "category-missing"], [{ body: "\n" }, "body-missing"], [{ body: "x".repeat(40_001) }, "body-too-long"], [{ kind: "memo" }, "invalid-kind"], [{ tags: Array.from({ length: 13 }, (_v, n) => `t${n}`).join(",") }, "too-many-tags"]] as const) {
     assert.deepEqual(newArticle(id, "s", { ...fields, ...change }, "2026-11-16"), { ok: false, error }, error);
   }
 });

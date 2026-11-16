@@ -26,7 +26,7 @@ export type Article = {
 
 export type ArticleError = "title-missing" | "title-too-long" | "category-missing" | "category-too-long" | "body-missing" | "body-too-long" | "too-many-tags" | "invalid-kind" | "invalid-day";
 
-export const MAX_BODY = 60_000;
+export const MAX_BODY = 40_000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isArticleKind(kind: string): kind is ArticleKind {
