@@ -47,6 +47,9 @@ The full list is in the article "Authorization matrix".
 ## The project
 
 - **Phases and milestones** are the plan. **Tasks** are the work.
+- When a milestone is something the client has to do, like sending photos,
+  tick "The client has to do this one". Their portal then puts it first,
+  under "waiting on you".
 - The **Board** shows tasks by status. Drag a card, or use its menu.
   Moving a task to "Working on" starts your timer. Moving it on stops the
   timer and logs the time.
@@ -75,6 +78,8 @@ On a client's page, "Invite someone to the portal". They get a link, choose
 a password, and see only their own organization's projects, shared
 deliverables, shared proposals and sent invoices. They can approve work,
 accept a proposal by typing their name, send a message and ask for a call.
+What a client does in the portal shows on your dashboard under "From your
+clients", and the project's owner is emailed if email is set up.
 Call requests show on your dashboard, with the number to call back on if
 they gave one. They can also send files on a project: photos, a menu, a
 price list. Those show on the project under "Files from the client". Open

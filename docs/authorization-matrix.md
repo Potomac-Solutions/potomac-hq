@@ -187,6 +187,10 @@ report also needs `opportunity.view-value`, and the budget report
 `finance.view`, so a role that is given `report.view` alone sees neither
 prices nor costs.
 
+Marking a milestone as the client's to do needs `project.plan`, like every
+change to the plan. The dashboard's "From your clients" panel needs
+`portal.view`. The notice sender runs by itself and has no permission key.
+
 The restore drill, the full export, the retention run and the reset-link
 command are run on the server or on Mikey's own computer. They have no
 permission key: whoever can run them already holds the database.
@@ -212,6 +216,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | Accept or decline a proposal by typing their name | It is waiting for an answer |
 | Download an invoice's PDF | It is theirs and was sent. Drafts and voided invoices are not shown |
 | Ask for a call, and see the answer | Always |
+| Turn their own "something is waiting" emails off or on | Always. Only their own |
 
 A client user never sees: another client, internal notes, tasks, time,
 expenses, budgets, costs, margins, an opportunity's value, the pipeline, an

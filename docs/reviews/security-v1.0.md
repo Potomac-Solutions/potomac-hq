@@ -53,6 +53,7 @@ Each line says what was checked and what checks it on every merge.
 | The audit log holds no secret | A context key that names one is refused | `activity.test.ts` |
 | HQ never stores a card number | A payment reference that looks like one is refused | `finance.test.ts` |
 | Backups can only be opened with a key that is not on the server | Sealed with the public key | `backup-commands.test.ts` |
+| A notice email carries no amount, message, title or file name | `src/portal/domain/notices.ts` | `portal-notices.test.ts` |
 | The export leaves out password hashes, sessions and links | `exportAll` | `ops-commands.test.ts` |
 | The server runs as an unprivileged user with its code read-only, on Railway too, where the container has to start as root to reach the volume | `Dockerfile`, `bin/start.sh` | CI's container job, both ways |
 

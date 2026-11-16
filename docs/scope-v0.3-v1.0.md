@@ -316,9 +316,62 @@ client could not do, or could not find.
 
 | What | Why it was left |
 | --- | --- |
-| A client is not told when something is waiting. They have to sign in to see it | Email to clients was cut at v0.6: it needs wording Mikey approves |
-| A design opens as a download, not on the page | Showing a client's or Potomac's file in the page is the risk the file service exists to avoid. A PDF opens in the phone's own viewer |
+| ~~A client is not told when something is waiting~~ | Built in the second pass, off until Mikey turns it on |
+| A PDF design opens as a download, not on the page | A picture is now shown on the page (second pass). A PDF still opens in the phone's own viewer |
 | Paying by card | The gateway is not chosen |
 | A phone photo in HEIC format is refused | Most phones send a JPG to a web form. If one does not, the message says to save it again |
-| Nothing says which steps are the client's to do | Milestones have no owner. A step named "Photos from you" is the workaround |
+| ~~Nothing says which steps are the client's to do~~ | Built in the second pass |
+
+## The portal, as a client, second pass
+
+Decided 2026-11-16, when Mikey said to keep going. It takes on what the
+first pass left "still in the way". Needs his approval like the rest.
+
+| What was in the way | What changed |
+| --- | --- |
+| Nothing said which steps were the client's to do. The farmer's late "photos from you" sat under "On track" | A milestone can be marked "the client has to do this one". The client's open ones are listed first under "waiting on you" as "Your turn", with a button to send a file, and are tagged "Yours to do" in the steps |
+| A design had to be downloaded to be seen | A deliverable that is a picture (PNG, JPG, GIF, WebP) is shown on the page, and opens at full size when tapped |
+| Potomac only found a client's message, file or decision by opening the project | The dashboard has "From your clients": what clients did in the last two weeks, each line going to the place. With email set up, the person who owns that project is emailed |
+| A client only found something waiting by signing in | A client can be emailed that something is waiting. Off until `HQ_CLIENT_NOTICES=on` |
+
+### Decided here
+
+- **A notice says that something happened, never what.** No amount, no
+  message text, no file name, no title. Email is not private. The email to
+  a client lists kinds of things ("An invoice", "An update on your
+  project") and a link to sign in. The email to Potomac says who did what
+  on which project, and links to it.
+- **Emails to clients are off until turned on**, because the wording goes
+  out under Potomac's name and Mikey has not read it. It is in
+  `src/portal/domain/notices.ts`. Emails to Potomac's own people are on as
+  soon as Brevo is set up.
+- **Each client user can turn their own emails off** from the portal's home
+  page, and the email says so.
+- **Notices are read from the activity log**, once a minute. Nothing that
+  makes a change knows about email. Several things for one person in one
+  minute are one email.
+- **A notice is sent at most once.** HQ notes how far it has read before
+  it sends. If it stops halfway, or Brevo refuses, that notice is lost and
+  counted, not sent again. The dashboard panel and the portal still show
+  what the email would have said.
+- **Turning notices on emails nobody about the past.** Reading starts at
+  the end of the log as it was when this version was installed.
+- **Who at Potomac is emailed:** the project's owner, or the opportunity's
+  owner for a proposal. Every admin for a call request, or when the owner's
+  account is turned off.
+- **A picture is safe to show on the page.** It is drawn by an image
+  element, which never runs anything in the file, and the file was already
+  checked to be the picture its name says. A PDF or a document is still
+  only a download.
+
+### Still in the way
+
+| What | Why it was left |
+| --- | --- |
+| A text message would reach a farmer sooner than an email | It needs an SMS provider, which is a new tool and a cost |
+| Paying by card | The gateway is not chosen |
+| A PDF design is a download | See above |
+| A phone photo in HEIC format is refused | Converting it needs a package HQ does not have |
+| A client cannot mark their own step done | Sending the file is the client's part. Potomac marks it done once what was sent is right |
+| "On track" is still what Potomac set, even with a late step | The portal shows both. Potomac decides which is true |
 
