@@ -1,10 +1,11 @@
-import type { DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
+import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
 import type { Task, TaskPriority, TaskStatus } from "../domain/task.ts";
 import type { Database } from "../../shared/adapters.ts";
-import type { Id } from "../../shared/index.ts";
+import type { Currency, Id } from "../../shared/index.ts";
 
 type Row = Record<string, string | number | null>;
 const text = (row: Row, key: string) => row[key] as string;
@@ -222,6 +223,33 @@ export function sqliteProjectHistory(db: Database): ProjectHistory {
   return {
     forProject(projectId, limit) {
       return select.all(projectId, projectId, limit).map((row) => ({ ...row })) as HistoryRow[];
+    },
+  };
+}
+
+export function sqliteBaselineStore(db: Database): BaselineStore {
+  const set = db.prepare(
+    `insert into project_baseline (project_id, proposal_id, version, pricing, amount_minor, currency, minutes, lines, set_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     on conflict (project_id) do update set proposal_id = excluded.proposal_id, version = excluded.version, pricing = excluded.pricing,
+       amount_minor = excluded.amount_minor, currency = excluded.currency, minutes = excluded.minutes, lines = excluded.lines, set_at = excluded.set_at`,
+  );
+  const get = db.prepare("select project_id, proposal_id, version, pricing, amount_minor, currency, minutes, lines from project_baseline where project_id = ?");
+  return {
+    set(b, at) {
+      set.run(b.projectId, b.proposalId, b.version, b.pricing, b.amount.minor, b.amount.currency, b.minutes, JSON.stringify(b.lines), at);
+    },
+    get(projectId) {
+      const r = get.get(projectId) as Row | undefined;
+      if (!r) return null;
+      return {
+        projectId: text(r, "project_id") as Id,
+        proposalId: text(r, "proposal_id") as Id,
+        version: r["version"] as number,
+        pricing: text(r, "pricing"),
+        amount: { minor: r["amount_minor"] as number, currency: text(r, "currency") as Currency },
+        minutes: r["minutes"] as number,
+        lines: JSON.parse(text(r, "lines")) as BaselineLine[],
+      } satisfies Baseline;
     },
   };
 }

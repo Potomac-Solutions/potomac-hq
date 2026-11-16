@@ -19,7 +19,7 @@
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {} }} notes={{ items: [] }} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
     <h1>{p.name}</h1>
@@ -84,6 +84,17 @@
           <button class="hq-button secondary" type="submit">Cancel project</button>
         </form>
       </div>
+    </section>
+
+    <section zb-if={view.baseline} class="hq-panel" aria-labelledby="project-baseline">
+      <h2 id="project-baseline">What was agreed</h2>
+      <p>{view.baseline.amount}<span zb-if={view.baseline.hours}>, {view.baseline.hours} hours</span>. From <a href="/proposals/{view.baseline.proposalId}/versions/{view.baseline.version}">the accepted proposal, version {view.baseline.version}</a>.</p>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Total</th></tr></thead>
+        <tbody>
+          <zb-each items={view.baseline.lines} as="line" key={line.key}><tr><td>{line.item}</td><td class="hq-number">{line.quantity}</td><td class="hq-number">{line.total}</td></tr></zb-each>
+        </tbody>
+      </table>
     </section>
 
     <section class="hq-panel" id="plan" aria-labelledby="project-plan">

@@ -324,6 +324,94 @@ the project itself, and every event whose `context` carries its `projectId`.
 Each use case that touches a phase, milestone, task, deliverable, file or
 note of a project puts the project's id in its event.
 
+## v0.4: proposals and estimates
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+### Proposal
+
+What Potomac offers to do for an opportunity, and for how much. An
+opportunity can have several: a declined one stays, and a new one is started.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `opportunity_id` | id | Required. The opportunity must be open when the proposal is started |
+| `title` | text | Required. Starts as the opportunity's title |
+| `status` | `draft`, `sent`, `revised`, `accepted`, `declined` | Starts `draft` |
+| `pricing` | `free`, `hourly`, `fixed`, `monthly`, `yearly` | The same shapes an opportunity has |
+| `scope`, `deliverables`, `assumptions`, `exclusions` | text | The four sections. A line starting with a dash is a list item |
+| `lines` | estimate lines | The working copy's estimate |
+| `current_version` | integer | The last version sent. 0 before the first |
+| `shared_with_client` | yes or no | Whether the client sees sent versions in the portal (v0.6) |
+
+An **estimate line** is an item, a kind (`hours` or `quantity`), a quantity
+kept in hundredths, a rate in cents and their total. At most 40 lines.
+
+### Status rules
+
+- `draft` → `sent` by sending. Sending needs at least one line, and a total
+  that fits the pricing: zero when free, above zero otherwise.
+- Editing a `sent` proposal makes it `revised`. The version that was sent is
+  not touched. Sending again makes the next version.
+- Only a `sent` proposal can be answered. A `revised` one must be sent first,
+  so the answer is always to something the client has seen.
+- `accepted` and `declined` are final.
+- The opportunity must be `consulted` or `quoted` to send.
+
+### Proposal Version
+
+What was sent: a full copy of the proposal's content with its number, total,
+hours, who sent it and when. **Immutable.** Database triggers reject every
+update and delete, like the Activity Event table.
+
+### Proposal Decision
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `proposal_id` | id | One decision per proposal |
+| `version` | integer | The version that was answered |
+| `decision` | `accepted` or `declined` | |
+| `by_name` | text | Who at the client gave the answer |
+| `decided_on` | date | |
+| `method` | `in-person`, `phone`, `email`, `signed-paper`, `portal` | `portal` is set by the portal itself (v0.6) |
+| `note` | text | Optional |
+| `recorded_by` | User id | Empty when the client answered in the portal |
+
+### What sending and accepting do to other records
+
+- **Sending** sets the opportunity's pricing and value from the version, and
+  moves a `consulted` opportunity to `quoted`. The value is the total for
+  fixed and recurring work, the hourly rate for hourly work, zero when free.
+- **Accepting** moves the opportunity to `won` (which makes its client
+  `active`), starts the project if it has none, and sets the project's
+  baseline. All of it is one transaction.
+
+### Agreement
+
+Where the signed agreement for an accepted proposal is kept.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `proposal_id`, `version` | id, integer | The accepted proposal and version |
+| `reference` | text | Words for where the signed copy lives |
+| `signed_on` | date | Required |
+| `file_id` | File id | A scan, if one was uploaded. Either this or `reference` is required |
+
+### Project Baseline
+
+What was agreed for a project: the accepted version's pricing, total, hours
+and lines. One per project. v0.5 measures actual time and cost against it.
+A deposit is one third of a fixed total, rounded up to the cent. It is shown
+on the proposal and is not stored.
+
+### Templates
+
+One per launch service, in code (`src/proposals/domain/templates.ts`), with
+the list prices from `docs/workflow.md`. A template only fills a new draft:
+every word and number can be changed before sending.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store

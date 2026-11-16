@@ -15,7 +15,7 @@ import {
 } from "../domain/opportunity.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { projectFromWon, type Project, type ProjectStore } from "../../projects/index.ts";
-import { err, ok, parseAmount, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
+import { err, ok, parseAmount, recordActivity, type ActivityDeps, type Id, type Money, type Result, type Transact } from "../../shared/index.ts";
 import type { ClientStore, ContactStore, OpportunityStore } from "./ports.ts";
 
 export type CrmDeps = ActivityDeps & {
@@ -109,21 +109,76 @@ export function setOpportunityValue(
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    const priced = setValue(opportunity, input.pricing, amount.value);
-    if (!priced.ok) return priced;
-    deps.opportunities.update(priced.value, deps.clock());
-    recordActivity(deps, {
-      actorId,
-      action: "opportunity.value-set",
-      recordType: "opportunity",
-      recordId: opportunityId,
-      context: { pricing: priced.value.pricing, minor: amount.value.minor, currency: amount.value.currency },
-    });
-    return ok(priced.value);
+    return applyOpportunityValue(deps, actorId, opportunity, input.pricing, amount.value);
   });
 }
 
+// The three functions below make a change and write its events, and nothing
+// else: no permission check and no transaction of their own. They exist so
+// that another module's use case (accepting a proposal) can price, win and
+// convert an opportunity as one change. Call them only inside a transaction,
+// after the calling use case has checked its own permission.
+
+export function applyOpportunityValue(deps: CrmDeps, actorId: Id | null, opportunity: Opportunity, pricing: string, amount: Money): Result<Opportunity, ValueError> {
+  const priced = setValue(opportunity, pricing, amount);
+  if (!priced.ok) return priced;
+  deps.opportunities.update(priced.value, deps.clock());
+  recordActivity(deps, {
+    actorId,
+    action: "opportunity.value-set",
+    recordType: "opportunity",
+    recordId: opportunity.id,
+    context: { pricing: priced.value.pricing, minor: amount.minor, currency: amount.currency },
+  });
+  return ok(priced.value);
+}
+
 /** Moving to won also makes the client active, recorded as its own event. */
+export function applyStageMove(deps: CrmDeps, actorId: Id | null, opportunity: Opportunity, input: { readonly to: string; readonly lostReason?: string | null }): Result<Opportunity, StageError> {
+  const at = deps.clock();
+  const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null });
+  if (!moved.ok) return moved;
+  deps.opportunities.update(moved.value, at);
+  recordActivity(deps, {
+    actorId,
+    action: "opportunity.stage-changed",
+    recordType: "opportunity",
+    recordId: opportunity.id,
+    context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}) },
+  });
+  if (moved.value.stage === "won") {
+    const client = deps.clients.get(opportunity.organizationId);
+    const active = client ? activateOnWin(client) : null;
+    if (client && active) {
+      deps.clients.update(active, at);
+      recordActivity(deps, {
+        actorId,
+        action: "client.status-changed",
+        recordType: "client-organization",
+        recordId: client.id,
+        context: { from: client.status, to: "active", because: "opportunity-won", opportunityId: opportunity.id },
+      });
+    }
+  }
+  return ok(moved.value);
+}
+
+export function applyConversion(deps: CrmDeps, actorId: Id | null, opportunity: Opportunity): Result<Project, "not-won" | "already-converted"> {
+  if (deps.projects.byOpportunity(opportunity.id)) return err("already-converted");
+  const project = projectFromWon(deps.newId(), opportunity);
+  if (!project.ok) return project;
+  deps.projects.insert(project.value, deps.clock());
+  recordActivity(deps, { actorId, action: "opportunity.converted", recordType: "opportunity", recordId: opportunity.id, context: { projectId: project.value.id } });
+  recordActivity(deps, {
+    actorId,
+    action: "project.created",
+    recordType: "project",
+    recordId: project.value.id,
+    context: { opportunityId: opportunity.id, kind: project.value.kind, name: project.value.name },
+  });
+  return ok(project.value);
+}
+
 export function moveOpportunity(
   deps: CrmDeps,
   actorId: Id | null,
@@ -134,32 +189,7 @@ export function moveOpportunity(
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    const at = deps.clock();
-    const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null });
-    if (!moved.ok) return moved;
-    deps.opportunities.update(moved.value, at);
-    recordActivity(deps, {
-      actorId,
-      action: "opportunity.stage-changed",
-      recordType: "opportunity",
-      recordId: opportunityId,
-      context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}) },
-    });
-    if (moved.value.stage === "won") {
-      const client = deps.clients.get(opportunity.organizationId);
-      const active = client ? activateOnWin(client) : null;
-      if (client && active) {
-        deps.clients.update(active, at);
-        recordActivity(deps, {
-          actorId,
-          action: "client.status-changed",
-          recordType: "client-organization",
-          recordId: client.id,
-          context: { from: client.status, to: "active", because: "opportunity-won", opportunityId },
-        });
-      }
-    }
-    return ok(moved.value);
+    return applyStageMove(deps, actorId, opportunity, input);
   });
 }
 
@@ -181,18 +211,6 @@ export function convertOpportunity(deps: CrmDeps, actorId: Id | null, opportunit
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    if (deps.projects.byOpportunity(opportunityId)) return err("already-converted");
-    const project = projectFromWon(deps.newId(), opportunity);
-    if (!project.ok) return project;
-    deps.projects.insert(project.value, deps.clock());
-    recordActivity(deps, { actorId, action: "opportunity.converted", recordType: "opportunity", recordId: opportunityId, context: { projectId: project.value.id } });
-    recordActivity(deps, {
-      actorId,
-      action: "project.created",
-      recordType: "project",
-      recordId: project.value.id,
-      context: { opportunityId, kind: project.value.kind, name: project.value.name },
-    });
-    return ok(project.value);
+    return applyConversion(deps, actorId, opportunity);
   });
 }

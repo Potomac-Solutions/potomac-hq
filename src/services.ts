@@ -11,7 +11,9 @@ import { sqliteUserStore } from "./identity/adapters.ts";
 import type { SessionDeps } from "./identity/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
 import type { NotesDeps } from "./notes/index.ts";
-import { sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
+import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
+import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
 import type { ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock } from "./shared/index.ts";
@@ -25,6 +27,8 @@ export type Services = {
   readonly dashboard: RecentActivityDeps;
   readonly projects: ProjectsDeps;
   readonly notes: NotesDeps;
+  readonly proposals: ProposalsDeps;
+  readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: () => string;
   readonly formatWhen: (instant: string) => string;
@@ -55,10 +59,12 @@ export function createServices(db: Database, options: { readonly clock?: Clock; 
     milestones: sqliteMilestoneStore(db),
     tasks: sqliteTaskStore(db),
     deliverables: sqliteDeliverableStore(db),
+    baselines: sqliteBaselineStore(db),
     history: sqliteProjectHistory(db),
     today,
     formatWhen,
   };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
-  return { session, crm, dashboard, projects, notes, today, formatWhen };
+  const proposals: ProposalsDeps = { ...crm, ...projects, proposals: sqliteProposalStore(db) };
+  return { session, crm, dashboard, projects, notes, proposals, renderProposalPdf, today, formatWhen };
 }

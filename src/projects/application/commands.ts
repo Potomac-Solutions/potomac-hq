@@ -2,6 +2,7 @@
 // change and writes its activity event in one transaction, and answers with a
 // code. Every event carries the project's id, so the project's history can
 // find it.
+import type { Baseline } from "../domain/baseline.ts";
 import { isClientVisible, newDeliverable, shareDeliverable, unshareDeliverable, type Deliverable, type DeliverableError } from "../domain/deliverable.ts";
 import { completeMilestone, newMilestone, newPhase, reopenMilestone, type Milestone, type Phase, type PlanError } from "../domain/plan.ts";
 import { changeProjectOwner, changeProjectStatus, editProject, type Project, type ProjectEdit, type ProjectEditError } from "../domain/project.ts";
@@ -9,7 +10,7 @@ import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput 
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import type { DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -17,6 +18,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly milestones: MilestoneStore;
   readonly tasks: TaskStore;
   readonly deliverables: DeliverableStore;
+  readonly baselines: BaselineStore;
   readonly history: ProjectHistory;
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: () => string;
@@ -28,6 +30,23 @@ export type Refused = "forbidden" | "not-found";
 
 function allowed(deps: ProjectsDeps, actorId: Id | null, action: string): actorId is Id {
   return actorId !== null && authorize(deps, actorId, action).ok;
+}
+
+/**
+ * Sets a project's baseline from an accepted proposal and records it. It has
+ * no permission check and no transaction of its own: call it inside the
+ * transaction of the use case that accepted the proposal, after that use case
+ * has checked its permission.
+ */
+export function applyBaseline(deps: Pick<ProjectsDeps, "baselines" | "activityLog" | "clock" | "newId">, actorId: Id | null, baseline: Baseline): void {
+  deps.baselines.set(baseline, deps.clock());
+  recordActivity(deps, {
+    actorId,
+    action: "project.baseline-set",
+    recordType: "project",
+    recordId: baseline.projectId,
+    context: { proposalId: baseline.proposalId, version: baseline.version, minor: baseline.amount.minor, currency: baseline.amount.currency, minutes: baseline.minutes },
+  });
 }
 
 const activeUser = (deps: ProjectsDeps, id: Id): boolean => deps.users.get(id)?.status === "active";

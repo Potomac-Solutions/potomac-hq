@@ -2,7 +2,7 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: v0.1 to v0.3 are built on `staging` and nothing is deployed yet. The
+Status: v0.1 to v0.4 are built on `staging` and nothing is deployed yet. The
 deploy and backups wait on the Railway project and the R2 bucket.
 
 ## Read first
@@ -41,7 +41,7 @@ test/e2e/                      browser tests
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`. The import rules are in
+Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`, `proposals`. The import rules are in
 `.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
 files to the same rule. CI fails when one is broken.
 

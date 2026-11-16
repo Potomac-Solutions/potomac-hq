@@ -38,6 +38,11 @@ export const PERMISSIONS = [
   "file.upload",
   "file.download",
   "deliverable.edit",
+  // v0.4
+  "proposal.view",
+  "proposal.edit",
+  "proposal.send",
+  "proposal.decide",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -57,6 +62,10 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "opportunity.set-value",
   "opportunity.set-owner",
   "project.set-owner",
+  "proposal.view",
+  "proposal.edit",
+  "proposal.send",
+  "proposal.decide",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

@@ -6,7 +6,7 @@ import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
-import { describeEvent, err, ok, type Id, type Result } from "../../shared/index.ts";
+import { describeEvent, err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
 import type { ProjectsDeps, Refused } from "./commands.ts";
 import type { TaskRow } from "./ports.ts";
 
@@ -112,6 +112,14 @@ export type ProjectView = {
     readonly canUnshare: boolean;
   }[];
   readonly history: readonly { readonly id: string; readonly text: string; readonly when: string; readonly whenIso: string }[];
+  /** What was agreed, from the accepted proposal. Null when there is none, or the viewer may not see prices. */
+  readonly baseline: {
+    readonly proposalId: string;
+    readonly version: number;
+    readonly amount: string;
+    readonly hours: string;
+    readonly lines: readonly { readonly key: string; readonly item: string; readonly quantity: string; readonly total: string }[];
+  } | null;
   readonly can: {
     readonly edit: boolean;
     readonly setStatus: boolean;
@@ -144,7 +152,22 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
   const tasks = viewTasks ? deps.tasks.listFor(projectId) : [];
   const active = project.status === "active";
   const editDeliverables = may(deps, actorId, "deliverable.edit");
+  const agreed = may(deps, actorId, "opportunity.view-value") ? deps.baselines.get(projectId) : null;
   return ok({
+    baseline: agreed
+      ? {
+          proposalId: agreed.proposalId,
+          version: agreed.version,
+          amount: agreed.pricing === "free" ? "Free" : `${formatMoney(agreed.amount)}${agreed.pricing === "monthly" ? " a month" : agreed.pricing === "yearly" ? " a year" : ""}`,
+          hours: agreed.minutes > 0 ? formatHours(agreed.minutes) : "",
+          lines: agreed.lines.map((line, index) => ({
+            key: String(index),
+            item: line.item,
+            quantity: line.kind === "hours" ? `${formatHours(Math.round((line.quantity * 60) / 100))} h` : String(line.quantity / 100),
+            total: formatMoney(line.total),
+          })),
+        }
+      : null,
     project: {
       id: project.id,
       name: project.name,

@@ -1,3 +1,4 @@
+import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
@@ -58,4 +59,10 @@ export type HistoryRow = { readonly id: string; readonly occurredAt: string; rea
 export type ProjectHistory = {
   /** Events on the project and on anything that belongs to it, newest first. */
   forProject(projectId: Id, limit: number): HistoryRow[];
+};
+
+export type BaselineStore = {
+  /** Sets a project's baseline, replacing any it had. */
+  set(baseline: Baseline, at: string): void;
+  get(projectId: Id): Baseline | null;
 };

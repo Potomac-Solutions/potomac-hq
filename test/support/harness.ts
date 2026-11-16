@@ -186,9 +186,9 @@ export async function signIn(t: TestApp, email: string, name: string, roles: str
   return b;
 }
 
-/** The id at the end of a location such as /projects/<id>?done=... */
+/** The first id in a location such as /projects/<id>?done=... */
 export function idIn(location: string): string {
-  const match = /([0-9a-f]{8}-[0-9a-f-]{27})(?:[/?#]|$)/.exec(location);
+  const match = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(location);
   assert.ok(match, `no id in ${location}`);
-  return match[1] as string;
+  return match[0];
 }

@@ -21,6 +21,7 @@
     { label: 'Dashboard', href: '/', current: route.path === '/' },
     { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
     { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
+    { label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') },
     { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') },
     { label: 'Board', href: '/board', current: route.path === '/board' },
   ]
