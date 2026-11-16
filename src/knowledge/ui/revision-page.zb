@@ -20,7 +20,7 @@
     <h1>{view.title}</h1>
     <p class="hq-muted">Revision {view.revision} · {view.category} · Saved by {view.who}, {view.when}</p>
     <alert-banner zb-if={!view.current} variant="warning">This is an older revision. The current one may say something else.</alert-banner>
-    <section class="hq-panel" aria-label="Text">
+    <section class="hq-panel" aria-label="The article">
       <hq-article-body blocks={view.blocks}></hq-article-body>
     </section>
   </div>

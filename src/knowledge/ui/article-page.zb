@@ -29,7 +29,7 @@
     </div>
     <alert-banner zb-if={view.article.archived} variant="warning">This is archived. It is kept for the record and may be out of date.</alert-banner>
 
-    <section class="hq-panel" aria-label="Text">
+    <section class="hq-panel" aria-label="The article">
       <hq-article-body blocks={view.blocks}></hq-article-body>
     </section>
 
