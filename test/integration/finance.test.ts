@@ -267,7 +267,7 @@ test("the nightly sheet copy sends the three tables, and records whether it work
   const sent: { name: string; rows: readonly (readonly (string | number | null)[])[] }[] = [];
   const result = await finance.syncFinanceSheet(deps, { describe: "a test sheet", replace: async (tabs) => void sent.push(...tabs) });
   assert.deepEqual(result, { rows: 2 });
-  assert.deepEqual(sent.map((tab) => [tab.name, tab.rows.length]), [["Time", 2], ["Expenses", 1], ["Projects", 2]]);
+  assert.deepEqual(sent.map((tab) => [tab.name, tab.rows.length]), [["HQ Time", 2], ["HQ Expenses", 1], ["HQ Projects", 2], ["HQ Invoices", 1], ["HQ Payments", 1]]);
   assert.deepEqual(sent[0]?.rows[1], [TODAY, "Mt. Storm Bakery", "Bakery website", "", "Mikey Nichols", 1.5, 90, "yes", "Menu"]);
 
   await assert.rejects(finance.syncFinanceSheet(deps, { describe: "a broken sheet", replace: async () => Promise.reject(new Error("Google Sheets write failed: HTTP 403")) }), /HTTP 403/);
@@ -276,4 +276,86 @@ test("the nightly sheet copy sends the three tables, and records whether it work
     [null, "finance.sheet-synced", { rows: 2 }],
     [null, "finance.sheet-sync-failed", { reason: "Google Sheets write failed: HTTP 403" }],
   ]);
+});
+
+test("invoices: numbered in order, sent, paid by what is received, and the project's payment status follows", async () => {
+  const deps = t.services.finance;
+  const project = acceptedProject();
+  const other = await wonProject(t.services, mikey, { client: "Gormania Feed", title: "Feed store site" });
+
+  const suggestions = unwrap(finance.projectMoney(deps, mikey, project.id)).invoiceForm;
+  assert.deepEqual(suggestions, { deposit: "800.00", balance: "2400.00", full: "2400.00" });
+
+  const deposit = unwrap(finance.createInvoice(deps, mikey, project.id, { kind: "deposit", description: "Deposit, one third of the quote", amount: "800", dueOn: "2026-11-10" }));
+  const elsewhere = unwrap(finance.createInvoice(deps, mikey, other.project.id, { kind: "full", description: "Website", amount: "500" }));
+  assert.deepEqual([deposit.number, elsewhere.number], [1, 2]);
+  unwrap(finance.addLineToInvoice(deps, mikey, deposit.id, { description: "Stock photos", amount: "37.50" }));
+  assert.deepEqual(finance.invoiceDocument(deps, mikey, deposit.id), { ok: false, error: "not-found" }, "a draft has no PDF");
+  assert.deepEqual(finance.recordPayment(deps, mikey, deposit.id, { amount: "100", method: "cash", on: TODAY }), { ok: false, error: "not-sent" });
+
+  unwrap(finance.sendInvoiceNow(deps, mikey, deposit.id));
+  assert.deepEqual(finance.addLineToInvoice(deps, mikey, deposit.id, { description: "x", amount: "1" }), { ok: false, error: "not-a-draft" });
+  let money = unwrap(finance.projectMoney(deps, mikey, project.id));
+  assert.equal(money.payment.statusLabel, "Invoiced");
+  assert.deepEqual(money.invoices.map((i) => [i.label, i.kindLabel, i.status, i.total, i.owed, i.overdue]), [["INV-0001", "Deposit", "sent", "$837.50", "$837.50", true]]);
+  assert.equal(money.invoiceForm.balance, "1562.50", "the balance is what has not been invoiced yet");
+
+  const doc = unwrap(finance.invoiceDocument(deps, mikey, deposit.id));
+  assert.deepEqual({ label: doc.label, client: doc.clientName, issued: doc.issuedOn, total: doc.total, file: doc.fileName, lines: doc.lines }, {
+    label: "INV-0001",
+    client: "Mt. Storm Bakery",
+    issued: TODAY,
+    total: "$837.50",
+    file: "INV-0001.pdf",
+    lines: [{ description: "Deposit, one third of the quote", amount: "$800.00" }, { description: "Stock photos", amount: "$37.50" }],
+  });
+  assert.equal(new TextDecoder().decode(t.services.renderInvoicePdf(doc).slice(0, 5)), "%PDF-");
+
+  // Part, then the rest.
+  unwrap(finance.recordPayment(deps, mikey, deposit.id, { amount: "400", method: "check", on: TODAY, reference: "Check 1041" }));
+  assert.equal(unwrap(finance.projectMoney(deps, mikey, project.id)).payment.status, "invoiced");
+  assert.deepEqual(finance.voidInvoiceNow(deps, mikey, deposit.id), { ok: false, error: "has-payments" });
+  assert.deepEqual(finance.recordPayment(deps, mikey, deposit.id, { amount: "500", method: "cash", on: TODAY }), { ok: false, error: "more-than-is-owed" });
+  const paid = unwrap(finance.recordPayment(deps, mikey, deposit.id, { amount: "437.50", method: "cash", on: TODAY }));
+  assert.equal(paid.invoice.status, "paid");
+  assert.equal(unwrap(finance.projectMoney(deps, mikey, project.id)).payment.statusLabel, "Deposit paid");
+
+  // The balance: invoiced, then paid in full.
+  const balance = unwrap(finance.createInvoice(deps, mikey, project.id, { kind: "balance", description: "Balance", amount: "1562.50" }));
+  assert.equal(balance.number, 3);
+  unwrap(finance.sendInvoiceNow(deps, mikey, balance.id));
+  assert.equal(unwrap(finance.projectMoney(deps, mikey, project.id)).payment.status, "invoiced");
+  unwrap(finance.recordPayment(deps, mikey, balance.id, { amount: "1,562.50", method: "check", on: TODAY, reference: "Check 1050" }));
+  assert.equal(unwrap(finance.projectMoney(deps, mikey, project.id)).payment.statusLabel, "Paid in full");
+
+  // A draft made by mistake is voided, and the numbers keep no gap.
+  unwrap(finance.voidInvoiceNow(deps, mikey, elsewhere.id));
+  assert.equal(unwrap(finance.createInvoice(deps, mikey, other.project.id, { kind: "full", description: "Website", amount: "550" })).number, 4);
+
+  const detail = unwrap(finance.invoiceDetail(deps, mikey, deposit.id));
+  assert.deepEqual(detail.payments.map((p) => [p.amount, p.methodLabel, p.reference]), [["$400.00", "Check", "Check 1041"], ["$437.50", "Cash", ""]]);
+  assert.deepEqual(detail.can, { addLine: false, send: false, void: false, pay: false });
+
+  const invoices = unwrap(finance.exportFinance(deps, mikey, "invoices")).csv.split("\r\n");
+  assert.equal(invoices[1], "INV-0001,Mt. Storm Bakery,Bakery ordering app,Deposit,paid,2026-11-16,2026-11-10,837.5,837.5,0");
+  assert.equal(invoices[2], "INV-0002,Gormania Feed,Feed store site,Full amount,void,,,500,0,0");
+  const payments = unwrap(finance.exportFinance(deps, mikey, "payments")).csv.split("\r\n");
+  assert.equal(payments[1], "2026-11-16,INV-0001,Mt. Storm Bakery,Bakery ordering app,400,USD,Check,Check 1041");
+  assert.equal(payments.length, 5, "a header, three payments and the last line's end");
+
+  const statuses = events(t.db).filter((e) => e.action === "project.payment-status-changed").map((e) => [e.context["from"], e.context["to"], e.context["invoiceNumber"]]);
+  assert.deepEqual(statuses, [["not-invoiced", "invoiced", 1], ["invoiced", "deposit-paid", 1], ["deposit-paid", "invoiced", 3], ["invoiced", "paid", 3]]);
+
+  // Admins and managers only.
+  const sam = addUser(t.db, "member", "Sam Helper");
+  const refused: { ok: boolean; error?: string }[] = [
+    finance.createInvoice(deps, sam, project.id, { kind: "full", description: "x", amount: "1" }),
+    finance.addLineToInvoice(deps, sam, deposit.id, { description: "x", amount: "1" }),
+    finance.sendInvoiceNow(deps, sam, deposit.id),
+    finance.voidInvoiceNow(deps, sam, deposit.id),
+    finance.recordPayment(deps, sam, deposit.id, { amount: "1", method: "cash", on: TODAY }),
+    finance.invoiceDetail(deps, sam, deposit.id),
+    finance.invoiceDocument(deps, sam, deposit.id),
+  ];
+  refused.forEach((answer, index) => assert.deepEqual(answer, { ok: false, error: "forbidden" }, `call ${index}`));
 });

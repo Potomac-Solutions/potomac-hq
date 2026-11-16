@@ -90,8 +90,37 @@ test("a project's money: budget, payment, an expense with a receipt, and removin
   assert.match(overview, /Deposit paid/);
 });
 
+test("an invoice: drafted from the Money tab, sent, downloaded as a PDF, and paid", async () => {
+  const drafted = await admin.submit(`/projects/${projectId}/invoices`, { kind: "deposit", description: "Deposit, one third of the quote", amount: "500", dueOn: "", note: "" });
+  assert.match(drafted.location, /^\/invoices\/[0-9a-f-]{36}\?done=/);
+  const path = drafted.location.split("?")[0] ?? "";
+  assert.match(drafted.html, /<h1>Invoice INV-0001<\/h1>/);
+  assert.match(textOf(drafted.html), /Status Draft Billed to Mt\. Storm Bakery/);
+  assert.equal((await admin.get(`${path}/pdf`)).status, 404, "a draft has no PDF");
+
+  assert.match((await admin.submit(`${path}/lines`, { description: "Stock photos", amount: "37.50" })).html, /Line added\./);
+  const sent = await admin.submit(`${path}/send`, {});
+  assert.match(sent.html, /Invoice sent\./);
+  assert.match(textOf(sent.html), /Total \$537\.50 Received \$0\.00 Owed \$537\.50/);
+  const pdf = await admin.get(`${path}/pdf`);
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get("content-disposition"), 'attachment; filename="INV-0001.pdf"');
+  assert.equal(new TextDecoder().decode(new Uint8Array(await pdf.arrayBuffer()).slice(0, 5)), "%PDF-");
+
+  assert.match((await admin.submit(`${path}/payments`, { amount: "537.50", method: "card", on: today, reference: "4242 4242 4242 4242" })).html, /That looks like a card number\. HQ never keeps one\./);
+  const paid = await admin.submit(`${path}/payments`, { amount: "537.50", method: "check", on: today, reference: "Check 1041" });
+  assert.match(paid.html, /Payment recorded\./);
+  assert.match(textOf(paid.html), /Status Paid /);
+  assert.match(textOf(paid.html), /Check Check 1041 \$537\.50/);
+  const money = textOf(await admin.page(`/projects/${projectId}/money`));
+  assert.match(money, /Deposit paid/);
+  assert.match(money, /INV-0001 Deposit Paid/);
+  assert.equal((await httpClient(t.origin).get(`${path}/pdf`)).status, 404);
+  assert.equal((await httpClient(t.origin).get(path)).status, 401);
+});
+
 test("the exports download as CSV, for those allowed", async () => {
-  for (const what of ["time", "expenses", "projects"]) {
+  for (const what of ["time", "expenses", "projects", "invoices", "payments"]) {
     const res = await admin.get(`/exports/${what}.csv`);
     assert.equal(res.status, 200, what);
     assert.equal(res.headers.get("content-type"), "text/csv; charset=utf-8");

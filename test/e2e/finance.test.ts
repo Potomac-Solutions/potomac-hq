@@ -71,11 +71,27 @@ test("time and money for a project", async () => {
   await page.getByRole("button", { name: "Save payment status" }).click();
   await page.getByText("Payment status saved.").waitFor();
   await page.getByText("Record an expense").click();
-  await page.getByLabel("Amount in dollars").fill("12.50");
-  await page.getByLabel("Note").fill("Hosting, first month");
+  await page.getByLabel("Expense amount in dollars").fill("12.50");
+  await page.getByLabel("What it was for").fill("Hosting, first month");
   await page.getByRole("button", { name: "Record expense" }).click();
   await page.getByText("Expense recorded.").waitFor();
   await assertAccessible(page, "a project's money, filled in");
+
+  // An invoice: draft, send, record the payment.
+  await page.getByText("Draft an invoice").click();
+  await page.getByLabel("Description").fill("Full amount");
+  await page.getByLabel("Invoice amount in dollars").fill("100");
+  await page.getByRole("button", { name: "Draft invoice" }).click();
+  await page.waitForURL((url) => url.pathname.startsWith("/invoices/"));
+  await assertAccessible(page, "a draft invoice");
+  await page.getByRole("button", { name: "Send this invoice" }).click();
+  await page.getByText("Invoice sent.").waitFor();
+  await assertAccessible(page, "a sent invoice");
+  await page.getByLabel("How it was paid").selectOption("cash");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await page.getByText("Payment recorded.").waitFor();
+  assert.match(await text(page), /Status ?Paid/);
+  await assertAccessible(page, "a paid invoice");
 
   // The overview, with the project over budget, and an export.
   await page.getByRole("link", { name: "Money", exact: true }).first().click();
