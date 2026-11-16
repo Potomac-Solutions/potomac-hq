@@ -25,6 +25,9 @@
     "backup": "node bin/backup.ts",
     "backup:keygen": "node bin/backup-keygen.ts",
     "restore": "node bin/restore.ts",
+    "restore:drill": "node bin/restore-drill.ts",
+    "retention": "node bin/retention.ts",
+    "export": "node bin/export.ts",
     "release:prepare": "node tools/release/prepare.mjs",
     "release:notes": "node tools/release/notes.mjs"
   },

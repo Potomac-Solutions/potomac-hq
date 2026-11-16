@@ -13,3 +13,7 @@ export { backupName, nextRun, runBackup, scheduleDaily, type BackupDeps, type Ba
 export { directoryTarget, r2Target, type BackupTarget, type R2Config } from "./infrastructure/backup/targets.ts";
 export { brevoSender, emailConfigFrom, type EmailConfig, type Send } from "./infrastructure/email/brevo.ts";
 export { pdfDocument, type Column, type PdfDocument } from "./infrastructure/pdf.ts";
+export { alertAddressFrom, createMonitor, type Monitor } from "./infrastructure/ops/monitor.ts";
+export { applyRetention, EXPIRED_SIGN_IN_DAYS, UNUSED_INVITE_DAYS, type RetentionResult } from "./infrastructure/ops/retention.ts";
+export { exportAll, type ExportResult } from "./infrastructure/ops/export.ts";
+export { checkRestored, type DrillCheck, type DrillReport } from "./infrastructure/ops/drill.ts";

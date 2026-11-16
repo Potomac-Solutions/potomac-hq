@@ -489,7 +489,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   }
 
   const web = new Hono();
-  web.route("/", staticRoutes({ assets: loadAssets() }));
+  const ping = db.prepare("select 1 as ok");
+  web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
