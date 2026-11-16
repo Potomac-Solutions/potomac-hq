@@ -189,6 +189,141 @@ for every sign-in.
 - The record change and its event are written in one transaction. If either
   fails, neither is saved.
 
+## v0.3: projects, tasks, notes and files
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+### Project, filled in
+
+The stub gains four fields.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `description` | text | Optional |
+| `health` | `on-track`, `at-risk`, `off-track` | Starts `on-track`. Set by hand |
+| `start_on` | date | Optional |
+| `target_on` | date | Optional. Not before `start_on` |
+
+A closed project (`completed` or `cancelled`) takes no new phases,
+milestones, tasks or deliverables. Its tasks can still be moved.
+
+### Phase
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `name` | text | Required |
+| `position` | integer | 0 for the first. A new phase goes last |
+
+### Milestone
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `phase_id` | id | Optional. Must be a phase of the same project |
+| `name` | text | Required |
+| `due_on` | date | Optional |
+| `done_on` | date | Set to today (business time zone) when completed. Empty while open |
+
+**The next milestone is worked out, never stored:** the open milestone due
+soonest, with undated ones after every dated one.
+
+### Task
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `phase_id` | id | Optional. Must be a phase of the same project |
+| `title` | text | Required |
+| `description` | text | Optional |
+| `assignee_id` | User id | Optional. Must be an active user when set |
+| `priority` | `low`, `normal`, `high`, `urgent` | Starts `normal` |
+| `due_on` | date | Optional |
+| `estimate_minutes` | integer | Optional. Typed as hours, such as `1.5` |
+| `status` | `todo`, `doing`, `blocked`, `done` | Starts `todo`. Any status may follow any other |
+| `done_at` | time | Set when the status becomes `done`, cleared when it leaves |
+
+Tasks have no dependencies on each other, as the roadmap says. A finished
+task stays on the board for two weeks.
+
+### Note
+
+A note on a client organization, an opportunity or a project.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `record_type` | `client-organization`, `opportunity`, `project` | Required |
+| `record_id` | id | The record must exist |
+| `author_id` | User id | Required |
+| `body` | text | Required, at most 5,000 characters |
+
+Notes are written once. There is no edit and no delete. Reading or writing a
+note needs the permission to see the record it is on.
+
+### File
+
+One uploaded file (decision 0002).
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | Its only address is `/files/<id>` |
+| `name` | text | The name it was uploaded with, without any folder |
+| `content_type` | text | Decided by HQ from the name. Never taken from the browser |
+| `size_bytes` | integer | At most 25 MB |
+| `sha256` | text | Of the bytes |
+| `owner_type`, `owner_id` | text, id | What it is attached to, such as a deliverable |
+| `organization_id` | id | The client it belongs to, if any |
+| `client_visible` | yes or no | Whether that client may download it. Starts no |
+| `uploaded_by` | User id | |
+
+- Allowed types: PDF, PNG, JPEG, GIF, WebP, plain text, Markdown, CSV, zip,
+  and Word, Excel and PowerPoint files. Each is checked against the file's
+  first bytes. HTML, SVG and anything a browser could run are refused.
+- Every download is sent as an attachment with `nosniff` and a sandboxing
+  content security policy, so a file is never shown or run inside HQ.
+- A file that someone may not download answers 404, the same as one that
+  does not exist.
+
+### Deliverable
+
+Something handed to the client: a file attached to a project.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `project_id` | id | Required |
+| `title` | text | Required |
+| `description` | text | Optional |
+| `file_id` | id | Required. One file per deliverable |
+| `status` | `draft`, `shared`, `approved`, `changes-requested` | Starts `draft` |
+| `shared_at` | time | Set when shared |
+| `decided_at` | time | Set when the client decides (v0.6) |
+| `decision_note` | text | Required when the client asks for changes |
+
+- Sharing makes the deliverable and its file visible to the client. Stopping
+  makes it a draft again.
+- An approved deliverable stays shared: it is the record of what was
+  approved.
+- Sharing again after "changes requested" asks the client to decide again.
+
+### User preference
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `user_id` | User id | One row per user |
+| `theme` | `system`, `light`, `dark` | `system` follows the device. The default |
+
+### Project history
+
+A project's history is read from the Activity Event table: every event on
+the project itself, and every event whose `context` carries its `projectId`.
+Each use case that touches a phase, milestone, task, deliverable, file or
+note of a project puts the project's id in its event.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store
