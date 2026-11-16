@@ -19,7 +19,7 @@ const migrationsDir = join(import.meta.dirname, "..", "..", "migrations");
 export type TestDb = { readonly db: Database; readonly services: Services; close(): void };
 
 /** A fresh database with every migration applied, and the services over it. */
-export function testDb(options: { today?: () => string } = {}): TestDb {
+export function testDb(options: { today?: () => string; clock?: () => string } = {}): TestDb {
   const dir = mkdtempSync(join(tmpdir(), "hq-test-"));
   const db = openDatabase(join(dir, "test.db"));
   migrate(db, readMigrations(migrationsDir), systemClock);
