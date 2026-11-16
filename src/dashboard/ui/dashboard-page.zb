@@ -129,7 +129,7 @@
   </section>
   <section class="hq-panel" aria-labelledby="recent-activity">
     <h2 id="recent-activity">Recent activity</h2>
-    <p class="hq-scope">{everything ? "Everything recorded in HQ, newest first." : "Changes to clients, opportunities and projects, newest first."}</p>
+    <p class="hq-scope">{everything ? "Everything recorded in HQ, newest first." : "Changes to clients, opportunities and projects, newest first."} <a zb-if={everything} href="/activity">See the full history</a></p>
     <empty-state zb-if={empty} heading="No activity yet">Changes to clients, opportunities and projects will be listed here.</empty-state>
     <ol zb-else class="hq-activity">
       <zb-each items={items} as="item" key={item.id}>

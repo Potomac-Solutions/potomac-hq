@@ -18,6 +18,11 @@ function deps(access: Access | null): RecentActivityDeps & { asked: { scope: str
     list: () => [],
     themeOf: () => "system",
     setTheme: () => {},
+    findByEmail: () => null,
+    rolesOf: () => [],
+    setRoles: () => {},
+    setStatus: () => {},
+    activeAdminsOtherThan: () => 0,
   };
   const activity: ActivityReader = {
     recent(scope, limit) {

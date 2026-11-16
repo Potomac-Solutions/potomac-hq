@@ -10,17 +10,19 @@ import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } from "./crm/index.ts";
-import { recentActivity } from "./dashboard/index.ts";
+import { auditDownloads } from "./dashboard/api/audit-routes.ts";
+import { auditHistory, recentActivity } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { createHqStaff, createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
+import { createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
+import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
-import { problemPage } from "./identity/ui/views.ts";
+import { authorize, establishUser, listPeople, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { problemPage, userLinkPage } from "./identity/ui/views.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
@@ -102,7 +104,7 @@ export type PageContext = {
   guard(): Answer | null;
   /** The no-access page, for a read that was refused. */
   forbidden(): Answer;
-  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity> };
+  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory> };
   readonly crm: {
     listClients(status?: string): ReturnType<typeof listClients>;
     pipeline(): ReturnType<typeof pipeline>;
@@ -139,7 +141,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -157,6 +159,7 @@ export type PageContext = {
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
+  readonly people: { list(): ReturnType<typeof listPeople> };
   readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
@@ -184,7 +187,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const users = sessionDeps.users;
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
-  const staff = createHqStaff(db, { secure: config.secure });
+  const staff = services.staff;
   const sendHtml = (res: ServerResponse, status: number, title: string, body: string) => {
     const html = renderPage(title, body);
     res.writeHead(status, { "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html) });
@@ -277,7 +280,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         today: date,
         guard: () => (who === null ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 }) : user === null ? forbidden() : null),
         forbidden,
-        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor) },
+        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query) },
         crm: {
           listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
           pipeline: () => pipeline(crmDeps, actor, date),
@@ -323,7 +326,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok },
+        people: { list: () => listPeople(sessionDeps, actor) },
         settings: { theme: user ? users.themeOf(user.id) : "system", themes },
       };
     },
@@ -385,6 +389,14 @@ export async function createApp(config: AppConfig): Promise<App> {
     ? createNotify({
         send: email.send,
         templates: {
+          "hq-invite": ({ name, link }: { name: string; link: string }) => ({
+            subject: "You are invited to Potomac HQ",
+            body: `Hi ${name},\n\nYou have been invited to Potomac HQ. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nPotomac Solutions`,
+          }),
+          "hq-reset": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Set a new password for Potomac HQ",
+            body: `Hi ${name},\n\nAn administrator made you a link to set a new password for Potomac HQ. It works once, for a week:\n\n${link}\n\nPotomac Solutions`,
+          }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nPotomac Solutions has set up a client portal for you. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nIn the portal you can follow your project, approve work and send messages.\n\nPotomac Solutions`,
@@ -414,6 +426,17 @@ export async function createApp(config: AppConfig): Promise<App> {
     }),
   );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route(
+    "/",
+    peopleRoutes({
+      people: sessionDeps,
+      actorOf,
+      sign: (location) => notices.sign(location),
+      publicUrl,
+      mailLink: inviteMail ? async (to, link, kind) => "ok" in (await inviteMail.notify({ email: to.email }, kind === "invite" ? "hq-invite" : "hq-reset", { name: to.name, link })) : null,
+      linkPage: (view) => renderPage("Send this link", userLinkPage(view)),
+    }),
+  );
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",
@@ -448,6 +471,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
@@ -480,7 +504,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
