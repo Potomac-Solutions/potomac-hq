@@ -14,10 +14,10 @@ export type Option = { readonly value: string; readonly label: string };
 
 const may = (deps: ProjectsDeps, actorId: Id | null, action: string): boolean => actorId !== null && authorize(deps, actorId, action).ok;
 
-type MilestoneView = { readonly id: string; readonly name: string; readonly dueOn: string; readonly doneOn: string; readonly done: boolean; readonly overdue: boolean; readonly phaseName: string };
+type MilestoneView = { readonly id: string; readonly name: string; readonly dueOn: string; readonly doneOn: string; readonly done: boolean; readonly overdue: boolean; readonly phaseName: string; readonly forClient: boolean };
 
 function milestoneView(milestone: Milestone, today: string, phaseName = ""): MilestoneView {
-  return { id: milestone.id, name: milestone.name, dueOn: milestone.dueOn ?? "", doneOn: milestone.doneOn ?? "", done: milestone.doneOn !== null, overdue: isMilestoneOverdue(milestone, today), phaseName };
+  return { id: milestone.id, name: milestone.name, dueOn: milestone.dueOn ?? "", doneOn: milestone.doneOn ?? "", done: milestone.doneOn !== null, overdue: isMilestoneOverdue(milestone, today), phaseName, forClient: milestone.forClient };
 }
 
 export type ProjectListView = {

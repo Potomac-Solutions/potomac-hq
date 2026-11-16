@@ -4,7 +4,7 @@
 // find it.
 import type { Baseline } from "../domain/baseline.ts";
 import { isClientVisible, newDeliverable, shareDeliverable, unshareDeliverable, type Deliverable, type DeliverableError } from "../domain/deliverable.ts";
-import { completeMilestone, newMilestone, newPhase, reopenMilestone, type Milestone, type Phase, type PlanError } from "../domain/plan.ts";
+import { assignMilestone, completeMilestone, newMilestone, newPhase, reopenMilestone, type Milestone, type Phase, type PlanError } from "../domain/plan.ts";
 import { changeProjectOwner, changeProjectStatus, editProject, type Project, type ProjectEdit, type ProjectEditError } from "../domain/project.ts";
 import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput } from "../domain/task.ts";
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
@@ -132,7 +132,7 @@ export function addMilestone(
   deps: ProjectsDeps,
   actorId: Id | null,
   projectId: Id,
-  input: { readonly name: string; readonly dueOn?: string | null; readonly phaseId?: Id | null },
+  input: { readonly name: string; readonly dueOn?: string | null; readonly phaseId?: Id | null; readonly forClient?: boolean },
 ): Result<Milestone, Refused | "project-closed" | "phase-not-in-project" | PlanError> {
   if (!allowed(deps, actorId, "project.plan")) return err("forbidden");
   return deps.transact(() => {
@@ -143,7 +143,7 @@ export function addMilestone(
     const milestone = newMilestone(deps.newId(), projectId, { ...input, phaseId: phase.value });
     if (!milestone.ok) return milestone;
     deps.milestones.insert(milestone.value, deps.clock());
-    recordActivity(deps, { actorId, action: "milestone.added", recordType: "milestone", recordId: milestone.value.id, context: { projectId, name: milestone.value.name, dueOn: milestone.value.dueOn } });
+    recordActivity(deps, { actorId, action: "milestone.added", recordType: "milestone", recordId: milestone.value.id, context: { projectId, name: milestone.value.name, dueOn: milestone.value.dueOn, forClient: milestone.value.forClient } });
     return ok(milestone.value);
   });
 }
@@ -163,6 +163,20 @@ export function setMilestoneDone(deps: ProjectsDeps, actorId: Id | null, milesto
       recordId: milestoneId,
       context: { projectId: milestone.projectId, name: milestone.name },
     });
+    return ok(changed.value);
+  });
+}
+
+/** Says a milestone is the client's to do, or takes that back. The portal lists the client's open ones as waiting on them. */
+export function setMilestoneForClient(deps: ProjectsDeps, actorId: Id | null, milestoneId: Id, forClient: boolean): Result<Milestone, Refused | "unchanged"> {
+  if (!allowed(deps, actorId, "project.plan")) return err("forbidden");
+  return deps.transact(() => {
+    const milestone = deps.milestones.get(milestoneId);
+    if (!milestone) return err("not-found");
+    const changed = assignMilestone(milestone, forClient);
+    if (!changed.ok) return changed;
+    deps.milestones.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action: forClient ? "milestone.given-to-client" : "milestone.taken-back", recordType: "milestone", recordId: milestoneId, context: { projectId: milestone.projectId, name: milestone.name } });
     return ok(changed.value);
   });
 }

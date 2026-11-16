@@ -91,12 +91,13 @@ const toMilestone = (r: Row): Milestone => ({
   name: text(r, "name"),
   dueOn: maybe(r, "due_on"),
   doneOn: maybe(r, "done_on"),
+  forClient: r["for_client"] === 1,
 });
 
 export function sqliteMilestoneStore(db: Database): MilestoneStore {
-  const columns = "id, project_id, phase_id, name, due_on, done_on";
-  const insert = db.prepare(`insert into milestone (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)`);
-  const update = db.prepare("update milestone set phase_id = ?, name = ?, due_on = ?, done_on = ?, updated_at = ? where id = ?");
+  const columns = "id, project_id, phase_id, name, due_on, done_on, for_client";
+  const insert = db.prepare(`insert into milestone (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const update = db.prepare("update milestone set phase_id = ?, name = ?, due_on = ?, done_on = ?, for_client = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${columns} from milestone where id = ?`);
   // Dated ones first, soonest first, then undated ones in the order they were added.
   const listFor = db.prepare(`select ${columns} from milestone where project_id = ? order by due_on is null, due_on, rowid`);
@@ -108,10 +109,10 @@ export function sqliteMilestoneStore(db: Database): MilestoneStore {
   );
   return {
     insert(m, at) {
-      insert.run(m.id, m.projectId, m.phaseId, m.name, m.dueOn, m.doneOn, at, at);
+      insert.run(m.id, m.projectId, m.phaseId, m.name, m.dueOn, m.doneOn, m.forClient ? 1 : 0, at, at);
     },
     update(m, at) {
-      update.run(m.phaseId, m.name, m.dueOn, m.doneOn, at, m.id);
+      update.run(m.phaseId, m.name, m.dueOn, m.doneOn, m.forClient ? 1 : 0, at, m.id);
     },
     get(id) {
       const row = get.get(id) as Row | undefined;

@@ -108,7 +108,7 @@
         <tbody>
           <zb-each items={view.milestones} as="milestone" key={milestone.id}>
             <tr>
-              <td>{milestone.name}</td>
+              <td>{milestone.name} <span zb-if={milestone.forClient} class="hq-tag">Client’s to do</span></td>
               <td>{milestone.phaseName}</td>
               <td>{milestone.dueOn} <span zb-if={milestone.overdue} class="hq-tag due">Overdue</span></td>
               <td>{milestone.doneOn}</td>
@@ -117,6 +117,11 @@
                   <input type="hidden" name="projectId" value={p.id}>
                   <input type="hidden" name="done" value={milestone.done ? "0" : "1"}>
                   <button class="hq-button secondary small" type="submit" aria-label="{milestone.done ? 'Reopen' : 'Mark done'}: {milestone.name}">{milestone.done ? "Reopen" : "Mark done"}</button>
+                </form>
+                <form zb-if={view.can.plan && !milestone.done} method="post" action="/milestones/{milestone.id}/for-client" class="hq-inline">
+                  <input type="hidden" name="projectId" value={p.id}>
+                  <input type="hidden" name="forClient" value={milestone.forClient ? "0" : "1"}>
+                  <button class="hq-button secondary small" type="submit" aria-label="{milestone.forClient ? 'Make it ours to do' : 'Make it the client’s to do'}: {milestone.name}">{milestone.forClient ? "Ours to do" : "Client’s to do"}</button>
                 </form>
               </td>
             </tr>
@@ -135,6 +140,7 @@
               <zb-each items={view.phases} as="phase" key={phase.id}><option value={phase.id}>{phase.name}</option></zb-each>
             </select>
           </div>
+          <label class="hq-check"><input type="checkbox" name="forClient" value="1"> The client has to do this one <span class="hq-muted">(like sending photos). Their portal lists it under “waiting on you”.</span></label>
           <div><button class="hq-button" type="submit">Add milestone</button></div>
         </form>
       </details>

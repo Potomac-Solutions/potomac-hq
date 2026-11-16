@@ -177,3 +177,4 @@ hq-portal input[type=file] { font: inherit; padding: 0.5rem 0; }
 /* A figure or a column heading is never broken in the middle. */
 hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal; }
 hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }
+.portal-preview { display: block; max-width: 100%; height: auto; max-height: 28rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
