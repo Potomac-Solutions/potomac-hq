@@ -196,8 +196,35 @@ moves those lines under a version heading. See `docs/conventions.md`.
   and tries every portal page, download and form against another client's
   records, and every HQ page and form with a client's session.
 
+- v1.0 Platform. A People page where an admin invites someone with roles,
+  withdraws an invite, changes roles, turns an account off or on and makes
+  a new password link. HQ always keeps one admin who can sign in.
+- A knowledge base with categories, tags, search and every revision kept,
+  and a decision log inside it. It is filled from HQ's own documents when
+  HQ starts.
+- An audit history page for admins: every activity event, filtered by
+  person, kind of record, action and day, with a CSV of the same filter.
+- A Reports page for admins and managers: the pipeline and win rate,
+  project health and what is late, and budget against actual.
+- `npm run restore:drill` opens a backup, checks it, starts HQ on the copy
+  and deletes it. `npm run export` writes every record and stored file to a
+  folder. `npm run retention` applies the retention policy, which also runs
+  each night.
+- Errors are logged as JSON lines and, with `HQ_ALERT_EMAIL` set, emailed,
+  at most once in fifteen minutes for the same error. The health check now
+  tests the database and answers 503 when it cannot be read.
+- `npm run test:zubra`, a regression suite for what HQ relies on Zubra to
+  do. It runs in CI.
+- Documents: an operations runbook with the first-deploy checklist, a user
+  guide, a retention policy, and security and accessibility self-reviews
+  that say what they did not cover.
+- Three permissions: everyone reads the knowledge base, and admins and
+  managers write in it and see reports.
+
 ### Changed
 
+- HQ's own sign-in uses the cheaper password hash in tests only. Nothing
+  changes in production.
 - The top bar shows only what the signed-in person may open: Proposals and
   Money are not offered to a member.
 

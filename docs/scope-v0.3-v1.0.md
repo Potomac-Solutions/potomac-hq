@@ -188,3 +188,57 @@ still open.
 | Files sent by the client | A client's upload is a new way in for bad files | When a project needs it |
 | Several organizations for one client user | One email, one organization | When someone needs it |
 
+## v1.0 Platform
+
+### Kept
+
+| Roadmap line | Smallest version built |
+| --- | --- |
+| Admin screens for users and roles | A People page: invite with roles, withdraw an invite, change roles, turn an account off or on, make a new password link |
+| Knowledge base | Articles with a category, tags, search and every revision kept. Filled from the `docs/` folder when HQ starts |
+| Decision log | A decision is an article with the day it was made. The log is the knowledge base filtered to decisions |
+| Audit history with filters | Every activity event, by person, kind of record, action and day, 50 to a page, with a CSV of the same filter |
+| Reports | Pipeline, project health, and budget against actual, on one page |
+| Restore drill | `npm run restore:drill`: opens a backup, checks it, starts HQ on it, and deletes the copy |
+| Full data export | `npm run export`: one JSON file per table and every stored file |
+| Retention policy, enforced | `docs/retention-policy.md`, and a nightly run that removes expired sessions, links and unused invites |
+| Monitoring, error logging, alert | Errors as JSON lines in the log, an email per error at most every fifteen minutes, and a health check that tests the database |
+| Security and accessibility reviews | `docs/reviews/`, both self-reviews, both saying what they did not cover |
+| Zubra regression suite | `npm run test:zubra`, which also runs in CI |
+| User documentation | `docs/user-guide.md` and `docs/operations.md`, both also in the knowledge base |
+
+### Decided here
+
+- **The reviews are self-reviews.** The roadmap asks for a security review
+  and an accessibility review. The same hand wrote the code and the
+  reviews, so each one says plainly that it is not independent and lists
+  what a person still needs to check. **These two gates are not met.**
+- **No drill has been run on a real backup.** The command is tested against
+  a backup of a test database. The gate asks for a real one, and that needs
+  the R2 bucket and the private key, which only Mikey has.
+- **Articles are plain text shown as text.** No HTML is passed through, so
+  an article can never carry a script. Bold and links are not drawn.
+- **HQ's documents go into the knowledge base once and are not kept in
+  step.** The repository stays their source.
+- **The export and the drill are commands, not buttons.** Each one hands
+  over every record HQ holds. Whoever can run a command on the server
+  already has the database, so nobody gains anything they did not have.
+- **The audit log is never thinned.** It is small, and it is the record.
+- **Finance records are never removed by HQ** until an accountant says how
+  long they must be kept.
+- **Alerts go by email only**, through the same Brevo account. If Brevo is
+  down, the error is still in the log.
+- **Reports are for admins and managers**, like the money they show.
+
+### Cut
+
+| Cut | Why | Lands |
+| --- | --- | --- |
+| Two-factor sign-in | Not in the roadmap. Listed as a gap in the security review | Before a second admin |
+| Rich text in articles | Plain text is safe and enough to start | When it gets in the way |
+| Custom roles and per-person permissions | Three fixed roles cover one to a few people | When they do not |
+| Charts in reports | Tables say the same with less to maintain | When someone asks |
+| A status page inside HQ | The log and the alert email say more | When there is someone besides Mikey to look |
+| Removing a client's records on request | Needs a decision about what must be kept | When it is first asked |
+| An uptime monitor | HQ cannot watch itself from outside. `docs/operations.md` says to point one at `/healthz` | Mikey sets one up |
+

@@ -162,6 +162,35 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
 | Confirm or decline a call a client asked for | `call.respond` | Yes | Yes | Yes | No |
 
+### Platform (v1.0)
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Read and search the knowledge base and the decision log, with every revision | `knowledge.view` | Yes | Yes | Yes | No |
+| Write, edit, archive and bring back an article or a decision | `knowledge.edit` | Yes | Yes | No | No |
+| View the reports: pipeline, project health, budget against actual | `report.view` | Yes | Yes | No | No |
+
+The user permissions of v0.1 (`user.invite`, `user.set-status`,
+`user.set-roles`, `user.reset`) are now used by the People page. Three rules
+sit on top of them:
+
+- HQ always has an admin who can sign in. The last active admin cannot be
+  turned off or lose the admin role.
+- Nobody turns off their own account.
+- An invited person gets their roles when they first use their link. Until
+  then they are an invite, not a user, and an admin can withdraw it.
+
+The audit history page and its CSV need `activity.view-all`. The pipeline
+report also needs `opportunity.view-value`, and the budget report
+`finance.view`, so a role that is given `report.view` alone sees neither
+prices nor costs.
+
+The restore drill, the full export, the retention run and the reset-link
+command are run on the server or on Mikey's own computer. They have no
+permission key: whoever can run them already holds the database.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in

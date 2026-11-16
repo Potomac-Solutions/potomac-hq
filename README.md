@@ -2,8 +2,10 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: v0.1 to v0.6 are built on `staging` and nothing is deployed yet. The
-deploy and backups wait on the Railway project and the R2 bucket.
+Status: v0.1 to v1.0 are built and nothing is deployed yet. The deploy and
+backups wait on the Railway project and the R2 bucket:
+`docs/operations.md` has the checklist. Nothing has been used with real
+records, so the roadmap's gates between versions are still open.
 
 ## Read first
 
@@ -17,6 +19,11 @@ deploy and backups wait on the Railway project and the R2 bucket.
   decisions made while building them.
 - `docs/decisions/0002-file-storage.md`: where uploaded files are kept.
 - `docs/conventions.md`: branches, releases and project rules.
+- `docs/operations.md`: deploying to Railway, watching it, backups, the
+  restore drill and the full export.
+- `docs/user-guide.md`: how to use HQ, for someone new to it.
+- `docs/retention-policy.md`: what HQ keeps and what it removes.
+- `docs/reviews/`: the security and accessibility self-reviews for v1.0.
 
 ## Layout
 
@@ -32,16 +39,17 @@ src/shared/ui/                 the design system: theme, assets, Zubra UI copies
 src/app.zb, src/error.zb       the shell around every page, and the 404 and 500 page
 src/services.ts                builds every module's stores and services from one database
 src/app.ts                     the composition root: wires every layer together
-bin/                           commands: serve, migrate, reset-link
+bin/                           commands: serve, migrate, reset-link, backup, restore, restore-drill, export, retention
 types/                         type declarations for the kit
 migrations/                    versioned SQL migrations, the only way the schema changes
 test/integration/              tests that cross modules or use real packages
 test/support/                  setup the integration and browser tests share
 test/e2e/                      browser tests
+test/zubra/                    what HQ relies on Zubra to do
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`, `proposals`, `finance`, `portal`. The import rules are in
+Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`, `proposals`, `finance`, `portal`, `knowledge`. The import rules are in
 `.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
 files to the same rule. CI fails when one is broken.
 
@@ -82,9 +90,11 @@ npm run backup                       # one backup now, with the server's setting
 HQ_BACKUP_KEY_PASSPHRASE='…' npm run restore -- <backup file> ./hq-backup.private.pem ./restored.db
 ```
 
-Forgot the password? HQ sends no email yet, so run this where the database
-lives:
+Locked out? Run this where the database lives:
 
 ```sh
 npm run reset-link -- you@example.com
 ```
+
+Deploying, watching, restore drills, the full export and upgrading Zubra are
+in `docs/operations.md`. How to use HQ is in `docs/user-guide.md`.

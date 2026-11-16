@@ -618,6 +618,88 @@ A client asking for a call, and Potomac's answer. This is the booking tool of
 - Every one of these writes an activity event with no HQ actor and the
   client user's id in its context.
 
+## v1.0: users, the knowledge base and what HQ keeps
+
+Decided 2026-11-16 while Mikey was away. Needs his approval.
+
+### User Invite
+
+Someone an admin invited to HQ who has not used their link yet.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `email` | text | Lower case. One open invite per email, and never for someone who is already a user |
+| `name` | text | Required |
+| `roles` | list of role keys | At least one |
+| `invited_by` | id | The admin who invited them |
+
+- The first time the invited person signs in, their User is made with these
+  roles, and the invite is removed. The `user.created` event names who
+  invited them.
+- An invite can be withdrawn. An unused one is removed after 30 days
+  (`docs/retention-policy.md`).
+- A user's roles are replaced as a set, and `user.roles-changed` records the
+  roles before and after.
+- An admin in HQ is kept an "owner" in the kit, and nobody else is, so the
+  kit's rule that the last owner stays is the same rule as HQ's.
+
+### Article
+
+One entry in the knowledge base. A decision is an article with the day it
+was made.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `kind` | `article`, `decision` | Never changes |
+| `slug` | text | Its address, `/knowledge/<slug>`. Made from the first title, unique, never changes |
+| `title` | text | Required, 200 characters at most |
+| `category` | text | Required, 60 characters at most. Free text |
+| `tags` | list of text | Lower case, 12 at most |
+| `body` | text | Required, 40,000 characters at most |
+| `status` | `current`, `archived` | An archived article is kept and can be brought back. Nothing is deleted |
+| `decided_on` | date | Required for a decision. Today or earlier |
+| `revision` | number | Starts at 1, goes up by one with each edit |
+
+- The body is plain text in a small part of Markdown: headings, lists,
+  tables, code and paragraphs. It is shown as text. No HTML in it is ever
+  passed through.
+- An archived article cannot be edited until it is brought back.
+- When HQ starts it puts its own documents (the `docs/` folder) into the
+  knowledge base, once each, by slug. A document that is already there is
+  left alone, so an edit made in HQ is never overwritten. The repository
+  stays the source for those documents: an edit made in HQ does not go back.
+
+### Article Revision
+
+Every saved version of an article, the current one included. Written once.
+The database refuses any edit or delete.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `article_id`, `revision` | id, number | Together they are the key |
+| `title`, `category`, `tags`, `body` | | As saved |
+| `saved_by` | id, optional | Empty when HQ wrote it from its own documents |
+| `saved_at` | instant | |
+
+### Reports
+
+Reports are read from the records above and store nothing.
+
+- **Pipeline:** open opportunities by stage, won and lost in the last 30,
+  90 or 365 days, the win rate, and lead sources. Only fixed-price quotes
+  are added up. An hourly, monthly or yearly quote has no total.
+- **Project health:** projects by status, active ones by health, the ones
+  not on track, and every late milestone and task.
+- **Budget against actual:** the same figures as the Money page.
+
+### What is removed, and what is exported
+
+`docs/retention-policy.md` says what HQ removes by itself. The full export
+(`npm run export`) writes every table except the kit's, which holds
+password hashes, sessions and one-time links.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store

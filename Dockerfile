@@ -18,6 +18,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* /root/.npm
 
 COPY bin ./bin
+# HQ's own documents, put into the knowledge base when it starts.
+COPY docs ./docs
 COPY migrations ./migrations
 COPY src ./src
 COPY types ./types
