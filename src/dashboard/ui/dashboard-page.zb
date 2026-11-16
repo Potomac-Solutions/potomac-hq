@@ -17,10 +17,15 @@
     const pipeline = context.crm.pipeline()
     const active = context.projects.active()
     const deadlines = context.projects.deadlines()
+    const hours = context.time.thisWeek()
+    const over = context.money.overBudget()
     return {
       projects: active.ok ? active.value.items : [],
       showProjects: active.ok,
       deadlines: deadlines.ok ? deadlines.value.items : [],
+      hours: hours.ok ? hours.value : null,
+      over: over.ok ? over.value.items : [],
+      showOver: over.ok,
       stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
       openCount: pipeline.ok ? pipeline.value.openCount : 0,
       title: 'Dashboard',
@@ -46,9 +51,11 @@
   .hq-activity li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
   .hq-activity li:first-child { border-top: 0; }
   .hq-activity time, .hq-scope { color: var(--muted-foreground); font-size: 0.9rem; }
+  .hq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .hq-actions form { margin: 0; }
   .hq-scope { margin: 0 0 0.5rem; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} done="" problem="">
   <h1>Dashboard</h1>
   <div zb-if={done || problem} class="hq-notices">
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -76,6 +83,27 @@
     <ul zb-else class="hq-activity">
       <zb-each items={deadlines} as="item" key={item.key}>
         <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+  </section>
+  <section zb-if={hours} class="hq-panel" aria-labelledby="hours-this-week">
+    <h2 id="hours-this-week">Hours this week</h2>
+    <p><strong>{hours.mine}</strong> logged by you<span zb-if={hours.showEveryone}>, {hours.everyone} by everyone</span>.</p>
+    <p zb-if={hours.timer.running}>Your timer is running on <strong>{hours.timer.label}</strong>, for {hours.timer.since}.</p>
+    <div class="hq-actions">
+      <form zb-if={hours.timer.running} method="post" action="/timer/stop">
+        <input type="hidden" name="returnTo" value="/">
+        <button class="hq-button secondary" type="submit">Stop the timer</button>
+      </form>
+      <a href="/time">Log time</a>
+    </div>
+  </section>
+  <section zb-if={showOver} class="hq-panel" aria-labelledby="over-budget">
+    <h2 id="over-budget">Projects over budget</h2>
+    <empty-state zb-if={over.length === 0} heading="None">Every active project is within its hours and its budget.</empty-state>
+    <ul zb-else class="hq-activity">
+      <zb-each items={over} as="project" key={project.id}>
+        <li><span><a href="/projects/{project.id}/money">{project.name}</a> · {project.clientName}</span> <span>{project.why}</span></li>
       </zb-each>
     </ul>
   </section>

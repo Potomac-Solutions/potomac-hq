@@ -12,12 +12,14 @@ import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline } from "./crm/index.ts";
 import { recentActivity } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
+import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
+import { financeOverview, hoursThisWeek, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaff, createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { establishUser, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { authorize, establishUser, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { problemPage } from "./identity/ui/views.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { listNotes } from "./notes/index.ts";
@@ -118,6 +120,18 @@ export type PageContext = {
     version(id: string, number: string): ReturnType<typeof proposalVersion>;
     forOpportunity(id: string): ReturnType<typeof proposalsFor>;
   };
+  readonly time: {
+    sheet(week: string, everyone: boolean): ReturnType<typeof timeSheet>;
+    forTask(taskId: string): ReturnType<typeof taskTime>;
+    thisWeek(): ReturnType<typeof hoursThisWeek>;
+  };
+  readonly money: {
+    overview(): ReturnType<typeof financeOverview>;
+    project(id: string): ReturnType<typeof projectMoney>;
+    overBudget(): ReturnType<typeof projectsOverBudget>;
+  };
+  /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean };
   readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
@@ -130,7 +144,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/deliverables|proposals\/[0-9a-f-]{36}\/agreement)$/;
+const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement)$/;
 // Forms with long text in them: a proposal's sections.
 const LONG_FORM_PATHS = /^\/proposals\/[0-9a-f-]{36}$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
@@ -141,7 +155,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const { db } = config;
 
   const services = createServices(db);
-  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, today } = services;
+  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, today } = services;
   const users = sessionDeps.users;
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -238,6 +252,20 @@ export async function createApp(config: AppConfig): Promise<App> {
             return parsed.ok ? proposalsFor(proposalsDeps, actor, parsed.value) : { canView: false, canStart: false, templates: [], suggested: "blank", items: [] };
           },
         },
+        time: {
+          sheet: (week, everyone) => timeSheet(financeDeps, actor, { week, everyone }),
+          forTask: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? taskTime(financeDeps, actor, parsed.value) : { can: false, logged: "0", running: false, since: "" };
+          },
+          thisWeek: () => hoursThisWeek(financeDeps, actor),
+        },
+        money: {
+          overview: () => financeOverview(financeDeps, actor),
+          project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
+          overBudget: () => projectsOverBudget(financeDeps, actor),
+        },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok },
         settings: { theme: user ? users.themeOf(user.id) : "system", themes },
       };
     },
@@ -292,6 +320,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", financeRoutes({ finance: financeDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
@@ -328,6 +357,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: () => null }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
+  downloads.route("/", financeDownloads({ finance: financeDeps, actorOf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -357,7 +387,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
