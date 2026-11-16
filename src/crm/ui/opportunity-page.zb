@@ -15,13 +15,13 @@
     if (stop) return stop
     const view = context.crm.opportunityDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), proposals: context.proposals.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 
   const o = view.opportunity
   const canMove = view.can.setStage && o.open
 </script>
-<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} done="" problem="">
+<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/clients">Clients</a> / <a href="/clients/{view.client.id}">{view.client.name}</a></p>
     <h1>{o.title}</h1>
@@ -92,6 +92,27 @@
       </div>
     </section>
 
+    <section zb-if={proposals.canView} class="hq-panel" aria-labelledby="opportunity-proposals">
+      <h2 id="opportunity-proposals">Proposals</h2>
+      <p zb-if={proposals.items.length === 0} class="hq-muted">None yet.</p>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Proposal</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
+        <tbody>
+          <zb-each items={proposals.items} as="proposal" key={proposal.id}>
+            <tr><td><a href="/proposals/{proposal.id}">{proposal.title}</a></td><td>{proposal.statusLabel}</td><td>{proposal.version || "Not sent"}</td><td class="hq-number">{proposal.price}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={proposals.canStart} method="post" action="/opportunities/{o.id}/proposals" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="proposal-template">Start from</label>
+          <select id="proposal-template" name="template">
+            <zb-each items={proposals.templates} as="template" key={template.value}><option value={template.value} selected={template.value === proposals.suggested}>{template.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Start a proposal</button>
+      </form>
+    </section>
     <section zb-if={o.won} class="hq-panel" aria-labelledby="opportunity-project">
       <h2 id="opportunity-project">Project</h2>
       <p zb-if={view.project}><a href="/projects/{view.project.id}">{view.project.name}</a></p>

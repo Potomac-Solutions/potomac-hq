@@ -22,6 +22,8 @@ import { problemPage } from "./identity/ui/views.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
+import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
+import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
 import { activeProjects, board, listProjects, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
@@ -110,6 +112,12 @@ export type PageContext = {
     deadlines(): ReturnType<typeof upcomingDeadlines>;
   };
   readonly notes: { list(recordType: string, recordId: string): ReturnType<typeof listNotes> };
+  readonly proposals: {
+    list(): ReturnType<typeof listProposals>;
+    detail(id: string): ReturnType<typeof proposalDetail>;
+    version(id: string, number: string): ReturnType<typeof proposalVersion>;
+    forOpportunity(id: string): ReturnType<typeof proposalsFor>;
+  };
   readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
 };
 
@@ -122,7 +130,10 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/projects\/[0-9a-f-]{36}\/deliverables$/;
+const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/deliverables|proposals\/[0-9a-f-]{36}\/agreement)$/;
+// Forms with long text in them: a proposal's sections.
+const LONG_FORM_PATHS = /^\/proposals\/[0-9a-f-]{36}$/;
+const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {
@@ -130,7 +141,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const { db } = config;
 
   const services = createServices(db);
-  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, today } = services;
+  const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, today } = services;
   const users = sessionDeps.users;
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -218,6 +229,15 @@ export async function createApp(config: AppConfig): Promise<App> {
             return id.ok ? listNotes(notesDeps, actor, recordType, id.value) : { recordType, recordId, canAdd: false, items: [] };
           },
         },
+        proposals: {
+          list: () => listProposals(proposalsDeps, actor),
+          detail: (id) => withId(id, (proposalId) => proposalDetail(proposalsDeps, actor, proposalId)),
+          version: (id, number) => withId(id, (proposalId) => proposalVersion(proposalsDeps, actor, proposalId, /^\d{1,4}$/.test(number) ? Number(number) : Number.NaN)),
+          forOpportunity: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? proposalsFor(proposalsDeps, actor, parsed.value) : { canView: false, canStart: false, templates: [], suggested: "blank", items: [] };
+          },
+        },
         settings: { theme: user ? users.themeOf(user.id) : "system", themes },
       };
     },
@@ -271,6 +291,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const forms = new Hono();
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
@@ -306,6 +327,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: () => null }));
+  downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -328,13 +350,14 @@ export async function createApp(config: AppConfig): Promise<App> {
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
       const upload = type === "multipart/form-data" && UPLOAD_PATHS.test(path);
       if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      if (!(length >= 0 && length <= (upload ? MAX_UPLOAD_BYTES : MAX_FORM_BYTES))) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
+      const limit = upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
+      if (!(length >= 0 && length <= limit)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/")) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
