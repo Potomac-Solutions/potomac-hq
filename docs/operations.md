@@ -53,6 +53,7 @@ Do it for the test environment first, then again for production.
 | `HQ_PUBLIC_URL` | The https address people use, with no slash at the end | Yes |
 | `HQ_BREVO_API_KEY`, `HQ_EMAIL_FROM` | Brevo key, and a sender address verified in Brevo | For email: reset links, invites, alerts |
 | `HQ_ALERT_EMAIL` | Where errors are emailed | Recommended. Needs the two above |
+| `HQ_CONTACT_PHONE`, `HQ_CONTACT_EMAIL`, `HQ_CONTACT_ADDRESS` | Potomac's phone, email, and the address a check is mailed to, on one line. Shown to clients in the portal | Recommended before a client is invited |
 | `HQ_BACKUP_PUBLIC_KEY` | The public key from `npm run backup:keygen` | For backups |
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |

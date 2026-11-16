@@ -141,3 +141,39 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .plain-page input[readonly] { font-family: ui-monospace, monospace; font-size: 0.85rem; }
 .hq-scroll { overflow-x: auto; }
 .hq-caption { caption-side: top; text-align: left; font-weight: 600; font-size: 0.9rem; padding: 0 0 0.35rem; color: var(--foreground); }
+
+/* The client portal. Made for a phone held in one hand: one column, rows that stack, and buttons big enough to hit. */
+.portal-cards { list-style: none; margin: 0; padding: 0; }
+.portal-cards > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; padding: 0.85rem 0; border-top: 1px solid var(--border); }
+.portal-cards > li:first-child { border-top: 0; padding-top: 0.25rem; }
+.portal-cards > li > div { flex: 1 1 14rem; min-width: 0; }
+.portal-cards > li.portal-stack { display: block; }
+.portal-cards p { margin: 0.2rem 0; }
+.portal-title { font-weight: 700; font-size: 1.05rem; }
+.portal-big { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 1.1rem; font-size: 1rem; text-decoration: none; }
+.portal-todo { border-left: 0.3rem solid var(--primary); }
+.portal-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.portal-progress progress { width: 9rem; height: 0.7rem; accent-color: var(--primary); }
+.portal-steps { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.portal-steps li { display: flex; gap: 0.75rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.portal-mark { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border: 2px solid var(--border); border-radius: 50%; font-weight: 800; line-height: 1; }
+.portal-steps li[data-done=yes] .portal-mark { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+.portal-late { color: var(--destructive); font-weight: 600; }
+.portal-decide { display: grid; gap: 1rem; margin-top: 0.5rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
+.portal-decide form { margin: 0; }
+.portal-owed { font-size: 1.15rem; }
+.portal-pay { padding: 0.85rem 1rem; background: var(--muted); border-radius: var(--radius); }
+.portal-pay h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.portal-pay p { margin: 0.3rem 0; }
+.portal-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.75rem; margin: 0 0 1rem; }
+.portal-figures dt { color: var(--muted-foreground); font-size: 0.9rem; }
+.portal-figures dd { margin: 0.1rem 0 0; font-size: 1.4rem; font-weight: 800; }
+.portal-links { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; }
+.portal-people { margin-top: 1rem; }
+.hq-tag[data-tone=warn] { border-color: var(--destructive); color: var(--destructive); background: var(--card); }
+.hq-tag[data-tone=ok] { border-color: var(--primary); color: var(--primary); background: var(--card); }
+hq-portal textarea, hq-portal input[type=file], hq-portal select { max-width: 100%; }
+hq-portal input[type=file] { font: inherit; padding: 0.5rem 0; }
+/* A figure or a column heading is never broken in the middle. */
+hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal; }
+hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }

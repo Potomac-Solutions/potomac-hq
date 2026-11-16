@@ -42,6 +42,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "task.moved": "moved a task",
   "note.added": "wrote a note",
   "file.uploaded": "uploaded a file",
+  "file.received-from-client": "A client sent a file",
   "file.downloaded": "downloaded a file",
   "deliverable.added": "added a deliverable",
   "deliverable.shared": "shared a deliverable with the client",

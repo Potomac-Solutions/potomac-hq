@@ -185,7 +185,7 @@ still open.
 | A calendar for booking | A request and an answer do the job for one person's calendar | When requests are frequent |
 | Self-serve password reset and password change | See above | With email in real use |
 | Email notices to clients | Needs wording Mikey approves, and unsubscribe handling | After the portal's first real client |
-| Files sent by the client | A client's upload is a new way in for bad files | When a project needs it |
+| ~~Files sent by the client~~ | Built after all. See "The portal, as a client" below | Done |
 | Several organizations for one client user | One email, one organization | When someone needs it |
 
 ## v1.0 Platform
@@ -246,4 +246,79 @@ still open.
 | A status page inside HQ | The log and the alert email say more | When there is someone besides Mikey to look |
 | Removing a client's records on request | Needs a decision about what must be kept | When it is first asked |
 | An uptime monitor | HQ cannot watch itself from outside. `docs/operations.md` says to point one at `/healthz` | Mikey sets one up |
+
+## The portal, as a client
+
+Decided 2026-11-16, at Mikey's request: walk the portal as four clients and
+fix what gets in their way. Needs his approval like the rest.
+
+Each client is one a small-town business would be. The portal was opened on
+a phone as each of them, and every change below answers something that
+client could not do, or could not find.
+
+### A farmer, on a phone in the field
+
+| What got in the way | What changed |
+| --- | --- |
+| The home page was wider than the phone, with tables squeezed into it | One column. Every table in the portal is now rows that stack. A test fails if a page is wider than a 360 pixel phone |
+| Days read `2026-11-21` | "Sat, Nov 21, in 5 days", and "was due Sat, Nov 14, 2 days ago" when late |
+| No way to just call | Potomac's phone number and email are at the foot of every portal page, the sign-in page too |
+| Buttons were small | Every button in the portal is at least 44 pixels tall. A test checks it |
+| "Milestone", "Active, On track", "Billable hours so far 0" | "Steps", "On track", and no hours line until there are hours |
+
+### A movie theater owner, who works nights and weekends
+
+| What got in the way | What changed |
+| --- | --- |
+| Nothing said what was waiting on them. A design to approve was two pages in | The first panel on the home page is "waiting on you": each deliverable to look at, proposal to answer and invoice to pay, with one button to the place to do it. It says so when nothing is |
+| Steps were a table of dates | A checklist: done steps ticked with the day they were done, the rest with their day and how far off it is, and a bar for how far along |
+| The call form suggested office hours | It asks in their words, with examples like "after dark" and "Monday when we're closed" |
+| They could not tell if their manager had access | The home page lists who can sign in for their business, and says to ask Potomac to change it |
+
+### A body shop owner, who wants the price first
+
+| What got in the way | What changed |
+| --- | --- |
+| A proposal's price was at the bottom, under the scope | "What it costs" is the first panel: the total, what is due to start, and what is due before launch, with a button to the answer |
+| Nothing said what accepting would set off | "What happens next" under the answer: an invoice for the deposit, work starts when it is paid, and declining owes nothing |
+| "Pay by cash or check" did not say where to send one | The total owed, and "How to pay" with who to make the check out to and where to mail it |
+| Potomac had no number to call back on | The call form takes one. Potomac sees it on the dashboard and the client's page |
+
+### A restaurant owner, between lunch and dinner
+
+| What got in the way | What changed |
+| --- | --- |
+| No way to send the menu or photos | "Send us a file" on each project. See the decision below |
+| Writing to Potomac meant finding the project first | A message box on the home page |
+| Potomac's latest update was inside the project | The three newest updates are on the home page |
+| Asking for a change was one line | A text box with room to write |
+
+### Decided here
+
+- **Clients can send files.** v0.6 cut this as "a new way in for bad
+  files". All four clients needed it, and the farmer's first step was
+  "photos and prices from you". The risk is held by the same checks every
+  upload gets: the type is read from the file's contents and has to match
+  its name, the size is capped at 25 MB, the file is only ever served as a
+  download, never shown or run, and it belongs to the client's own
+  organization. On top of that: one project takes at most 20 files a day
+  from the portal, a finished project takes none, and Potomac's page says
+  to open one only if it was expected. **HQ does not scan files for
+  viruses.**
+- **Potomac's phone, email and mailing address are three settings**
+  (`HQ_CONTACT_PHONE`, `HQ_CONTACT_EMAIL`, `HQ_CONTACT_ADDRESS`). Each part
+  is left off the page when its setting is empty.
+- **"On track" is still what Potomac set.** A project can say "On track"
+  while a step is late. The portal shows both and does not decide for
+  Potomac which is true.
+
+### Still in the way
+
+| What | Why it was left |
+| --- | --- |
+| A client is not told when something is waiting. They have to sign in to see it | Email to clients was cut at v0.6: it needs wording Mikey approves |
+| A design opens as a download, not on the page | Showing a client's or Potomac's file in the page is the risk the file service exists to avoid. A PDF opens in the phone's own viewer |
+| Paying by card | The gateway is not chosen |
+| A phone photo in HEIC format is refused | Most phones send a JPG to a web form. If one does not, the message says to save it again |
+| Nothing says which steps are the client's to do | Milestones have no owner. A step named "Photos from you" is the workaround |
 

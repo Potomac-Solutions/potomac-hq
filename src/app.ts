@@ -27,7 +27,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, clientFiles, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
@@ -64,9 +64,29 @@ export type AppConfig = {
   readonly publicUrl?: string;
   /** A cheaper password hash for the portal, for tests only. */
   readonly passwordCost?: { N: number; r: number; p: number };
+  /** How a client reaches Potomac, shown in the portal. Each part is left out when empty. */
+  readonly contact?: PortalContact;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
 };
+
+/** Potomac's own phone, email and mailing address, as clients are shown them. */
+export type PortalContact = { readonly phone: string; readonly email: string; readonly address: string };
+
+/**
+ * Reads the contact details from the environment. Each is optional.
+ *   HQ_CONTACT_PHONE     the number clients call
+ *   HQ_CONTACT_EMAIL     the address clients write to
+ *   HQ_CONTACT_ADDRESS   where a check is mailed, on one line
+ */
+export function contactFrom(env: NodeJS.ProcessEnv): PortalContact {
+  const one = (name: string, most: number) => (env[name] ?? "").replace(/\s+/g, " ").trim().slice(0, most);
+  const email = one("HQ_CONTACT_EMAIL", 254);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("HQ_CONTACT_EMAIL must be an email address.");
+  const phone = one("HQ_CONTACT_PHONE", 40);
+  if (phone && !/^[0-9+().\- extEXT]+$/.test(phone)) throw new Error("HQ_CONTACT_PHONE must be a phone number, like 304-555-0142.");
+  return { phone, email, address: one("HQ_CONTACT_ADDRESS", 200) };
+}
 
 export type App = {
   readonly listener: (req: IncomingMessage, res: ServerResponse) => void;
@@ -148,11 +168,14 @@ export type PageContext = {
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
     updates(projectId: string): ReturnType<typeof projectUpdates>;
+    files(projectId: string): ReturnType<typeof clientFiles>;
     calls(): ReturnType<typeof callsWaiting>;
   };
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** How to reach Potomac. Shown on every portal page, signed in or not. */
+    readonly contact: PortalContact;
     /** The portal's sign-in page when no client is signed in, otherwise null. Every portal page calls it first. */
     guard(): Answer | null;
     home(): ReturnType<typeof portalHome>;
@@ -184,7 +207,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement)$/;
+const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36})$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
@@ -197,6 +220,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
+  const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
   const staff = services.staff;
@@ -264,10 +288,15 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return parsed.ok ? projectUpdates(portalDeps, actor, parsed.value) : { canView: false, canPost: false, items: [] };
           },
+          files: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientFiles(portalDeps, actor, parsed.value) : { canView: false, items: [] };
+          },
           calls: () => callsWaiting(portalDeps, actor),
         },
         portal: {
           session: client ? { name: client.name } : null,
+          contact,
           guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in" }, { status: 401 })),
           // Each of these is given the session and nothing else to decide whose records to read.
           home: () => portalHome(portalDeps, client as NonNullable<typeof client>),

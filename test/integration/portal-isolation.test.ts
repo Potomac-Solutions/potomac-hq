@@ -67,7 +67,7 @@ const problemOf = (res: Response) => new URL(t.origin + (res.headers.get("locati
 test("client A sees their own records, and not one word of client B's", async () => {
   const home = await ann.page("/portal");
   assert.match(home, /<h1>Mt\. Storm Bakery<\/h1>/);
-  assert.match(textOf(home), /Bakery website Active, On track Bakery website launch, due 2099-01-01 0 of 1 milestones done/);
+  assert.match(textOf(home), /Bakery website On track Next: Bakery website launch, Thu, Jan 1, 2099, in \d+ days 0 of 1 step done/);
   assert.match(home, /Bakery website phase two/);
   assert.match(home, /INV-0001/);
   assert.doesNotMatch(home, /internal pricing|unsent balance|INV-0002/, "an unshared proposal and a draft invoice are not shown");
@@ -113,12 +113,20 @@ test("client A cannot change anything of client B's: every portal form is refuse
     [`/portal/deliverables/${a.draftDeliverable}/decision`, { decision: "approved", projectId: a.projectId }],
     [`/portal/proposals/${b.sharedProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     [`/portal/proposals/${a.privateProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
+    ["/portal/messages", { projectId: b.projectId, body: "Hello from the home page of the wrong client" }],
   ];
   for (const [path, fields] of attempts) {
     const res = await ann.post(path, fields);
     assert.equal(res.status, 303, path);
     assert.equal(problemOf(res), "That record doesn’t exist.", path);
   }
+  // A file sent to another client's project is refused, and nothing is stored.
+  const files = count(t.db, "file");
+  const sent = await ann.upload(`/portal/projects/${b.projectId}/files`, {}, { field: "file", name: "menu.pdf", bytes: PDF });
+  assert.equal(sent.status, 303);
+  assert.equal(problemOf(sent), "That record doesn’t exist.");
+  assert.equal(count(t.db, "file"), files);
+  assert.equal(count(t.db, "file_blob"), files);
   assert.deepEqual({ events: count(t.db, "activity_event"), updates: count(t.db, "project_update"), decisions: count(t.db, "proposal_decision") }, before);
   assert.equal(t.services.projects.deliverables.get(b.sharedDeliverable)?.status, "shared");
   assert.equal(t.services.proposals.proposals.get(b.sharedProposal)?.status, "sent");
@@ -132,6 +140,7 @@ test("client A cannot change anything of client B's: every portal form is refuse
   assert.deepEqual(portal.answerProposal(t.services.portal, session, b.sharedProposal, { decision: "accepted", typedName: "Ann" }), { ok: false, error: "not-found" });
   assert.deepEqual(portal.portalInvoiceDocument(t.services.portal, session, b.sentInvoice), { ok: false, error: "not-found" });
   assert.deepEqual(portal.portalProposalDocument(t.services.portal, null, a.sharedProposal), { ok: false, error: "not-found" });
+  assert.deepEqual(portal.sendFile(t.services.portal, session, b.projectId, { name: "menu.pdf", bytes: PDF }), { ok: false, error: "not-found" });
 });
 
 test("an organization named by the browser is ignored: the session decides", async () => {
@@ -142,6 +151,21 @@ test("an organization named by the browser is ignored: the session decides", asy
   const message = await ann.post(`/portal/projects/${a.projectId}/messages`, { body: "Can the logo be bigger?", projectId: b.projectId, organizationId: b.clientId });
   assert.match(message.headers.get("location") ?? "", new RegExp(`^/portal/projects/${a.projectId}\\?done=`));
   assert.equal(t.services.portal.updates.listFor(b.projectId).filter((u) => u.fromClient).length, 0);
+});
+
+test("a file a client sends is theirs alone: another client cannot download it, and HQ's own address refuses a client", async () => {
+  const sent = await ann.upload(`/portal/projects/${a.projectId}/files`, {}, { field: "file", name: "bakery-prices.pdf", bytes: PDF });
+  assert.match(sent.headers.get("location") ?? "", new RegExp(`^/portal/projects/${a.projectId}\\?done=`));
+  const file = t.db.prepare("select id, organization_id, uploaded_by, uploaded_by_client from file where owner_type = 'client-upload'").get() as Record<string, string | null>;
+  assert.equal(file["organization_id"], a.clientId);
+  assert.equal(file["uploaded_by"], null);
+  assert.ok(file["uploaded_by_client"]);
+  assert.equal((await ann.get(`/portal/files/${file["id"]}`)).status, 200, "its own client can get it back");
+  assert.equal((await bob.get(`/portal/files/${file["id"]}`)).status, 404);
+  assert.equal((await ann.get(`/files/${file["id"]}`)).status, 404);
+  assert.equal((await admin.get(`/files/${file["id"]}`)).status, 200, "Potomac can open it");
+  assert.doesNotMatch(await bob.page(`/portal/projects/${b.projectId}`), /bakery-prices/);
+  assert.doesNotMatch(await bob.page("/portal"), /Ann Baker|Mt\. Storm/, "who can sign in lists only their own people");
 });
 
 // Every page and every form in HQ that is not part of the portal, read from the source.

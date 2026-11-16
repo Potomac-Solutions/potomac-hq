@@ -89,8 +89,9 @@ test("an invite shows the inviter a one-time link, which is never stored, logged
 
 test("the client follows a project, asks for changes to a deliverable, then approves the next share", async () => {
   const page = await ann.page(`/portal/projects/${projectId}`);
-  assert.match(textOf(page), /Next milestone Design signed off, due 2099-12-05/);
-  assert.match(textOf(page), /Home page design · design\.pdf Waiting for your decision/);
+  assert.match(textOf(page), /On track Next: Design signed off, Sat, Dec 5, 2099, in \d+ days/);
+  assert.doesNotMatch(page, /Billable hours/, "no hours line until some are logged");
+  assert.match(textOf(page), /Home page design Waiting for your decision Open design\.pdf/);
 
   const blank = await ann.submit(`/portal/deliverables/${deliverableId}/decision`, { decision: "changes-requested", note: " ", projectId });
   assert.match(blank.html, /Say what you would like changed\./);
@@ -137,7 +138,7 @@ test("the client accepts a proposal by typing their name: the same thing happens
   const decision = t.services.proposals.proposals.decision(proposalId as Id);
   assert.deepEqual({ who: decision?.byName, how: decision?.method, by: decision?.recordedBy, version: decision?.version }, { who: "Ann M. Baker", how: "portal", by: null, version: 1 });
   const home = textOf(await ann.page("/portal"));
-  assert.match(home, /Online ordering Active, On track/, "the accepted work is now one of their projects");
+  assert.match(home, /Online ordering On track/, "the accepted work is now one of their projects");
   const staff = textOf(await admin.page(`/proposals/${proposalId}`));
   assert.match(staff, /Answer Accepted by Ann M\. Baker on \d{4}-\d{2}-\d{2}, version 1\. In the client portal\./);
   const portalEvent = events(t.db).find((e) => e.action === "proposal.accepted-in-portal");

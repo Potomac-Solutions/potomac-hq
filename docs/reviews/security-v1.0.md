@@ -40,6 +40,7 @@ Each line says what was checked and what checks it on every merge.
 | Nothing inline runs | Content policy: scripts and styles from this origin only | `sign-in.test.ts`, `test/zubra/regression.test.ts` |
 | No SQL is built from typed text | Every statement is prepared with parameters. Search escapes `%` and `_` | `knowledge.test.ts`, `audit.test.ts` |
 | Uploads are checked by content, size limited, and served as downloads | The file service | `project-pages.test.ts` |
+| A file a client sends gets the same checks, is theirs alone, and is capped at 20 a day for a project | `saveFileFromClient` | `portal-client-pass.test.ts`, `portal-isolation.test.ts` |
 | A message shown after a redirect is one the server signed | The kit's notices | `sign-in.test.ts` |
 | A redirect never leaves this site | Locations are built by the server from fixed paths and checked ids | `test/zubra/regression.test.ts` |
 | A CSV cell cannot run as a formula | `csvField` | `csv.test.ts` |
@@ -71,5 +72,9 @@ Each line says what was checked and what checks it on every merge.
    with no HQ user, so it opens nothing. That email cannot be invited again
    until the account is cleared by hand.
 7. **A typed name as a signature** has not been checked by a lawyer.
-8. **The portal has never been used by a real client.** The isolation suite
+8. **Files are not scanned for viruses.** A client can send a PDF, an
+   Office file or a zip that is exactly what its name says and still
+   harmful to open. Potomac's page says to open one only if it was
+   expected. Open them on a computer that is kept up to date.
+9. **The portal has never been used by a real client.** The isolation suite
    passes. Real use finds what tests do not.

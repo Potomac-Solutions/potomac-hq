@@ -11,11 +11,12 @@
 //   HQ_BREVO_API_KEY,  outbound email: reset links, invites, alerts; off when unset
 //   HQ_EMAIL_FROM
 //   HQ_ALERT_EMAIL     where errors are emailed; needs email set up; off when unset
+//   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { join } from "node:path";
-import { createApp } from "../src/app.ts";
+import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { syncFinanceSheet } from "../src/finance/index.ts";
@@ -60,6 +61,7 @@ const app = await createApp({
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
   noticeSecret,
   publicUrl,
+  contact: contactFrom(process.env),
   email,
   ...(process.env["HQ_CACHE_DIR"] ? { cacheDir: process.env["HQ_CACHE_DIR"] } : {}),
 });

@@ -72,7 +72,7 @@ test("a client, from the invite to an accepted proposal", async () => {
   await ann.waitForURL((url) => url.pathname === `/portal/projects/${project.id}`);
   await assertAccessible(ann, "a project in the portal");
   const download = ann.waitForEvent("download");
-  await ann.getByRole("link", { name: "Download design.pdf" }).click();
+  await ann.getByRole("link", { name: "Open design.pdf" }).click();
   assert.equal((await download).suggestedFilename(), "design.pdf");
   await ann.getByRole("button", { name: "Approve: Home page design" }).click();
   await ann.getByText("Your decision is recorded.").waitFor();
@@ -80,6 +80,13 @@ test("a client, from the invite to an accepted proposal", async () => {
   await ann.getByRole("button", { name: "Send message" }).click();
   await ann.getByText("Message sent to Potomac Solutions.").waitFor();
   await assertAccessible(ann, "a project in the portal after a decision and a message");
+
+  // Send a file from the project page.
+  await ann.getByLabel("Choose a file, or take a photo").setInputFiles({ name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from(PDF) });
+  await ann.getByRole("button", { name: "Send file" }).click();
+  await ann.getByText("File sent to Potomac Solutions.").waitFor();
+  assert.match(await text(ann), /menu\.pdf .* sent by Ann Baker/);
+  await assertAccessible(ann, "a project in the portal with a file sent");
 
   // The proposal: accept by typing her name.
   await ann.goto(`${t.origin}/portal/proposals/${proposal.id}`);
@@ -92,8 +99,8 @@ test("a client, from the invite to an accepted proposal", async () => {
 
   // Ask for a call. In dark, too.
   await ann.goto(`${t.origin}/portal`);
-  await ann.getByText("Ask for a call").first().click();
-  await ann.getByLabel("When would you like to talk?").fill("Thursday afternoon");
+    await ann.getByLabel("When is a good time to call you?").fill("Thursday afternoon");
+  await ann.getByLabel("The best number to reach you").fill("304-555-0199");
   await ann.getByRole("button", { name: "Ask for a call" }).click();
   await ann.getByText("Request sent.").waitFor();
   await ann.emulateMedia({ colorScheme: "dark" });
@@ -102,6 +109,18 @@ test("a client, from the invite to an accepted proposal", async () => {
   await ann.goto(`${t.origin}/portal/projects/${project.id}`);
   await assertAccessible(ann, "a project in the portal in dark");
   await ann.emulateMedia({ colorScheme: "light" });
+
+  // On a phone: nothing runs off the side of the screen, and every button is big enough to hit.
+  await ann.setViewportSize({ width: 360, height: 740 });
+  for (const [path, screen] of [["/portal", "the portal's home"], [`/portal/projects/${project.id}`, "a project"], [`/portal/proposals/${proposal.id}`, "a proposal"]] as const) {
+    await ann.goto(t.origin + path);
+    const size = (await ann.evaluate("({ page: document.documentElement.scrollWidth, screen: window.innerWidth })")) as { page: number; screen: number };
+    assert.ok(size.page <= size.screen, `${screen} is ${size.page}px wide on a ${size.screen}px phone`);
+    const small = (await ann.evaluate(`[...document.querySelectorAll("main button, main a.hq-button")].filter((el) => el.getBoundingClientRect().height < 44).map((el) => (el.textContent ?? "").trim())`)) as string[];
+    assert.deepEqual(small, [], `${screen} has buttons under 44px tall`);
+    await assertAccessible(ann, `${screen} on a phone`);
+  }
+  await ann.setViewportSize({ width: 1280, height: 720 });
 
   // Potomac sees all of it.
   await staff.goto(`${t.origin}/`);

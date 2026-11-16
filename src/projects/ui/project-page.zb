@@ -15,11 +15,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} money={false} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
     <h1>{p.name}</h1>
@@ -215,6 +215,16 @@
         </div>
         <div><button class="hq-button" type="submit">Post update</button></div>
       </form>
+    </section>
+
+    <section zb-if={sent.canView && sent.items.length > 0} class="hq-panel" id="client-files" aria-labelledby="project-client-files">
+      <h2 id="project-client-files">Files from the client</h2>
+      <p class="hq-muted hq-small">Sent in through the portal. Each was checked for its type and size like any upload. Open one only if you were expecting it.</p>
+      <ul class="hq-list">
+        <zb-each items={sent.items} as="file" key={file.id}>
+          <li><a href="/files/{file.id}" aria-label="Download {file.name}, sent by the client">{file.name}</a> <span class="hq-muted">{file.size} · {file.who}, <time datetime={file.whenIso}>{file.when}</time></span></li>
+        </zb-each>
+      </ul>
     </section>
 
     <notes-panel notes={notes}></notes-panel>

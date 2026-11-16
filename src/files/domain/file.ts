@@ -21,7 +21,14 @@ export type FileRecord = {
   /** Whether that client may download it. */
   readonly clientVisible: boolean;
   readonly uploadedBy: Id | null;
+  /** The client user who sent it in through the portal, if one did. */
+  readonly uploadedByClient?: Id | null;
 };
+
+/** What a file a client sent in on a project is filed under. Its owner id is the project's. */
+export const CLIENT_UPLOAD = "client-upload";
+/** How many files one project may be sent through the portal in a day. */
+export const MAX_CLIENT_FILES_A_DAY = 20;
 
 export type UploadError = "file-missing" | "file-too-large" | "file-name-invalid" | "file-type-not-allowed" | "file-content-mismatch";
 

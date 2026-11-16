@@ -2,6 +2,7 @@
 // off, post an update for them to read, and answer a call request. Each one
 // checks permission first and writes its activity event.
 import { answerCall, newClientUser, newUpdate, setAccess, type CallRequest, type ClientUser, type InviteError, type ProjectUpdate } from "../domain/client-user.ts";
+import { CLIENT_UPLOAD, formatSize } from "../../files/index.ts";
 import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProposalsDeps } from "../../proposals/index.ts";
@@ -108,10 +109,10 @@ export function answerCallRequest(
 
 const ACCESS_LABELS: Readonly<Record<string, string>> = { invited: "Invited, not signed in yet", active: "Has access", disabled: "Access turned off" };
 
-export type CallView = { readonly id: string; readonly who: string; readonly clientId: string; readonly clientName: string; readonly wanted: string; readonly note: string; readonly status: string; readonly confirmedFor: string; readonly reply: string; readonly when: string };
+export type CallView = { readonly id: string; readonly who: string; readonly clientId: string; readonly clientName: string; readonly wanted: string; readonly note: string; readonly phone: string; readonly status: string; readonly confirmedFor: string; readonly reply: string; readonly when: string };
 
 function callView(deps: PortalDeps, call: import("./ports.ts").CallRow): CallView {
-  return { id: call.id, who: call.clientUserName, clientId: call.organizationId, clientName: call.organizationName, wanted: call.wanted, note: call.note, status: call.status, confirmedFor: call.confirmedFor ?? "", reply: call.reply, when: deps.formatWhen(call.createdAt) };
+  return { id: call.id, who: call.clientUserName, clientId: call.organizationId, clientName: call.organizationName, wanted: call.wanted, note: call.note, phone: call.phone, status: call.status, confirmedFor: call.confirmedFor ?? "", reply: call.reply, when: deps.formatWhen(call.createdAt) };
 }
 
 export type PortalAccessView = {
@@ -154,4 +155,15 @@ export function projectUpdates(deps: PortalDeps, actorId: Id | null, projectId: 
 export function callsWaiting(deps: PortalDeps, actorId: Id | null): Result<{ readonly items: readonly CallView[] }, "forbidden"> {
   if (!may(deps, actorId, "call.respond")) return err("forbidden");
   return ok({ items: deps.calls.waiting().map((call) => callView(deps, call)) });
+}
+
+export type ClientFilesView = { readonly canView: boolean; readonly items: readonly { readonly id: string; readonly name: string; readonly size: string; readonly who: string; readonly when: string; readonly whenIso: string }[] };
+
+/** Files the client sent in on a project. For anyone who may see the project and download files. */
+export function clientFiles(deps: PortalDeps, actorId: Id | null, projectId: Id): ClientFilesView {
+  if (!may(deps, actorId, "project.view") || !may(deps, actorId, "file.download")) return { canView: false, items: [] };
+  return {
+    canView: true,
+    items: deps.files.listForOwner(CLIENT_UPLOAD, projectId).map((file) => ({ id: file.id, name: file.name, size: formatSize(file.sizeBytes), who: file.clientUserName ?? "The client", when: deps.formatWhen(file.createdAt), whenIso: file.createdAt })),
+  };
 }

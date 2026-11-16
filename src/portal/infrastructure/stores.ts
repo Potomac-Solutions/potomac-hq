@@ -76,6 +76,7 @@ const toCall = (r: Row): CallRequest => ({
   clientUserId: text(r, "client_user_id") as Id,
   wanted: text(r, "wanted"),
   note: text(r, "note"),
+  phone: text(r, "phone"),
   status: text(r, "status") as CallStatus,
   confirmedFor: maybe(r, "confirmed_for"),
   reply: text(r, "reply"),
@@ -83,8 +84,8 @@ const toCall = (r: Row): CallRequest => ({
 });
 
 export function sqliteCallStore(db: Database): CallStore {
-  const cols = "id, organization_id, client_user_id, wanted, note, status, confirmed_for, reply, answered_by";
-  const insert = db.prepare(`insert into call_request (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const cols = "id, organization_id, client_user_id, wanted, note, phone, status, confirmed_for, reply, answered_by";
+  const insert = db.prepare(`insert into call_request (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update call_request set status = ?, confirmed_for = ?, reply = ?, answered_by = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${cols} from call_request where id = ?`);
   const joined = `select ${cols.split(", ").map((c) => `r.${c}`).join(", ")}, r.created_at, u.name as client_user_name, o.name as organization_name
@@ -94,7 +95,7 @@ export function sqliteCallStore(db: Database): CallStore {
   const row = (r: Row): CallRow => ({ ...toCall(r), clientUserName: text(r, "client_user_name"), organizationName: text(r, "organization_name"), createdAt: text(r, "created_at") });
   return {
     insert(c, at) {
-      insert.run(c.id, c.organizationId, c.clientUserId, c.wanted, c.note, c.status, c.confirmedFor, c.reply, c.answeredBy, at, at);
+      insert.run(c.id, c.organizationId, c.clientUserId, c.wanted, c.note, c.phone, c.status, c.confirmedFor, c.reply, c.answeredBy, at, at);
     },
     update(c, at) {
       update.run(c.status, c.confirmedFor, c.reply, c.answeredBy, at, c.id);

@@ -222,6 +222,20 @@ moves those lines under a version heading. See `docs/conventions.md`.
   that say what they did not cover.
 - Three permissions: everyone reads the knowledge base, and admins and
   managers write in it and see reports.
+- The client portal, reworked after a pass as four clients (a farmer, a
+  movie theater owner, a body shop owner and a restaurant owner). It now
+  fits a phone, with one column and buttons big enough to hit. The home
+  page starts with what is waiting on the client. Days read "Sat, Nov 21,
+  in 5 days". A project's steps are a checklist. A proposal says what it
+  costs first and what happens after an answer. Invoices say what is owed
+  in all and how to pay.
+- Clients can send files on their own active projects: photos, a menu, a
+  price list. Each is checked like every upload and is theirs alone. A
+  project takes at most 20 a day. Potomac sees them on the project.
+- A message can be sent from the portal's home page, the newest updates
+  show there, and a call request takes a number to call back on.
+- `HQ_CONTACT_PHONE`, `HQ_CONTACT_EMAIL` and `HQ_CONTACT_ADDRESS`: how
+  clients reach Potomac, shown at the foot of every portal page.
 - The container's start script handles Railway's root-owned volume: started
   as root it hands the database's folder to the unprivileged user and drops
   to it. `docs/operations.md` says to set `RAILWAY_RUN_UID=0`.
