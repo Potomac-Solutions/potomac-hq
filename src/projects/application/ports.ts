@@ -52,6 +52,8 @@ export type DeliverableStore = {
   update(deliverable: Deliverable, at: string): void;
   get(id: Id): Deliverable | null;
   listFor(projectId: Id): DeliverableRow[];
+  /** Notes which client user made the decision on a deliverable. */
+  recordDecider(id: Id, clientUserId: Id): void;
 };
 
 export type HistoryRow = { readonly id: string; readonly occurredAt: string; readonly action: string; readonly actorName: string | null };
