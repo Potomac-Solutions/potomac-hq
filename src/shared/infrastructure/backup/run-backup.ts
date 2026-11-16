@@ -74,7 +74,7 @@ export function nextRun(now: string, zone: string, at: { hour: number; minute: n
  */
 export function scheduleDaily(
   task: () => Promise<unknown>,
-  options: { zone: string; hour: number; minute: number; clock: () => string; log: (message: string, error?: unknown) => void },
+  options: { zone: string; hour: number; minute: number; clock: () => string; log: (message: string, error?: unknown) => void; name?: string },
 ): () => void {
   let timer: NodeJS.Timeout | undefined;
   let stopped = false;
@@ -84,7 +84,7 @@ export function scheduleDaily(
     const wait = Math.max(1000, Temporal.Instant.from(at).epochMilliseconds - Temporal.Instant.from(options.clock()).epochMilliseconds);
     timer = setTimeout(() => {
       task()
-        .catch((error: unknown) => options.log("Scheduled backup failed", error))
+        .catch((error: unknown) => options.log(`Scheduled ${options.name ?? "backup"} failed`, error))
         .finally(plan);
     }, wait);
     timer.unref();

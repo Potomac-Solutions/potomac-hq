@@ -2,6 +2,7 @@
 // due, how long it should take, and where it stands (roadmap v0.3). Tasks
 // have no dependencies on each other.
 import { calendarDate, optionalText, requiredText } from "../../shared/domain/fields.ts";
+import { formatHours, parseHours } from "../../shared/domain/hours.ts";
 import type { Id } from "../../shared/domain/id.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 
@@ -43,20 +44,13 @@ export type TaskError = "title-missing" | "title-too-long" | "description-too-lo
 export const isTaskStatus = (value: string): value is TaskStatus => (TASK_STATUSES as readonly string[]).includes(value);
 const isPriority = (value: string): value is TaskPriority => (TASK_PRIORITIES as readonly string[]).includes(value);
 
-/** Hours typed by a person, as whole minutes. Empty is "no estimate". At most 10,000 hours. */
-export function parseHours(text: string | null | undefined): Result<number | null, "invalid-estimate"> {
-  const cleaned = (text ?? "").trim();
-  if (cleaned === "") return ok(null);
-  if (!/^\d{1,5}(\.\d{1,2})?$/.test(cleaned)) return err("invalid-estimate");
-  const minutes = Math.round(Number(cleaned) * 60);
-  return minutes > 600_000 ? err("invalid-estimate") : ok(minutes);
+/** An estimate in hours, as whole minutes. Empty is "no estimate". */
+export function parseEstimate(text: string | null | undefined): Result<number | null, "invalid-estimate"> {
+  const parsed = parseHours(text);
+  return parsed.ok ? parsed : err("invalid-estimate");
 }
 
-/** "1.5" for 90 minutes, "2" for 120. */
-export function formatHours(minutes: number): string {
-  const hours = minutes / 60;
-  return Number.isInteger(hours) ? String(hours) : hours.toFixed(2).replace(/0$/, "");
-}
+export { formatHours, parseHours };
 
 function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "assigneeId" | "phaseId" | "priority" | "dueOn" | "estimateMinutes">, TaskError> {
   const title = requiredText(input.title, 200);
@@ -68,7 +62,7 @@ function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "
   const due = (input.dueOn ?? "").trim();
   const dueOn = due === "" ? ok(null) : calendarDate(due);
   if (!dueOn.ok) return dueOn;
-  const estimate = parseHours(input.estimate);
+  const estimate = parseEstimate(input.estimate);
   if (!estimate.ok) return estimate;
   return ok({
     title: title.value,

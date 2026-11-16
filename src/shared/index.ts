@@ -10,3 +10,5 @@ export { InvalidActivityError, recordActivity, type ActivityDeps } from "./appli
 export { calendarDate, optionalEmail, optionalText, requiredText } from "./domain/fields.ts";
 export { describeAction, describeEvent } from "./domain/wording.ts";
 export { formPosts, readForm, withMessage, type FormAnswer, type FormFields, type FormFiles, type FormPostDeps, type Places, type UploadedFile } from "./api/forms.ts";
+export { csvField, toCsv, type Cell } from "./domain/csv.ts";
+export { formatHours, parseHours } from "./domain/hours.ts";
