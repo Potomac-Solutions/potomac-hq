@@ -619,6 +619,16 @@ A Call Request also carries `phone`: the number to call back on, as the
 client typed it. Optional. Digits with the usual punctuation, at least
 seven of them.
 
+### Whose step it is, and notices
+
+- A Milestone carries `for_client`: true when it is the client's to do.
+  Potomac sets it when adding the milestone, or later. The portal lists a
+  client's open ones as waiting on them.
+- A Client User carries `notices`: whether they are emailed when something
+  is waiting. On to start. Only they change it.
+- `notice_cursor` is one row: how far through the activity log the notice
+  sender has read. It is not a business record.
+
 ### What a client's actions do to other records
 
 - **Approving a deliverable, or asking for changes,** is the same change as

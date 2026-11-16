@@ -93,6 +93,8 @@ export type PortalHomeView = {
   readonly calls: readonly { readonly id: string; readonly wanted: string; readonly status: string; readonly confirmedFor: string; readonly reply: string; readonly phone: string }[];
   /** Everyone at this client who can sign in. */
   readonly people: string;
+  /** Whether this person is emailed when something is waiting. */
+  readonly notices: boolean;
 };
 
 /** A client sees an invoice once it has been sent. Drafts and voided ones are Potomac's own business. */
@@ -133,6 +135,14 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
     for (const deliverable of deps.deliverables.listFor(project.id)) {
       if (deliverable.status !== "shared") continue;
       attention.push({ key: `d-${deliverable.id}`, text: `Look at “${deliverable.title}”`, detail: `${project.name}. Approve it, or say what should change.`, href: `/portal/projects/${project.id}#deliverables`, action: "Open it" });
+    }
+  }
+  // Steps Potomac marked as the client's to do, the most overdue first.
+  for (const project of open) {
+    for (const milestone of deps.milestones.listFor(project.id)) {
+      if (!milestone.forClient || milestone.doneOn !== null) continue;
+      const when = milestone.dueOn ? ((daysUntil(milestone.dueOn, today) ?? 0) < 0 ? ` It was due ${friendlyDay(milestone.dueOn, today)}.` : ` Needed by ${dueText(milestone.dueOn, today)}.`) : "";
+      attention.push({ key: `m-${milestone.id}`, text: `Your turn: ${milestone.name}`, detail: `${project.name}.${when}`, href: `/portal/projects/${project.id}#files`, action: "Send it" });
     }
   }
   for (const proposal of proposals) {
@@ -182,15 +192,29 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
       .filter((user) => user.status === "active")
       .map((user) => user.name)
       .join(", "),
+    notices: deps.clientUsers.wantsNotices(session.clientUserId),
   };
+}
+
+/** The client turns the "something is waiting" email on or off, for themselves only. */
+export function setNotices(deps: PortalDeps, session: ClientSession, on: boolean): Result<{ readonly on: boolean }, "not-found"> {
+  return deps.transact(() => {
+    const user = deps.clientUsers.get(session.clientUserId);
+    if (!user || user.organizationId !== session.organizationId) return err("not-found");
+    if (deps.clientUsers.wantsNotices(user.id) !== on) {
+      deps.clientUsers.setNotices(user.id, on, deps.clock());
+      recordActivity(deps, { actorId: null, action: "client-user.notices-changed", recordType: "client-user", recordId: user.id, context: { clientUserId: user.id, on } });
+    }
+    return ok({ on });
+  });
 }
 
 export type PortalProjectView = {
   readonly project: { readonly id: string; readonly name: string; readonly description: string; readonly standing: string; readonly tone: string; readonly target: string; readonly open: boolean };
   readonly progress: { readonly done: number; readonly total: number; readonly text: string };
   readonly next: string;
-  readonly steps: readonly { readonly id: string; readonly name: string; readonly when: string; readonly done: boolean; readonly overdue: boolean }[];
-  readonly deliverables: readonly { readonly id: string; readonly title: string; readonly description: string; readonly fileId: string; readonly fileName: string; readonly status: string; readonly statusLabel: string; readonly decisionNote: string; readonly awaiting: boolean }[];
+  readonly steps: readonly { readonly id: string; readonly name: string; readonly when: string; readonly done: boolean; readonly overdue: boolean; readonly yours: boolean }[];
+  readonly deliverables: readonly { readonly id: string; readonly title: string; readonly description: string; readonly fileId: string; readonly fileName: string; readonly isImage: boolean; readonly status: string; readonly statusLabel: string; readonly decisionNote: string; readonly awaiting: boolean }[];
   readonly updates: readonly { readonly id: string; readonly body: string; readonly authorName: string; readonly fromClient: boolean; readonly when: string; readonly whenIso: string }[];
   /** Files the client sent in on this project, newest first. */
   readonly files: readonly { readonly id: string; readonly name: string; readonly size: string; readonly who: string; readonly when: string; readonly whenIso: string }[];
@@ -218,7 +242,7 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     steps: milestones.map((milestone) => {
       const overdue = isMilestoneOverdue(milestone, today);
       const when = milestone.doneOn !== null ? `Done ${friendlyDay(milestone.doneOn, today)}` : milestone.dueOn ? (overdue ? `Was due ${friendlyDay(milestone.dueOn, today)}, ${howSoon(milestone.dueOn, today)}` : dueText(milestone.dueOn, today)) : "No date yet";
-      return { id: milestone.id, name: milestone.name, when, done: milestone.doneOn !== null, overdue };
+      return { id: milestone.id, name: milestone.name, when, done: milestone.doneOn !== null, overdue, yours: milestone.forClient && milestone.doneOn === null };
     }),
     // A draft is not shared, so the client is never told it exists.
     deliverables: deps.deliverables
@@ -230,6 +254,8 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
         description: deliverable.description,
         fileId: deliverable.fileId,
         fileName: deliverable.fileName,
+        // A picture is shown on the page. An <img> only ever draws, so nothing in the file can run.
+        isImage: /\.(png|jpe?g|gif|webp)$/i.test(deliverable.fileName),
         status: deliverable.status,
         statusLabel: deliverable.status === "shared" ? "Waiting for your decision" : (DELIVERABLE_STATUS_LABELS[deliverable.status] ?? deliverable.status).replace("by the client", "by you"),
         decisionNote: deliverable.decisionNote ?? "",

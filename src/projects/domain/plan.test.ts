@@ -5,7 +5,7 @@ import { completeMilestone, isMilestoneOverdue, milestoneProgress, newMilestone,
 
 const id = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, "0")}` as Id;
 const project = id(1);
-const milestone = (n: number, name: string, dueOn: string | null, doneOn: string | null = null): Milestone => ({ id: id(n), projectId: project, phaseId: null, name, dueOn, doneOn });
+const milestone = (n: number, name: string, dueOn: string | null, doneOn: string | null = null): Milestone => ({ id: id(n), projectId: project, phaseId: null, name, dueOn, doneOn, forClient: false });
 
 test("a phase goes after the ones already there", () => {
   assert.deepEqual(newPhase(id(2), project, 0, { name: " Design " }), { ok: true, value: { id: id(2), projectId: project, name: "Design", position: 0 } });

@@ -21,6 +21,8 @@ export type Milestone = {
   readonly dueOn: string | null;
   /** The day it was completed, or null while it is open. */
   readonly doneOn: string | null;
+  /** True when it is the client's to do, like sending photos. The portal tells them so. */
+  readonly forClient: boolean;
 };
 
 export type PlanError = "name-missing" | "name-too-long" | "invalid-date";
@@ -32,17 +34,22 @@ export function newPhase(id: Id, projectId: Id, existing: number, input: { reado
   return ok({ id, projectId, name: name.value, position: existing });
 }
 
-export function newMilestone(id: Id, projectId: Id, input: { readonly name: string; readonly dueOn?: string | null; readonly phaseId?: Id | null }): Result<Milestone, PlanError> {
+export function newMilestone(id: Id, projectId: Id, input: { readonly name: string; readonly dueOn?: string | null; readonly phaseId?: Id | null; readonly forClient?: boolean }): Result<Milestone, PlanError> {
   const name = requiredText(input.name, 200);
   if (!name.ok) return err(name.error === "missing" ? "name-missing" : "name-too-long");
   const due = (input.dueOn ?? "").trim();
   const dueOn = due === "" ? ok(null) : calendarDate(due);
   if (!dueOn.ok) return dueOn;
-  return ok({ id, projectId, phaseId: input.phaseId ?? null, name: name.value, dueOn: dueOn.value, doneOn: null });
+  return ok({ id, projectId, phaseId: input.phaseId ?? null, name: name.value, dueOn: dueOn.value, doneOn: null, forClient: input.forClient === true });
 }
 
 export function completeMilestone(milestone: Milestone, today: string): Result<Milestone, "already-done"> {
   return milestone.doneOn !== null ? err("already-done") : ok({ ...milestone, doneOn: today });
+}
+
+/** Says whose a milestone is to do: the client's, or Potomac's. */
+export function assignMilestone(milestone: Milestone, forClient: boolean): Result<Milestone, "unchanged"> {
+  return milestone.forClient === forClient ? err("unchanged") : ok({ ...milestone, forClient });
 }
 
 export function reopenMilestone(milestone: Milestone): Result<Milestone, "not-done"> {

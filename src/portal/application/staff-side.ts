@@ -7,7 +7,7 @@ import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProposalsDeps } from "../../proposals/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import type { CallStore, ClientUserStore, PortalAuth, UpdateStore } from "./ports.ts";
+import type { CallStore, ClientUserStore, EventReader, PortalAuth, UpdateStore } from "./ports.ts";
 
 export type PortalDeps = ProposalsDeps &
   FinanceDeps & {
@@ -15,6 +15,7 @@ export type PortalDeps = ProposalsDeps &
     readonly updates: UpdateStore;
     readonly calls: CallStore;
     readonly auth: PortalAuth;
+    readonly events: EventReader;
   };
 
 export type Refused = "forbidden" | "not-found";

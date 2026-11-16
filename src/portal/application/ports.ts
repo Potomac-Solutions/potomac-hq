@@ -8,6 +8,34 @@ export type ClientUserStore = {
   byEmail(email: string): ClientUser | null;
   byPortalAccount(account: string): ClientUser | null;
   listFor(organizationId: Id): ClientUser[];
+  /** Whether this person is emailed when something is waiting for them. */
+  wantsNotices(id: Id): boolean;
+  setNotices(id: Id, on: boolean, at: string): void;
+  /** The people at a client who can sign in and have not turned notices off. */
+  noticeRecipients(organizationId: Id): { readonly name: string; readonly email: string }[];
+};
+
+/** One line of the activity log, as the notice sender and the dashboard read it. */
+export type LoggedEvent = {
+  /** Its place in the log. Later events have a higher number. */
+  readonly position: number;
+  readonly id: string;
+  readonly occurredAt: string;
+  readonly actorId: Id | null;
+  readonly action: string;
+  readonly recordId: string;
+  readonly context: Readonly<Record<string, unknown>>;
+};
+
+/** Reads the activity log. It never writes to it. */
+export type EventReader = {
+  /** Events after a place in the log, oldest first. */
+  after(position: number, limit: number): LoggedEvent[];
+  /** The newest events with one of these actions since an instant, newest first. */
+  recent(actions: readonly string[], since: string, limit: number): LoggedEvent[];
+  /** How far the notice sender has read. */
+  cursor(): number;
+  setCursor(position: number, at: string): void;
 };
 
 export type UpdateRow = ProjectUpdate & { readonly authorName: string; readonly fromClient: boolean };

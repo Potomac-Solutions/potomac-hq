@@ -1,4 +1,4 @@
-import type { CallRow, CallStore, ClientUserStore, UpdateRow, UpdateStore } from "../application/ports.ts";
+import type { CallRow, CallStore, ClientUserStore, EventReader, LoggedEvent, UpdateRow, UpdateStore } from "../application/ports.ts";
 import type { CallRequest, CallStatus, ClientUser, ClientUserStatus } from "../domain/client-user.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
@@ -28,7 +28,15 @@ export function sqliteClientUserStore(db: Database): ClientUserStore {
   const byAccount = one("portal_account");
   const listFor = db.prepare(`select ${cols} from client_user where organization_id = ? order by name collate nocase`);
   const read = (r: Row | undefined) => (r ? toUser(r) : null);
+  const notices = db.prepare("select notices from client_user where id = ?");
+  const setNotices = db.prepare("update client_user set notices = ?, updated_at = ? where id = ?");
+  const recipients = db.prepare("select name, email from client_user where organization_id = ? and status = 'active' and notices = 1 order by name collate nocase");
   return {
+    wantsNotices: (id) => notices.get(id)?.["notices"] === 1,
+    setNotices(id, on, at) {
+      setNotices.run(on ? 1 : 0, at, id);
+    },
+    noticeRecipients: (organizationId) => (recipients.all(organizationId) as { name: string; email: string }[]).map((r) => ({ name: r.name, email: r.email })),
     insert(u, at) {
       insert.run(u.id, u.organizationId, u.portalAccount, u.name, u.email, u.status, u.invitedBy, at, at);
     },
@@ -106,5 +114,27 @@ export function sqliteCallStore(db: Database): CallStore {
     },
     listFor: (organizationId) => (listFor.all(organizationId) as Row[]).map(row),
     waiting: () => (waiting.all() as Row[]).map(row),
+  };
+}
+
+type EventRow = { position: number; id: string; occurred_at: string; actor_id: string | null; action: string; record_id: string; context: string };
+
+const toEvent = (r: EventRow): LoggedEvent => ({ position: r.position, id: r.id, occurredAt: r.occurred_at, actorId: r.actor_id as Id | null, action: r.action, recordId: r.record_id, context: JSON.parse(r.context) as Record<string, unknown> });
+
+/** Reads the activity log for the notice sender and the dashboard. It only ever selects from it. */
+export function sqliteEventReader(db: Database): EventReader {
+  const cols = "rowid as position, id, occurred_at, actor_id, action, record_id, context";
+  const after = db.prepare(`select ${cols} from activity_event where rowid > ? order by rowid limit ?`);
+  // The actions are passed as one JSON list, so no SQL is built from them.
+  const recent = db.prepare(`select ${cols} from activity_event where action in (select value from json_each(?)) and occurred_at >= ? order by rowid desc limit ?`);
+  const cursor = db.prepare("select last_rowid from notice_cursor where id = 1");
+  const setCursor = db.prepare("update notice_cursor set last_rowid = ?, updated_at = ? where id = 1");
+  return {
+    after: (position, limit) => (after.all(position, limit) as EventRow[]).map(toEvent),
+    recent: (actions, since, limit) => (recent.all(JSON.stringify(actions), since, limit) as EventRow[]).map(toEvent),
+    cursor: () => Number(cursor.get()?.["last_rowid"] ?? 0),
+    setCursor(position, at) {
+      setCursor.run(position, at);
+    },
   };
 }

@@ -36,7 +36,7 @@
         <zb-each items={view.steps} as="step" key={step.id}>
           <li data-done={step.done ? "yes" : "no"}>
             <span class="portal-mark" aria-hidden="true">{step.done ? "✓" : ""}</span>
-            <span><strong>{step.name}</strong><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
+            <span><strong>{step.name}</strong> <span zb-if={step.yours} class="hq-tag" data-tone="warn">Yours to do</span><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
           </li>
         </zb-each>
       </ol>
@@ -53,6 +53,7 @@
               <p zb-if={item.description} class="hq-muted">{item.description}</p>
               <p>{item.statusLabel}<span zb-if={item.decisionNote}>: “{item.decisionNote}”</span></p>
             </div>
+            <p zb-if={item.isImage}><a href="/portal/files/{item.fileId}" aria-label="Open {item.fileName} at full size"><img class="portal-preview" src="/portal/files/{item.fileId}" alt="{item.title}" loading="lazy"></a></p>
             <p><a class="hq-button secondary portal-big" href="/portal/files/{item.fileId}">Open {item.fileName}</a></p>
             <div zb-if={item.awaiting} class="portal-decide">
               <form method="post" action="/portal/deliverables/{item.id}/decision">

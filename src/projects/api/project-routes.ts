@@ -60,9 +60,14 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
   });
   post(
     "/projects/:id/milestones",
-    (actor, f, id) => projects.addMilestone(deps.projects, actor, id as Id, { name: f["name"] ?? "", dueOn: f["dueOn"] ?? null, phaseId: optionalId(f["phaseId"]) }),
+    (actor, f, id) => projects.addMilestone(deps.projects, actor, id as Id, { name: f["name"] ?? "", dueOn: f["dueOn"] ?? null, phaseId: optionalId(f["phaseId"]), forClient: f["forClient"] === "1" }),
     { done: (_, id) => `${project(id)}#plan`, back: (id) => `${project(id)}#plan`, message: "Milestone added." },
   );
+  post("/milestones/:id/for-client", (actor, f, id) => projects.setMilestoneForClient(deps.projects, actor, id as Id, f["forClient"] === "1"), {
+    done: (milestone) => `${project(milestone.projectId)}#plan`,
+    back: (_, f) => `${project(optionalId(f["projectId"]))}#plan`,
+    message: "Saved. The client’s portal shows whose it is to do.",
+  });
   post("/milestones/:id/done", (actor, f, id) => projects.setMilestoneDone(deps.projects, actor, id as Id, f["done"] !== "0"), {
     done: (milestone) => `${project(milestone.projectId)}#plan`,
     back: (_, f) => `${project(optionalId(f["projectId"]))}#plan`,

@@ -236,6 +236,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
   show there, and a call request takes a number to call back on.
 - `HQ_CONTACT_PHONE`, `HQ_CONTACT_EMAIL` and `HQ_CONTACT_ADDRESS`: how
   clients reach Potomac, shown at the foot of every portal page.
+- A milestone can be marked as the client's to do. Their portal lists it
+  first, as "Your turn", with a button to send a file.
+- A deliverable that is a picture is shown on the portal page.
+- The dashboard has "From your clients": what clients did in the portal in
+  the last two weeks. With email set up, the project's owner is emailed.
+- With `HQ_CLIENT_NOTICES=on`, a client is emailed that something is
+  waiting. The email says what kind of thing and never what it holds, and
+  each client user can turn theirs off. Off by default.
 - The container's start script handles Railway's root-owned volume: started
   as root it hands the database's folder to the unprivileged user and drops
   to it. `docs/operations.md` says to set `RAILWAY_RUN_UID=0`.
