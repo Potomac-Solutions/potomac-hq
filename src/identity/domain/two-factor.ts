@@ -23,10 +23,14 @@ export function groupSecret(secret: string): string {
   return secret.replace(/(.{4})(?=.)/g, "$1 ");
 }
 
-/** The address an authenticator app reads: otpauth://totp/Potomac%20HQ:mikey%40example.com?... */
+/**
+ * The address an authenticator app reads: otpauth://totp/Potomac%20HQ%3Amikey%40example.com?...
+ * SHA-1, six digits and 30 seconds are every app's defaults, so they are left
+ * out: a shorter link makes a smaller QR code that is easier to scan.
+ */
 export function appLink(secret: string, email: string): string {
   const label = encodeURIComponent(`Potomac HQ:${email}`);
-  return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent("Potomac HQ")}&algorithm=SHA1&digits=6&period=30`;
+  return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent("Potomac HQ")}`;
 }
 
 export const RECOVERY_CODE_COUNT = 10;

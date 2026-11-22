@@ -17,5 +17,5 @@ test("a recovery code is ten letters and digits that cannot be misread", () => {
 
 test("the secret is grouped for typing, and the app link names HQ and the person", () => {
   assert.equal(groupSecret("ABCDEFGHIJKL"), "ABCD EFGH IJKL");
-  assert.equal(appLink("ABC234", "mikey@example.com"), "otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=ABC234&issuer=Potomac%20HQ&algorithm=SHA1&digits=6&period=30");
+  assert.equal(appLink("ABC234", "mikey@example.com"), "otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=ABC234&issuer=Potomac%20HQ");
 });

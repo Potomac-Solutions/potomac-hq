@@ -45,6 +45,14 @@ test("turning it on takes a code from the app, and shows the recovery codes once
   assert.ok(setup.includes(secret.replace(/(.{4})(?=.)/g, "$1 ")), "the key is shown, grouped for typing");
   assert.ok(setup.includes(`otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=${secret}`), "and the link an app opens");
 
+  // The QR code: only to its owner, only while turning it on, never kept.
+  const qr = await mikey.get("/settings/two-factor/qr.svg");
+  assert.equal(qr.status, 200);
+  assert.equal(qr.headers.get("content-type"), "image/svg+xml");
+  assert.equal(qr.headers.get("cache-control"), "private, no-store");
+  assert.match(await qr.text(), /^<svg [^>]*aria-label="QR code to add Potomac HQ to your authenticator app"/);
+  assert.equal((await httpClient(t.origin).get("/settings/two-factor/qr.svg")).status, 404, "nobody signed in");
+
   // Still off until it is confirmed: the password alone signs in.
   const other = await passwordOnly("mikey@example.com");
   assert.equal((await other.get("/")).status, 200);
@@ -64,6 +72,7 @@ test("turning it on takes a code from the app, and shows the recovery codes once
   const stored = t.db.prepare("select code_hash from two_factor_recovery where user_id = ?").all(mikeyId).map((row) => String(row["code_hash"]));
   for (const code of recovery) assert.ok(!stored.includes(code) && !stored.includes(code.replace("-", "")));
 
+  assert.equal((await mikey.get("/settings/two-factor/qr.svg")).status, 404, "not once it is on");
   // The session it was turned on in carries on.
   assert.equal((await mikey.get("/clients")).status, 200);
   assert.match(textOf(await mikey.page("/settings")), /On After your password, HQ asks for a code from your authenticator app\. 10 recovery codes are left\./);

@@ -3,7 +3,7 @@
 // permission and writes an activity event. Neither a code, a secret nor a
 // recovery code is ever written to the activity log.
 import { appLink, cleanCode, cleanRecoveryCode, groupSecret, RECOVERY_CODE_COUNT, showRecoveryCode } from "../domain/two-factor.ts";
-import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
+import { err, ok, qrCode, qrSvg, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import { authorize } from "./authorize.ts";
 import type { TwoFactorCrypto, TwoFactorStore, UserStore } from "./ports.ts";
 
@@ -19,7 +19,8 @@ const nowMs = (deps: TwoFactorDeps) => Temporal.Instant.from(deps.clock()).epoch
 export type TwoFactorStatus = {
   readonly on: boolean;
   /** Set while turning it on: what to put into the app. */
-  readonly setup: { readonly key: string; readonly link: string } | null;
+  /** `scannable` is false only for an email so long the link will not fit a QR code. */
+  readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null;
   readonly recoveryLeft: number;
 };
 
@@ -28,8 +29,19 @@ export function twoFactorStatus(deps: TwoFactorDeps, userId: Id): TwoFactorStatu
   const record = deps.twoFactor.get(userId);
   const user = deps.users.get(userId);
   if (!record || !user) return { on: false, setup: null, recoveryLeft: 0 };
-  if (!record.confirmed) return { on: false, setup: { key: groupSecret(record.secret), link: appLink(record.secret, user.email) }, recoveryLeft: 0 };
+  if (!record.confirmed) {
+    const link = appLink(record.secret, user.email);
+    return { on: false, setup: { key: groupSecret(record.secret), link, scannable: qrCode(link) !== null }, recoveryLeft: 0 };
+  }
   return { on: true, setup: null, recoveryLeft: deps.twoFactor.recoveryLeft(userId) };
+}
+
+/** The QR code an app scans while turning it on, as SVG. Null when it is not being turned on. */
+export function twoFactorQr(deps: TwoFactorDeps, userId: Id | null): string | null {
+  if (userId === null) return null;
+  const setup = twoFactorStatus(deps, userId).setup;
+  const code = setup ? qrCode(setup.link) : null;
+  return code ? qrSvg(code, "QR code to add Potomac HQ to your authenticator app") : null;
 }
 
 /** Starts turning it on: a new secret for the app. Nothing changes at sign-in until it is confirmed. */

@@ -1,7 +1,7 @@
 // Two-factor sign-in: the second step at sign-in, turning it on and off in
 // Settings, and an admin's reset on the People page.
 import { Hono } from "hono";
-import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, turnOffTwoFactor, type TwoFactorDeps } from "../application/two-factor.ts";
+import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
 import type { RateLimit } from "../application/ports.ts";
 import { formPosts, readForm, withMessage, type Id } from "../../shared/index.ts";
 
@@ -72,5 +72,16 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
   post("/settings/two-factor/off", (actor, form) => turnOffTwoFactor(deps.twoFactor, actor, form["code"] ?? ""), { done: () => SETTINGS, back: () => SETTINGS, message: "Two-factor sign-in is off. You sign in with your password alone." });
 
   post("/people/:id/two-factor-reset", (actor, _form, id) => resetTwoFactor(deps.twoFactor, actor, id as Id), { done: () => "/people", back: () => "/people", message: "Their two-factor sign-in is off. They sign in with their password, and can turn it on again." });
+  return app;
+}
+
+/** The QR code an app scans while turning it on. It holds the secret: only its owner gets it, and nothing keeps a copy. */
+export function twoFactorQrRoute(deps: { readonly twoFactor: TwoFactorDeps; readonly actorOf: (cookieHeader: string) => Id | null }): Hono {
+  const app = new Hono();
+  app.get("/settings/two-factor/qr.svg", (c) => {
+    const svg = twoFactorQr(deps.twoFactor, deps.actorOf(c.req.header("cookie") ?? ""));
+    if (!svg) return c.text("Not found", 404);
+    return new Response(svg, { status: 200, headers: { "content-type": "image/svg+xml", "cache-control": "private, no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'" } });
+  });
   return app;
 }
