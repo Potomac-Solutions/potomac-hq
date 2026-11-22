@@ -1,7 +1,7 @@
 // The proposals module's changes. Each one checks permission first, makes its
 // change and writes its activity events in one transaction, and answers with
 // a code.
-import { summarize } from "../domain/estimate.ts";
+import { depositFor, summarize } from "../domain/estimate.ts";
 import {
   decideProposal,
   editProposal,
@@ -22,7 +22,7 @@ import { applyConversion, applyOpportunityValue, applyStageMove, type CrmDeps } 
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { applyBaseline, type BaselineStore, type Project } from "../../projects/index.ts";
-import { calendarDate, err, ok, optionalText, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { calendarDate, err, ok, optionalText, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { Agreement, ProposalStore } from "./ports.ts";
 
 export type ProposalsDeps = CrmDeps &
@@ -32,6 +32,13 @@ export type ProposalsDeps = CrmDeps &
     /** Today in the business time zone, YYYY-MM-DD. */
     readonly today: () => string;
     readonly formatWhen: (instant: string) => string;
+    /**
+     * Called inside the transaction when a proposal is accepted and its
+     * project exists, with the deposit it asks for (null when it asks for
+     * none). The composition root points it at finance, which drafts the
+     * deposit invoice. Proposals does not know about invoices.
+     */
+    readonly onAccepted?: (actorId: Id | null, accepted: { readonly projectId: Id; readonly ownerId: Id; readonly deposit: Money | null; readonly title: string; readonly version: number }) => void;
   };
 
 export type Refused = "forbidden" | "not-found";
@@ -177,6 +184,7 @@ export function applyDecision(deps: ProposalsDeps, actorId: Id | null, proposal:
     lines: version.lines.map((line) => ({ item: line.item, kind: line.kind, quantity: line.quantity, rate: line.rate, total: line.total })),
   });
   recordActivity(deps, { actorId, action: "proposal.accepted", recordType: "proposal", recordId: proposal.id, context: { ...event, projectId: project.id } });
+  deps.onAccepted?.(actorId, { projectId: project.id, ownerId: project.ownerId, deposit: depositFor(version.pricing, version.total), title: won.title, version: version.number });
   return ok({ decision, project });
 }
 

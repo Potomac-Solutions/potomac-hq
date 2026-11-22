@@ -6,7 +6,7 @@ import { CLIENT_UPLOAD, formatSize } from "../../files/index.ts";
 import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProposalsDeps } from "../../proposals/index.ts";
-import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { dueText, err, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { CallStore, ClientUserStore, EventReader, PortalAuth, UpdateStore } from "./ports.ts";
 
 export type PortalDeps = ProposalsDeps &
@@ -167,4 +167,52 @@ export function clientFiles(deps: PortalDeps, actorId: Id | null, projectId: Id)
     canView: true,
     items: deps.files.listForOwner(CLIENT_UPLOAD, projectId).map((file) => ({ id: file.id, name: file.name, size: formatSize(file.sizeBytes), who: file.clientUserName ?? "The client", when: deps.formatWhen(file.createdAt), whenIso: file.createdAt })),
   };
+}
+
+/** One thing a client is waiting on Potomac for, with where to go to do it. */
+export type StaffWaitingItem = { readonly key: string; readonly text: string; readonly detail: string; readonly href: string; readonly action: string; readonly since: string };
+
+/**
+ * The top of the dashboard: what clients are waiting on Potomac for. A
+ * message nobody has answered, changes asked for on a deliverable, a call
+ * to confirm, a drafted invoice to send, and an invoice past its due day.
+ * Each part shows only to someone who may act on it.
+ */
+export function staffWaiting(deps: PortalDeps, actorId: Id | null): { readonly items: readonly StaffWaitingItem[] } {
+  if (actorId === null) return { items: [] };
+  const today = deps.today();
+  const items: StaffWaitingItem[] = [];
+  const active = deps.projects.list().filter((project) => project.status === "active");
+
+  if (may(deps, actorId, "project.post-update")) {
+    for (const project of active) {
+      // Newest first: if the newest word on a project is the client's, it is waiting for an answer.
+      const latest = deps.updates.listFor(project.id)[0];
+      if (latest?.fromClient) items.push({ key: `u-${latest.id}`, text: `Answer ${latest.authorName} on ${project.name}`, detail: `${project.clientName}. Their message is the last word on the project.`, href: `/projects/${project.id}#updates`, action: "Reply", since: latest.createdAt });
+    }
+  }
+  if (may(deps, actorId, "deliverable.edit")) {
+    for (const project of active) {
+      for (const deliverable of deps.deliverables.listFor(project.id)) {
+        if (deliverable.status !== "changes-requested") continue;
+        items.push({ key: `d-${deliverable.id}`, text: `Changes asked for on “${deliverable.title}”`, detail: `${project.name}, ${project.clientName}${deliverable.decisionNote ? `: “${deliverable.decisionNote.slice(0, 120)}”` : "."}`, href: `/projects/${project.id}#deliverables`, action: "Open", since: "" });
+      }
+    }
+  }
+  if (may(deps, actorId, "call.respond")) {
+    for (const call of deps.calls.waiting()) {
+      items.push({ key: `c-${call.id}`, text: `Call ${call.clientUserName} back`, detail: `${call.organizationName}. Wants: ${call.wanted}${call.phone ? `. On ${call.phone}` : ""}.`, href: `/clients/${call.organizationId}#portal`, action: "Answer", since: call.createdAt });
+    }
+  }
+  if (may(deps, actorId, "invoice.edit")) {
+    for (const invoice of deps.invoices.list()) {
+      const label = `INV-${String(invoice.number).padStart(4, "0")}`;
+      if (invoice.status === "draft") {
+        items.push({ key: `i-${invoice.id}`, text: `Send invoice ${label}`, detail: `${invoice.projectName}, ${invoice.clientName}. ${formatMoney(invoice.total)}, still a draft.`, href: `/invoices/${invoice.id}`, action: "Check and send", since: "" });
+      } else if (invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < today) {
+        items.push({ key: `i-${invoice.id}`, text: `Invoice ${label} is past due`, detail: `${invoice.projectName}, ${invoice.clientName}. ${formatMoney({ minor: invoice.total.minor - invoice.paidMinor, currency: invoice.total.currency })} owed, due ${dueText(invoice.dueOn, today)}.`, href: `/invoices/${invoice.id}`, action: "Open", since: "" });
+      }
+    }
+  }
+  return { items };
 }

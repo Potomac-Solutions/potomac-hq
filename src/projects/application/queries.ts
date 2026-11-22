@@ -6,7 +6,7 @@ import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
-import { describeEvent, err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
+import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
 import type { ProjectsDeps, Refused } from "./commands.ts";
 import type { TaskRow } from "./ports.ts";
 
@@ -14,10 +14,10 @@ export type Option = { readonly value: string; readonly label: string };
 
 const may = (deps: ProjectsDeps, actorId: Id | null, action: string): boolean => actorId !== null && authorize(deps, actorId, action).ok;
 
-type MilestoneView = { readonly id: string; readonly name: string; readonly dueOn: string; readonly doneOn: string; readonly done: boolean; readonly overdue: boolean; readonly phaseName: string; readonly forClient: boolean };
+type MilestoneView = { readonly id: string; readonly name: string; readonly dueOn: string; readonly dueText: string; readonly doneText: string; readonly doneOn: string; readonly done: boolean; readonly overdue: boolean; readonly phaseName: string; readonly forClient: boolean };
 
 function milestoneView(milestone: Milestone, today: string, phaseName = ""): MilestoneView {
-  return { id: milestone.id, name: milestone.name, dueOn: milestone.dueOn ?? "", doneOn: milestone.doneOn ?? "", done: milestone.doneOn !== null, overdue: isMilestoneOverdue(milestone, today), phaseName, forClient: milestone.forClient };
+  return { id: milestone.id, name: milestone.name, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "", doneText: milestone.doneOn ? friendlyDay(milestone.doneOn, today) : "", doneOn: milestone.doneOn ?? "", done: milestone.doneOn !== null, overdue: isMilestoneOverdue(milestone, today), phaseName, forClient: milestone.forClient };
 }
 
 export type ProjectListView = {
@@ -66,7 +66,7 @@ export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { r
           healthLabel: HEALTH_LABELS[project.health] ?? project.health,
           targetOn: project.targetOn ?? "",
           openTasks: project.openTasks,
-          next: next ? (next.dueOn ? `${next.name}, due ${next.dueOn}` : next.name) : "",
+          next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "",
           nextOverdue: next ? isMilestoneOverdue(next, today) : false,
         };
       }),
@@ -233,6 +233,8 @@ export type TaskCard = {
   /** True for high and urgent, which the screens mark. */
   readonly pressing: boolean;
   readonly dueOn: string;
+  /** "Sat, Nov 21, in 5 days". */
+  readonly dueText: string;
   readonly overdue: boolean;
   readonly estimate: string;
 };
@@ -250,6 +252,7 @@ function card(task: TaskRow, today: string): TaskCard {
     priorityLabel: PRIORITY_LABELS[task.priority] ?? task.priority,
     pressing: task.priority === "high" || task.priority === "urgent",
     dueOn: task.dueOn ?? "",
+    dueText: task.dueOn ? dueText(task.dueOn, today) : "",
     overdue: isTaskOverdue(task, today),
     estimate: task.estimateMinutes === null ? "" : formatHours(task.estimateMinutes),
   };
@@ -372,7 +375,7 @@ export function activeProjects(deps: ProjectsDeps, actorId: Id | null): Result<A
 
 export type DeadlinesView = {
   readonly days: number;
-  readonly items: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string; readonly overdue: boolean }[];
+  readonly items: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string; readonly dueText: string; readonly overdue: boolean }[];
 };
 
 /** Open milestones and tasks of active projects due within `days`, or already late, soonest first. */
@@ -383,12 +386,12 @@ export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days =
   const milestones = deps.milestones
     .listOpen()
     .filter((milestone) => milestone.dueOn !== null && milestone.dueOn <= until)
-    .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", overdue: isMilestoneOverdue(milestone, today) }));
+    .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "", overdue: isMilestoneOverdue(milestone, today) }));
   const tasks = may(deps, actorId, "task.view")
     ? deps.tasks
         .listBoard("9999")
         .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until)
-        .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", overdue: isTaskOverdue(task, today) }))
+        .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "", overdue: isTaskOverdue(task, today) }))
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
 }
@@ -397,7 +400,7 @@ export type ProjectHealthReportView = {
   readonly statuses: readonly { readonly label: string; readonly count: number }[];
   readonly healths: readonly { readonly label: string; readonly count: number }[];
   readonly active: number;
-  readonly late: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string }[];
+  readonly late: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string; readonly dueText: string }[];
   readonly attention: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly healthLabel: string; readonly next: string }[];
 };
 
@@ -410,11 +413,11 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
   const lateMilestones = deps.milestones
     .listOpen()
     .filter((milestone) => isMilestoneOverdue(milestone, today))
-    .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "" }));
+    .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "" }));
   const lateTasks = deps.tasks
     .listBoard("9999")
     .filter((task) => isTaskOverdue(task, today))
-    .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "" }));
+    .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "" }));
   return ok({
     statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),
     healths: Object.keys(HEALTH_LABELS).map((health) => ({ label: HEALTH_LABELS[health] ?? health, count: active.filter((project) => project.health === health).length })),
@@ -424,7 +427,7 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
       .filter((project) => project.health !== "on-track")
       .map((project) => {
         const next = nextMilestone(deps.milestones.listFor(project.id));
-        return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${next.dueOn}` : next.name) : "" };
+        return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "" };
       }),
   });
 }

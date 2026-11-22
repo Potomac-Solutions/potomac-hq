@@ -124,7 +124,7 @@ test("a client, from the invite to an accepted proposal", async () => {
 
   // Potomac sees all of it.
   await staff.goto(`${t.origin}/`);
-  assert.match(await text(staff), /Calls clients asked for.*Ann Baker: Thursday afternoon/);
+  assert.match(await text(staff), /Call Ann Baker back.*Wants: Thursday afternoon/);
   await assertAccessible(staff, "the dashboard with a call waiting");
   await staff.goto(`${t.origin}/projects/${project.id}`);
   assert.match(await text(staff), /Looks great\. When do we launch\?/);

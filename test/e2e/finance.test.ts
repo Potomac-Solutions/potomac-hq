@@ -46,7 +46,7 @@ test("time and money for a project", async () => {
   await page.getByLabel("What you did").fill("First pass");
   await page.getByRole("button", { name: "Log time" }).click();
   await page.getByText("Time logged.").waitFor();
-  assert.match(await text(page), /1\.52 hours/);
+  assert.match(await text(page), /1 h 3\d min/);
   await assertAccessible(page, "the Time page with entries");
 
   // The dashboard's panels.

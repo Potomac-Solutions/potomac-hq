@@ -29,9 +29,9 @@
         <dt>Status</dt><dd><strong>{t.statusLabel}</strong><span zb-if={t.doneWhen}>, {t.doneWhen}</span></dd>
         <dt>Who</dt><dd>{t.assigneeName || "Nobody yet"}</dd>
         <dt>Priority</dt><dd>{t.priorityLabel}</dd>
-        <dt>Due</dt><dd>{t.dueOn || "Not set"} <span zb-if={t.overdue} class="hq-tag due">Overdue</span></dd>
+        <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <span zb-if={t.overdue} class="hq-tag due">Overdue</span></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
-        <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged} hours<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
+        <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
         <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>
       </dl>
       <div class="hq-actions" data-spaced>

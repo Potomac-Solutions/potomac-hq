@@ -22,8 +22,8 @@
     { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
     { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
     ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') }] : []),
-    { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') },
-    { label: 'Board', href: '/board', current: route.path === '/board' },
+    // The board is part of Projects: it is linked from the Projects page and the dashboard.
+    { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') || route.path === '/board' },
     ...(can.time ? [{ label: 'Time', href: '/time', current: route.path === '/time' }] : []),
     ...(can.money ? [{ label: 'Money', href: '/money', current: route.path === '/money' }] : []),
     ...(can.reports ? [{ label: 'Reports', href: '/reports', current: route.path === '/reports' }] : []),
@@ -32,11 +32,13 @@
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
-  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; }
+  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; white-space: nowrap; }
   .hq-brand img { width: 1.75rem; height: 1.75rem; }
   .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
-  .hq-account { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .hq-account { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.35rem; white-space: nowrap; }
   .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
+  /* The name is on the Settings page too. Where the bar is tight, it gives way to the links. */
+  @media (max-width: 90rem) { .hq-who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
   .hq-account form { display: inline; margin: 0; }
   .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.75rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }

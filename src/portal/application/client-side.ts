@@ -11,12 +11,12 @@ import { newCallRequest, newUpdate, sessionFor, type CallRequest, type ClientSes
 import { activate } from "../domain/client-user.ts";
 
 export type { ClientSession };
-import { daysUntil, dueText, friendlyDay, howSoon } from "../domain/days.ts";
+import { daysUntil, dueText, friendlyDay, howSoon } from "../../shared/index.ts";
 import { CLIENT_UPLOAD, formatSize, MAX_FILE_BYTES, saveFileFromClient, type FileRecord } from "../../files/index.ts";
 import { documentForInvoice, invoiceLabel, type InvoiceDocument } from "../../finance/index.ts";
 import { decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
-import { err, formatHours, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
 
 /** The client a Cookie header is signed in as, or null. Read from storage every time. */
@@ -264,7 +264,7 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     updates: deps.updates.listFor(project.id).map((update) => ({ id: update.id, body: update.body, authorName: update.fromClient ? update.authorName : `${update.authorName}, Potomac Solutions`, fromClient: update.fromClient, when: deps.formatWhen(update.createdAt), whenIso: update.createdAt })),
     files: sentFiles(deps, project.id),
     fileRules: FILE_RULES,
-    billableHours: billableMinutes > 0 ? formatHours(billableMinutes) : "",
+    billableHours: billableMinutes > 0 ? readableHours(billableMinutes) : "",
   });
 }
 

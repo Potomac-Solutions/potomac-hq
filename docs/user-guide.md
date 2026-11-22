@@ -40,8 +40,9 @@ The full list is in the article "Authorization matrix".
 3. **Send** it. That freezes a numbered version, which never changes, and
    moves the opportunity to quoted. Download the PDF and send it yourself,
    or share it to the client's portal.
-4. Record the answer. **Accepted** wins the opportunity, starts the project
-   and sets its budget from the estimate, in one step.
+4. Record the answer. **Accepted** wins the opportunity, starts the project,
+   sets its budget from the estimate, and drafts the deposit invoice, in one
+   step. Check the draft and send it: it is on your dashboard.
 5. Record the signed agreement against it.
 
 ## The project
@@ -86,6 +87,9 @@ price list. Those show on the project under "Files from the client". Open
 one only if you were expecting it.
 
 ## Knowing what is going on
+
+- **Waiting on you**, at the top of the Dashboard: what clients are waiting
+  for. Clear it first each day.
 
 - The **Dashboard**: follow-ups due, active projects, deadlines, hours this
   week, projects over budget, calls clients asked for, recent activity.

@@ -56,7 +56,7 @@ test("details, phases and milestones are changed through the page's forms", asyn
   const added = await admin.submit(`/projects/${projectId}/milestones`, { name: "Design signed off", dueOn: "2099-12-05" });
   assert.match(added.location, new RegExp(`^/projects/${projectId}\\?done=.*#plan$`));
   assert.match(added.html, /Milestone added\./);
-  assert.match(textOf(added.html), /Next milestone Design signed off ?, due 2099-12-05/);
+  assert.match(textOf(added.html), /Next milestone Design signed off ?, due Sat, Dec 5, 2099, in [\d,]+ days/);
   assert.match(added.html, /0 of 1 milestones done\./);
 
   const milestoneId = /action="\/milestones\/([0-9a-f-]{36})\/done"/.exec(added.html)?.[1] ?? "";

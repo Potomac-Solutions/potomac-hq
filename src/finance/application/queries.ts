@@ -7,7 +7,7 @@ import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LAB
 import { weekOf } from "../domain/time.ts";
 import { authorize } from "../../identity/index.ts";
 import type { Project } from "../../projects/index.ts";
-import { err, formatHours, formatMoney, ok, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
+import { err, formatHours, formatMoney, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
 import type { InvoiceRow, TimeRow } from "./ports.ts";
 
@@ -40,7 +40,7 @@ export function taskTime(deps: FinanceDeps, actorId: Id | null, taskId: Id): Tas
   if (actorId === null || !may(deps, actorId, "time.log")) return { can: false, logged: "0", running: false, since: "" };
   const mine = deps.time.running(actorId);
   const onThis = mine !== null && mine.taskId === taskId && mine.startedAt !== null;
-  return { can: true, logged: formatHours(deps.time.minutesOnTask(taskId)), running: onThis, since: onThis && mine.startedAt ? runningFor(deps, mine.startedAt) : "" };
+  return { can: true, logged: readableHours(deps.time.minutesOnTask(taskId)), running: onThis, since: onThis && mine.startedAt ? runningFor(deps, mine.startedAt) : "" };
 }
 
 type EntryView = {
@@ -63,7 +63,7 @@ const entryView = (row: TimeRow): EntryView => ({
   projectName: row.projectName,
   taskTitle: row.taskTitle ?? "",
   who: row.userName,
-  hours: row.minutes === null ? "" : formatHours(row.minutes),
+  hours: row.minutes === null ? "" : readableHours(row.minutes),
   note: row.note,
   billable: row.billable,
   running: row.minutes === null,
@@ -103,8 +103,8 @@ export function timeSheet(deps: FinanceDeps, actorId: Id | null, filter: { reado
     everyone,
     canSeeEveryone,
     entries: rows.map(entryView),
-    total: formatHours(done.reduce((sum, row) => sum + (row.minutes ?? 0), 0)),
-    billable: formatHours(done.filter((row) => row.billable).reduce((sum, row) => sum + (row.minutes ?? 0), 0)),
+    total: readableHours(done.reduce((sum, row) => sum + (row.minutes ?? 0), 0)),
+    billable: readableHours(done.filter((row) => row.billable).reduce((sum, row) => sum + (row.minutes ?? 0), 0)),
     timer: runningTimer(deps, actorId),
     targets,
     today,
@@ -126,7 +126,7 @@ export type HoursThisWeekView = { readonly mine: string; readonly everyone: stri
 export function hoursThisWeek(deps: FinanceDeps, actorId: Id | null): Result<HoursThisWeekView, "forbidden"> {
   if (actorId === null || !may(deps, actorId, "time.log")) return err("forbidden");
   const week = weekOf(deps.today());
-  const sum = (rows: readonly TimeRow[]) => formatHours(rows.reduce((total, row) => total + (row.minutes ?? 0), 0));
+  const sum = (rows: readonly TimeRow[]) => readableHours(rows.reduce((total, row) => total + (row.minutes ?? 0), 0));
   const showEveryone = may(deps, actorId, "time.view-all");
   return ok({ mine: sum(deps.time.list(week, actorId)), everyone: showEveryone ? sum(deps.time.list(week, null)) : "", showEveryone, timer: runningTimer(deps, actorId) });
 }
@@ -148,9 +148,9 @@ type MoneyLine = { readonly budget: string; readonly actual: string; readonly ov
 
 function summaryOf(budget: Budget, time: { minutes: number; billableMinutes: number }, expenses: Money, s: Standing) {
   return {
-    hours: { budget: budget.minutes === null ? "" : formatHours(budget.minutes), actual: formatHours(time.minutes), over: s.overHours } satisfies MoneyLine,
+    hours: { budget: budget.minutes === null ? "" : readableHours(budget.minutes), actual: readableHours(time.minutes), over: s.overHours } satisfies MoneyLine,
     cost: { budget: budget.amount === null ? "" : formatMoney(budget.amount), actual: formatMoney(s.cost), over: s.overCost } satisfies MoneyLine,
-    billableHours: formatHours(time.billableMinutes),
+    billableHours: readableHours(time.billableMinutes),
     timeCost: formatMoney(s.timeCost),
     expenses: formatMoney(expenses),
     margin: s.margin === null ? "" : formatMoney(s.margin),
@@ -192,7 +192,7 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
   const phaseRow = (id: Id | null, name: string) => {
     const estimate = estimates.find((one) => one.phaseId === id)?.minutes ?? 0;
     const actual = actuals.find((one) => one.phaseId === id)?.minutes ?? 0;
-    return { key: id ?? "none", name, estimate: estimate > 0 ? formatHours(estimate) : "", actual: formatHours(actual), over: estimate > 0 && actual > estimate };
+    return { key: id ?? "none", name, estimate: estimate > 0 ? readableHours(estimate) : "", actual: readableHours(actual), over: estimate > 0 && actual > estimate };
   };
   const rows = [...phases.map((phase) => phaseRow(phase.id, phase.name)), phaseRow(null, phases.length > 0 ? "No phase" : "All work")];
   return ok({
