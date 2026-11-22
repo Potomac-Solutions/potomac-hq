@@ -742,6 +742,12 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   `user.two-factor-reset`, `user.two-factor-passed` and
   `user.two-factor-recovery-used`. None carries a code or the secret.
 
+### Sign-in rules
+
+`sign_in_rule`: one row per rule that is on, with who turned it on and
+when. The only rule is `two-factor-for-admins`. Turning it on or off writes
+`sign-in-rule.two-factor-required` or `sign-in-rule.two-factor-optional`.
+
 ### Refused attempts
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.

@@ -78,6 +78,33 @@ export function confirmTwoFactor(deps: TwoFactorDeps, userId: Id | null, session
 }
 
 /**
+ * Whether someone must turn it on before they can do anything else: an
+ * admin without it, once the rule is on. They can still reach Settings to
+ * turn it on, and sign out.
+ */
+export function mustTurnOnTwoFactor(deps: TwoFactorDeps, userId: Id | null): boolean {
+  if (userId === null || !deps.twoFactor.requiredForAdmins()) return false;
+  return deps.users.rolesOf(userId).includes("admin") && deps.twoFactor.get(userId)?.confirmed !== true;
+}
+
+/**
+ * Requires it of every admin, or stops requiring it. Permission:
+ * `user.set-roles`, the same as making someone an admin. The admin who turns
+ * it on must have it on themselves, so they know what they are asking of the
+ * others. Other admins without it are asked to turn it on at their next page.
+ */
+export function setTwoFactorRule(deps: TwoFactorDeps, actorId: Id | null, on: boolean): Result<{ readonly on: boolean }, "forbidden" | "yours-first"> {
+  if (!authorize(deps, actorId, "user.set-roles").ok || actorId === null) return err("forbidden");
+  return deps.transact(() => {
+    if (on && deps.twoFactor.get(actorId)?.confirmed !== true) return err("yours-first");
+    if (deps.twoFactor.requiredForAdmins() === on) return ok({ on });
+    deps.twoFactor.setRequiredForAdmins(on, actorId, deps.clock());
+    recordActivity(deps, { actorId, action: on ? "sign-in-rule.two-factor-required" : "sign-in-rule.two-factor-optional", recordType: "sign-in-rule", recordId: deps.newId() });
+    return ok({ on });
+  });
+}
+
+/**
  * Whether to remind someone to turn it on: an admin without it. An admin's
  * password alone opens everything, including who else may sign in.
  */
@@ -126,7 +153,7 @@ export function passSecondStep(deps: TwoFactorDeps, userId: Id, sessionHash: str
 }
 
 /** Turns it off for oneself. It takes a current code, so a borrowed session cannot do it. */
-export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<true, "forbidden" | "not-on" | "code-invalid" | "code-wrong"> {
+export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<true, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "required"> {
   if (userId === null || !deps.users.get(userId)) return err("forbidden");
   return deps.transact(() => {
     const record = deps.twoFactor.get(userId);
@@ -135,6 +162,8 @@ export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: 
       if (record) deps.twoFactor.remove(userId);
       return record ? ok(true as const) : err("not-on");
     }
+    // An admin may not turn it off while it is required of admins.
+    if (deps.twoFactor.requiredForAdmins() && deps.users.rolesOf(userId).includes("admin")) return err("required");
     const code = cleanCode(typed);
     const recovery = code ? null : cleanRecoveryCode(typed);
     if (!code && !recovery) return err("code-invalid");

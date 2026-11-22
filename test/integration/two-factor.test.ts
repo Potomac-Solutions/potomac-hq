@@ -171,3 +171,54 @@ test("turning it off takes a current code", async () => {
   assert.equal((await b.get("/")).status, 200);
   assert.ok(actions(t.db).includes("user.two-factor-off"));
 });
+
+test("an admin can require it of every admin; one without it can open only Settings until it is on", async () => {
+  const own = await testApp();
+  try {
+    const ada = await signIn(own, "ada@example.com", "Ada Owner", ["admin"]);
+    await ada.get("/");
+    const ben = await signIn(own, "ben@example.com", "Ben Second", ["admin"]);
+    await ben.get("/");
+    const cat = await signIn(own, "cat@example.com", "Cat Member", ["member"]);
+    await cat.get("/");
+    const idOf = (email: string) => own.db.prepare("select id from user where email = ?").get(email)?.["id"] as Id;
+    const secretOf2 = (id: Id) => String(own.db.prepare("select secret from user_two_factor where user_id = ?").get(id)?.["secret"]);
+    const problem = (res: Response) => new URL(own.origin + (res.headers.get("location") ?? "")).searchParams.get("problem") ?? "";
+
+    // Not before your own is on.
+    assert.match(textOf(await ada.page("/people")), /Sign-in rules Two-factor sign-in is optional for everyone\. .* To require it of admins, turn on yours first\./);
+    assert.equal(problem(await ada.post("/people/two-factor-rule", { on: "1" })), "Turn on two-factor sign-in for yourself first, in Settings.");
+    assert.equal(problem(await cat.post("/people/two-factor-rule", { on: "1" })), "You don’t have permission to do that.");
+
+    await ada.post("/settings/two-factor", {});
+    assert.equal((await ada.post("/settings/two-factor/confirm", { code: codeAt(secretOf2(idOf("ada@example.com")), stepOf(Date.now())) })).status, 200);
+    assert.equal(new URL(own.origin + ((await ada.post("/people/two-factor-rule", { on: "1" })).headers.get("location") ?? "")).searchParams.get("done"), "Saved.");
+    assert.match(textOf(await ada.page("/people")), /Sign-in rules On Every admin must use two-factor sign-in\./);
+    assert.ok(actions(own.db).includes("sign-in-rule.two-factor-required"));
+
+    // Ben, an admin without it, is stopped at every page but Settings, and every form but turning it on.
+    const home = await ben.get("/");
+    assert.equal(home.status, 403);
+    assert.match(textOf(await home.text()), /HQ requires two-factor sign-in for admins/);
+    assert.equal((await ben.get("/clients")).status, 403);
+    assert.equal(problem(await ben.post("/clients", { name: "Ben Co" })), "You don’t have permission to do that.");
+    assert.match(textOf(await ben.page("/settings")), /Required for admins HQ requires two-factor sign-in for admins\. Turn it on to use the rest of HQ\./);
+    await ben.post("/settings/two-factor", {});
+    assert.equal((await ben.get("/settings/two-factor/qr.svg")).status, 200, "the QR code is part of turning it on");
+    assert.equal((await ben.post("/settings/two-factor/confirm", { code: codeAt(secretOf2(idOf("ben@example.com")), stepOf(Date.now())) })).status, 200);
+    assert.equal((await ben.get("/clients")).status, 200, "everything opens once it is on");
+
+    // A member is not asked.
+    assert.equal((await cat.get("/clients")).status, 200);
+
+    // While it is required, an admin may not turn theirs off.
+    assert.equal(problem(await ben.post("/settings/two-factor/off", { code: codeAt(secretOf2(idOf("ben@example.com")), stepOf(Date.now()) + 1) })), "HQ requires two-factor sign-in for admins, so yours stays on.");
+
+    // And back to optional.
+    await ada.post("/people/two-factor-rule", { on: "0" });
+    assert.match(textOf(await ada.page("/people")), /Two-factor sign-in is optional for everyone/);
+    assert.ok(actions(own.db).includes("sign-in-rule.two-factor-optional"));
+  } finally {
+    await own.stop();
+  }
+});
