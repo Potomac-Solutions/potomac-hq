@@ -16,3 +16,4 @@ export type { AccountAdmin, InviteStore } from "./application/ports.ts";
 export type { UserInvite } from "./domain/user.ts";
 export { beginTwoFactor, confirmTwoFactor, needsSecondStep, passSecondStep, resetTwoFactor, shouldTurnOnTwoFactor, turnOffTwoFactor, twoFactorQr, twoFactorStatus, type TwoFactorDeps, type TwoFactorStatus } from "./application/two-factor.ts";
 export type { TwoFactorCrypto, TwoFactorStore } from "./application/ports.ts";
+export { recordRefusal, refusedAttempts, type RefusedDeps, type RefusedDraft, type RefusedView } from "./application/refused.ts";

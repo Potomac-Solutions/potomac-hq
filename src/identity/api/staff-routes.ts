@@ -4,6 +4,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RateLimit } from "../application/ports.ts";
 import { establishUser, recordSessionEvent, type SessionDeps, type SignedInAccount } from "../application/session.ts";
+import type { RefusedDraft } from "../application/refused.ts";
 
 export type StaffRoutesDeps = {
   /** The kit's staff pages. Resolves true when it answered the request. */
@@ -14,6 +15,8 @@ export type StaffRoutesDeps = {
   readonly allowAttempt: RateLimit;
   readonly sessionDeps: SessionDeps;
   readonly problem: (res: ServerResponse, status: number, title: string, message: string) => void;
+  /** Writes down a refused sign-in. */
+  readonly refused: (draft: RefusedDraft) => void;
   readonly log: (message: string, error: unknown) => void;
 };
 
@@ -58,6 +61,8 @@ export function staffRoutes(deps: StaffRoutesDeps): (req: IncomingMessage, res: 
         const who = cookie ? deps.session(cookie) : null;
         const user = who ? establishUser(deps.sessionDeps, who) : null;
         if (user) recordSessionEvent(deps.sessionDeps, user, "user.signed-in");
+        // No session: the kit refused the password. The password is never written down.
+        if (!cookie && path === "/staff/sign-in") deps.refused({ kind: "sign-in", email: form?.get("email") ?? null, address: deps.clientOf(req), detail: "refused" });
       } else if (before && path === "/staff/sign-out") {
         const user = deps.sessionDeps.users.findByStaffAccount(before.account);
         if (user) recordSessionEvent(deps.sessionDeps, user, "user.signed-out");

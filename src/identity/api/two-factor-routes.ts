@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
 import type { RateLimit } from "../application/ports.ts";
+import type { RefusedDraft } from "../application/refused.ts";
 import { formPosts, readForm, withMessage, type Id } from "../../shared/index.ts";
 
 export type TwoFactorRoutesDeps = {
@@ -19,6 +20,8 @@ export type TwoFactorRoutesDeps = {
   readonly sign: (location: string) => string;
   /** The page that shows the recovery codes once, as HTML. */
   readonly codesPage: (codes: readonly string[]) => string;
+  /** Writes down a wrong code. */
+  readonly refused: (draft: RefusedDraft) => void;
 };
 
 const MESSAGES: Readonly<Record<string, string>> = {
@@ -51,7 +54,10 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
       return new Response("Too many tries. Wait a minute, then try again.", { status: 429, headers: { "retry-after": "60", "content-type": "text/plain; charset=utf-8" } });
     }
     const passed = passSecondStep(deps.twoFactor, pending.userId, pending.sessionHash, fields["code"] ?? "");
-    if (!passed.ok) return go(c, "/", "problem", messageFor(passed.error));
+    if (!passed.ok) {
+      if (passed.error !== "not-on") deps.refused({ kind: "second-step", userId: pending.userId, address: client, detail: passed.error });
+      return go(c, "/", "problem", messageFor(passed.error));
+    }
     if (!passed.value.usedRecovery) return c.redirect("/", 303);
     const left = passed.value.recoveryLeft;
     const message = left === 0 ? "You used your last recovery code. Turn two-factor sign-in off and on again in Settings to get new ones." : `You signed in with a recovery code. ${left} ${left === 1 ? "is" : "are"} left.`;

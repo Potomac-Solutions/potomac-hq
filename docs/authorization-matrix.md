@@ -52,7 +52,7 @@ so that someone can see deal values without being an administrator.
 | --- | --- | --- | --- | --- | --- |
 | View the dashboard | `dashboard.view` | Yes | Yes | Yes | No |
 | View recent activity on client records | `activity.view` | Yes | Yes | Yes | No |
-| View the full audit history, including sign-ins and user changes | `activity.view-all` | Yes | No | No | No |
+| View the full audit history, including sign-ins and user changes, and refused attempts | `activity.view-all` | Yes | No | No | No |
 
 Nobody can edit or delete an activity event. There is no permission for it.
 

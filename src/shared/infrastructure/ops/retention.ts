@@ -12,6 +12,8 @@ import type { Database } from "../database.ts";
 export const EXPIRED_SIGN_IN_DAYS = 30;
 /** Days an unused invite to HQ is kept. Its link stopped working after seven. */
 export const UNUSED_INVITE_DAYS = 30;
+/** Days a refused attempt is kept. */
+export const REFUSED_ATTEMPT_DAYS = 90;
 
 export type RetentionResult = { readonly sessions: number; readonly links: number; readonly invites: number };
 
@@ -24,6 +26,9 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   // each one stopped working, in milliseconds.
   const expired = deps.db.prepare("delete from kit_document where collection in (?, ?) and cast(json_extract(fields, '$.until') as integer) < ?");
   const invites = deps.db.prepare("delete from user_invite where created_at < ?");
+  // Refused attempts are kept 90 days (docs/retention-policy.md).
+  const refused = deps.db.prepare("delete from refused_attempt where occurred_at < ?");
+  const refusedCutoff = now.subtract({ hours: 24 * REFUSED_ATTEMPT_DAYS }).toString();
   // A session's two-factor pass goes with the session.
   const passes = deps.db.prepare("delete from two_factor_session where session_hash not in (select key from kit_document where collection = 'staff-sessions')");
   return deps.transact(() => {
@@ -33,6 +38,7 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
       invites: Number(invites.run(inviteCutoff).changes),
     };
     passes.run();
+    refused.run(refusedCutoff);
     if (result.sessions + result.links + result.invites > 0) {
       // Counts only. The log refuses a context that names sessions or links, so these are called what they were.
       recordActivity(deps, { actorId: null, action: "retention.applied", recordType: "retention", recordId: deps.newId(), context: { expiredSignIns: result.sessions, expiredLinks: result.links, staleInvites: result.invites } });
