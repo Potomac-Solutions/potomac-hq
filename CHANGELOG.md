@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Dependabot watches npm packages weekly, and GitHub Actions and the Node
+  image monthly, and opens pull requests into staging. Security alerts are
+  turned on in the repository's settings (docs/operations.md).
 - Two-factor sign-in for HQ accounts, with an authenticator app. Turn it on
   in Settings: add HQ to the app by its link or key, enter a code, and get
   ten recovery codes, shown once. After that, HQ asks for a code after the

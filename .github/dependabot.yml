@@ -1,0 +1,33 @@
+# Dependabot (docs/reviews/security-v1.0.md, "Known gaps"). It opens pull
+# requests into staging, like everyone else. Zubra and the kit are pinned
+# exactly: a bump is a pull request to read, never a range that moves alone.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: staging
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      zubra:
+        patterns: ["@zubra/*"]
+      dev-tools:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: staging
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+  - package-ecosystem: docker
+    directory: /
+    target-branch: staging
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore

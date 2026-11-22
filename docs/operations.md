@@ -183,6 +183,22 @@ Zubra packages are pinned to one exact version.
 5. Never edit a file under `src/shared/ui/zubra`. Fix it upstream and copy
    it again.
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:
+npm packages every Monday, GitHub Actions and the Node image once a month.
+The four `@zubra/*` packages come as one pull request, so they move
+together.
+
+- Treat a Zubra bump like "Upgrading Zubra" above: read the release notes,
+  and run `npm run test:zubra` and `npm run test:e2e` on the branch.
+- Merge when CI is green. The changelog gate lets Dependabot's pull
+  requests through, so when preparing a release, add a line for each bump
+  merged since the last one (`git log --author=dependabot`).
+- **Security alerts are a setting, not a file.** Once, in the repository:
+  Settings → Code security → turn on Dependabot alerts and Dependabot
+  security updates.
+
 ## When something is wrong
 
 | What you see | Look at |

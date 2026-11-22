@@ -100,8 +100,10 @@ jobs:
         run: |
           echo "Pull requests into main must come from staging."
           exit 1
+      # Dependabot cannot write a changelog line. Its bumps are listed when
+      # the release is prepared (docs/operations.md, "Dependency updates").
       - name: CHANGELOG.md must change in every pull request into staging
-        if: github.base_ref == 'staging'
+        if: github.base_ref == 'staging' && github.event.pull_request.user.login != 'dependabot[bot]'
         run: |
           if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- CHANGELOG.md; then
             echo "This pull request does not touch CHANGELOG.md. Add a line under [Unreleased]."
