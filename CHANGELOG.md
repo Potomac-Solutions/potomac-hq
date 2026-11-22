@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Search from the top bar, and a search page. One box finds clients,
+  contacts (by name, email or phone), opportunities, projects, tasks (by
+  title or description), proposals, invoices (by number, written any way:
+  "INV-0003", "inv 3", "#3") and knowledge base articles. Every word typed
+  must match. The best matches come first, up to eight of each kind. Each
+  kind is searched only for someone who may see it.
+
 ## [0.10.0] - 2026-11-22
 
 - Zubra packages upgraded from 5.19.0 to 6.0.3. All four move together and

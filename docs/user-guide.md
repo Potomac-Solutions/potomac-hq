@@ -88,6 +88,9 @@ one only if you were expecting it.
 
 ## Knowing what is going on
 
+- **Search**, in the top bar: type a name, an email, a phone number, an
+  invoice number or a few words from a task, and press Enter.
+
 - **Waiting on you**, at the top of the Dashboard: what clients are waiting
   for. Clear it first each day.
 

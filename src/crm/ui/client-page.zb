@@ -47,7 +47,7 @@
       </form>
     </section>
 
-    <section class="hq-panel" aria-labelledby="client-contacts">
+    <section class="hq-panel" id="contacts" aria-labelledby="client-contacts">
       <h2 id="client-contacts">Contacts</h2>
       <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
       <table zb-else class="hq-table">

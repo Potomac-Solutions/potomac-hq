@@ -4,8 +4,8 @@
 // same way.
 import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from "./crm/adapters.ts";
 import type { CrmDeps } from "./crm/index.ts";
-import { formatWhenIn, sqliteActivityReader, sqliteAuditReader } from "./dashboard/adapters.ts";
-import type { AuditDeps, RecentActivityDeps } from "./dashboard/index.ts";
+import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
+import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
@@ -34,6 +34,7 @@ export type Services = {
   readonly crm: CrmDeps;
   readonly dashboard: RecentActivityDeps;
   readonly audit: AuditDeps;
+  readonly search: SearchDeps;
   readonly projects: ProjectsDeps;
   readonly notes: NotesDeps;
   readonly knowledge: KnowledgeDeps;
@@ -74,6 +75,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const dashboard: RecentActivityDeps = { users, activity: sqliteActivityReader(db), formatWhen };
   const startOfDay = (day: string) => Temporal.PlainDate.from(day).toZonedDateTime(BUSINESS_TIME_ZONE).toInstant().toString();
   const audit: AuditDeps = { users, audit: sqliteAuditReader(db), formatWhen, startOfDay };
+  const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
   const projects: ProjectsDeps = {
     ...session,
     files: sqliteFileRecordStore(db),
@@ -110,5 +112,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
-  return { session, staff, crm, dashboard, audit, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { session, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

@@ -34,3 +34,25 @@ export type AuditReader = {
   /** Every record type that has an event, by name. */
   recordTypes(): string[];
 };
+
+/** One record that matched a search. */
+export type SearchHit = {
+  readonly id: string;
+  /** What it is called: a client's name, a task's title, an invoice's number. */
+  readonly name: string;
+  /** What it belongs to, to tell two of the same name apart: "Mt. Storm Bakery", "Bakery website". */
+  readonly context: string;
+  /** For a task or a project: whether it is still open. For a contact: their email. */
+  readonly extra: string;
+  /** Where it opens. Only ever built from ids. */
+  readonly href: string;
+};
+
+export type SearchKind = "clients" | "contacts" | "opportunities" | "projects" | "tasks" | "proposals" | "invoices" | "articles";
+
+/** Reads records for search. It only ever selects. */
+export type SearchReader = {
+  /** Records of one kind whose words all appear in them, at most `limit`. */
+  find(kind: SearchKind, words: readonly string[], limit: number): SearchHit[];
+  invoiceByNumber(number: number): SearchHit | null;
+};

@@ -11,7 +11,7 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, recentActivity } from "./dashboard/index.ts";
+import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
@@ -196,6 +196,7 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly people: { list(): ReturnType<typeof listPeople> };
+  readonly search: (q: string) => ReturnType<typeof search>;
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
     article(slug: string): ReturnType<typeof articleDetail>;
@@ -383,6 +384,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
         people: { list: () => listPeople(sessionDeps, actor) },
+        search: (q) => search(services.search, actor, q),
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),

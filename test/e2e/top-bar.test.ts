@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import { assertAccessible, setUpAdmin } from "../support/browser.ts";
-import { TEST_PASSWORD_COST, testApp, type TestApp } from "../support/harness.ts";
+import * as crm from "../../src/crm/index.ts";
+import type { Id } from "../../src/shared/index.ts";
+import { PASSWORD, TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
 let browser: Browser;
@@ -29,4 +31,24 @@ test("an admin's top bar fits at every width", async () => {
   }
   await page.setViewportSize({ width: 1024, height: 800 });
   await assertAccessible(page, "the dashboard at a laptop's width");
+});
+
+test("the top bar's search box finds a record, by keyboard alone", async () => {
+  const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
+  unwrap(crm.createClient(t.services.crm, mikey, { name: "Elk River Diner" }));
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(`${t.origin}/`);
+  await page.getByLabel("Email").fill("mikey@example.com");
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  await page.getByRole("searchbox", { name: "Search HQ" }).fill("elk diner");
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.pathname === "/search");
+  await page.getByRole("link", { name: "Elk River Diner" }).waitFor();
+  await assertAccessible(page, "search results");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await assertAccessible(page, "search results in dark");
+  await page.goto(`${t.origin}/search?q=zzqqxx`);
+  await assertAccessible(page, "a search with no results");
 });
