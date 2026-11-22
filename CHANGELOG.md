@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - New recovery codes from Settings, without turning two-factor sign-in off
   and on: it takes a code from the app, shows ten new codes once, and the
   old ones stop working.
@@ -24,7 +26,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   allowed to use. Admins see the last 30 days on Audit history → Refused
   attempts. Kept 90 days, apart from the activity log, and never with the
   password or code typed. Migration 0013.
-## [0.11.0] - 2026-11-22
 
 - An admin without two-factor sign-in is reminded at the top of the
   dashboard, with a link to turn it on. It stays optional.
