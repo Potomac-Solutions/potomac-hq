@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Booked calls can avoid busy times in a Google Calendar, once
+  `HQ_GOOGLE_CALENDAR_ID` and a service account are set and the calendar is
+  shared with it as "See only free/busy". HQ asks only whether a time is
+  busy. If Google can't be reached, no times are offered rather than wrong
+  ones.
+
 - Emails about booked calls, once email is set up. The person who booked
   hears about each change: booked, moved, cancelled. Someone from the
   booking page gets their private link to keep. The host hears about the

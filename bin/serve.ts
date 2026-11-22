@@ -25,6 +25,7 @@ import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
+import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -69,8 +70,14 @@ if (clientNotices && !email) {
 }
 
 const db = openDatabase(databasePath);
+// Busy times for booked calls, from Google Calendar, if it is set up.
+const calendarConfig = calendarConfigFrom(process.env);
+const busyCalendar = calendarConfig ? googleBusyCalendar(calendarConfig) : null;
+console.log(busyCalendar ? `Booked calls avoid busy times in ${busyCalendar.name}.` : "Booked calls avoid HQ's own calls only: Google Calendar is not set up.");
+
 const app = await createApp({
   db,
+  ...(busyCalendar ? { busyCalendar } : {}),
   log,
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),

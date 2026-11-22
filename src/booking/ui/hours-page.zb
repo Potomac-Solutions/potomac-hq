@@ -35,6 +35,7 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <p class="hq-muted">Times are in Eastern time. Calls go on {view.hostName}’s calendar: whoever saves this page. <a href="/calls">Back to Calls</a></p>
+    <p class="hq-muted">{view.calendar === 'none' ? 'Open times avoid calls already booked in HQ. To avoid everything else in your Google Calendar too, see “Booked calls” in the operations guide.' : 'Open times also avoid busy times in ' + view.calendar + '.'}</p>
 
     <form method="post" action="/calls/hours" class="hq-panel" aria-labelledby="hours-week">
       <h2 id="hours-week">Each week</h2>
