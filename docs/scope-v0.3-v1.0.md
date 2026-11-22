@@ -410,9 +410,11 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
 - **An authenticator app, not texts or email.** Codes by text cost money
   and can be stolen with the phone number. Any app works: 1Password, Google
   Authenticator, Microsoft Authenticator.
-- **No QR code yet.** Settings shows a link the app opens on the same phone,
-  and the key to type by hand. A QR code needs a library or a few hundred
-  lines; it is the first thing to add if typing the key gets in the way.
+- **A QR code, made by HQ.** About 250 lines in `src/shared/domain/qr.ts`
+  rather than a package: byte mode, level M, versions 1 to 10. Checked with
+  OpenCV's QR reader at every version, and from a screenshot of Settings.
+  The link and the typed key are still there for a phone that is doing the
+  setting up itself.
 - **Ten recovery codes, shown once.** Using the last one says to turn it off
   and on again for new ones.
 - **An admin can reset it** for someone with neither phone nor codes, with

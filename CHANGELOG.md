@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Two-factor setup shows a QR code to scan with the authenticator app. It
+  is served only to its owner while they turn it on, and never kept. The
+  link the app reads is shorter: it leaves out settings every app assumes.
 - Fixed: a withdrawn invite's link still made a sign-in account, which
   opened nothing in HQ but kept that email from being invited again.
   Withdrawing an invite now spends its link.

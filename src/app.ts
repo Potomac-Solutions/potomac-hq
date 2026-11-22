@@ -23,7 +23,7 @@ import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, needsSecondStep, requestPasswordReset, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
-import { twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
+import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -207,7 +207,7 @@ export type PageContext = {
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
-    readonly twoFactor: { readonly on: boolean; readonly setup: { readonly key: string; readonly link: string } | null; readonly recoveryText: string };
+    readonly twoFactor: { readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
   };
 };
 
@@ -582,6 +582,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -615,7 +616,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
