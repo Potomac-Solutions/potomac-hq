@@ -52,6 +52,8 @@ export type AccountAdmin = {
   setDisabled(staffAccount: string, disabled: boolean): Promise<boolean>;
   /** Keeps the account's standing in step with the admin role. False if refused. */
   setAdmin(staffAccount: string, admin: boolean): Promise<boolean>;
+  /** Spends every unused invite link for this email, so none of them makes an account. Answers how many. */
+  spendInviteLinks(email: string): number;
 };
 
 /** True if this key may make another attempt now. */

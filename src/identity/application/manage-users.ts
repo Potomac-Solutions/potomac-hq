@@ -86,6 +86,8 @@ export function withdrawInvite(deps: ManageUsersDeps, actorId: Id | null, invite
     const invite = deps.invites.get(inviteId);
     if (!invite) return err("not-found");
     deps.invites.remove(invite.id);
+    // Its link goes too: otherwise it would still make a sign-in account.
+    deps.accounts.spendInviteLinks(invite.email);
     recordActivity(deps, { actorId, action: "user.invite-withdrawn", recordType: "user-invite", recordId: invite.id });
     return ok(invite);
   });

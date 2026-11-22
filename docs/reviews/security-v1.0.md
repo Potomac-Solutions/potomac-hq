@@ -78,9 +78,9 @@ Each line says what was checked and what checks it on every merge.
    new versions (`.github/dependabot.yml`), but security alerts are a
    repository setting Mikey turns on (docs/operations.md), and every bump
    is read and merged by hand.
-6. **A withdrawn invite's link still makes a sign-in account**, though one
-   with no HQ user, so it opens nothing. That email cannot be invited again
-   until the account is cleared by hand.
+6. ~~A withdrawn invite's link still makes a sign-in account.~~ Fixed after
+   0.10.0: withdrawing an invite spends its link, and the email can be
+   invited again.
 7. **A typed name as a signature** has not been checked by a lawyer.
 8. **Files are not scanned for viruses.** A client can send a PDF, an
    Office file or a zip that is exactly what its name says and still
