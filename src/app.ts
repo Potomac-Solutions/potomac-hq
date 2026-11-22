@@ -16,7 +16,7 @@ import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
+import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
@@ -265,7 +265,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const twoFactorDeps = services.twoFactor;
   const sessionHashOf = (cookieHeader: string) => sessionKeyOf(cookieHeader, staff.cookieName);
   // Five tries a minute: a six-digit code is a small space.
-  const secondStepLimit = memoryRateLimit({ max: 5, windowMs: 60_000 });
+  const secondStepLimit = sqliteRateLimit(db, { name: "second-step", max: 5, windowMs: 60_000 });
   const secondStepDue = (userId: Id, cookieHeader: string) => needsSecondStep(twoFactorDeps, userId, sessionHashOf(cookieHeader));
 
   const twoFactorView = (actor: Id | null) => {
@@ -282,7 +282,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     handle: (req, res, url, form) => pages.handle(req, res, url, form),
     session: account,
     clientOf: clientAddressOf,
-    allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+    allowAttempt: sqliteRateLimit(db, { name: "staff-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
     sessionDeps,
     problem: (res, status, title, message) => sendHtml(res, status, title, problemPage({ title, message })),
     log,
@@ -547,7 +547,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       clientOf,
       sign: (location) => notices.sign(location),
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-      allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+      allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
     }),
   );
@@ -590,8 +590,8 @@ export async function createApp(config: AppConfig): Promise<App> {
     forgotRoutes({
       request: requestReset,
       clientOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-      allowPerAddress: memoryRateLimit({ max: 5, windowMs: 60 * 60_000 }),
-      allowPerEmail: memoryRateLimit({ max: 3, windowMs: 60 * 60_000 }),
+      allowPerAddress: sqliteRateLimit(db, { name: "forgot-address", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "forgot-email", max: 3, windowMs: 60 * 60_000 }),
       sign: (location) => notices.sign(location),
     }),
   );

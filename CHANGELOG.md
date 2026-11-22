@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Rate limits on both sign-ins, the two-factor step and "Forgot your
+  password?" are kept in the database, so restarting HQ no longer resets
+  them. Keys are stored only as hashes. Migration 0015.
 - Two-factor sign-in can be required of every admin, under People →
   Sign-in rules. It ships off. An admin without it can then open only
   Settings until it is on, and no admin can turn theirs off while it is

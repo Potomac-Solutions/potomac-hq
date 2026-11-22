@@ -72,8 +72,11 @@ Each line says what was checked and what checks it on every merge.
 2. **The second factor is optional until an admin requires it.** People →
    Sign-in rules requires it of every admin; it is off until Mikey turns
    it on. Members and managers are never required to use it.
-3. **Rate limits are kept in memory.** They reset when HQ restarts, and
-   would not be shared between two replicas. HQ runs one.
+3. ~~Rate limits are kept in memory.~~ Fixed after 0.11.0: HQ's own limits
+   (both sign-ins, the two-factor step, "Forgot your password?") are in the
+   database, by hashed key, so a restart does not reset them. The kit's
+   15-minute lockout after wrong passwords is still in memory; that is the
+   kit's to change.
 4. ~~Refused attempts are not written down.~~ Fixed after 0.11.0: wrong
    passwords at both sign-ins, wrong two-factor codes and forbidden forms go
    to their own log, shown on Audit history → Refused attempts and kept 90
