@@ -406,7 +406,8 @@ passes. Needs his approval like the rest.
 Decided 2026-11-22 while Mikey was away. Needs his approval.
 
 - **Optional for everyone, for now.** Each person turns it on in Settings.
-  Making it required for admins is one more rule when Mikey wants it.
+  An admin without it is reminded at the top of the dashboard. Making it
+  required for admins is one more rule when Mikey wants it.
 - **An authenticator app, not texts or email.** Codes by text cost money
   and can be stolen with the phone number. Any app works: 1Password, Google
   Authenticator, Microsoft Authenticator.

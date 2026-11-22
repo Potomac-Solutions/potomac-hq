@@ -21,7 +21,7 @@ import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, needsSecondStep, requestPasswordReset, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { authorize, establishUser, listPeople, needsSecondStep, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -207,6 +207,8 @@ export type PageContext = {
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
+    /** An admin without two-factor sign-in, reminded on the dashboard. */
+    readonly remindTwoFactor: boolean;
     readonly twoFactor: { readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
   };
 };
@@ -419,7 +421,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
-        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: twoFactorView(actor) },
+        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: twoFactorView(actor), remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
   });

@@ -77,6 +77,15 @@ export function confirmTwoFactor(deps: TwoFactorDeps, userId: Id | null, session
   });
 }
 
+/**
+ * Whether to remind someone to turn it on: an admin without it. An admin's
+ * password alone opens everything, including who else may sign in.
+ */
+export function shouldTurnOnTwoFactor(deps: TwoFactorDeps, userId: Id | null): boolean {
+  if (userId === null || !deps.users.rolesOf(userId).includes("admin")) return false;
+  return deps.twoFactor.get(userId)?.confirmed !== true;
+}
+
 /** Whether this person must pass the second step in this session before anything else. */
 export function needsSecondStep(deps: TwoFactorDeps, userId: Id, sessionHash: string | null): boolean {
   const record = deps.twoFactor.get(userId);

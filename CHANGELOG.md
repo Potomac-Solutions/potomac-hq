@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- An admin without two-factor sign-in is reminded at the top of the
+  dashboard, with a link to turn it on. It stays optional.
 - Two-factor setup shows a QR code to scan with the authenticator app. It
   is served only to its owner while they turn it on, and never kept. The
   link the app reads is shorter: it leaves out settings every app assumes.
