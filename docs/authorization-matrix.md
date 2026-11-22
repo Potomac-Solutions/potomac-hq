@@ -161,7 +161,8 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | See who at a client has portal access, and what clients wrote | `portal.view` | Yes | Yes | Yes | No |
 | Invite a client user, make them a new link, turn their access off or on | `portal.manage` | Yes | Yes | No | No |
 | Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
-| Confirm or decline a call a client asked for | `call.respond` | Yes | Yes | Yes | No |
+| Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
+| Set the hours for booked calls, days off, and who can book | `booking.manage` | Yes | Yes | No | No |
 
 ### Platform (v1.0)
 

@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Booking, first part: the hours Potomac takes calls (up to two stretches a
+  weekday, call length, a gap after each call, notice, how far ahead), days
+  off, and a Calls page with every booked call, its calendar file, and a way
+  to cancel it. The next calls are on the dashboard. Clients and the public
+  can book in the next releases. Migration 0016, permission `booking.manage`.
+
 ## [0.11.0] - 2026-11-22
 
 - New recovery codes from Settings, without turning two-factor sign-in off
