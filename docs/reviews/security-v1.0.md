@@ -58,11 +58,18 @@ Each line says what was checked and what checks it on every merge.
 | The export leaves out password hashes, sessions and links | `exportAll` | `ops-commands.test.ts` |
 | The server runs as an unprivileged user with its code read-only, on Railway too, where the container has to start as root to reach the volume | `Dockerfile`, `bin/start.sh` | CI's container job, both ways |
 
+| After the password, someone with two-factor sign-in on reaches nothing in HQ, pages or forms, until a code is given | `src/app.ts` (`secondStepDue`), `src/identity/application/two-factor.ts` | `two-factor.test.ts` |
+| A code is accepted once only, and the second step allows five tries a minute for each person and each address | `passSecondStep`, `two-factor-routes.ts` | `two-factor.test.ts` |
+| The shared secret stays in the database. Recovery codes are kept only as hashes, and are shown once on a page that is never stored | `two-factor-store.ts`, `recoveryCodesPage` | `two-factor.test.ts` |
+| Turning it off takes a current code, so a borrowed session cannot | `turnOffTwoFactor` | `two-factor.test.ts` |
+| Codes match the RFC 6238 test vectors | `src/identity/infrastructure/totp.ts` | `totp.test.ts` |
+
 ## Known gaps
 
 1. **No independent review**, as said above.
-2. **No second factor.** A password alone opens HQ. Use a long one, and a
-   password manager. Worth adding before a second person has admin.
+2. **The second factor is optional.** Two-factor sign-in exists, but each
+   person turns it on for themselves, and nothing yet makes it required
+   for admins. Turn it on for every admin account.
 3. **Rate limits are kept in memory.** They reset when HQ restarts, and
    would not be shared between two replicas. HQ runs one.
 4. **Refused attempts are not written to the audit log**, only successful

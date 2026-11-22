@@ -97,6 +97,7 @@ test("the export writes every table and file, and leaves sign-in secrets out", a
     const written = readdirSync(out);
     for (const name of ["manifest.json", "user.json", "client_organization.json", "project.json", "activity_event.json", "article.json", "schema_migration.json", "files"]) assert.ok(written.includes(name), name);
     assert.ok(!written.includes("kit_document.json") && !written.includes("file_blob.json"));
+    for (const table of ["user_two_factor", "two_factor_recovery", "two_factor_session"]) assert.ok(!written.includes(`${table}.json`), table);
     const clients = JSON.parse(readFileSync(join(out, "client_organization.json"), "utf8")) as { name: string }[];
     assert.deepEqual(clients.map((client) => client.name), ["Mt. Storm Bakery"]);
     const [stored] = readdirSync(join(out, "files"));

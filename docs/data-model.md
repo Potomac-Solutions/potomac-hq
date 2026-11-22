@@ -723,6 +723,25 @@ Reports are read from the records above and store nothing.
 (`npm run export`) writes every table except the kit's, which holds
 password hashes, sessions and one-time links.
 
+### Two-factor sign-in
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+| Table | Holds |
+| --- | --- |
+| `user_two_factor` | One per user who has started turning it on: the shared secret (base32), when it was confirmed, and the last 30-second step a code was accepted for |
+| `two_factor_recovery` | Ten per user: a SHA-256 hash of each recovery code, and when it was used |
+| `two_factor_session` | Sessions that have passed the second step, keyed by the same hash of the session id the kit keys sessions by |
+
+- Codes are six digits, 30 seconds each (RFC 6238, SHA-1), the kind every
+  authenticator app makes. A code for the step before or after is accepted,
+  for a phone whose clock is off. None is accepted twice.
+- It only counts once confirmed with a code. Turning it off, or an admin's
+  reset, removes all three.
+- Events: `user.two-factor-on`, `user.two-factor-off`,
+  `user.two-factor-reset`, `user.two-factor-passed` and
+  `user.two-factor-recovery-used`. None carries a code or the secret.
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store

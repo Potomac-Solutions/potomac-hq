@@ -9,8 +9,8 @@
   import '../../shared/ui/zubra/empty-state.zb'
 
   export async function load({ context }) {
-    if (!context.signedIn) return show('identity/ui/sign-in-page', { ...context.signIn, title: 'Sign in' }, { status: 401 })
-    if (!context.user) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    const stop = context.guard()
+    if (stop) return stop
     const feed = context.dashboard.recentActivity()
     if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     const due = context.crm.followUpsDue()

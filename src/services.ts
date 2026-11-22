@@ -9,8 +9,8 @@ import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/inde
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
-import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteUserStore, type Staff } from "./identity/adapters.ts";
-import type { SessionDeps } from "./identity/index.ts";
+import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
+import type { SessionDeps, TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
@@ -29,6 +29,7 @@ export const BUSINESS_TIME_ZONE = "America/New_York";
 
 export type Services = {
   readonly session: SessionDeps;
+  readonly twoFactor: TwoFactorDeps;
   /** HQ's own sign-in accounts and sessions, kept by the kit. */
   readonly staff: Staff;
   readonly crm: CrmDeps;
@@ -62,6 +63,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
   const users = sqliteUserStore(db);
+  const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);
@@ -112,5 +114,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
-  return { session, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { session, twoFactor, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

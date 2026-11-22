@@ -1,0 +1,161 @@
+// Two-factor sign-in over real HTTP: turning it on with a code from an app,
+// the second step at sign-in, recovery codes, turning it off, and an
+// admin's reset for a lost phone.
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { codeAt, stepOf } from "../../src/identity/adapters.ts";
+import type { Id } from "../../src/shared/index.ts";
+import { actions, httpClient, PASSWORD, signIn, testApp, textOf, type Client, type TestApp } from "../support/harness.ts";
+
+let t: TestApp;
+let mikey: Client;
+let mikeyId: Id;
+const problemOf = (res: Response) => new URL(t.origin + (res.headers.get("location") ?? "")).searchParams.get("problem") ?? "";
+const doneOf = (res: Response) => new URL(t.origin + (res.headers.get("location") ?? "")).searchParams.get("done") ?? "";
+const userId = (email: string) => t.db.prepare("select id from user where email = ?").get(email)?.["id"] as Id;
+const secretOf = (id: Id) => String(t.db.prepare("select secret from user_two_factor where user_id = ?").get(id)?.["secret"] ?? "");
+/** The code an app would show now, or `ahead` steps later. */
+const codeNow = (id: Id, ahead = 0) => codeAt(secretOf(id), stepOf(Date.now()) + ahead);
+let recovery: string[] = [];
+
+async function passwordOnly(email: string): Promise<Client> {
+  const b = httpClient(t.origin);
+  const res = await b.post("/staff/sign-in", { email, password: PASSWORD });
+  assert.equal(res.status, 303);
+  return b;
+}
+
+before(async () => {
+  t = await testApp();
+  mikey = await signIn(t, "mikey@example.com", "Mikey Nichols", ["admin"]);
+  await mikey.get("/");
+  mikeyId = userId("mikey@example.com");
+});
+after(() => t.stop());
+
+test("turning it on takes a code from the app, and shows the recovery codes once", async () => {
+  const off = await mikey.page("/settings");
+  assert.match(textOf(off), /Two-factor sign-in Off\./);
+
+  const began = await mikey.post("/settings/two-factor", {});
+  assert.equal(doneOf(began), "Add HQ to your authenticator app, then enter the code it shows.");
+  const setup = await mikey.page("/settings");
+  const secret = secretOf(mikeyId);
+  assert.match(secret, /^[A-Z2-7]{32}$/);
+  assert.ok(setup.includes(secret.replace(/(.{4})(?=.)/g, "$1 ")), "the key is shown, grouped for typing");
+  assert.ok(setup.includes(`otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=${secret}`), "and the link an app opens");
+
+  // Still off until it is confirmed: the password alone signs in.
+  const other = await passwordOnly("mikey@example.com");
+  assert.equal((await other.get("/")).status, 200);
+
+  assert.equal(problemOf(await mikey.post("/settings/two-factor/confirm", { code: "12345" })), "Enter the 6-digit code from your app, or a recovery code like ABCDE-FGHJK.");
+  const wrong = codeNow(mikeyId) === "000000" ? "111111" : "000000";
+  assert.match(problemOf(await mikey.post("/settings/two-factor/confirm", { code: wrong })), /didn’t match/);
+
+  const confirmed = await mikey.post("/settings/two-factor/confirm", { code: codeNow(mikeyId) });
+  assert.equal(confirmed.status, 200);
+  assert.equal(confirmed.headers.get("cache-control"), "no-store");
+  const html = await confirmed.text();
+  recovery = [...html.matchAll(/<code>([A-Z2-9]{5}-[A-Z2-9]{5})<\/code>/g)].map((m) => m[1] as string);
+  assert.equal(recovery.length, 10);
+  assert.equal(new Set(recovery).size, 10);
+  // Only hashes are kept.
+  const stored = t.db.prepare("select code_hash from two_factor_recovery where user_id = ?").all(mikeyId).map((row) => String(row["code_hash"]));
+  for (const code of recovery) assert.ok(!stored.includes(code) && !stored.includes(code.replace("-", "")));
+
+  // The session it was turned on in carries on.
+  assert.equal((await mikey.get("/clients")).status, 200);
+  assert.match(textOf(await mikey.page("/settings")), /On After your password, HQ asks for a code from your authenticator app\. 10 recovery codes are left\./);
+  assert.ok(actions(t.db).includes("user.two-factor-on"));
+  // Nothing secret reaches the activity log.
+  const log = JSON.stringify(t.db.prepare("select * from activity_event").all());
+  assert.ok(!log.includes(secretOf(mikeyId)) && !recovery.some((code) => log.includes(code)));
+});
+
+test("after the password, nothing in HQ opens until the code is given", async () => {
+  const b = await passwordOnly("mikey@example.com");
+  const home = await b.get("/");
+  assert.equal(home.status, 401);
+  const text = textOf(await home.text());
+  assert.match(text, /Enter your code/);
+  assert.doesNotMatch(text, /Mikey Nichols/, "the top bar does not show them signed in");
+
+  for (const path of ["/clients", "/settings", "/search?q=a", "/people"]) assert.equal((await b.get(path)).status, 401, path);
+  // Forms are refused too: the session is not an HQ user yet.
+  assert.equal(problemOf(await b.post("/clients", { name: "Sneaky Co" })), "You don’t have permission to do that.");
+  assert.equal(problemOf(await b.post("/settings/two-factor/off", { code: codeNow(mikeyId, 1) })), "You don’t have permission to do that.");
+
+  assert.match(problemOf(await b.post("/two-factor", { code: "abc" })), /Enter the 6-digit code/);
+  const code = codeNow(mikeyId, 1);
+  const passed = await b.post("/two-factor", { code: ` ${code.slice(0, 3)} ${code.slice(3)} ` });
+  assert.equal(passed.status, 303);
+  assert.equal(passed.headers.get("location"), "/");
+  assert.equal((await b.get("/clients")).status, 200);
+
+  // The same code never works twice, even within its 30 seconds.
+  const again = await passwordOnly("mikey@example.com");
+  assert.equal(problemOf(await again.post("/two-factor", { code })), "That code has been used. Wait for the next one.");
+  assert.equal((await again.get("/")).status, 401);
+});
+
+test("a recovery code signs in once, and says how many are left", async () => {
+  const b = await passwordOnly("mikey@example.com");
+  const used = await b.post("/two-factor", { code: (recovery[0] as string).toLowerCase() });
+  assert.equal(doneOf(used), "You signed in with a recovery code. 9 are left.");
+  assert.equal((await b.get("/clients")).status, 200);
+
+  const c = await passwordOnly("mikey@example.com");
+  assert.match(problemOf(await c.post("/two-factor", { code: recovery[0] as string })), /didn’t match/);
+  assert.ok(actions(t.db).includes("user.two-factor-recovery-used"));
+});
+
+test("the second step is limited to five tries a minute", async () => {
+  // Its own server: the limit counts every try in the tests above.
+  const own = await testApp();
+  try {
+    const first = await signIn(own, "ada@example.com", "Ada Owner", ["admin"]);
+    await first.get("/");
+    await first.post("/settings/two-factor", {});
+    const id = own.db.prepare("select id from user where email = 'ada@example.com'").get()?.["id"] as Id;
+    const secret = String(own.db.prepare("select secret from user_two_factor where user_id = ?").get(id)?.["secret"]);
+    assert.equal((await first.post("/settings/two-factor/confirm", { code: codeAt(secret, stepOf(Date.now())) })).status, 200);
+    const b = httpClient(own.origin);
+    assert.equal((await b.post("/staff/sign-in", { email: "ada@example.com", password: PASSWORD })).status, 303);
+    for (let n = 0; n < 5; n++) assert.equal((await b.post("/two-factor", { code: "999999" })).status, 303);
+    assert.equal((await b.post("/two-factor", { code: "999999" })).status, 429);
+  } finally {
+    await own.stop();
+  }
+});
+
+test("an admin resets it for a lost phone; nobody resets their own that way", async () => {
+  const sam = await signIn(t, "sam@example.com", "Sam Helper", ["member"]);
+  await sam.get("/");
+  const samId = userId("sam@example.com");
+  await sam.post("/settings/two-factor", {});
+  assert.equal((await sam.post("/settings/two-factor/confirm", { code: codeNow(samId) })).status, 200);
+
+  const people = await mikey.page("/people");
+  assert.match(textOf(people), /Sam Helper sam@example\.com Member · Active · Two-factor on/);
+  assert.ok(people.includes(`/people/${samId}/two-factor-reset`));
+  assert.ok(!people.includes(`/people/${mikeyId}/two-factor-reset`), "not for yourself");
+
+  assert.equal(problemOf(await sam.post(`/people/${mikeyId}/two-factor-reset`, {})), "You don’t have permission to do that.", "a member may not");
+  assert.equal(problemOf(await mikey.post(`/people/${mikeyId}/two-factor-reset`, {})), "Turn off your own in Settings, with a code.");
+  assert.match(doneOf(await mikey.post(`/people/${samId}/two-factor-reset`, {})), /Their two-factor sign-in is off/);
+  assert.ok(actions(t.db).includes("user.two-factor-reset"));
+
+  const back = await passwordOnly("sam@example.com");
+  assert.equal((await back.get("/")).status, 200, "the password alone signs them in again");
+});
+
+test("turning it off takes a current code", async () => {
+  assert.match(problemOf(await mikey.post("/settings/two-factor/off", { code: "" })), /Enter the 6-digit code/);
+  const done = await mikey.post("/settings/two-factor/off", { code: codeNow(mikeyId, 1) });
+  assert.equal(doneOf(done), "Two-factor sign-in is off. You sign in with your password alone.");
+  assert.equal(t.db.prepare("select count(*) as n from two_factor_recovery where user_id = ?").get(mikeyId)?.["n"], 0);
+  const b = await passwordOnly("mikey@example.com");
+  assert.equal((await b.get("/")).status, 200);
+  assert.ok(actions(t.db).includes("user.two-factor-off"));
+});

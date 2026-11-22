@@ -24,12 +24,15 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   // each one stopped working, in milliseconds.
   const expired = deps.db.prepare("delete from kit_document where collection in (?, ?) and cast(json_extract(fields, '$.until') as integer) < ?");
   const invites = deps.db.prepare("delete from user_invite where created_at < ?");
+  // A session's two-factor pass goes with the session.
+  const passes = deps.db.prepare("delete from two_factor_session where session_hash not in (select key from kit_document where collection = 'staff-sessions')");
   return deps.transact(() => {
     const result = {
       sessions: Number(expired.run("staff-sessions", "portal:staff-sessions", signInCutoff).changes),
       links: Number(expired.run("staff-tokens", "portal:staff-tokens", signInCutoff).changes),
       invites: Number(invites.run(inviteCutoff).changes),
     };
+    passes.run();
     if (result.sessions + result.links + result.invites > 0) {
       // Counts only. The log refuses a context that names sessions or links, so these are called what they were.
       recordActivity(deps, { actorId: null, action: "retention.applied", recordType: "retention", recordId: deps.newId(), context: { expiredSignIns: result.sessions, expiredLinks: result.links, staleInvites: result.invites } });

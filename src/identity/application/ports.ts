@@ -56,3 +56,29 @@ export type AccountAdmin = {
 
 /** True if this key may make another attempt now. */
 export type RateLimit = (key: string) => boolean;
+
+/** The cryptography two-factor sign-in needs (infrastructure/totp.ts). */
+export type TwoFactorCrypto = {
+  newSecret(): string;
+  /** The 30-second step a code is right for, near this instant, or null. */
+  verify(secret: string, code: string, atMs: number): number | null;
+  newRecoveryCode(): string;
+  hash(text: string): string;
+};
+
+export type TwoFactorRecord = { readonly userId: Id; readonly secret: string; readonly confirmed: boolean; readonly lastStep: number };
+
+export type TwoFactorStore = {
+  get(userId: Id): TwoFactorRecord | null;
+  /** Starts again from nothing: a new secret, not confirmed, no recovery codes. */
+  begin(userId: Id, secret: string, at: string): void;
+  confirm(userId: Id, step: number, recoveryHashes: readonly string[], at: string): void;
+  setLastStep(userId: Id, step: number, at: string): void;
+  /** Uses a recovery code. False when there is no such unused code. */
+  useRecovery(userId: Id, codeHash: string, at: string): boolean;
+  recoveryLeft(userId: Id): number;
+  /** Turns it off: the secret, the recovery codes and every passed session go. */
+  remove(userId: Id): void;
+  markSession(sessionHash: string, userId: Id, at: string): void;
+  sessionPassed(sessionHash: string, userId: Id): boolean;
+};
