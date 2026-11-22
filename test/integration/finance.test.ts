@@ -22,13 +22,18 @@ beforeEach(() => {
 afterEach(() => t.close());
 
 /** A project made by accepting the application template: $2,400 and 32 hours. */
+/**
+ * A project from an accepted proposal. It leaves out the deposit invoice HQ
+ * drafts on acceptance, so these tests number their own invoices. The draft
+ * has its own test below.
+ */
 function acceptedProject() {
   const client = unwrap(crm.createClient(t.services.crm, mikey, { name: "Mt. Storm Bakery" }));
   const opportunity = unwrap(crm.createOpportunity(t.services.crm, mikey, client.id, { title: "Bakery ordering app", leadSource: "phone", service: "application" }));
   for (const to of ["consult-booked", "consulted"]) unwrap(crm.moveOpportunity(t.services.crm, mikey, opportunity.id, { to }));
   const draft = unwrap(proposals.startProposal(t.services.proposals, mikey, opportunity.id, {}));
   unwrap(proposals.sendProposalVersion(t.services.proposals, mikey, draft.id));
-  const answer = unwrap(proposals.recordProposalDecision(t.services.proposals, mikey, draft.id, { decision: "accepted", byName: "Ann Baker", on: TODAY, method: "email" }));
+  const answer = unwrap(proposals.recordProposalDecision({ ...t.services.proposals, onAccepted: () => {} }, mikey, draft.id, { decision: "accepted", byName: "Ann Baker", on: TODAY, method: "email" }));
   assert.ok(answer.project);
   return answer.project;
 }
@@ -68,8 +73,8 @@ test("marking a task “working on” starts the timer, and moving it on stops i
   assert.deepEqual(finance.stopTimer(deps, mikey), { ok: false, error: "not-running" });
 
   const sheet = unwrap(finance.timeSheet(deps, mikey));
-  assert.equal(sheet.total, "2.42");
-  assert.deepEqual(sheet.entries.map((e) => [e.taskTitle, e.hours]), [["Draft the menu page", "0.25"], ["Set up hosting", "1.5"], ["Draft the menu page", "0.67"]]);
+  assert.equal(sheet.total, "2 h 25 min");
+  assert.deepEqual(sheet.entries.map((e) => [e.taskTitle, e.hours]), [["Draft the menu page", "15 min"], ["Set up hosting", "1 h 30 min"], ["Draft the menu page", "40 min"]]);
   const timed = actions(t.db).filter((a) => a.startsWith("time."));
   assert.deepEqual(timed, ["time.started", "time.stopped", "time.started", "time.stopped", "time.started", "time.stopped"]);
   assert.ok(unwrap(projects.projectOverview(t.services.projects, mikey, project.id)).history.some((h) => h.text === "Mikey Nichols started working"));
@@ -114,14 +119,14 @@ test("time typed in afterwards, by week, mine or everyone's", async () => {
   assert.deepEqual([last.total, last.billable, last.week.isThisWeek], ["1 h", "0 h", false]);
   assert.equal(unwrap(finance.timeSheet(deps, mikey, { everyone: true })).total, "2 h 30 min");
   const samsSheet = unwrap(finance.timeSheet(deps, sam, { everyone: true }));
-  assert.deepEqual([samsSheet.total, samsSheet.everyone, samsSheet.canSeeEveryone], ["0.5", false, false], "a member sees only their own");
+  assert.deepEqual([samsSheet.total, samsSheet.everyone, samsSheet.canSeeEveryone], ["30 min", false, false], "a member sees only their own");
   assert.equal(unwrap(finance.timeSheet(deps, mikey, { week: "not-a-date" })).week.from, "2026-11-16");
-  assert.deepEqual(unwrap(finance.hoursThisWeek(deps, mikey)), { mine: "2", everyone: "2.5", showEveryone: true, timer: { running: false, label: "", taskId: "", since: "", can: true } });
+  assert.deepEqual(unwrap(finance.hoursThisWeek(deps, mikey)), { mine: "2 h", everyone: "2 h 30 min", showEveryone: true, timer: { running: false, label: "", taskId: "", since: "", can: true } });
 
   // Removing: your own, or anyone's if you may see everyone's. Otherwise it is not there.
   assert.deepEqual(finance.removeTime(deps, sam, mine.entries[0]?.id as Id), { ok: false, error: "not-found" });
   unwrap(finance.removeTime(deps, mikey, sams.id));
-  assert.equal(unwrap(finance.timeSheet(deps, mikey, { everyone: true })).total, "2");
+  assert.equal(unwrap(finance.timeSheet(deps, mikey, { everyone: true })).total, "2 h");
   assert.equal(count(t.db, "time_entry"), 3, "a removed entry stays as a record");
   assert.deepEqual(finance.removeTime(deps, mikey, sams.id), { ok: false, error: "not-found" });
 });
@@ -358,4 +363,37 @@ test("invoices: numbered in order, sent, paid by what is received, and the proje
     finance.invoiceDocument(deps, sam, deposit.id),
   ];
   refused.forEach((answer, index) => assert.deepEqual(answer, { ok: false, error: "forbidden" }, `call ${index}`));
+});
+
+test("accepting a proposal drafts its deposit invoice for Potomac to check and send", async () => {
+  const deps = t.services.finance;
+  const before = deps.invoices.list().length;
+  const client = unwrap(crm.createClient(t.services.crm, mikey, { name: "Canaan Valley Inn" }));
+  const opportunity = unwrap(crm.createOpportunity(t.services.crm, mikey, client.id, { title: "Booking site", leadSource: "phone", service: "application" }));
+  for (const to of ["consult-booked", "consulted"]) unwrap(crm.moveOpportunity(t.services.crm, mikey, opportunity.id, { to }));
+  const draft = unwrap(proposals.startProposal(t.services.proposals, mikey, opportunity.id, {}));
+  unwrap(proposals.sendProposalVersion(t.services.proposals, mikey, draft.id));
+  const answer = unwrap(proposals.recordProposalDecision(t.services.proposals, mikey, draft.id, { decision: "accepted", byName: "Lee Inn", on: TODAY, method: "email" }));
+  assert.ok(answer.project);
+
+  const made = deps.invoices.listForProject(answer.project.id);
+  assert.equal(deps.invoices.list().length, before + 1);
+  assert.deepEqual(made.map((i) => [i.kind, i.status, i.total.minor, i.lines[0]?.description, i.dueOn]), [["deposit", "draft", 80000, "Deposit, one third of “Booking site”", null]]);
+  assert.match(made[0]?.note ?? "", /Drafted by HQ when version 1 of the proposal was accepted\./);
+  assert.equal(actions(t.db).at(-1), "invoice.drafted-from-proposal");
+  const money = unwrap(finance.projectMoney(deps, mikey, answer.project.id));
+  assert.equal(money.payment.status, "not-invoiced", "a draft sends nothing and changes nothing until it is sent");
+  assert.equal(money.invoiceForm.balance, "1600.00", "the drafted deposit counts towards what is invoiced");
+});
+
+test("no deposit is drafted for hourly or monthly work, or when the project already has one", async () => {
+  const deps = t.services.finance;
+  const project = acceptedProject();
+  const before = deps.invoices.listForProject(project.id).length;
+  assert.equal(finance.applyDepositDraft(deps, mikey, { projectId: project.id, ownerId: mikey, deposit: null, title: "x", version: 1 }), null);
+  const first = finance.applyDepositDraft(deps, null, { projectId: project.id, ownerId: mikey, deposit: { minor: 50000, currency: "USD" }, title: "Bakery ordering app", version: 2 });
+  assert.ok(first);
+  assert.equal(first.createdBy, mikey, "accepted in the portal: credited to the project's owner");
+  assert.equal(finance.applyDepositDraft(deps, mikey, { projectId: project.id, ownerId: mikey, deposit: { minor: 50000, currency: "USD" }, title: "again", version: 3 }), null);
+  assert.equal(deps.invoices.listForProject(project.id).length, before + 1);
 });

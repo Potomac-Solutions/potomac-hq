@@ -7,7 +7,7 @@ import type { CrmDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
+import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteUserStore, type Staff } from "./identity/adapters.ts";
 import type { SessionDeps } from "./identity/index.ts";
@@ -94,7 +94,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
-  const proposals: ProposalsDeps = { ...crm, ...projects, proposals: sqliteProposalStore(db) };
+  const proposals: ProposalsDeps = {
+    ...crm,
+    ...projects,
+    proposals: sqliteProposalStore(db),
+    // An accepted proposal drafts its deposit invoice, in the same change.
+    onAccepted: (actorId, accepted) => void applyDepositDraft(finance, actorId, accepted),
+  };
   const portal: PortalDeps = {
     ...proposals,
     ...finance,

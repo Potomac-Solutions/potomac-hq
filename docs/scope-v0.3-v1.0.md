@@ -375,3 +375,29 @@ first pass left "still in the way". Needs his approval like the rest.
 | A client cannot mark their own step done | Sending the file is the client's part. Potomac marks it done once what was sent is right |
 | "On track" is still what Potomac set, even with a late step | The portal shows both. Potomac decides which is true |
 
+## After 0.9.0: a working day in HQ
+
+Decided 2026-11-22, when Mikey said to continue after releasing 0.9.0. A
+pass through HQ as Mikey would use it on a working day, like the portal
+passes. Needs his approval like the rest.
+
+| What got in the way | What changed |
+| --- | --- |
+| The dashboard listed everything, and what a client was waiting on was halfway down or not there at all | "Waiting on you" is the first panel: a client's message that is the last word on a project, changes asked for on a deliverable, a call to return, a drafted invoice to send, and an invoice past its due day |
+| After a proposal was accepted, the deposit invoice had to be made by hand, and the portal tells the client one is coming | HQ drafts it in the same change as the acceptance. Mikey checks it and sends it |
+| "2.52" hours read like a clock time | Time worked is "2 h 31 min" on every screen. Forms and exports keep decimals |
+| Days on HQ's own screens read `2026-11-20` | "Fri, Nov 20, in 4 days", the same as the portal |
+| The top bar wrapped onto two lines at a laptop's width | Board moved under Projects. The name hides where the bar is tight; it is on Settings |
+| Empty panels took a whole box each | One line each |
+
+### Decided here
+
+- **A drafted deposit is only a draft.** It has no due day and nothing goes
+  to the client. It is credited to whoever recorded the acceptance, or to
+  the project's owner when the client accepted in the portal.
+- **A message counts as answered** when anyone at Potomac posts an update
+  on that project after it. A note does not count: the client never sees
+  notes.
+- **Changes asked for count as handled** when the deliverable is shared
+  again.
+

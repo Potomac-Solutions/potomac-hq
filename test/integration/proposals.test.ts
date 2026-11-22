@@ -88,8 +88,8 @@ test("draft from the service's template, send, revise, send again, accept: the o
   assert.deepEqual(proposals.saveProposal(deps, mikey, draft.id, { title: "x", pricing: "fixed", lines: [] }), { ok: false, error: "closed" });
   assert.deepEqual(proposals.recordProposalDecision(deps, mikey, draft.id, accepted), { ok: false, error: "closed" });
 
-  const tail = actions(t.db).slice(-6);
-  assert.deepEqual(tail, ["opportunity.stage-changed", "client.status-changed", "opportunity.converted", "project.created", "project.baseline-set", "proposal.accepted"]);
+  const tail = actions(t.db).slice(-7);
+  assert.deepEqual(tail, ["opportunity.stage-changed", "client.status-changed", "opportunity.converted", "project.created", "project.baseline-set", "proposal.accepted", "invoice.drafted-from-proposal"]);
   assert.equal(count(t.db, "proposal_version"), 2);
 });
 

@@ -147,7 +147,7 @@ test("the client accepts a proposal by typing their name: the same thing happens
 
 test("a call is asked for in the portal and answered from the client's page", async () => {
   assert.match((await ann.submit("/portal/calls", { wanted: "Thursday afternoon", note: "The menu page" })).html, /Request sent\./);
-  assert.match(textOf(await admin.page("/")), /Calls clients asked for Mt\. Storm Bakery · Ann Baker: Thursday afternoon/);
+  assert.match(textOf(await admin.page("/")), /Call Ann Baker back Mt\. Storm Bakery\. Wants: Thursday afternoon\. Answer/);
   const request = t.services.portal.calls.waiting()[0];
   assert.ok(request);
   const missing = await admin.submit(`/call-requests/${request.id}/answer`, { answer: "confirmed", confirmedFor: "", reply: "", organizationId: clientId });
@@ -155,7 +155,7 @@ test("a call is asked for in the portal and answered from the client's page", as
   const answered = await admin.submit(`/call-requests/${request.id}/answer`, { answer: "confirmed", confirmedFor: "Thursday Nov 19, 2:00 PM", reply: "Talk then.", organizationId: clientId });
   assert.match(answered.html, /Answer sent to the client’s portal\./);
   assert.match(textOf(await ann.page("/portal")), /You asked for: Thursday afternoon Confirmed for Thursday Nov 19, 2:00 PM \. “Talk then\.”/);
-  assert.doesNotMatch(await admin.page("/"), /Calls clients asked for/, "nothing is waiting any more");
+  assert.doesNotMatch(await admin.page("/"), /Call Ann Baker back/, "nothing is waiting any more");
 });
 
 test("with email set up, the link is emailed and not shown", async () => {

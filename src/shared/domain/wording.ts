@@ -67,6 +67,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "expense.removed": "removed an expense",
   "invoice.created": "drafted an invoice",
   "invoice.line-added": "added a line to an invoice",
+  "invoice.drafted-from-proposal": "HQ drafted a deposit invoice from an accepted proposal",
   "invoice.sent": "sent an invoice",
   "invoice.voided": "voided an invoice",
   "payment.recorded": "recorded a payment",

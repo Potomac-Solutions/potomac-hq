@@ -32,10 +32,10 @@
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
-  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; }
+  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; white-space: nowrap; }
   .hq-brand img { width: 1.75rem; height: 1.75rem; }
   .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
-  .hq-account { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.5rem; white-space: nowrap; }
+  .hq-account { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.35rem; white-space: nowrap; }
   .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
   /* The name is on the Settings page too. Where the bar is tight, it gives way to the links. */
   @media (max-width: 90rem) { .hq-who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }

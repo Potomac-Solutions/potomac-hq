@@ -161,7 +161,7 @@ test("asking for a call takes a number to call back on, and Potomac sees it", as
   const asked = await dale.submit("/portal/calls", { wanted: "After dark, or any time it rains", phone: "(304) 555-0199 ext 2", note: "Prices for the site" });
   assert.match(asked.html, /Request sent\./);
   assert.match(textOf(asked.html), /You asked for: After dark, or any time it rains ?, on \(304\) 555-0199 ext 2 Waiting for Potomac Solutions/);
-  assert.match(textOf(await admin.page("/")), /Hinkle Family Farm · Dale Hinkle: After dark, or any time it rains · \(304\) 555-0199 ext 2/);
+  assert.match(textOf(await admin.page("/")), /Call Dale Hinkle back Hinkle Family Farm\. Wants: After dark, or any time it rains\. On \(304\) 555-0199 ext 2\. Answer/);
   assert.match(await admin.page(`/clients/${clientId}`), /<a href="tel:\(304\) 555-0199 ext 2">/);
   assert.equal((await dale.submit("/portal/calls", { wanted: "Sunday" })).html.includes("Request sent."), true, "a number is optional");
 });
