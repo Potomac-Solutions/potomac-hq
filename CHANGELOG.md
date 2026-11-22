@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- A public booking page at /book, for anyone, such as a prospect from the
+  website, once it is switched on under Calls → Hours. They give a name,
+  email, an optional phone and what it is about, and choose a time. Their
+  call's own page, at a private link, adds it to a calendar, moves it or
+  cancels it. Five bookings an hour from one address, three a day for one
+  email, and a hidden field turns bots away.
+
 - Clients book calls in the portal, once it is switched on under Calls →
   Hours: they choose an open time, say what it is about, and can move or
   cancel it and add it to their calendar. "Ask for a call" stays, for when

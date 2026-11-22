@@ -181,7 +181,8 @@ const fill = (pattern: string, id: string) => pattern.replace(/:n\b/, "1").repla
 
 test("a client's session opens no internal page: each one answers 401 with the sign-in form and no records", async () => {
   // The one page anyone may open signed out: the form that asks for a password reset. It shows no records.
-  const PUBLIC = ["/forgot-password"];
+  // And the public booking page, with its private-link page: they show only the call whose link it is.
+  const PUBLIC = ["/forgot-password", "/book", "/book/manage"];
   const internal = pagePatterns.filter((pattern) => !pattern.startsWith("/portal") && !PUBLIC.includes(pattern));
   assert.ok(internal.length >= 19, `found ${internal.length} internal pages`);
   for (const path of PUBLIC) assert.doesNotMatch(await ann.page(path), /Gormania|Feed store|Bakery website|Mt\. Storm/, path);
@@ -200,7 +201,7 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password");
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book"));
   assert.ok(internal.length >= 40, `found ${internal.length} internal forms`);
   const tables = ["activity_event", "client_organization", "opportunity", "project", "task", "note", "proposal", "time_entry", "expense", "invoice", "payment", "client_user", "project_update", "file"];
   const before = tables.map((table) => count(t.db, table));
