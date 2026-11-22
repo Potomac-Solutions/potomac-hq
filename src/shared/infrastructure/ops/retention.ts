@@ -29,6 +29,8 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   // Refused attempts are kept 90 days (docs/retention-policy.md).
   const refused = deps.db.prepare("delete from refused_attempt where occurred_at < ?");
   const refusedCutoff = now.subtract({ hours: 24 * REFUSED_ATTEMPT_DAYS }).toString();
+  // Rate limit windows that have ended.
+  const limits = deps.db.prepare("delete from rate_limit where reset_at <= ?");
   // A session's two-factor pass goes with the session.
   const passes = deps.db.prepare("delete from two_factor_session where session_hash not in (select key from kit_document where collection = 'staff-sessions')");
   return deps.transact(() => {
@@ -39,6 +41,7 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
     };
     passes.run();
     refused.run(refusedCutoff);
+    limits.run(now.epochMilliseconds);
     if (result.sessions + result.links + result.invites > 0) {
       // Counts only. The log refuses a context that names sessions or links, so these are called what they were.
       recordActivity(deps, { actorId: null, action: "retention.applied", recordType: "retention", recordId: deps.newId(), context: { expiredSignIns: result.sessions, expiredLinks: result.links, staleInvites: result.invites } });
