@@ -40,6 +40,10 @@ export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
     setLastStep(userId, step, at) {
       setLastStep.run(step, at, userId, step);
     },
+    replaceRecovery(userId, hashes) {
+      clearRecovery.run(userId);
+      for (const hash of hashes) addRecovery.run(userId, hash);
+    },
     useRecovery: (userId, hash, at) => Number(useRecovery.run(at, userId, hash).changes) === 1,
     recoveryLeft: (userId) => Number(left.get(userId)?.["n"] ?? 0),
     remove: wipe,

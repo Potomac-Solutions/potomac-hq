@@ -419,8 +419,8 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   OpenCV's QR reader at every version, and from a screenshot of Settings.
   The link and the typed key are still there for a phone that is doing the
   setting up itself.
-- **Ten recovery codes, shown once.** Using the last one says to turn it off
-  and on again for new ones.
+- **Ten recovery codes, shown once.** Settings makes ten new ones, with a
+  code from the app (not a recovery code), and the old ones stop working.
 - **An admin can reset it** for someone with neither phone nor codes, with
   the same permission as making them a new password link. Nobody resets
   their own that way: turning your own off takes a code.

@@ -1,7 +1,7 @@
 // Two-factor sign-in: the second step at sign-in, turning it on and off in
 // Settings, and an admin's reset on the People page.
 import { Hono } from "hono";
-import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, setTwoFactorRule, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
+import { beginTwoFactor, confirmTwoFactor, newRecoveryCodes, passSecondStep, resetTwoFactor, setTwoFactorRule, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
 import type { RateLimit } from "../application/ports.ts";
 import type { RefusedDraft } from "../application/refused.ts";
 import { formPosts, readForm, withMessage, type Id } from "../../shared/index.ts";
@@ -21,7 +21,7 @@ export type TwoFactorRoutesDeps = {
   readonly addressOf: (incoming: unknown) => string;
   readonly sign: (location: string) => string;
   /** The page that shows the recovery codes once, as HTML. */
-  readonly codesPage: (codes: readonly string[]) => string;
+  readonly codesPage: (codes: readonly string[], fresh: boolean) => string;
   /** Writes down a wrong code. */
   readonly refused: (draft: RefusedDraft) => void;
 };
@@ -65,7 +65,7 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
     }
     if (!passed.value.usedRecovery) return c.redirect("/", 303);
     const left = passed.value.recoveryLeft;
-    const message = left === 0 ? "You used your last recovery code. Turn two-factor sign-in off and on again in Settings to get new ones." : `You signed in with a recovery code. ${left} ${left === 1 ? "is" : "are"} left.`;
+    const message = left === 0 ? "You used your last recovery code. Make new ones in Settings." : `You signed in with a recovery code. ${left} ${left === 1 ? "is" : "are"} left.`;
     return go(c, SETTINGS, "done", message);
   });
 
@@ -77,7 +77,15 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
     const cookie = c.req.header("cookie") ?? "";
     const done = confirmTwoFactor(deps.twoFactor, deps.setupActorOf(cookie), deps.sessionOf(cookie), fields["code"] ?? "");
     if (!done.ok) return go(c, SETTINGS, "problem", messageFor(done.error));
-    return new Response(deps.codesPage(done.value.recoveryCodes), { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+    return new Response(deps.codesPage(done.value.recoveryCodes, false), { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+  });
+
+  // New recovery codes, shown once, like the first ones.
+  app.post("/settings/two-factor/recovery-codes", async (c) => {
+    const { fields } = await readForm(c);
+    const made = newRecoveryCodes(deps.twoFactor, deps.actorOf(c.req.header("cookie") ?? ""), fields["code"] ?? "");
+    if (!made.ok) return go(c, SETTINGS, "problem", messageFor(made.error));
+    return new Response(deps.codesPage(made.value.recoveryCodes, true), { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
   });
 
   // Through `setup`, so an admin who must turn it on can still cancel a start.

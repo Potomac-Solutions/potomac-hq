@@ -14,6 +14,6 @@ export { changeTheme, type PreferenceDeps } from "./application/preferences.ts";
 export { inviteUser, issueUserLink, listPeople, ROLE_LABELS, setUserRoles, setUserStatus, withdrawInvite, type InviteView, type ManageUsersDeps, type PeopleView, type PersonView, type UserLink } from "./application/manage-users.ts";
 export type { AccountAdmin, InviteStore } from "./application/ports.ts";
 export type { UserInvite } from "./domain/user.ts";
-export { beginTwoFactor, confirmTwoFactor, needsSecondStep, passSecondStep, mustTurnOnTwoFactor, resetTwoFactor, setTwoFactorRule, shouldTurnOnTwoFactor, turnOffTwoFactor, twoFactorQr, twoFactorStatus, type TwoFactorDeps, type TwoFactorStatus } from "./application/two-factor.ts";
+export { beginTwoFactor, confirmTwoFactor, needsSecondStep, passSecondStep, mustTurnOnTwoFactor, newRecoveryCodes, resetTwoFactor, setTwoFactorRule, shouldTurnOnTwoFactor, turnOffTwoFactor, twoFactorQr, twoFactorStatus, type TwoFactorDeps, type TwoFactorStatus } from "./application/two-factor.ts";
 export type { TwoFactorCrypto, TwoFactorStore } from "./application/ports.ts";
 export { recordRefusal, refusedAttempts, type RefusedDeps, type RefusedDraft, type RefusedView } from "./application/refused.ts";

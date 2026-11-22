@@ -76,6 +76,8 @@ export type TwoFactorStore = {
   begin(userId: Id, secret: string, at: string): void;
   confirm(userId: Id, step: number, recoveryHashes: readonly string[], at: string): void;
   setLastStep(userId: Id, step: number, at: string): void;
+  /** Replaces every recovery code. */
+  replaceRecovery(userId: Id, recoveryHashes: readonly string[]): void;
   /** Uses a recovery code. False when there is no such unused code. */
   useRecovery(userId: Id, codeHash: string, at: string): boolean;
   recoveryLeft(userId: Id): number;

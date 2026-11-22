@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- New recovery codes from Settings, without turning two-factor sign-in off
+  and on: it takes a code from the app, shows ten new codes once, and the
+  old ones stop working.
 - Rate limits on both sign-ins, the two-factor step and "Forgot your
   password?" are kept in the database, so restarting HQ no longer resets
   them. Keys are stored only as hashes. Migration 0015.

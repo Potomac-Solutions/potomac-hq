@@ -22,9 +22,13 @@ export function userLinkPage(view: { name: string; email: string; link: string }
 }
 
 /** The recovery codes, shown once, when two-factor sign-in has just been turned on. */
-export function recoveryCodesPage(codes: readonly string[]): string {
-  return `<h1>Two-factor sign-in is on</h1>
-<p class="notice good" role="status">From now on, HQ asks for a code from your app after your password.</p>
+export function recoveryCodesPage(codes: readonly string[], fresh = false): string {
+  const top = fresh
+    ? `<h1>New recovery codes</h1>
+<p class="notice good" role="status">Your old recovery codes no longer work. Throw them away.</p>`
+    : `<h1>Two-factor sign-in is on</h1>
+<p class="notice good" role="status">From now on, HQ asks for a code from your app after your password.</p>`;
+  return `${top}
 <h2>Your recovery codes</h2>
 <p>If you lose your phone, each of these lets you sign in once instead of a code. Keep them somewhere safe, like a password manager. This page will not show them again.</p>
 <ul class="codes" aria-label="Recovery codes">

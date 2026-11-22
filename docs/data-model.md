@@ -738,7 +738,7 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   for a phone whose clock is off. None is accepted twice.
 - It only counts once confirmed with a code. Turning it off, or an admin's
   reset, removes all three.
-- Events: `user.two-factor-on`, `user.two-factor-off`,
+- Events: `user.two-factor-on`, `user.two-factor-off`, `user.two-factor-new-codes`,
   `user.two-factor-reset`, `user.two-factor-passed` and
   `user.two-factor-recovery-used`. None carries a code or the secret.
 
