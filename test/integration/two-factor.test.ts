@@ -222,3 +222,43 @@ test("an admin can require it of every admin; one without it can open only Setti
     await own.stop();
   }
 });
+
+test("new recovery codes take a code from the app, replace the old ones, and are shown once", async () => {
+  const own = await testApp();
+  try {
+    const ada = await signIn(own, "ada@example.com", "Ada Owner", ["admin"]);
+    await ada.get("/");
+    const id = own.db.prepare("select id from user where email = 'ada@example.com'").get()?.["id"] as Id;
+    const secret = () => String(own.db.prepare("select secret from user_two_factor where user_id = ?").get(id)?.["secret"]);
+    const problem = (res: Response) => new URL(own.origin + (res.headers.get("location") ?? "")).searchParams.get("problem") ?? "";
+    const codesIn = async (res: Response) => [...(await res.text()).matchAll(/<code>([A-Z2-9]{5}-[A-Z2-9]{5})<\/code>/g)].map((m) => m[1] as string);
+
+    assert.equal(problem(await ada.post("/settings/two-factor/recovery-codes", { code: "123456" })), "Two-factor sign-in is not on.");
+    await ada.post("/settings/two-factor", {});
+    const first = await codesIn(await ada.post("/settings/two-factor/confirm", { code: codeAt(secret(), stepOf(Date.now())) }));
+    assert.equal(first.length, 10);
+    assert.match(textOf(await ada.page("/settings")), /Make new recovery codes/);
+
+    // A recovery code will not do: it takes the app.
+    assert.match(problem(await ada.post("/settings/two-factor/recovery-codes", { code: first[0] as string })), /Enter the 6-digit code/);
+    const made = await ada.post("/settings/two-factor/recovery-codes", { code: codeAt(secret(), stepOf(Date.now()) + 1) });
+    assert.equal(made.status, 200);
+    assert.equal(made.headers.get("cache-control"), "no-store");
+    const html = await made.clone().text();
+    assert.match(html, /New recovery codes/);
+    assert.match(html, /Your old recovery codes no longer work/);
+    const fresh = await codesIn(made);
+    assert.equal(fresh.length, 10);
+    assert.ok(fresh.every((code) => !first.includes(code)));
+    assert.ok(actions(own.db).includes("user.two-factor-new-codes"));
+
+    // An old one is refused at sign-in, a new one works.
+    const b = httpClient(own.origin);
+    await b.post("/staff/sign-in", { email: "ada@example.com", password: PASSWORD });
+    assert.match(problem(await b.post("/two-factor", { code: first[1] as string })), /didn’t match/);
+    assert.equal((await b.post("/two-factor", { code: fresh[0] as string })).status, 303);
+    assert.equal((await b.get("/clients")).status, 200);
+  } finally {
+    await own.stop();
+  }
+});

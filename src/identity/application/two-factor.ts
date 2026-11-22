@@ -152,6 +152,29 @@ export function passSecondStep(deps: TwoFactorDeps, userId: Id, sessionHash: str
   });
 }
 
+/**
+ * New recovery codes, for someone who used or lost theirs. It takes a code
+ * from the app, so a borrowed session cannot. The old codes stop working.
+ * Answers the new ones, shown once.
+ */
+export function newRecoveryCodes(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<{ readonly recoveryCodes: readonly string[] }, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "code-used"> {
+  if (userId === null || !deps.users.get(userId)) return err("forbidden");
+  const code = cleanCode(typed);
+  if (!code) return err("code-invalid");
+  return deps.transact(() => {
+    const record = deps.twoFactor.get(userId);
+    if (!record?.confirmed) return err("not-on");
+    const step = deps.totp.verify(record.secret, code, nowMs(deps));
+    if (step === null) return err("code-wrong");
+    if (step <= record.lastStep) return err("code-used");
+    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => deps.totp.newRecoveryCode());
+    deps.twoFactor.setLastStep(userId, step, deps.clock());
+    deps.twoFactor.replaceRecovery(userId, codes.map((one) => deps.totp.hash(one)));
+    recordActivity(deps, { actorId: userId, action: "user.two-factor-new-codes", recordType: "user", recordId: userId });
+    return ok({ recoveryCodes: codes.map(showRecoveryCode) });
+  });
+}
+
 /** Turns it off for oneself. It takes a current code, so a borrowed session cannot do it. */
 export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<true, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "required"> {
   if (userId === null || !deps.users.get(userId)) return err("forbidden");

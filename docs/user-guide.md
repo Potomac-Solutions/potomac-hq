@@ -14,7 +14,9 @@ at least 10 characters. The link works once.
 - **Two-factor sign-in.** Turn it on in Settings and HQ asks for a code from
   an authenticator app on your phone after your password. Keep the recovery
   codes it shows you somewhere safe: each signs you in once if you lose the
-  phone. With neither, an admin can reset it from the People page.
+  phone. Used most of them? Settings makes ten new ones, with a code from
+  the app, and the old ones stop working. With neither phone nor codes, an
+  admin can reset it from the People page.
 - **Requiring it of admins.** On People, under Sign-in rules, an admin who
   has it on can require it of every admin. An admin without it can then
   open only Settings until it is on.

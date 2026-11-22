@@ -38,7 +38,15 @@
       <alert-banner zb-if={twoFactor.required} variant="warning" heading="Required for admins">HQ requires two-factor sign-in for admins. Turn it on to use the rest of HQ.</alert-banner>
       <div zb-if={twoFactor.on}>
         <p><span class="hq-tag">On</span> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
-        <form method="post" action="/settings/two-factor/off" class="hq-form-row">
+        <form method="post" action="/settings/two-factor/recovery-codes" class="hq-form-row">
+          <div class="hq-field">
+            <label for="two-factor-new-codes">Code from your app</label>
+            <input id="two-factor-new-codes" name="code" autocomplete="one-time-code" inputmode="numeric" required>
+          </div>
+          <button class="hq-button secondary" type="submit">Make new recovery codes</button>
+        </form>
+        <p class="hq-muted hq-small">New codes replace the old ones. Do it when you have used most of them, or think someone has seen them.</p>
+        <form method="post" action="/settings/two-factor/off" class="hq-form-row" data-spaced>
           <div class="hq-field">
             <label for="two-factor-off-code">Code from your app, or a recovery code</label>
             <input id="two-factor-off-code" name="code" autocomplete="one-time-code" required>

@@ -271,7 +271,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const twoFactorView = (actor: Id | null) => {
     const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0 };
     const left = status.recoveryLeft;
-    const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left: turn it off and on again to get new ones." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
+    const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left. Make new ones below." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
     return { on: status.on, setup: status.setup, recoveryText };
   };
 
@@ -580,7 +580,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowAttempt: secondStepLimit,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       sign: (location) => notices.sign(location),
-      codesPage: (codes) => renderPage("Your recovery codes", recoveryCodesPage(codes)),
+      codesPage: (codes, fresh) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh)),
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );
