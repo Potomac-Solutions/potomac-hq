@@ -77,7 +77,7 @@ test("the slice end to end: prospect, contact, opportunity, follow-up, won, proj
 
   assert.deepEqual(unwrap(followUpsDue(deps, mikey, "2026-11-19")).items, []);
   assert.deepEqual(unwrap(followUpsDue(deps, mikey, "2026-11-20")).items, [
-    { id: opportunity.id, title: "Bakery website", clientName: "Mt. Storm Bakery", followUpOn: "2026-11-20", overdue: false },
+    { id: opportunity.id, title: "Bakery website", clientName: "Mt. Storm Bakery", followUpOn: "2026-11-20", followUpText: "Fri, Nov 20, today", overdue: false },
   ]);
 
   for (const to of ["consult-booked", "consulted"]) unwrap(crm.moveOpportunity(deps, mikey, opportunity.id, { to }));

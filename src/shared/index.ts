@@ -11,4 +11,5 @@ export { calendarDate, optionalEmail, optionalText, requiredText } from "./domai
 export { describeAction, describeEvent } from "./domain/wording.ts";
 export { formPosts, readForm, withMessage, type FormAnswer, type FormFields, type FormFiles, type FormPostDeps, type Places, type UploadedFile } from "./api/forms.ts";
 export { csvField, toCsv, type Cell } from "./domain/csv.ts";
-export { formatHours, parseHours } from "./domain/hours.ts";
+export { daysUntil, dueText, friendlyDay, howSoon } from "./domain/days.ts";
+export { formatHours, parseHours, readableHours } from "./domain/hours.ts";

@@ -31,13 +31,13 @@ test("the Time page: log time against a project or a task, and see the week", as
 
   const logged = await admin.submit("/time", { target: `${projectId}:${taskId}`, on: today, hours: "1.5", note: "First pass", billable: "on" });
   assert.match(logged.html, /Time logged\./);
-  assert.match(textOf(logged.html), /1\.5 hours , 1\.5 billable\./);
-  assert.match(textOf(logged.html), /Bakery website Draft the menu page 1\.5 First pass/);
+  assert.match(textOf(logged.html), /1 h 30 min logged, 1 h 30 min of it billable\./);
+  assert.match(textOf(logged.html), /Bakery website Draft the menu page 1 h 30 min First pass/);
 
   assert.match((await admin.submit("/time", { target: projectId, on: today, hours: "", note: "" })).html, /Enter how many hours\./);
   assert.match((await admin.submit("/time", { target: "nonsense", on: today, hours: "1" })).html, /Choose a project or one of its tasks from the list\./);
   const unbilled = await admin.submit("/time", { target: projectId, on: today, hours: "0.5", note: "Admin" });
-  assert.match(textOf(unbilled.html), /2 hours , 1\.5 billable\./);
+  assert.match(textOf(unbilled.html), /2 h logged, 1 h 30 min of it billable\./);
   assert.match(unbilled.html, /\(not billable\)/);
 
   const earlier = await admin.page(`/time?week=${Temporal.PlainDate.from(today).subtract({ days: 7 }).toString()}`);
@@ -49,8 +49,8 @@ test("the timer follows the board, and can be stopped from the page", async () =
   await admin.submit(`/tasks/${taskId}/status`, { to: "doing", returnTo: "/board" });
   const time = textOf(await admin.page("/time"));
   assert.match(time, /Working on Draft the menu page · Bakery website , for 0 min\./);
-  assert.match(textOf(await admin.page(`/tasks/${taskId}`)), /Time logged 1\.5 hours , and your timer has been running for 0 min/);
-  assert.match(textOf(await admin.page("/")), /Hours this week 2 logged by you , 2 by everyone \. Your timer is running on Draft the menu page · Bakery website/);
+  assert.match(textOf(await admin.page(`/tasks/${taskId}`)), /Time logged 1 h 30 min , and your timer has been running for 0 min/);
+  assert.match(textOf(await admin.page("/")), /Hours this week 2 h logged by you , 2 h by everyone \. Your timer is running on Draft the menu page · Bakery website/);
 
   const stopped = await admin.submit("/timer/stop", { returnTo: `/tasks/${taskId}` });
   assert.match(stopped.location, new RegExp(`^/tasks/${taskId}\\?done=`));
@@ -66,7 +66,7 @@ test("a project's money: budget, payment, an expense with a receipt, and removin
 
   const budget = await admin.submit(`/projects/${projectId}/budget`, { amount: "1,500", hours: "20", rate: "75" });
   assert.match(budget.html, /Budget saved\./);
-  assert.match(textOf(budget.html), /Hours 20 2\.0[0-9]* Within|Hours 20 2\.[0-9]+ Within|Hours 20 2 Within/);
+  assert.match(textOf(budget.html), /Hours 20 h 2 h( \d+ min)? Within/);
   assert.match((await admin.submit(`/projects/${projectId}/budget`, { amount: "lots", hours: "", rate: "75" })).html, /Enter an amount like 1,250\.00\./);
 
   const paid = await admin.submit(`/projects/${projectId}/payment`, { status: "deposit-paid", invoiceRef: "INV-0007" });

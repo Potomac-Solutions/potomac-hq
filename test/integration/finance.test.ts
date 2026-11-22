@@ -50,15 +50,15 @@ test("marking a task “working on” starts the timer, and moving it on stops i
   unwrap(projects.moveTaskStatus(t.services.projects, mikey, hosting.id, "doing"));
   timer = finance.runningTimer(deps, mikey);
   assert.equal(timer.taskId, hosting.id);
-  assert.equal(finance.taskTime(deps, mikey, menu.id).logged, "0.67");
+  assert.equal(finance.taskTime(deps, mikey, menu.id).logged, "40 min");
   assert.equal(count(t.db, "time_entry"), 2, "one finished, one running");
 
   // An hour and a half on, the task is done.
   now = "2026-11-16T17:10:00.000Z";
-  assert.deepEqual({ ...finance.taskTime(deps, mikey, hosting.id) }, { can: true, logged: "0", running: true, since: "1 h 30 min" });
+  assert.deepEqual({ ...finance.taskTime(deps, mikey, hosting.id) }, { can: true, logged: "0 h", running: true, since: "1 h 30 min" });
   unwrap(projects.moveTaskStatus(t.services.projects, mikey, hosting.id, "done"));
   assert.equal(finance.runningTimer(deps, mikey).running, false);
-  assert.equal(finance.taskTime(deps, mikey, hosting.id).logged, "1.5");
+  assert.equal(finance.taskTime(deps, mikey, hosting.id).logged, "1 h 30 min");
 
   // Stopping by hand, and stopping when nothing runs.
   unwrap(projects.moveTaskStatus(t.services.projects, mikey, menu.id, "todo"));
@@ -84,7 +84,7 @@ test("someone else moving your task out of “working on” stops your timer; a 
   now = "2026-11-16T15:30:00.000Z";
   unwrap(projects.moveTaskStatus(t.services.projects, mikey, task.id, "blocked"));
   assert.equal(finance.runningTimer(t.services.finance, sam).running, false);
-  assert.equal(finance.taskTime(t.services.finance, sam, task.id).logged, "0.5");
+  assert.equal(finance.taskTime(t.services.finance, sam, task.id).logged, "30 min");
 
   // A role that may edit tasks but not log time: the move works, no timer starts.
   t.db.prepare("delete from role_permission where permission = 'time.log' and role_id = (select id from role where key = 'member')").run();
@@ -108,11 +108,11 @@ test("time typed in afterwards, by week, mine or everyone's", async () => {
   assert.deepEqual(finance.logTime(deps, mikey, { projectId: project.id }, { on: "2026-11-17", hours: "1" }), { ok: false, error: "date-in-future" });
 
   const mine = unwrap(finance.timeSheet(deps, mikey));
-  assert.deepEqual({ total: mine.total, week: mine.week.from, previous: mine.week.previous, entries: mine.entries.length }, { total: "2", week: "2026-11-16", previous: "2026-11-09", entries: 1 });
+  assert.deepEqual({ total: mine.total, week: mine.week.from, previous: mine.week.previous, entries: mine.entries.length }, { total: "2 h", week: "2026-11-16", previous: "2026-11-09", entries: 1 });
   assert.ok(mine.targets.some((target) => target.value === `${project.id}:${task.id}` && target.label === "Bakery website: Draft"));
   const last = unwrap(finance.timeSheet(deps, mikey, { week: "2026-11-10" }));
-  assert.deepEqual([last.total, last.billable, last.week.isThisWeek], ["1", "0", false]);
-  assert.equal(unwrap(finance.timeSheet(deps, mikey, { everyone: true })).total, "2.5");
+  assert.deepEqual([last.total, last.billable, last.week.isThisWeek], ["1 h", "0 h", false]);
+  assert.equal(unwrap(finance.timeSheet(deps, mikey, { everyone: true })).total, "2 h 30 min");
   const samsSheet = unwrap(finance.timeSheet(deps, sam, { everyone: true }));
   assert.deepEqual([samsSheet.total, samsSheet.everyone, samsSheet.canSeeEveryone], ["0.5", false, false], "a member sees only their own");
   assert.equal(unwrap(finance.timeSheet(deps, mikey, { week: "not-a-date" })).week.from, "2026-11-16");
@@ -141,9 +141,9 @@ test("estimate against actual, from the accepted proposal's budget, by phase, wi
   assert.equal(money.fromProposal, true);
   assert.equal(money.period, "so far");
   assert.deepEqual(money.summary, {
-    hours: { budget: "32", actual: "4", over: false },
+    hours: { budget: "32 h", actual: "4 h", over: false },
     cost: { budget: "$2,400.00", actual: "$400.00", over: false },
-    billableHours: "3",
+    billableHours: "3 h",
     timeCost: "$300.00",
     expenses: "$100.00",
     margin: "$2,000.00",
@@ -151,7 +151,7 @@ test("estimate against actual, from the accepted proposal's budget, by phase, wi
     marginNegative: false,
     over: false,
   });
-  assert.deepEqual(money.phases.map((p) => [p.name, p.estimate, p.actual, p.over]), [["Design", "2", "3", true], ["Build", "20", "0", false], ["No phase", "", "1", false]]);
+  assert.deepEqual(money.phases.map((p) => [p.name, p.estimate, p.actual, p.over]), [["Design", "2 h", "3 h", true], ["Build", "20 h", "0 h", false], ["No phase", "", "1 h", false]]);
   assert.deepEqual(unwrap(finance.projectsOverBudget(deps, mikey)).items, []);
 
   // By hand: a tighter budget and a different rate.
@@ -167,7 +167,7 @@ test("estimate against actual, from the accepted proposal's budget, by phase, wi
   assert.deepEqual(finance.setProjectPayment(deps, mikey, project.id, { status: "late" }), { ok: false, error: "invalid-payment-status" });
 
   const overview = unwrap(finance.financeOverview(deps, mikey));
-  assert.deepEqual(overview.rows.map((r) => [r.name, r.hours.actual, r.cost.actual, r.margin, r.paymentLabel, r.over]), [["Bakery ordering app", "4", "$420.00", "-$70.00", "Deposit paid", true]]);
+  assert.deepEqual(overview.rows.map((r) => [r.name, r.hours.actual, r.cost.actual, r.margin, r.paymentLabel, r.over]), [["Bakery ordering app", "4 h", "$420.00", "-$70.00", "Deposit paid", true]]);
   assert.deepEqual(overview.totals, { budget: "$350.00", cost: "$420.00", margin: "-$70.00" });
 
   const wanted = ["expense.added", "project.budget-set", "project.payment-status-changed"];
@@ -182,7 +182,7 @@ test("a monthly plan is measured over this month only", async () => {
   unwrap(finance.logTime(deps, mikey, { projectId: project.id }, { on: "2026-11-03", hours: "0.5" }));
   const money = unwrap(finance.projectMoney(deps, mikey, project.id));
   assert.equal(money.period, "this month");
-  assert.deepEqual([money.summary.hours.actual, money.summary.cost.actual, money.summary.over], ["0.5", "$37.50", false], "October's hours do not count against November");
+  assert.deepEqual([money.summary.hours.actual, money.summary.cost.actual, money.summary.over], ["30 min", "$37.50", false], "October's hours do not count against November");
 });
 
 test("expenses: a receipt is stored with the file service, and a removed one leaves the totals", async () => {

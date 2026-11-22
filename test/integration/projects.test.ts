@@ -130,7 +130,7 @@ test("the dashboard's panels: active projects and what is due soon", async () =>
     ["Task", "Send the questionnaire", "2026-11-14", true],
     ["Milestone", "Design signed off", "2026-11-20", false],
   ]);
-  assert.deepEqual(unwrap(projects.activeProjects(deps, mikey)).items.map((item) => [item.name, item.next]), [["Bakery website", "Design signed off, due 2026-11-20"]]);
+  assert.deepEqual(unwrap(projects.activeProjects(deps, mikey)).items.map((item) => [item.name, item.next]), [["Bakery website", "Design signed off, due Fri, Nov 20, in 4 days"]]);
 
   unwrap(projects.setProjectStatus(deps, mikey, project.id, "completed"));
   assert.deepEqual(unwrap(projects.activeProjects(deps, mikey)).items, []);

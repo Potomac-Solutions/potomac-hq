@@ -41,7 +41,7 @@
         <dt>How it is going</dt><dd><span class="hq-tag" data-health={p.health}>{p.healthLabel}</span></dd>
         <dt>Next milestone</dt>
         <dd>
-          <span zb-if={view.next}>{view.next.name}<span zb-if={view.next.dueOn}>, due {view.next.dueOn}</span> <span zb-if={view.next.overdue} class="hq-tag due">Overdue</span></span>
+          <span zb-if={view.next}>{view.next.name}<span zb-if={view.next.dueOn}>, due <time datetime={view.next.dueOn}>{view.next.dueText}</time></span> <span zb-if={view.next.overdue} class="hq-tag due">Overdue</span></span>
           <span zb-else class="hq-muted">None set</span>
         </dd>
         <dt>Owner</dt><dd>{p.ownerName}</dd>
@@ -110,8 +110,8 @@
             <tr>
               <td>{milestone.name} <span zb-if={milestone.forClient} class="hq-tag">Client’s to do</span></td>
               <td>{milestone.phaseName}</td>
-              <td>{milestone.dueOn} <span zb-if={milestone.overdue} class="hq-tag due">Overdue</span></td>
-              <td>{milestone.doneOn}</td>
+              <td><time zb-if={milestone.dueOn} datetime={milestone.dueOn}>{milestone.dueText}</time> <span zb-if={milestone.overdue} class="hq-tag due">Overdue</span></td>
+              <td><time zb-if={milestone.doneOn} datetime={milestone.doneOn}>{milestone.doneText}</time></td>
               <td>
                 <form zb-if={view.can.plan} method="post" action="/milestones/{milestone.id}/done" class="hq-inline">
                   <input type="hidden" name="projectId" value={p.id}>

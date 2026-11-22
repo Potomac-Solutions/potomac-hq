@@ -36,9 +36,9 @@ test("the three reports, from real records", async () => {
   assert.match(page, /Quoted 1 \$4,000\.00/);
   assert.match(page, /Word of mouth 1 1 Website 2 0/);
   assert.match(page, /Active projects by health Health Projects On track 0 At risk 1 Off track 0/);
-  assert.match(page, /Needs attention Bakery website Mt\. Storm Bakery At risk Next: Design signed off, due 2020-01-01/);
-  assert.match(page, /Late What Project Was due Milestone: Design signed off Bakery website 2020-01-01/);
-  assert.match(page, /Bakery website 4 Not set \$300\.00 Not set All projects \$300\.00/);
+  assert.match(page, /Needs attention Bakery website Mt\. Storm Bakery At risk Next: Design signed off, due Wed, Jan 1, 2020, [\d,]+ days ago/);
+  assert.match(page, /Late What Project Was due Milestone: Design signed off Bakery website Wed, Jan 1, 2020, [\d,]+ days ago/);
+  assert.match(page, /Bakery website 4 h Not set \$300\.00 Not set All projects \$300\.00/);
   assert.match(await admin.page("/reports?days=30"), /<option value="30" selected/);
   assert.match(await admin.page("/reports?days=7"), /<option value="90" selected/, "a period that is not offered falls back to 90 days");
 });

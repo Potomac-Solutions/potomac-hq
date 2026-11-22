@@ -85,7 +85,7 @@
       <table zb-else class="hq-table">
         <thead><tr><th scope="col">What</th><th scope="col">Project</th><th scope="col">Was due</th></tr></thead>
         <tbody>
-          <zb-each items={projects.late} as="item" key={item.key}><tr><td>{item.kind}: <a href={item.href}>{item.title}</a></td><td>{item.projectName}</td><td>{item.dueOn}</td></tr></zb-each>
+          <zb-each items={projects.late} as="item" key={item.key}><tr><td>{item.kind}: <a href={item.href}>{item.title}</a></td><td>{item.projectName}</td><td><time datetime={item.dueOn}>{item.dueText}</time></td></tr></zb-each>
         </tbody>
       </table>
     </section>

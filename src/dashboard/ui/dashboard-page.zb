@@ -70,7 +70,7 @@
     <empty-state zb-if={followUps.length === 0} heading="Nothing due">Follow-ups set on an opportunity show here on their day.</empty-state>
     <ul zb-else class="hq-activity">
       <zb-each items={followUps} as="item" key={item.id}>
-        <li><span><a href="/opportunities/{item.id}">{item.title}</a> · {item.clientName}</span> <span><time datetime={item.followUpOn}>{item.followUpOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+        <li><span><a href="/opportunities/{item.id}">{item.title}</a> · {item.clientName}</span> <span><time datetime={item.followUpOn}>{item.followUpText}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
       </zb-each>
     </ul>
   </section>
@@ -86,7 +86,7 @@
     <empty-state zb-if={deadlines.length === 0} heading="Nothing due in the next two weeks">Milestones and tasks with a due date show here as it gets close.</empty-state>
     <ul zb-else class="hq-activity">
       <zb-each items={deadlines} as="item" key={item.key}>
-        <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueOn}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
+        <li><span>{item.kind}: <a href={item.href}>{item.title}</a> · {item.projectName}</span> <span><time datetime={item.dueOn}>{item.dueText}</time> <span zb-if={item.overdue} class="hq-tag due">Overdue</span></span></li>
       </zb-each>
     </ul>
   </section>
