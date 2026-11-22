@@ -18,7 +18,13 @@ Status: approved 2026-11-14. Source: M0 discovery interview.
 4. Open a pull request into `staging`.
 5. Merge when CI is green.
 
+Dependabot's pull requests skip step 3: it cannot write the line. The
+release adds them.
+
 ## A release
+
+0. Add a line under Unreleased for each Dependabot bump merged since the
+   last release: `git log --oneline --author=dependabot <last tag>..staging`.
 
 1. On a branch from `staging`, run `npm run release:prepare -- <version>`. It
    moves the Unreleased lines under the new version and sets the version in

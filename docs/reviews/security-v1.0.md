@@ -74,9 +74,10 @@ Each line says what was checked and what checks it on every merge.
    would not be shared between two replicas. HQ runs one.
 4. **Refused attempts are not written to the audit log**, only successful
    changes. A run of refusals shows in nothing but the request log.
-5. **Dependencies are pinned but not watched.** Nothing tells Mikey when
-   Hono, Zubra or the kit publishes a security fix. Turn on Dependabot
-   alerts for the repository.
+5. **Dependency updates need a person.** Dependabot opens pull requests for
+   new versions (`.github/dependabot.yml`), but security alerts are a
+   repository setting Mikey turns on (docs/operations.md), and every bump
+   is read and merged by hand.
 6. **A withdrawn invite's link still makes a sign-in account**, though one
    with no HQ user, so it opens nothing. That email cannot be invited again
    until the account is cleared by hand.
