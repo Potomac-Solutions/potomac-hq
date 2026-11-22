@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Fixed: a withdrawn invite's link still made a sign-in account, which
+  opened nothing in HQ but kept that email from being invited again.
+  Withdrawing an invite now spends its link.
 - Dependabot watches npm packages weekly, and GitHub Actions and the Node
   image monthly, and opens pull requests into staging. Security alerts are
   turned on in the repository's settings (docs/operations.md).

@@ -65,7 +65,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const users = sqliteUserStore(db);
   const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
-  const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
+  const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);
   const crm: CrmDeps = {
     ...session,

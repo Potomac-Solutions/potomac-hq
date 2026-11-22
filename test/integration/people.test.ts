@@ -64,7 +64,16 @@ test("an invite that was withdrawn makes nobody a user", async () => {
   const eve = httpClient(t.origin);
   await eve.post("/staff/accept", { token, name: "Eve Early", password: PASSWORD });
   assert.equal(userId("eve@example.com"), undefined);
-  assert.equal((await eve.get("/clients")).status, 403, "an account with no HQ user opens nothing");
+  assert.equal((await eve.get("/")).status, 401, "the link made no sign-in account");
+  const accounts = t.db.prepare("select count(*) as n from kit_document where collection = 'accounts' and fields like '%eve@example.com%'").get()?.["n"];
+  assert.equal(accounts, 0);
+
+  // So the same email can be invited again, and that link works.
+  const again = await admin.post("/people", { name: "Eve Early", email: "eve@example.com", "role-member": "1" });
+  const fresh = /token=([A-Za-z0-9_-]{43})/.exec(await again.text())?.[1] ?? "";
+  assert.equal((await eve.post("/staff/accept", { token: fresh, name: "Eve Early", password: PASSWORD })).status, 303);
+  await eve.get("/");
+  assert.ok(userId("eve@example.com"));
 });
 
 test("roles change at once, and the last admin stays an admin", async () => {
