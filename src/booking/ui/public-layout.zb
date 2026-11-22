@@ -1,0 +1,35 @@
+<!--
+  The frame around the public booking page: Potomac's name and how to reach
+  a person, and nothing of HQ or the portal.
+-->
+<script>
+  'use layout /book root'
+  export async function load({ context }) {
+    return { title: 'Book a call with Potomac Solutions', contact: context.portal.contact }
+  }
+</script>
+<style>
+  :host { display: block; min-height: 100vh; overflow-wrap: anywhere; }
+  .book-bar { display: flex; align-items: center; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); }
+  .book-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
+  .book-brand img { width: 1.75rem; height: 1.75rem; }
+  .book-main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+  .book-main:focus { outline: none; }
+  .book-foot { max-width: 46rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted-foreground); font-size: 0.95rem; }
+  .book-foot p { margin: 0.25rem 0; }
+  .book-foot a { font-weight: 600; }
+</style>
+<hq-book-frame contact={{}}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="book-bar">
+    <a class="book-brand" href="/book"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac Solutions</a>
+  </header>
+  <main id="main" class="book-main" tabindex="-1">
+    <zb-slot></zb-slot>
+  </main>
+  <footer zb-if={contact.phone || contact.email} class="book-foot">
+    <p><strong>Rather talk to a person now?</strong></p>
+    <p zb-if={contact.phone}>Call Potomac Solutions at <a href="tel:{contact.phone}">{contact.phone}</a>.</p>
+    <p zb-if={contact.email}>Or write to <a href="mailto:{contact.email}">{contact.email}</a>.</p>
+  </footer>
+</hq-book-frame>

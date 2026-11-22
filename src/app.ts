@@ -24,9 +24,10 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingOpen, bookingSetup, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
+import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -210,6 +211,9 @@ export type PageContext = {
     portal(): { readonly open: boolean; readonly calls: readonly CallLine[] };
     portalTimes(): Promise<OpenTimesView>;
     portalCalls(): readonly CallLine[];
+    publicTimes(): Promise<OpenTimesView>;
+    /** A call booked from the public page, by its private link. */
+    byLink(token: string): CallLine | null;
   };
   readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
   readonly search: (q: string) => ReturnType<typeof search>;
@@ -448,6 +452,11 @@ export async function createApp(config: AppConfig): Promise<App> {
           portal: () => ({ open: client !== null && bookingOpen(services.booking, "portal"), calls: client ? callsForClient(services.booking, client.organizationId) : [] }),
           portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
           portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
+          publicTimes: () => openTimes(services.booking, "public"),
+          byLink: (token) => {
+            const found = bookingByLink(services.booking, token);
+            return found ? callLine(services.booking, found) : null;
+          },
         },
         people: {
           list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
@@ -612,6 +621,14 @@ export async function createApp(config: AppConfig): Promise<App> {
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );
+  const publicBooking = bookingPublicRoutes({
+    booking: services.booking,
+    sign: (location) => notices.sign(location),
+    addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+    allowPerAddress: sqliteRateLimit(db, { name: "booking-address", max: 5, windowMs: 60 * 60_000 }),
+    allowPerEmail: sqliteRateLimit(db, { name: "booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+  });
+  forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -649,6 +666,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", publicBooking);
   downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
   downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: (location) => notices.sign(location), canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
@@ -685,7 +703,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
