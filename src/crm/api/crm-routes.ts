@@ -1,0 +1,111 @@
+// The CRM's form posts. Each one calls an application service, then sends the
+// browser back to a page with a one-line message (post, redirect, get).
+import { Hono } from "hono";
+import * as crm from "../application/commands.ts";
+import { parseId, type Id } from "../../shared/index.ts";
+import { messageFor } from "./messages.ts";
+
+export type CrmRoutesDeps = {
+  readonly crm: crm.CrmDeps;
+  /** The signed-in HQ user's id, or null. */
+  readonly actorOf: (cookieHeader: string) => Id | null;
+  /** Signs the one-line message in a location. */
+  readonly sign: (location: string) => string;
+};
+
+type Answer = { ok: true; value: { id: string } } | { ok: false; error: string };
+
+export function crmRoutes(deps: CrmRoutesDeps): Hono {
+  const app = new Hono();
+
+  /** Reads the form, runs the service, and answers 303 to `done` or back to `back`. */
+  const post = (
+    path: string,
+    run: (actor: Id | null, form: Record<string, string>, id: Id | null) => Answer,
+    places: { done: (value: { id: string }, id: Id | null) => string; back: (id: Id | null) => string; message: string },
+  ) =>
+    app.post(path, async (c) => {
+      const raw = await c.req.parseBody();
+      const form: Record<string, string> = {};
+      for (const [key, value] of Object.entries(raw)) if (typeof value === "string") form[key] = value;
+      const param = c.req.param("id");
+      const parsed = param === undefined ? null : parseId(param);
+      const id = parsed === null ? null : parsed.ok ? parsed.value : null;
+      if (param !== undefined && id === null) return c.redirect(deps.sign(`/clients?problem=${encodeURIComponent(messageFor("not-found"))}`), 303);
+
+      const answer = run(deps.actorOf(c.req.header("cookie") ?? ""), form, id);
+      const to = answer.ok
+        ? `${places.done(answer.value, id)}?done=${encodeURIComponent(places.message)}`
+        : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(messageFor(answer.error))}`;
+      return c.redirect(deps.sign(to), 303);
+    });
+
+  post("/clients", (actor, f) => crm.createClient(deps.crm, actor, { name: f["name"] ?? "", sizeTier: f["sizeTier"] ?? null, website: f["website"] ?? null, phone: f["phone"] ?? null, address: f["address"] ?? null }), {
+    done: (client) => `/clients/${client.id}`,
+    back: () => "/clients",
+    message: "Client added.",
+  });
+
+  post("/clients/:id/status", (actor, f, id) => crm.setClientStatus(deps.crm, actor, id as Id, f["status"] ?? ""), {
+    done: (_, id) => `/clients/${id}`,
+    back: (id) => `/clients/${id}`,
+    message: "Status changed.",
+  });
+
+  post(
+    "/clients/:id/contacts",
+    (actor, f, id) =>
+      crm.addContact(deps.crm, actor, id as Id, { name: f["name"] ?? "", email: f["email"] ?? null, phone: f["phone"] ?? null, title: f["title"] ?? null, isPrimary: f["isPrimary"] === "on" }),
+    { done: (_, id) => `/clients/${id}`, back: (id) => `/clients/${id}`, message: "Contact added." },
+  );
+
+  post(
+    "/clients/:id/opportunities",
+    (actor, f, id) => {
+      const contact = f["contactId"] ? parseId(f["contactId"]) : null;
+      return crm.createOpportunity(deps.crm, actor, id as Id, {
+        title: f["title"] ?? "",
+        leadSource: f["leadSource"] ?? "",
+        service: f["service"] ?? null,
+        summary: f["summary"] ?? null,
+        contactId: contact && contact.ok ? contact.value : null,
+      });
+    },
+    { done: (opportunity) => `/opportunities/${opportunity.id}`, back: (id) => `/clients/${id}`, message: "Opportunity opened." },
+  );
+
+  // A stage change from the pipeline goes back to the pipeline. Only that one
+  // place is accepted, so the form cannot send the browser anywhere else.
+  const stageReturn = (form: Record<string, string>, id: Id | null) => (form["returnTo"] === "pipeline" ? "/pipeline" : `/opportunities/${id}`);
+  app.post("/opportunities/:id/stage", async (c) => {
+    const raw = await c.req.parseBody();
+    const form: Record<string, string> = {};
+    for (const [key, value] of Object.entries(raw)) if (typeof value === "string") form[key] = value;
+    const parsed = parseId(c.req.param("id"));
+    if (!parsed.ok) return c.redirect(deps.sign(`/clients?problem=${encodeURIComponent(messageFor("not-found"))}`), 303);
+    const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null });
+    const place = answer.ok || answer.error !== "not-found" ? stageReturn(form, parsed.value) : "/clients";
+    const to = answer.ok ? `${place}?done=${encodeURIComponent("Stage changed.")}` : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
+    return c.redirect(deps.sign(to), 303);
+  });
+
+  post("/opportunities/:id/value", (actor, f, id) => crm.setOpportunityValue(deps.crm, actor, id as Id, { pricing: f["pricing"] ?? "", amount: f["amount"] ?? "" }), {
+    done: (_, id) => `/opportunities/${id}`,
+    back: (id) => `/opportunities/${id}`,
+    message: "Price saved.",
+  });
+
+  post("/opportunities/:id/follow-up", (actor, f, id) => crm.setOpportunityFollowUp(deps.crm, actor, id as Id, f["clear"] === "1" ? null : (f["on"] ?? "")), {
+    done: (_, id) => `/opportunities/${id}`,
+    back: (id) => `/opportunities/${id}`,
+    message: "Follow-up saved.",
+  });
+
+  post("/opportunities/:id/convert", (actor, _f, id) => crm.convertOpportunity(deps.crm, actor, id as Id), {
+    done: (project) => `/projects/${project.id}`,
+    back: (id) => `/opportunities/${id}`,
+    message: "Project started.",
+  });
+
+  return app;
+}

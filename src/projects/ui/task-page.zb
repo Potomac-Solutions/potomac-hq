@@ -1,0 +1,86 @@
+<!--
+  One task: where it stands, and the form that edits it.
+-->
+<script>
+  'use route /tasks/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.task(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), done: context.notice.done, problem: context.notice.problem }
+  }
+  const t = view.task
+</script>
+<hq-task view={{ task: {}, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false }} timer={{ can: false }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{t.projectId}">{t.projectName}</a> / <a href="/projects/{t.projectId}/tasks">Tasks</a></p>
+    <h1>{t.title}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="task-details">
+      <h2 id="task-details">Where it stands</h2>
+      <dl class="hq-facts">
+        <dt>Status</dt><dd><strong>{t.statusLabel}</strong><span zb-if={t.doneWhen}>, {t.doneWhen}</span></dd>
+        <dt>Who</dt><dd>{t.assigneeName || "Nobody yet"}</dd>
+        <dt>Priority</dt><dd>{t.priorityLabel}</dd>
+        <dt>Due</dt><dd>{t.dueOn || "Not set"} <span zb-if={t.overdue} class="hq-tag due">Overdue</span></dd>
+        <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
+        <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged} hours<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
+        <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>
+      </dl>
+      <div class="hq-actions" data-spaced>
+        <form zb-if={view.canEdit} method="post" action="/tasks/{t.id}/status" class="hq-form-row">
+          <input type="hidden" name="returnTo" value="/tasks/{t.id}">
+          <div class="hq-field">
+            <label for="task-status">Move to</label>
+            <select id="task-status" name="to">
+              <zb-each items={view.form.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === t.status}>{status.label}</option></zb-each>
+            </select>
+          </div>
+          <button class="hq-button" type="submit">Move task</button>
+        </form>
+        <form zb-if={timer.running} method="post" action="/timer/stop">
+          <input type="hidden" name="returnTo" value="/tasks/{t.id}">
+          <button class="hq-button secondary" type="submit">Stop the timer</button>
+        </form>
+      </div>
+      <p zb-if={timer.can && view.canEdit && !timer.running} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
+    </section>
+    <section zb-if={view.canEdit} class="hq-panel" aria-labelledby="task-edit">
+      <h2 id="task-edit">Edit</h2>
+      <form method="post" action="/tasks/{t.id}" class="hq-form">
+        <text-field label="Title" name="title" value={t.title} required={true}></text-field>
+        <div class="hq-field">
+          <label for="task-assignee">Who</label>
+          <select id="task-assignee" name="assigneeId">
+            <option value="">Nobody yet</option>
+            <zb-each items={view.form.people} as="person" key={person.value}><option value={person.value} selected={person.value === t.assigneeId}>{person.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="task-priority">Priority</label>
+          <select id="task-priority" name="priority">
+            <zb-each items={view.form.priorities} as="priority" key={priority.value}><option value={priority.value} selected={priority.value === t.priority}>{priority.label}</option></zb-each>
+          </select>
+        </div>
+        <div zb-if={view.form.phases.length > 0} class="hq-field">
+          <label for="task-phase">Phase</label>
+          <select id="task-phase" name="phaseId">
+            <option value="">None</option>
+            <zb-each items={view.form.phases} as="phase" key={phase.value}><option value={phase.value} selected={phase.value === t.phaseId}>{phase.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Due" name="dueOn" type="date" value={t.dueOn}></text-field>
+        <text-field label="Estimate in hours" name="estimate" inputmode="decimal" value={t.estimate}></text-field>
+        <text-field label="Details" name="description" rows={3} value={t.description}></text-field>
+        <div><button class="hq-button" type="submit">Save task</button></div>
+      </form>
+    </section>
+  </div>
+</hq-task>

@@ -1,0 +1,103 @@
+// The projects module's form posts. Each one calls an application service,
+// then sends the browser back to a page with a one-line message.
+import { Hono } from "hono";
+import * as projects from "../application/commands.ts";
+import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
+import { messageFor } from "./messages.ts";
+
+export type ProjectRoutesDeps = {
+  readonly projects: projects.ProjectsDeps;
+  readonly actorOf: (cookieHeader: string) => Id | null;
+  readonly sign: (location: string) => string;
+};
+
+/** An optional id from a form field. Anything that is not an id is "none". */
+const optionalId = (value: string | undefined): Id | null => {
+  const parsed = value ? parseId(value) : null;
+  return parsed && parsed.ok ? parsed.value : null;
+};
+
+// A task can be moved from four places. Only these are accepted, so a form
+// cannot send the browser anywhere else.
+const RETURN = /^\/(board|projects\/[0-9a-f-]{36}\/(board|tasks)|tasks\/[0-9a-f-]{36})(\?mine=1)?$/;
+
+export function projectRoutes(deps: ProjectRoutesDeps): Hono {
+  const app = new Hono();
+  const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/projects" });
+  const project = (id: Id | null) => (id ? `/projects/${id}` : "/projects");
+  const taskInput = (f: FormFields) => ({
+    title: f["title"] ?? "",
+    description: f["description"] ?? null,
+    assigneeId: optionalId(f["assigneeId"]),
+    phaseId: optionalId(f["phaseId"]),
+    priority: f["priority"] ?? null,
+    dueOn: f["dueOn"] ?? null,
+    estimate: f["estimate"] ?? null,
+  });
+
+  post(
+    "/projects/:id",
+    (actor, f, id) => projects.editProjectDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", description: f["description"] ?? null, health: f["health"] ?? "", startOn: f["startOn"] ?? null, targetOn: f["targetOn"] ?? null }),
+    { done: (_, id) => project(id), back: (id) => project(id), message: "Project saved." },
+  );
+  post("/projects/:id/status", (actor, f, id) => projects.setProjectStatus(deps.projects, actor, id as Id, f["status"] ?? ""), {
+    done: (_, id) => project(id),
+    back: (id) => project(id),
+    message: "Status changed.",
+  });
+  post(
+    "/projects/:id/owner",
+    (actor, f, id) => {
+      const owner = optionalId(f["ownerId"]);
+      return owner ? projects.setProjectOwner(deps.projects, actor, id as Id, owner) : { ok: false as const, error: "person-not-found" };
+    },
+    { done: (_, id) => project(id), back: (id) => project(id), message: "Owner changed." },
+  );
+  post("/projects/:id/phases", (actor, f, id) => projects.addPhase(deps.projects, actor, id as Id, { name: f["name"] ?? "" }), {
+    done: (_, id) => `${project(id)}#plan`,
+    back: (id) => `${project(id)}#plan`,
+    message: "Phase added.",
+  });
+  post(
+    "/projects/:id/milestones",
+    (actor, f, id) => projects.addMilestone(deps.projects, actor, id as Id, { name: f["name"] ?? "", dueOn: f["dueOn"] ?? null, phaseId: optionalId(f["phaseId"]), forClient: f["forClient"] === "1" }),
+    { done: (_, id) => `${project(id)}#plan`, back: (id) => `${project(id)}#plan`, message: "Milestone added." },
+  );
+  post("/milestones/:id/for-client", (actor, f, id) => projects.setMilestoneForClient(deps.projects, actor, id as Id, f["forClient"] === "1"), {
+    done: (milestone) => `${project(milestone.projectId)}#plan`,
+    back: (_, f) => `${project(optionalId(f["projectId"]))}#plan`,
+    message: "Saved. The client’s portal shows whose it is to do.",
+  });
+  post("/milestones/:id/done", (actor, f, id) => projects.setMilestoneDone(deps.projects, actor, id as Id, f["done"] !== "0"), {
+    done: (milestone) => `${project(milestone.projectId)}#plan`,
+    back: (_, f) => `${project(optionalId(f["projectId"]))}#plan`,
+    message: "Milestone saved.",
+  });
+  post("/projects/:id/tasks", (actor, f, id) => projects.addTask(deps.projects, actor, id as Id, taskInput(f)), {
+    done: (_, id) => `${project(id)}/tasks`,
+    back: (id) => `${project(id)}/tasks`,
+    message: "Task added.",
+  });
+  post("/tasks/:id", (actor, f, id) => projects.updateTask(deps.projects, actor, id as Id, taskInput(f)), {
+    done: (_, id) => `/tasks/${id}`,
+    back: (id) => `/tasks/${id}`,
+    message: "Task saved.",
+  });
+  const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
+  post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
+    done: (_, id, f) => back(id, f),
+    back,
+    message: "Task moved.",
+  });
+  post(
+    "/projects/:id/deliverables",
+    (actor, f, id, files) => projects.addDeliverable(deps.projects, actor, id as Id, { title: f["title"] ?? "", description: f["description"] ?? null, file: files["file"] ?? null }),
+    { done: (_, id) => `${project(id)}#deliverables`, back: (id) => `${project(id)}#deliverables`, message: "Deliverable added." },
+  );
+  post("/deliverables/:id/share", (actor, f, id) => projects.setDeliverableShared(deps.projects, actor, id as Id, f["shared"] !== "0"), {
+    done: (deliverable) => `${project(deliverable.projectId)}#deliverables`,
+    back: (_, f) => `${project(optionalId(f["projectId"]))}#deliverables`,
+    message: "Deliverable saved.",
+  });
+  return app;
+}

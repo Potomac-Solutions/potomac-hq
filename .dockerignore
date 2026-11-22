@@ -1,0 +1,11 @@
+node_modules
+.git
+.github
+data
+test
+tools
+*.db
+*.db-*
+.env
+.env.*
+test-results

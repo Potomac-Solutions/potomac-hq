@@ -1,0 +1,126 @@
+<!--
+  One opportunity: where it stands, and the actions that move it on. The
+  price is shown only to people who may see it; for anyone else it is not in
+  the page at all.
+-->
+<script>
+  'use route /opportunities/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/parts/notes-panel.zb'
+
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.opportunityDetail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), proposals: context.proposals.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
+  }
+
+  const o = view.opportunity
+  const canMove = view.can.setStage && o.open
+</script>
+<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/clients">Clients</a> / <a href="/clients/{view.client.id}">{view.client.name}</a></p>
+    <h1>{o.title}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="opportunity-details">
+      <h2 id="opportunity-details">Where it stands</h2>
+      <dl class="hq-facts">
+        <dt>Stage</dt><dd><strong>{o.stageLabel}</strong></dd>
+        <dt>Service</dt><dd>{o.serviceLabel}</dd>
+        <dt zb-if={view.can.viewValue}>Price</dt><dd zb-if={view.can.viewValue}>{o.price || "Not set"}</dd>
+        <dt>Follow-up</dt><dd>{o.followUpOn || "None"} <span zb-if={o.followUpDue} class="hq-tag due">Due</span></dd>
+        <dt>Found you by</dt><dd>{o.leadSourceLabel}</dd>
+        <dt>Contact</dt><dd>{view.contactName || "None"}</dd>
+        <dt>Owner</dt><dd>{view.ownerName}</dd>
+        <dt zb-if={o.lostReason}>Why it was lost</dt><dd zb-if={o.lostReason}>{o.lostReason}</dd>
+        <dt zb-if={o.summary}>Notes</dt><dd zb-if={o.summary}>{o.summary}</dd>
+      </dl>
+    </section>
+
+    <section zb-if={canMove} class="hq-panel" aria-labelledby="opportunity-stage">
+      <h2 id="opportunity-stage">Move it on</h2>
+      <div class="hq-actions">
+        <form zb-if={view.nextStage} method="post" action="/opportunities/{o.id}/stage">
+          <input type="hidden" name="to" value={view.nextStage}>
+          <button class="hq-button" type="submit">Move to {view.nextStageLabel}</button>
+        </form>
+        <form zb-if={view.canSkipToWon} method="post" action="/opportunities/{o.id}/stage">
+          <input type="hidden" name="to" value="won">
+          <button class="hq-button secondary" type="submit">Mark won (free landing page)</button>
+        </form>
+      </div>
+      <form method="post" action="/opportunities/{o.id}/stage" class="hq-form" data-spaced>
+        <input type="hidden" name="to" value="lost">
+        <text-field label="Why was it lost?" name="lostReason" required={true}></text-field>
+        <div><button class="hq-button secondary" type="submit">Mark lost</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.can.setValue && o.open} class="hq-panel" aria-labelledby="opportunity-price">
+      <h2 id="opportunity-price">Price</h2>
+      <form method="post" action="/opportunities/{o.id}/value" class="hq-form">
+        <div class="hq-field">
+          <label for="opportunity-pricing">How it is priced</label>
+          <select id="opportunity-pricing" name="pricing" required>
+            <zb-each items={view.pricings} as="pricing" key={pricing.value}><option value={pricing.value} selected={pricing.value === o.pricing}>{pricing.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Amount in dollars" name="amount" value={o.amount} inputmode="decimal" description="Per hour, month or year, or in total. Leave empty for free."></text-field>
+        <div><button class="hq-button" type="submit">Save price</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.can.setFollowUp && o.open} class="hq-panel" aria-labelledby="opportunity-follow-up">
+      <h2 id="opportunity-follow-up">Follow-up</h2>
+      <div class="hq-actions">
+        <form method="post" action="/opportunities/{o.id}/follow-up" class="hq-form-row">
+          <text-field label="Follow up on" name="on" type="date" value={o.followUpOn} required={true}></text-field>
+          <button class="hq-button" type="submit">Save follow-up</button>
+        </form>
+        <form zb-if={o.followUpOn} method="post" action="/opportunities/{o.id}/follow-up">
+          <input type="hidden" name="clear" value="1">
+          <button class="hq-button secondary" type="submit">Clear follow-up</button>
+        </form>
+      </div>
+    </section>
+
+    <section zb-if={proposals.canView} class="hq-panel" aria-labelledby="opportunity-proposals">
+      <h2 id="opportunity-proposals">Proposals</h2>
+      <p zb-if={proposals.items.length === 0} class="hq-muted">None yet.</p>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">Proposal</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
+        <tbody>
+          <zb-each items={proposals.items} as="proposal" key={proposal.id}>
+            <tr><td><a href="/proposals/{proposal.id}">{proposal.title}</a></td><td>{proposal.statusLabel}</td><td>{proposal.version || "Not sent"}</td><td class="hq-number">{proposal.price}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form zb-if={proposals.canStart} method="post" action="/opportunities/{o.id}/proposals" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="proposal-template">Start from</label>
+          <select id="proposal-template" name="template">
+            <zb-each items={proposals.templates} as="template" key={template.value}><option value={template.value} selected={template.value === proposals.suggested}>{template.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Start a proposal</button>
+      </form>
+    </section>
+    <section zb-if={o.won} class="hq-panel" aria-labelledby="opportunity-project">
+      <h2 id="opportunity-project">Project</h2>
+      <p zb-if={view.project}><a href="/projects/{view.project.id}">{view.project.name}</a></p>
+      <form zb-else-if={view.can.convert} method="post" action="/opportunities/{o.id}/convert">
+        <button class="hq-button" type="submit">Start the project</button>
+      </form>
+      <p zb-else class="hq-muted">Not started yet.</p>
+    </section>
+    <notes-panel notes={notes}></notes-panel>
+  </div>
+</hq-opportunity>

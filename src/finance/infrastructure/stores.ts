@@ -1,0 +1,255 @@
+import type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, TimeRow, TimeStore } from "../application/ports.ts";
+import type { PaymentStatus, ProjectFinance } from "../domain/budget.ts";
+import type { Expense, ExpenseCategory } from "../domain/expense.ts";
+import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, PaymentMethod } from "../domain/invoice.ts";
+import type { TimeEntry } from "../domain/time.ts";
+import type { Database } from "../../shared/adapters.ts";
+import type { Currency, Id } from "../../shared/index.ts";
+
+type Row = Record<string, string | number | null>;
+const text = (row: Row, key: string) => row[key] as string;
+const maybe = (row: Row, key: string) => (row[key] ?? null) as string | null;
+
+const toEntry = (r: Row): TimeEntry => ({
+  id: text(r, "id") as Id,
+  projectId: text(r, "project_id") as Id,
+  taskId: maybe(r, "task_id") as Id | null,
+  userId: text(r, "user_id") as Id,
+  workedOn: text(r, "worked_on"),
+  minutes: (r["minutes"] ?? null) as number | null,
+  note: text(r, "note"),
+  billable: r["billable"] === 1,
+  startedAt: maybe(r, "started_at"),
+});
+
+export function sqliteTimeStore(db: Database): TimeStore {
+  const cols = "id, project_id, task_id, user_id, worked_on, minutes, note, billable, started_at";
+  const insert = db.prepare(`insert into time_entry (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const update = db.prepare("update time_entry set worked_on = ?, minutes = ?, note = ?, billable = ?, updated_at = ? where id = ?");
+  const get = db.prepare(`select ${cols} from time_entry where id = ? and removed_at is null`);
+  const remove = db.prepare("update time_entry set removed_at = ?, updated_at = ? where id = ? and removed_at is null");
+  const joined = `select ${cols.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, k.title as task_title, u.name as user_name, c.name as client_name
+       from time_entry t
+       join project p on p.id = t.project_id
+       join client_organization c on c.id = p.organization_id
+       join user u on u.id = t.user_id
+       left join task k on k.id = t.task_id
+      where t.removed_at is null`;
+  const running = db.prepare(`${joined} and t.user_id = ? and t.minutes is null`);
+  const runningOnTask = db.prepare(`select ${cols} from time_entry where task_id = ? and minutes is null and removed_at is null`);
+  const listMine = db.prepare(`${joined} and t.worked_on between ? and ? and t.user_id = ? order by t.worked_on desc, t.rowid desc`);
+  const listAll = db.prepare(`${joined} and t.worked_on between ? and ? order by t.worked_on desc, t.rowid desc`);
+  const listForProject = db.prepare(`${joined} and t.project_id = ? order by t.worked_on desc, t.rowid desc limit ?`);
+  const totals = db.prepare(
+    `select coalesce(sum(minutes), 0) as minutes, coalesce(sum(case when billable = 1 then minutes else 0 end), 0) as billable
+       from time_entry where project_id = ? and removed_at is null and minutes is not null and worked_on between ? and ?`,
+  );
+  const byPhase = db.prepare(
+    `select k.phase_id as phase_id, coalesce(sum(t.minutes), 0) as minutes
+       from time_entry t left join task k on k.id = t.task_id
+      where t.project_id = ? and t.removed_at is null and t.minutes is not null and t.worked_on between ? and ?
+      group by k.phase_id`,
+  );
+  const onTask = db.prepare("select coalesce(sum(minutes), 0) as minutes from time_entry where task_id = ? and removed_at is null and minutes is not null");
+  const row = (r: Row): TimeRow => ({ ...toEntry(r), projectName: text(r, "project_name"), taskTitle: maybe(r, "task_title"), userName: text(r, "user_name"), clientName: text(r, "client_name") });
+  return {
+    insert(e, at) {
+      insert.run(e.id, e.projectId, e.taskId, e.userId, e.workedOn, e.minutes, e.note, e.billable ? 1 : 0, e.startedAt, at, at);
+    },
+    update(e, at) {
+      update.run(e.workedOn, e.minutes, e.note, e.billable ? 1 : 0, at, e.id);
+    },
+    get(id) {
+      const r = get.get(id) as Row | undefined;
+      return r ? toEntry(r) : null;
+    },
+    remove(id, at) {
+      remove.run(at, at, id);
+    },
+    running(userId) {
+      const r = running.get(userId) as Row | undefined;
+      return r ? row(r) : null;
+    },
+    runningOnTask(taskId) {
+      return (runningOnTask.all(taskId) as Row[]).map(toEntry);
+    },
+    list(range, userId) {
+      return ((userId ? listMine.all(range.from, range.to, userId) : listAll.all(range.from, range.to)) as Row[]).map(row);
+    },
+    listForProject(projectId, limit) {
+      return (listForProject.all(projectId, limit) as Row[]).map(row);
+    },
+    totals(projectId, range) {
+      const r = totals.get(projectId, range.from, range.to) as Row;
+      return { minutes: r["minutes"] as number, billableMinutes: r["billable"] as number };
+    },
+    totalsByPhase(projectId, range) {
+      return (byPhase.all(projectId, range.from, range.to) as Row[]).map((r) => ({ phaseId: maybe(r, "phase_id") as Id | null, minutes: r["minutes"] as number }));
+    },
+    minutesOnTask(taskId) {
+      return (onTask.get(taskId) as Row)["minutes"] as number;
+    },
+  };
+}
+
+const toExpense = (r: Row): Expense => ({
+  id: text(r, "id") as Id,
+  projectId: text(r, "project_id") as Id,
+  category: text(r, "category") as ExpenseCategory,
+  amount: { minor: r["amount_minor"] as number, currency: text(r, "currency") as Currency },
+  spentOn: text(r, "spent_on"),
+  note: text(r, "note"),
+  receiptFileId: maybe(r, "receipt_file_id") as Id | null,
+  recordedBy: text(r, "recorded_by") as Id,
+});
+
+export function sqliteExpenseStore(db: Database): ExpenseStore {
+  const cols = "id, project_id, category, amount_minor, currency, spent_on, note, receipt_file_id, recorded_by";
+  const insert = db.prepare(`insert into expense (${cols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const get = db.prepare(`select ${cols} from expense where id = ? and removed_at is null`);
+  const remove = db.prepare("update expense set removed_at = ? where id = ? and removed_at is null");
+  const joined = `select ${cols.split(", ").map((c) => `e.${c}`).join(", ")}, p.name as project_name, c.name as client_name, f.name as receipt_name, u.name as recorded_by_name
+       from expense e
+       join project p on p.id = e.project_id
+       join client_organization c on c.id = p.organization_id
+       join user u on u.id = e.recorded_by
+       left join file f on f.id = e.receipt_file_id
+      where e.removed_at is null`;
+  const listForProject = db.prepare(`${joined} and e.project_id = ? order by e.spent_on desc, e.rowid desc`);
+  const list = db.prepare(`${joined} and e.spent_on between ? and ? order by e.spent_on desc, e.rowid desc`);
+  const total = db.prepare("select coalesce(sum(amount_minor), 0) as minor from expense where project_id = ? and removed_at is null and spent_on between ? and ?");
+  const row = (r: Row): ExpenseRow => ({ ...toExpense(r), projectName: text(r, "project_name"), clientName: text(r, "client_name"), receiptName: maybe(r, "receipt_name"), recordedByName: text(r, "recorded_by_name") });
+  return {
+    insert(e, at) {
+      insert.run(e.id, e.projectId, e.category, e.amount.minor, e.amount.currency, e.spentOn, e.note, e.receiptFileId, e.recordedBy, at);
+    },
+    get(id) {
+      const r = get.get(id) as Row | undefined;
+      return r ? toExpense(r) : null;
+    },
+    remove(id, at) {
+      remove.run(at, id);
+    },
+    listForProject(projectId) {
+      return (listForProject.all(projectId) as Row[]).map(row);
+    },
+    list(range) {
+      return (list.all(range.from, range.to) as Row[]).map(row);
+    },
+    total(projectId, range) {
+      return (total.get(projectId, range.from, range.to) as Row)["minor"] as number;
+    },
+  };
+}
+
+export function sqliteFinanceStore(db: Database): FinanceStore {
+  const get = db.prepare("select project_id, budget_minor, currency, budget_minutes, rate_minor, payment_status, invoice_ref from project_finance where project_id = ?");
+  const save = db.prepare(
+    `insert into project_finance (project_id, budget_minor, currency, budget_minutes, rate_minor, payment_status, invoice_ref, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)
+     on conflict (project_id) do update set budget_minor = excluded.budget_minor, budget_minutes = excluded.budget_minutes, rate_minor = excluded.rate_minor,
+       payment_status = excluded.payment_status, invoice_ref = excluded.invoice_ref, updated_at = excluded.updated_at`,
+  );
+  return {
+    get(projectId) {
+      const r = get.get(projectId) as Row | undefined;
+      if (!r) return null;
+      const currency = text(r, "currency") as Currency;
+      return {
+        projectId: text(r, "project_id") as Id,
+        budget: r["budget_minor"] === null ? null : { minor: r["budget_minor"] as number, currency },
+        budgetMinutes: (r["budget_minutes"] ?? null) as number | null,
+        rate: { minor: r["rate_minor"] as number, currency },
+        paymentStatus: text(r, "payment_status") as PaymentStatus,
+        invoiceRef: text(r, "invoice_ref"),
+      } satisfies ProjectFinance;
+    },
+    save(f, at) {
+      save.run(f.projectId, f.budget?.minor ?? null, f.rate.currency, f.budgetMinutes, f.rate.minor, f.paymentStatus, f.invoiceRef, at);
+    },
+  };
+}
+
+export function sqlitePhaseEstimates(db: Database): PhaseEstimates {
+  const select = db.prepare("select phase_id, coalesce(sum(estimate_minutes), 0) as minutes from task where project_id = ? group by phase_id");
+  return {
+    forProject(projectId) {
+      return (select.all(projectId) as Row[]).map((r) => ({ phaseId: maybe(r, "phase_id") as Id | null, minutes: r["minutes"] as number }));
+    },
+  };
+}
+
+const toInvoice = (r: Row): Invoice => ({
+  id: text(r, "id") as Id,
+  projectId: text(r, "project_id") as Id,
+  number: r["number"] as number,
+  kind: text(r, "kind") as InvoiceKind,
+  status: text(r, "status") as InvoiceStatus,
+  lines: JSON.parse(text(r, "lines")) as InvoiceLine[],
+  total: { minor: r["total_minor"] as number, currency: text(r, "currency") as Currency },
+  issuedOn: maybe(r, "issued_on"),
+  dueOn: maybe(r, "due_on"),
+  note: text(r, "note"),
+  createdBy: text(r, "created_by") as Id,
+});
+
+const toPayment = (r: Row): Payment => ({
+  id: text(r, "id") as Id,
+  invoiceId: text(r, "invoice_id") as Id,
+  amount: { minor: r["amount_minor"] as number, currency: text(r, "currency") as Currency },
+  method: text(r, "method") as PaymentMethod,
+  receivedOn: text(r, "received_on"),
+  reference: text(r, "reference"),
+  recordedBy: text(r, "recorded_by") as Id,
+});
+
+export function sqliteInvoiceStore(db: Database): InvoiceStore {
+  const cols = "id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by";
+  const next = db.prepare("select coalesce(max(number), 0) + 1 as next from invoice");
+  const insert = db.prepare(`insert into invoice (${cols}, created_at, updated_at) values (${Array(14).fill("?").join(", ")})`);
+  const update = db.prepare("update invoice set status = ?, lines = ?, total_minor = ?, issued_on = ?, due_on = ?, note = ?, updated_at = ? where id = ?");
+  const joined = `select ${cols.split(", ").map((c) => `i.${c}`).join(", ")}, p.name as project_name, c.name as client_name, c.id as organization_id,
+            (select coalesce(sum(amount_minor), 0) from payment y where y.invoice_id = i.id) as paid_minor
+       from invoice i join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id`;
+  const get = db.prepare(`${joined} where i.id = ?`);
+  const listForProject = db.prepare(`${joined} where i.project_id = ? order by i.number desc`);
+  const list = db.prepare(`${joined} order by i.number`);
+  const pcols = "id, invoice_id, amount_minor, currency, method, received_on, reference, recorded_by";
+  const insertPayment = db.prepare(`insert into payment (${pcols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const payments = db.prepare(`select ${pcols} from payment where invoice_id = ? order by rowid`);
+  const allPayments = db.prepare(
+    `select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, p.name as project_name, c.name as client_name
+       from payment y join invoice i on i.id = y.invoice_id join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id
+      order by y.rowid`,
+  );
+  const row = (r: Row): InvoiceRow => ({ ...toInvoice(r), projectName: text(r, "project_name"), clientName: text(r, "client_name"), organizationId: text(r, "organization_id") as Id, paidMinor: r["paid_minor"] as number });
+  return {
+    nextNumber() {
+      return (next.get() as Row)["next"] as number;
+    },
+    insert(i, at) {
+      insert.run(i.id, i.projectId, i.number, i.kind, i.status, JSON.stringify(i.lines), i.total.minor, i.total.currency, i.issuedOn, i.dueOn, i.note, i.createdBy, at, at);
+    },
+    update(i, at) {
+      update.run(i.status, JSON.stringify(i.lines), i.total.minor, i.issuedOn, i.dueOn, i.note, at, i.id);
+    },
+    get(id) {
+      const r = get.get(id) as Row | undefined;
+      return r ? row(r) : null;
+    },
+    listForProject(projectId) {
+      return (listForProject.all(projectId) as Row[]).map(row);
+    },
+    list() {
+      return (list.all() as Row[]).map(row);
+    },
+    insertPayment(p, at) {
+      insertPayment.run(p.id, p.invoiceId, p.amount.minor, p.amount.currency, p.method, p.receivedOn, p.reference, p.recordedBy, at);
+    },
+    payments(invoiceId) {
+      return (payments.all(invoiceId) as Row[]).map(toPayment);
+    },
+    allPayments() {
+      return (allPayments.all() as Row[]).map((r) => ({ ...toPayment(r), number: r["number"] as number, projectName: text(r, "project_name"), clientName: text(r, "client_name") }));
+    },
+  };
+}

@@ -1,0 +1,11 @@
+<script>
+  'use route /'
+  import { show } from '@zubra/router'
+  import { id } from '@zubra/runtime'
+  import '../../shared/ui/part.zb'
+  import './sibling.zb'
+  import '../api/contracts/shape.js'
+  // import '../infrastructure/commented-out.ts'
+  export async function load({ context }) { return {} }
+</script>
+<x-ok></x-ok>

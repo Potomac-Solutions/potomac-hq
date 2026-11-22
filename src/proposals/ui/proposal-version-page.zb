@@ -1,0 +1,67 @@
+<!--
+  One sent version, laid out the way the client reads it. It can be printed
+  from here, or downloaded as a PDF.
+-->
+<script>
+  'use route /proposals/:id/versions/:n'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.proposals.version(params.id, params.n)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.title + ', version ' + view.value.number, doc: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .paper { max-width: 46rem; padding: 2rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .paper h2 { margin-top: 1.5rem; }
+  .paper ul { margin: 0.25rem 0; padding-left: 1.25rem; }
+  .paper p { margin: 0.35rem 0; }
+  @media print {
+    .no-print { display: none; }
+    .paper { border: 0; padding: 0; max-width: none; }
+  }
+</style>
+<hq-proposal-version doc={{ sections: [], lines: [], summary: {} }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs no-print"><a href="/proposals">Proposals</a> / <a href="/proposals/{doc.proposalId}">{doc.title}</a></p>
+    <div zb-if={done || problem} class="hq-notices no-print">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="no-print"><a class="hq-button" href="/proposals/{doc.proposalId}/versions/{doc.number}/pdf">Download the PDF</a></p>
+    <article class="paper">
+      <p><strong>Potomac Solutions</strong></p>
+      <h1>{doc.title}</h1>
+      <p class="hq-muted">Prepared for {doc.clientName}<span zb-if={doc.contactName}> · {doc.contactName}</span></p>
+      <p class="hq-muted">Version {doc.number}, sent {doc.sentWhen}<span zb-if={doc.sentBy}> by {doc.sentBy}</span></p>
+      <zb-each items={doc.sections} as="section" key={section.heading}>
+        <section>
+          <h2>{section.heading}</h2>
+          <zb-each items={section.blocks} as="block" key={block.key}>
+            <ul zb-if={block.bullet}><li>{block.text}</li></ul>
+            <p zb-else>{block.text}</p>
+          </zb-each>
+        </section>
+      </zb-each>
+      <section>
+        <h2 id="version-estimate">Estimate</h2>
+        <table class="hq-table" aria-labelledby="version-estimate">
+          <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
+          <tbody>
+            <zb-each items={doc.lines} as="line" key={line.key}>
+              <tr><td>{line.item}</td><td class="hq-number">{line.quantityLabel}</td><td class="hq-number">{line.rate}</td><td class="hq-number">{line.total}</td></tr>
+            </zb-each>
+          </tbody>
+          <tfoot>
+            <tr><th scope="row">Total</th><td class="hq-number">{doc.summary.hours ? doc.summary.hours + " h" : ""}</td><td></td><td class="hq-number"><strong>{doc.summary.price}</strong></td></tr>
+          </tfoot>
+        </table>
+        <p>Pricing: {doc.summary.pricingLabel}.</p>
+        <p zb-if={doc.summary.deposit}>A deposit of {doc.summary.deposit}, one third of the total, is due before work starts. The balance of {doc.summary.balance} is due before launch.</p>
+      </section>
+    </article>
+  </div>
+</hq-proposal-version>

@@ -1,0 +1,87 @@
+<!--
+  Who can sign in to HQ. Everyone sees the list. An admin invites people,
+  changes roles, switches an account off and makes a new link.
+-->
+<script>
+  'use route /people'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.people.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'People', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-people view={{ people: [], invites: [], roles: [], can: {} }} done="" problem="">
+  <div class="hq-page">
+    <h1>People</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="people-list">
+      <h2 id="people-list">Who can sign in</h2>
+      <ul class="hq-list">
+        <zb-each items={view.people} as="person" key={person.id}>
+          <li>
+            <p><strong>{person.name}</strong> <span zb-if={person.you} class="hq-tag">You</span> <span class="hq-muted">{person.email}</span></p>
+            <p class="hq-small">{person.roleLabels} · {person.statusLabel}</p>
+            <details zb-if={view.can.setRoles || view.can.setStatus || view.can.reset} class="hq-more">
+              <summary>Change {person.name}</summary>
+              <form zb-if={view.can.setRoles} method="post" action="/people/{person.id}/roles" class="hq-form">
+                <fieldset class="hq-choice">
+                  <legend>Roles for {person.name}</legend>
+                  <zb-each items={person.roles} as="role" key={role.key}>
+                    <label class="hq-check"><input type="checkbox" name="role-{role.key}" value="1" checked={role.held}> {role.label}</label>
+                  </zb-each>
+                </fieldset>
+                <div><button class="hq-button secondary" type="submit" aria-label="Save roles for {person.name}">Save roles</button></div>
+              </form>
+              <form zb-if={view.can.reset && person.active} method="post" action="/people/{person.id}/link" class="hq-form-row" data-spaced>
+                <button class="hq-button secondary" type="submit" aria-label="Make a new password link for {person.name}">New password link</button>
+              </form>
+              <form zb-if={view.can.setStatus && !person.you} method="post" action="/people/{person.id}/status" class="hq-form-row" data-spaced>
+                <input type="hidden" name="on" value={person.active ? "0" : "1"}>
+                <button class="hq-button secondary" type="submit" aria-label="{person.active ? 'Turn off' : 'Turn on'} the account of {person.name}">{person.active ? "Turn account off" : "Turn account on"}</button>
+              </form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={view.can.invite} class="hq-panel" aria-labelledby="people-invites">
+      <h2 id="people-invites">Invites</h2>
+      <p zb-if={view.invites.length === 0} class="hq-muted">Nobody is waiting on an invite.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={view.invites} as="invite" key={invite.id}>
+          <li>
+            <p><strong>{invite.name}</strong> <span class="hq-muted">{invite.email}</span></p>
+            <p class="hq-small">{invite.roleLabels} · Invited, not signed in yet</p>
+            <form method="post" action="/invites/{invite.id}/withdraw" class="hq-form-row">
+              <button class="hq-button secondary" type="submit" aria-label="Withdraw the invite for {invite.name}">Withdraw invite</button>
+            </form>
+          </li>
+        </zb-each>
+      </ul>
+      <details class="hq-more">
+        <summary>Invite someone to HQ</summary>
+        <form method="post" action="/people" class="hq-form">
+          <text-field label="Their name" name="name" autocomplete="off" required={true}></text-field>
+          <text-field label="Their email" name="email" type="email" autocomplete="off" required={true}></text-field>
+          <fieldset class="hq-choice">
+            <legend>Roles for the new person</legend>
+            <zb-each items={view.roles} as="role" key={role.key}>
+              <label class="hq-check"><input type="checkbox" name="role-{role.key}" value="1" checked={role.key === "member"}> {role.label}</label>
+            </zb-each>
+          </fieldset>
+          <p class="hq-muted hq-small">An admin can do everything. A manager sees money and proposals. A member works on clients, projects and tasks.</p>
+          <div><button class="hq-button" type="submit">Invite</button></div>
+        </form>
+      </details>
+    </section>
+  </div>
+</hq-people>

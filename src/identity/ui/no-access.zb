@@ -1,0 +1,14 @@
+<!--
+  Shown to someone who is signed in but has no HQ user, or whose user is
+  disabled, or who lacks the permission a page needs.
+-->
+<script>
+  import '../../shared/ui/zubra/alert-banner.zb'
+</script>
+<style>
+  :host { display: block; max-width: 36rem; }
+</style>
+<hq-no-access>
+  <h1>No access</h1>
+  <alert-banner variant="danger" heading="This account has not been given access">You are signed in, but an administrator has not given this account access to this part of Potomac HQ.</alert-banner>
+</hq-no-access>

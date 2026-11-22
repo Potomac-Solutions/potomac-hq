@@ -1,0 +1,16 @@
+<!--
+  What the shell shows when there is no page at an address (404) or a page
+  failed (500). The error's own message never reaches the browser.
+-->
+<script>
+  import './shared/ui/zubra/empty-state.zb'
+  import './shared/ui/zubra/action-button.zb'
+  const missing = status === 404
+</script>
+<hq-error status={500}>
+  <empty-state heading={missing ? "There is no page at this address" : "Something went wrong"}>
+    <span zb-if={missing}>Check the address, or go back to the dashboard.</span>
+    <span zb-else>The error has been logged. Try again in a moment.</span>
+    <action-button slot="actions" href="/">Back to the dashboard</action-button>
+  </empty-state>
+</hq-error>

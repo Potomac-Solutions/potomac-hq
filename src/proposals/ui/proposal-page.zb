@@ -1,0 +1,172 @@
+<!--
+  One proposal: the working copy and its estimate, the versions that were
+  sent, the client's answer, and the signed agreement.
+-->
+<script>
+  'use route /proposals/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.proposals.detail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.proposal.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+  const p = view.proposal
+</script>
+<style>
+  .estimate input, .estimate select { width: 100%; min-height: 2.25rem; padding: 0.35rem 0.5rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+  .estimate td, .estimate th { padding: 0.35rem 0.4rem; }
+  .estimate .narrow { width: 7rem; }
+  .estimate .kind { width: 8.5rem; }
+  .totals { display: grid; grid-template-columns: max-content max-content; gap: 0.25rem 1.5rem; justify-content: end; margin: 1rem 0 0; }
+  .totals dt { color: var(--muted-foreground); }
+  .totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+<hq-proposal view={{ proposal: {}, opportunity: {}, client: {}, rows: [], summary: {}, versions: [], agreements: [], can: {}, pricings: [], kinds: [], methods: [], decision: null, project: null }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/proposals">Proposals</a> / <a href="/clients/{view.client.id}">{view.client.name}</a> / <a href="/opportunities/{view.opportunity.id}">{view.opportunity.title}</a></p>
+    <h1>{p.title}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="proposal-status">
+      <h2 id="proposal-status">Where it stands</h2>
+      <dl class="hq-facts">
+        <dt>Status</dt><dd><strong>{p.statusLabel}</strong></dd>
+        <dt>Price</dt><dd>{view.summary.price} <span class="hq-muted">({view.summary.pricingLabel})</span></dd>
+        <dt zb-if={view.summary.hours}>Hours</dt><dd zb-if={view.summary.hours}>{view.summary.hours}</dd>
+        <dt zb-if={view.summary.deposit}>Deposit</dt><dd zb-if={view.summary.deposit}>{view.summary.deposit}, then {view.summary.balance}</dd>
+        <dt zb-if={view.decision}>Answer</dt>
+        <dd zb-if={view.decision}>{view.decision.accepted ? "Accepted" : "Declined"} by {view.decision.byName} on {view.decision.on}, version {view.decision.version}. {view.decision.methodLabel}.<span zb-if={view.decision.note}> “{view.decision.note}”</span></dd>
+        <dt zb-if={view.project}>Project</dt><dd zb-if={view.project}><a href="/projects/{view.project.id}">{view.project.name}</a></dd>
+        <dt zb-if={p.currentVersion > 0}>Client portal</dt><dd zb-if={p.currentVersion > 0}>{p.shared ? "The client can see the sent versions." : "Not shared with the client."}</dd>
+      </dl>
+      <p zb-if={view.sendBlocked} class="hq-muted" data-spaced>{view.sendBlocked}</p>
+      <div class="hq-actions" data-spaced>
+        <form zb-if={view.can.send} method="post" action="/proposals/{p.id}/send">
+          <button class="hq-button" type="submit">{p.currentVersion > 0 ? "Send as version " + (p.currentVersion + 1) : "Send as version 1"}</button>
+        </form>
+        <form zb-if={view.can.share} method="post" action="/proposals/{p.id}/share">
+          <input type="hidden" name="shared" value={p.shared ? "0" : "1"}>
+          <button class="hq-button secondary" type="submit">{p.shared ? "Stop sharing with the client" : "Share with the client"}</button>
+        </form>
+      </div>
+    </section>
+
+    <section zb-if={view.versions.length > 0} class="hq-panel" aria-labelledby="proposal-versions">
+      <h2 id="proposal-versions">Sent versions</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Version</th><th scope="col">Sent</th><th scope="col">By</th><th scope="col" class="hq-number">Price</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.versions} as="version" key={version.number}>
+            <tr>
+              <td>Version {version.number} <span zb-if={version.current} class="hq-tag">Latest</span></td>
+              <td>{version.sentWhen}</td>
+              <td>{version.sentBy}</td>
+              <td class="hq-number">{version.price}</td>
+              <td><a href="/proposals/{p.id}/versions/{version.number}" aria-label="Read version {version.number}">Read</a> · <a href="/proposals/{p.id}/versions/{version.number}/pdf" aria-label="Download version {version.number} as a PDF">PDF</a></td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section zb-if={view.can.decide} class="hq-panel" aria-labelledby="proposal-decision">
+      <h2 id="proposal-decision">Record the client’s answer</h2>
+      <form method="post" action="/proposals/{p.id}/decision" class="hq-form">
+        <div class="hq-field">
+          <label for="decision">Answer to version {p.currentVersion}</label>
+          <select id="decision" name="decision" required>
+            <option value="accepted">Accepted</option>
+            <option value="declined">Declined</option>
+          </select>
+        </div>
+        <text-field label="Who gave the answer" name="byName" required={true} description="The person at the client."></text-field>
+        <text-field label="On" name="on" type="date" value={view.today} required={true}></text-field>
+        <div class="hq-field">
+          <label for="decision-method">How the answer was given</label>
+          <select id="decision-method" name="method" required>
+            <zb-each items={view.methods} as="method" key={method.value}><option value={method.value}>{method.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Note" name="note" rows={2}></text-field>
+        <p class="hq-muted hq-small">Accepting wins the opportunity, starts its project, and sets the project’s baseline from this version’s estimate.</p>
+        <div><button class="hq-button" type="submit">Record answer</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.can.recordAgreement || view.agreements.length > 0} class="hq-panel" id="agreement" aria-labelledby="proposal-agreement">
+      <h2 id="proposal-agreement">Signed agreement</h2>
+      <p zb-if={view.agreements.length === 0} class="hq-muted">None recorded yet.</p>
+      <ul zb-else class="hq-log">
+        <zb-each items={view.agreements} as="agreement" key={agreement.id}>
+          <li><span>Signed {agreement.signedOn}, version {agreement.version}.<span zb-if={agreement.reference}> {agreement.reference}</span></span> <span zb-if={agreement.fileId}><a zb-if={view.can.download} href="/files/{agreement.fileId}">{agreement.fileName}</a><span zb-else>{agreement.fileName}</span></span></li>
+        </zb-each>
+      </ul>
+      <details zb-if={view.can.recordAgreement} class="hq-more">
+        <summary>Record a signed agreement</summary>
+        <form method="post" action="/proposals/{p.id}/agreement" enctype="multipart/form-data" class="hq-form">
+          <text-field label="Signed on" name="signedOn" type="date" value={view.today} required={true}></text-field>
+          <text-field label="Where the signed copy is kept" name="reference" description="Like: Filing cabinet, Bakery folder. Needed if you don’t upload a scan."></text-field>
+          <div class="hq-field">
+            <label for="agreement-file">A scan of it</label>
+            <input id="agreement-file" name="file" type="file" aria-describedby="agreement-file-help">
+            <p id="agreement-file-help" class="hq-muted hq-small">A PDF or an image, up to 25 MB.</p>
+          </div>
+          <div><button class="hq-button" type="submit">Record agreement</button></div>
+        </form>
+      </details>
+    </section>
+
+    <section zb-if={view.can.edit} class="hq-panel" aria-labelledby="proposal-edit">
+      <h2 id="proposal-edit">{p.currentVersion > 0 ? "Working copy" : "Draft"}</h2>
+      <p zb-if={p.currentVersion > 0} class="hq-muted">Changes here do not touch what was sent. Send again to make version {p.currentVersion + 1}.</p>
+      <form method="post" action="/proposals/{p.id}" class="hq-form" style="max-width: none">
+        <text-field label="Title" name="title" value={p.title} required={true}></text-field>
+        <div class="hq-field" style="max-width: 16rem">
+          <label for="proposal-pricing">How it is priced</label>
+          <select id="proposal-pricing" name="pricing" required>
+            <zb-each items={view.pricings} as="pricing" key={pricing.value}><option value={pricing.value} selected={pricing.value === p.pricing}>{pricing.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Scope" name="scope" rows={5} value={p.scope} description="What you will do. Start a line with a dash for a list item."></text-field>
+        <text-field label="Deliverables" name="deliverables" rows={4} value={p.deliverables}></text-field>
+        <text-field label="Assumptions" name="assumptions" rows={4} value={p.assumptions}></text-field>
+        <text-field label="Not included" name="exclusions" rows={3} value={p.exclusions}></text-field>
+        <div>
+          <h3 id="estimate-heading">Estimate</h3>
+          <p class="hq-muted hq-small">One line each. Leave a row empty to drop it. Saving gives you more empty rows.</p>
+          <table class="hq-table estimate" aria-labelledby="estimate-heading">
+            <thead><tr><th scope="col">Item</th><th scope="col" class="kind">Counted in</th><th scope="col" class="narrow">Hours or quantity</th><th scope="col" class="narrow">Rate in dollars</th><th scope="col" class="hq-number">Total</th></tr></thead>
+            <tbody>
+              <zb-each items={view.rows} as="row" key={row.index}>
+                <tr>
+                  <td><input name="item-{row.index}" value={row.item} maxlength="200" aria-label="Item, line {row.index + 1}"></td>
+                  <td class="kind">
+                    <select name="kind-{row.index}" aria-label="Counted in, line {row.index + 1}">
+                      <zb-each items={view.kinds} as="kind" key={kind.value}><option value={kind.value} selected={kind.value === row.kind}>{kind.label}</option></zb-each>
+                    </select>
+                  </td>
+                  <td class="narrow"><input name="quantity-{row.index}" value={row.quantity} inputmode="decimal" aria-label="Hours or quantity, line {row.index + 1}"></td>
+                  <td class="narrow"><input name="rate-{row.index}" value={row.rate} inputmode="decimal" aria-label="Rate in dollars, line {row.index + 1}"></td>
+                  <td class="hq-number">{row.total}</td>
+                </tr>
+              </zb-each>
+            </tbody>
+          </table>
+          <dl class="totals">
+            <dt>Total</dt><dd><strong>{view.summary.price}</strong></dd>
+            <dt zb-if={view.summary.hours}>Hours</dt><dd zb-if={view.summary.hours}>{view.summary.hours}</dd>
+            <dt zb-if={view.summary.deposit}>Deposit, one third</dt><dd zb-if={view.summary.deposit}>{view.summary.deposit}</dd>
+          </dl>
+        </div>
+        <div><button class="hq-button" type="submit">Save proposal</button></div>
+      </form>
+    </section>
+  </div>
+</hq-proposal>
