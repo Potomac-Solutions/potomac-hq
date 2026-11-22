@@ -36,6 +36,9 @@
   .hq-brand img { width: 1.75rem; height: 1.75rem; }
   .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
   .hq-account { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.35rem; white-space: nowrap; }
+  .hq-find { margin: 0; }
+  .hq-find input { width: 9.5rem; min-height: 2.25rem; padding: 0 0.6rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .hq-find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
   .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
   /* The name is on the Settings page too. Where the bar is tight, it gives way to the links. */
   @media (max-width: 90rem) { .hq-who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
@@ -50,6 +53,10 @@
   <nav-bar zb-if={who} href="/" links={links} label="Main">
     <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
     <div slot="actions" class="hq-account">
+      <form zb-if={route.path !== '/search'} method="get" action="/search" role="search" class="hq-find">
+        <label class="sr-only" for="hq-find-q">Search HQ</label>
+        <input id="hq-find-q" name="q" type="search" placeholder="Search" autocomplete="off" maxlength="100">
+      </form>
       <span class="hq-who">{who}</span>
       <a class="hq-account-action" href="/settings">Settings</a>
       <form method="post" action="/staff/sign-out">

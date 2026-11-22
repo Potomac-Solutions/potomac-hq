@@ -38,7 +38,8 @@ Each line says what was checked and what checks it on every merge.
 | Posts are size limited before they are read, and must be forms | `src/app.ts` | `crm-pages.test.ts`, `proposal-pages.test.ts` |
 | Text from a record is escaped wherever it is shown | Zubra escapes every binding. No page prints raw HTML | `test/zubra/regression.test.ts` |
 | Nothing inline runs | Content policy: scripts and styles from this origin only | `sign-in.test.ts`, `test/zubra/regression.test.ts` |
-| No SQL is built from typed text | Every statement is prepared with parameters. Search escapes `%` and `_` | `knowledge.test.ts`, `audit.test.ts` |
+| No SQL is built from typed text | Every statement is prepared with parameters. Search escapes `%` and `_` | `knowledge.test.ts`, `audit.test.ts`, `search.test.ts` |
+| Search shows only what the person may already see | Each kind of record is searched only with its own view permission | `search.test.ts` |
 | Uploads are checked by content, size limited, and served as downloads | The file service | `project-pages.test.ts` |
 | A file a client sends gets the same checks, is theirs alone, and is capped at 20 a day for a project | `saveFileFromClient` | `portal-client-pass.test.ts`, `portal-isolation.test.ts` |
 | A message shown after a redirect is one the server signed | The kit's notices | `sign-in.test.ts` |

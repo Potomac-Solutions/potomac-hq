@@ -182,6 +182,12 @@ sit on top of them:
 - An invited person gets their roles when they first use their link. Until
   then they are an invite, not a user, and an admin can withdraw it.
 
+Search has no permission of its own. It looks only in the kinds of record
+the person may already see: clients and contacts with `client.view`,
+opportunities with `opportunity.view`, projects with `project.view`, tasks
+with `task.view`, proposals with `proposal.view`, invoices with
+`invoice.view`, and articles with `knowledge.view`.
+
 The audit history page and its CSV need `activity.view-all`. The pipeline
 report also needs `opportunity.view-value`, and the budget report
 `finance.view`, so a role that is given `report.view` alone sees neither
