@@ -1,6 +1,6 @@
 {
   "name": "potomac-hq",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Internal operations platform for Potomac Solutions",
   "type": "module",
