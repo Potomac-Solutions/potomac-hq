@@ -83,6 +83,9 @@ export type TwoFactorStore = {
   remove(userId: Id): void;
   markSession(sessionHash: string, userId: Id, at: string): void;
   sessionPassed(sessionHash: string, userId: Id): boolean;
+  /** Whether every admin must have it on. */
+  requiredForAdmins(): boolean;
+  setRequiredForAdmins(on: boolean, by: Id, at: string): void;
 };
 
 export type RefusedKind = "sign-in" | "second-step" | "portal-sign-in" | "permission";

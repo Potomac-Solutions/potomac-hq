@@ -69,9 +69,9 @@ Each line says what was checked and what checks it on every merge.
 ## Known gaps
 
 1. **No independent review**, as said above.
-2. **The second factor is optional.** Two-factor sign-in exists, but each
-   person turns it on for themselves, and nothing yet makes it required
-   for admins. Turn it on for every admin account.
+2. **The second factor is optional until an admin requires it.** People →
+   Sign-in rules requires it of every admin; it is off until Mikey turns
+   it on. Members and managers are never required to use it.
 3. **Rate limits are kept in memory.** They reset when HQ restarts, and
    would not be shared between two replicas. HQ runs one.
 4. ~~Refused attempts are not written down.~~ Fixed after 0.11.0: wrong

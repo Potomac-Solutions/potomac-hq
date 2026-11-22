@@ -21,7 +21,7 @@ import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -197,7 +197,7 @@ export type PageContext = {
     projects(): ReturnType<typeof projectHealthReport>;
     budget(): ReturnType<typeof financeOverview>;
   };
-  readonly people: { list(): ReturnType<typeof listPeople> };
+  readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
   readonly search: (q: string) => ReturnType<typeof search>;
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
@@ -209,7 +209,7 @@ export type PageContext = {
     readonly themes: readonly { value: string; label: string }[];
     /** An admin without two-factor sign-in, reminded on the dashboard. */
     readonly remindTwoFactor: boolean;
-    readonly twoFactor: { readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
+    readonly twoFactor: { readonly required: boolean; readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
   };
 };
 
@@ -313,7 +313,11 @@ export async function createApp(config: AppConfig): Promise<App> {
       const date = today();
       const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
       const pending = user !== null && secondStepDue(user.id, request.headers.get("cookie") ?? "");
-      const actor = pending ? null : (user?.id ?? null);
+      // Past the password and any code, but an admin who must turn on two-factor
+      // sign-in first: Settings only, to do that.
+      const setupActor = pending ? null : (user?.id ?? null);
+      const enrolling = mustTurnOnTwoFactor(twoFactorDeps, setupActor);
+      const actor = enrolling ? null : setupActor;
       const missing = <T,>(): Result<T, "not-found"> => err("not-found");
       return {
         portalAdmin: {
@@ -366,7 +370,9 @@ export async function createApp(config: AppConfig): Promise<App> {
               ? forbidden()
               : pending
                 ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
-                : null,
+                : enrolling && new URL(request.url).pathname !== "/settings"
+                  ? show("identity/ui/two-factor-required-page", { title: "Turn on two-factor sign-in" }, { status: 403 })
+                  : null,
         forbidden,
         dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query), refused: () => refusedAttempts(refusedDeps, actor) },
         crm: {
@@ -420,14 +426,17 @@ export async function createApp(config: AppConfig): Promise<App> {
           projects: () => projectHealthReport(projectsDeps, actor),
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
-        people: { list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true) },
+        people: {
+          list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
+          twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
+        },
         search: (q) => search(services.search, actor, q),
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
-        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: twoFactorView(actor), remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
+        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
   });
@@ -435,6 +444,12 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Form posts. A page's own forms only: the browser must say the post came
   // from this site (Origin), it must be a form, and it must be small.
   const actorOf = (cookieHeader: string): Id | null => {
+    const who = account(cookieHeader);
+    const user = who ? establishUser(sessionDeps, who) : null;
+    return user && !secondStepDue(user.id, cookieHeader) && !mustTurnOnTwoFactor(twoFactorDeps, user.id) ? user.id : null;
+  };
+  // The same, but also an admin who must turn on two-factor sign-in: for the forms that do that.
+  const setupActorOf = (cookieHeader: string): Id | null => {
     const who = account(cookieHeader);
     const user = who ? establishUser(sessionDeps, who) : null;
     return user && !secondStepDue(user.id, cookieHeader) ? user.id : null;
@@ -554,6 +569,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     twoFactorRoutes({
       twoFactor: twoFactorDeps,
       actorOf,
+      setupActorOf,
       pendingOf: (cookieHeader) => {
         const who = account(cookieHeader);
         const user = who ? establishUser(sessionDeps, who) : null;
@@ -603,7 +619,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
-  downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf }));
+  downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));

@@ -10,6 +10,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "user.theme-changed": "changed their theme",
   "user.invited": "invited a user",
   "user.status-changed": "turned a user’s access on or off",
+  "sign-in-rule.two-factor-required": "required two-factor sign-in for admins",
+  "sign-in-rule.two-factor-optional": "made two-factor sign-in optional for admins",
   "user.two-factor-on": "turned on two-factor sign-in",
   "user.two-factor-off": "turned off two-factor sign-in",
   "user.two-factor-reset": "reset someone’s two-factor sign-in",

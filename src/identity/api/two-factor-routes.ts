@@ -1,7 +1,7 @@
 // Two-factor sign-in: the second step at sign-in, turning it on and off in
 // Settings, and an admin's reset on the People page.
 import { Hono } from "hono";
-import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
+import { beginTwoFactor, confirmTwoFactor, passSecondStep, resetTwoFactor, setTwoFactorRule, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
 import type { RateLimit } from "../application/ports.ts";
 import type { RefusedDraft } from "../application/refused.ts";
 import { formPosts, readForm, withMessage, type Id } from "../../shared/index.ts";
@@ -10,6 +10,8 @@ export type TwoFactorRoutesDeps = {
   readonly twoFactor: TwoFactorDeps;
   /** The fully signed-in HQ user. Null while the second step is still to do. */
   readonly actorOf: (cookieHeader: string) => Id | null;
+  /** The same, but also an admin who must turn it on before anything else: for turning it on. */
+  readonly setupActorOf: (cookieHeader: string) => Id | null;
   /** Someone who has passed the password and not yet the second step, with their session's key. */
   readonly pendingOf: (cookieHeader: string) => { readonly userId: Id; readonly sessionHash: string } | null;
   /** The signed-in user and their session's key, for confirming in Settings. */
@@ -34,6 +36,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "code-wrong": "That code didn’t match. Check the time on your phone is right, and try the newest code.",
   "code-used": "That code has been used. Wait for the next one.",
   yourself: "Turn off your own in Settings, with a code.",
+  required: "HQ requires two-factor sign-in for admins, so yours stays on.",
+  "yours-first": "Turn on two-factor sign-in for yourself first, in Settings.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 const SETTINGS = "/settings#two-factor";
@@ -41,6 +45,7 @@ const SETTINGS = "/settings#two-factor";
 export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: SETTINGS });
+  const setup = formPosts(app, { actorOf: deps.setupActorOf, sign: deps.sign, messageFor, home: SETTINGS });
   const go = (c: { redirect(to: string, status: 303): Response }, to: string, name: "done" | "problem", message: string) => c.redirect(deps.sign(withMessage(to, name, message)), 303);
 
   // The second step at sign-in. Limited like the password: five tries a minute
@@ -64,18 +69,25 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
     return go(c, SETTINGS, "done", message);
   });
 
-  post("/settings/two-factor", (actor) => beginTwoFactor(deps.twoFactor, actor), { done: () => SETTINGS, back: () => SETTINGS, message: "Add HQ to your authenticator app, then enter the code it shows." });
+  setup("/settings/two-factor", (actor) => beginTwoFactor(deps.twoFactor, actor), { done: () => SETTINGS, back: () => SETTINGS, message: "Add HQ to your authenticator app, then enter the code it shows." });
 
   // Confirming shows the recovery codes, once: on this answer, never stored or sent on.
   app.post("/settings/two-factor/confirm", async (c) => {
     const { fields } = await readForm(c);
     const cookie = c.req.header("cookie") ?? "";
-    const done = confirmTwoFactor(deps.twoFactor, deps.actorOf(cookie), deps.sessionOf(cookie), fields["code"] ?? "");
+    const done = confirmTwoFactor(deps.twoFactor, deps.setupActorOf(cookie), deps.sessionOf(cookie), fields["code"] ?? "");
     if (!done.ok) return go(c, SETTINGS, "problem", messageFor(done.error));
     return new Response(deps.codesPage(done.value.recoveryCodes), { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
   });
 
-  post("/settings/two-factor/off", (actor, form) => turnOffTwoFactor(deps.twoFactor, actor, form["code"] ?? ""), { done: () => SETTINGS, back: () => SETTINGS, message: "Two-factor sign-in is off. You sign in with your password alone." });
+  // Through `setup`, so an admin who must turn it on can still cancel a start.
+  setup("/settings/two-factor/off", (actor, form) => turnOffTwoFactor(deps.twoFactor, actor, form["code"] ?? ""), { done: () => SETTINGS, back: () => SETTINGS, message: "Two-factor sign-in is off. You sign in with your password alone." });
+
+  post("/people/two-factor-rule", (actor, form) => setTwoFactorRule(deps.twoFactor, actor, form["on"] === "1"), {
+    done: () => "/people#sign-in-rules",
+    back: () => "/people#sign-in-rules",
+    message: "Saved.",
+  });
 
   post("/people/:id/two-factor-reset", (actor, _form, id) => resetTwoFactor(deps.twoFactor, actor, id as Id), { done: () => "/people", back: () => "/people", message: "Their two-factor sign-in is off. They sign in with their password, and can turn it on again." });
   return app;

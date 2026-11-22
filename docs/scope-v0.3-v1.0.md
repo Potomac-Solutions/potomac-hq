@@ -405,9 +405,12 @@ passes. Needs his approval like the rest.
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
 
-- **Optional for everyone, for now.** Each person turns it on in Settings.
-  An admin without it is reminded at the top of the dashboard. Making it
-  required for admins is one more rule when Mikey wants it.
+- **Optional until an admin requires it of admins.** Each person turns it
+  on in Settings, and an admin without it is reminded on the dashboard.
+  People → Sign-in rules requires it of every admin. It ships off. The admin
+  who turns the rule on must have it on already; an admin without it can
+  then open only Settings until it is on, and an admin cannot turn theirs
+  off while the rule is on. Members and managers are never required.
 - **An authenticator app, not texts or email.** Codes by text cost money
   and can be stolen with the phone number. Any app works: 1Password, Google
   Authenticator, Microsoft Authenticator.

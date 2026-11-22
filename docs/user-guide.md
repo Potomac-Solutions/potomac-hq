@@ -15,6 +15,9 @@ at least 10 characters. The link works once.
   an authenticator app on your phone after your password. Keep the recovery
   codes it shows you somewhere safe: each signs you in once if you lose the
   phone. With neither, an admin can reset it from the People page.
+- **Requiring it of admins.** On People, under Sign-in rules, an admin who
+  has it on can require it of every admin. An admin without it can then
+  open only Settings until it is on.
 
 ## What you can do depends on your role
 

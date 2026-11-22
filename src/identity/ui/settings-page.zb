@@ -35,6 +35,7 @@
     </section>
     <section class="hq-panel" id="two-factor" aria-labelledby="settings-two-factor">
       <h2 id="settings-two-factor">Two-factor sign-in</h2>
+      <alert-banner zb-if={twoFactor.required} variant="warning" heading="Required for admins">HQ requires two-factor sign-in for admins. Turn it on to use the rest of HQ.</alert-banner>
       <div zb-if={twoFactor.on}>
         <p><span class="hq-tag">On</span> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
         <form method="post" action="/settings/two-factor/off" class="hq-form-row">

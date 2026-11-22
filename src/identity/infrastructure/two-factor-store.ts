@@ -15,6 +15,9 @@ export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
   const left = db.prepare("select count(*) as n from two_factor_recovery where user_id = ? and used_at is null");
   const mark = db.prepare("insert into two_factor_session (session_hash, user_id, verified_at) values (?, ?, ?) on conflict (session_hash) do update set user_id = excluded.user_id, verified_at = excluded.verified_at");
   const passed = db.prepare("select 1 from two_factor_session where session_hash = ? and user_id = ?");
+  const ruleOn = db.prepare("select 1 from sign_in_rule where key = 'two-factor-for-admins'");
+  const ruleSet = db.prepare("insert into sign_in_rule (key, on_since, set_by) values ('two-factor-for-admins', ?, ?) on conflict (key) do nothing");
+  const ruleClear = db.prepare("delete from sign_in_rule where key = 'two-factor-for-admins'");
   const wipe = (userId: Id) => {
     clearRecovery.run(userId);
     clearSessions.run(userId);
@@ -44,5 +47,10 @@ export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
       mark.run(sessionHash, userId, at);
     },
     sessionPassed: (sessionHash, userId) => passed.get(sessionHash, userId) !== undefined,
+    requiredForAdmins: () => ruleOn.get() !== undefined,
+    setRequiredForAdmins(on, by, at) {
+      if (on) ruleSet.run(at, by);
+      else ruleClear.run();
+    },
   };
 }

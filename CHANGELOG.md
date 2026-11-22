@@ -9,6 +9,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Two-factor sign-in can be required of every admin, under People →
+  Sign-in rules. It ships off. An admin without it can then open only
+  Settings until it is on, and no admin can turn theirs off while it is
+  required. Members and managers are not affected. Migration 0014.
 - Refused attempts are written down: wrong passwords at HQ and portal
   sign-in, wrong two-factor codes, and forms someone signed in was not
   allowed to use. Admins see the last 30 days on Audit history → Refused
