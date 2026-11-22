@@ -1,0 +1,62 @@
+<!--
+  A client books a call: the open times, day by day. Choosing a time books
+  it. With ?move=<id>, the same times move one of their calls instead. Works
+  with no scripts: each time is a button in one form.
+-->
+<script>
+  'use route /portal/book'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, url }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const move = url.searchParams.get('move') ?? ''
+    const times = await context.booking.portalTimes()
+    const moving = move ? context.booking.portalCalls().find((call) => call.id === move && call.changeable) ?? null : null
+    return { title: moving ? 'Move your call' : 'Book a call', times, moving, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .book-days { display: grid; gap: 1rem; }
+  .book-day h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .book-times { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .book-times button { min-width: 6.5rem; min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-weight: 600; color: var(--primary); background: var(--background); border: 1px solid var(--primary); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
+  .book-fields { display: grid; gap: 1rem; margin-bottom: 1.25rem; }
+</style>
+<hq-portal-book times={{ open: false, days: [] }} moving={null} problem="">
+  <div class="hq-page">
+    <h1>{moving ? 'Move your call' : 'Book a call'}</h1>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <p><a href="/portal#calls">Back to your portal</a></p>
+
+    <div zb-if={!times.open} class="hq-panel">
+      <p>Booking a time isn’t available right now. <a href="/portal#calls">Ask for a call</a> instead, and Potomac Solutions will confirm a time.</p>
+    </div>
+    <div zb-else-if={times.calendarFailed} class="hq-panel">
+      <p>The calendar couldn’t be checked just now. Try again in a minute, or <a href="/portal#calls">ask for a call</a>.</p>
+    </div>
+    <form zb-else method="post" action={moving ? '/portal/calls/' + moving.id + '/move' : '/portal/book'} class="hq-panel">
+      <p zb-if={moving}>Your call is now <strong>{moving.when}</strong>. Choose a new time.</p>
+      <p zb-else>Each call is {times.callMinutes} minutes. Times are Eastern. Choose one and it’s booked.</p>
+      <div zb-if={!moving} class="book-fields">
+        <text-field label="What would you like to talk about?" name="topic" rows={2} description="It helps Potomac Solutions come ready."></text-field>
+        <text-field label="The best number to reach you" name="phone" type="tel" autocomplete="tel" description="If they should call you, rather than you calling them"></text-field>
+      </div>
+      <empty-state zb-if={times.days.length === 0} heading="No open times">Every time is taken for now. <a href="/portal#calls">Ask for a call</a> instead.</empty-state>
+      <div zb-else class="book-days">
+        <zb-each items={times.days} as="day" key={day.day}>
+          <section class="book-day" aria-labelledby="day-{day.day}">
+            <h3 id="day-{day.day}">{day.label}</h3>
+            <ul class="book-times">
+              <zb-each items={day.slots} as="slot" key={slot.start}>
+                <li><button type="submit" name="start" value={slot.start} aria-label="{day.label}, {slot.label}">{slot.label}</button></li>
+              </zb-each>
+            </ul>
+          </section>
+        </zb-each>
+      </div>
+    </form>
+  </div>
+</hq-portal-book>
