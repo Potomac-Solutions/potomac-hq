@@ -34,6 +34,7 @@ before(async () => {
 after(() => t.stop());
 
 test("turning it on takes a code from the app, and shows the recovery codes once", async () => {
+  assert.match(textOf(await mikey.page("/")), /Turn on two-factor sign-in You're an admin/, "an admin without it is reminded");
   const off = await mikey.page("/settings");
   assert.match(textOf(off), /Two-factor sign-in Off\./);
 
@@ -77,6 +78,7 @@ test("turning it on takes a code from the app, and shows the recovery codes once
   assert.equal((await mikey.get("/clients")).status, 200);
   assert.match(textOf(await mikey.page("/settings")), /On After your password, HQ asks for a code from your authenticator app\. 10 recovery codes are left\./);
   assert.ok(actions(t.db).includes("user.two-factor-on"));
+  assert.doesNotMatch(textOf(await mikey.page("/")), /Turn on two-factor sign-in/, "and not once it is on");
   // Nothing secret reaches the activity log.
   const log = JSON.stringify(t.db.prepare("select * from activity_event").all());
   assert.ok(!log.includes(secretOf(mikeyId)) && !recovery.some((code) => log.includes(code)));
@@ -142,6 +144,7 @@ test("an admin resets it for a lost phone; nobody resets their own that way", as
   const sam = await signIn(t, "sam@example.com", "Sam Helper", ["member"]);
   await sam.get("/");
   const samId = userId("sam@example.com");
+  assert.doesNotMatch(textOf(await sam.page("/")), /Turn on two-factor sign-in/, "only admins are reminded");
   await sam.post("/settings/two-factor", {});
   assert.equal((await sam.post("/settings/two-factor/confirm", { code: codeNow(samId) })).status, 200);
 

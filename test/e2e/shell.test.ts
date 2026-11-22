@@ -85,7 +85,9 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
 
   // The dashboard, in the shell. The v0.1 gate: your own sign-in is in the activity panel.
   await page.getByRole("heading", { name: "Dashboard", level: 1 }).waitFor();
-  assert.match((await page.textContent("[role=status]")) ?? "", /signed in/i);
+  // The first admin has no two-factor sign-in yet, so the reminder is there too.
+  assert.equal(await page.locator("[role=status]", { hasText: /signed in/i }).count(), 1);
+  assert.equal(await page.locator("[role=status]", { hasText: "Turn on two-factor sign-in" }).count(), 1);
   const activity = page.getByRole("region", { name: "Recent activity" });
   assert.match((await activity.textContent()) ?? "", /Mikey Nichols signed in/);
   assert.match((await activity.textContent()) ?? "", /Mikey Nichols was added as a user/);
