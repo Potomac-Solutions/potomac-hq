@@ -1,0 +1,28 @@
+<!--
+  The second step at sign-in, for someone who has turned on two-factor
+  sign-in: the code from their authenticator app, or a recovery code.
+-->
+<script>
+  import '../../shared/ui/zubra/action-button.zb'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+</script>
+<style>
+  :host { display: block; max-width: 26rem; margin: 2rem auto; }
+  .hq-sign-in { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-sign-in h1, .hq-sign-in p { margin: 0; }
+  .hq-sign-in form { display: grid; gap: 1rem; margin: 0; }
+  .hq-sign-in .hq-leave { justify-items: start; }
+</style>
+<hq-two-factor problem="">
+  <div class="hq-sign-in">
+    <h1>Enter your code</h1>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <p>Open your authenticator app and enter the 6-digit code for Potomac HQ.</p>
+    <form method="post" action="/two-factor">
+      <text-field label="Code" name="code" autocomplete="one-time-code" inputmode="numeric" required={true} description="Lost your phone? Enter one of your recovery codes instead."></text-field>
+      <div><action-button type="submit">Continue</action-button></div>
+    </form>
+    <form method="post" action="/staff/sign-out" class="hq-leave"><button class="hq-button secondary" type="submit">Sign out</button></form>
+  </div>
+</hq-two-factor>

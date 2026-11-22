@@ -16,7 +16,7 @@ export type ManageUsersDeps = ActivityDeps & {
 
 export const ROLE_LABELS: Readonly<Record<RoleKey, string>> = { admin: "Admin", manager: "Manager", member: "Member" };
 
-export type PersonView = { readonly id: string; readonly name: string; readonly email: string; readonly active: boolean; readonly statusLabel: string; readonly roleLabels: string; readonly roles: readonly { readonly key: string; readonly label: string; readonly held: boolean }[]; readonly you: boolean };
+export type PersonView = { readonly id: string; readonly name: string; readonly email: string; readonly active: boolean; readonly statusLabel: string; readonly roleLabels: string; readonly roles: readonly { readonly key: string; readonly label: string; readonly held: boolean }[]; readonly you: boolean; readonly twoFactor: boolean };
 export type InviteView = { readonly id: string; readonly name: string; readonly email: string; readonly roleLabels: string };
 export type PeopleView = {
   readonly people: readonly PersonView[];
@@ -27,7 +27,8 @@ export type PeopleView = {
 
 const labels = (roles: readonly RoleKey[]) => roles.map((key) => ROLE_LABELS[key]).join(", ");
 
-export function listPeople(deps: ManageUsersDeps, actorId: Id | null): Result<PeopleView, "forbidden"> {
+/** `twoFactorOn` says whether someone has two-factor sign-in on, for the reset button. */
+export function listPeople(deps: ManageUsersDeps, actorId: Id | null, twoFactorOn: (id: Id) => boolean = () => false): Result<PeopleView, "forbidden"> {
   if (!authorize(deps, actorId, "user.view").ok) return err("forbidden");
   const may = (action: string) => authorize(deps, actorId, action).ok;
   const can = { invite: may("user.invite"), setStatus: may("user.set-status"), setRoles: may("user.set-roles"), reset: may("user.reset") };
@@ -43,6 +44,7 @@ export function listPeople(deps: ManageUsersDeps, actorId: Id | null): Result<Pe
         roleLabels: labels(held) || "No role",
         roles: ROLE_KEYS.map((key) => ({ key, label: ROLE_LABELS[key], held: held.includes(key) })),
         you: user.id === actorId,
+        twoFactor: twoFactorOn(user.id),
       };
     }),
     // Who is waiting on an invite is for those who can invite.

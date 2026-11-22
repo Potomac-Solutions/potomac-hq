@@ -239,7 +239,7 @@ still open.
 
 | Cut | Why | Lands |
 | --- | --- | --- |
-| Two-factor sign-in | Not in the roadmap. Listed as a gap in the security review | Before a second admin |
+| Two-factor sign-in | Not in the roadmap. Listed as a gap in the security review | After 0.10.0 (see below) |
 | Rich text in articles | Plain text is safe and enough to start | When it gets in the way |
 | Custom roles and per-person permissions | Three fixed roles cover one to a few people | When they do not |
 | Charts in reports | Tables say the same with less to maintain | When someone asks |
@@ -401,3 +401,22 @@ passes. Needs his approval like the rest.
 - **Changes asked for count as handled** when the deliverable is shared
   again.
 
+## After 0.10.0: two-factor sign-in
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+- **Optional for everyone, for now.** Each person turns it on in Settings.
+  Making it required for admins is one more rule when Mikey wants it.
+- **An authenticator app, not texts or email.** Codes by text cost money
+  and can be stolen with the phone number. Any app works: 1Password, Google
+  Authenticator, Microsoft Authenticator.
+- **No QR code yet.** Settings shows a link the app opens on the same phone,
+  and the key to type by hand. A QR code needs a library or a few hundred
+  lines; it is the first thing to add if typing the key gets in the way.
+- **Ten recovery codes, shown once.** Using the last one says to turn it off
+  and on again for new ones.
+- **An admin can reset it** for someone with neither phone nor codes, with
+  the same permission as making them a new password link. Nobody resets
+  their own that way: turning your own off takes a code.
+- **Five tries a minute** at the second step, for each person and each
+  address. A six-digit code is a small space.

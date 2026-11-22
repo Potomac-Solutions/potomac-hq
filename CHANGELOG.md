@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Two-factor sign-in for HQ accounts, with an authenticator app. Turn it on
+  in Settings: add HQ to the app by its link or key, enter a code, and get
+  ten recovery codes, shown once. After that, HQ asks for a code after the
+  password, and nothing in HQ opens until it is given. A code works once,
+  the second step allows five tries a minute, and only hashes of recovery
+  codes are kept. An admin can reset it on the People page for someone who
+  lost their phone. Migration 0012.
 - Search from the top bar, and a search page. One box finds clients,
   contacts (by name, email or phone), opportunities, projects, tasks (by
   title or description), proposals, invoices (by number, written any way:

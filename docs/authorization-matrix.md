@@ -43,7 +43,8 @@ so that someone can see deal values without being an administrator.
 | Invite a user | `user.invite` | Yes | No | No | No |
 | Disable or re-enable a user | `user.set-status` | Yes | No | No | No |
 | Change a user's roles | `user.set-roles` | Yes | No | No | No |
-| Send a user a password reset link | `user.reset` | Yes | No | No | No |
+| Send a user a password reset link, or reset their two-factor sign-in | `user.reset` | Yes | No | No | No |
+| Turn own two-factor sign-in on or off | none | Yes | Yes | Yes | No |
 
 ### Dashboard and audit (v0.1)
 

@@ -21,8 +21,10 @@ import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
-import { problemPage, userLinkPage } from "./identity/ui/views.ts";
+import { authorize, establishUser, listPeople, needsSecondStep, requestPasswordReset, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { sessionKeyOf } from "./identity/adapters.ts";
+import { twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
+import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
@@ -202,7 +204,11 @@ export type PageContext = {
     article(slug: string): ReturnType<typeof articleDetail>;
     revision(slug: string, number: string): ReturnType<typeof articleRevision>;
   };
-  readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
+  readonly settings: {
+    readonly theme: Theme;
+    readonly themes: readonly { value: string; label: string }[];
+    readonly twoFactor: { readonly on: boolean; readonly setup: { readonly key: string; readonly link: string } | null; readonly recoveryText: string };
+  };
 };
 
 /** An id from an address. Anything that is not one is simply not found. */
@@ -249,6 +255,21 @@ export async function createApp(config: AppConfig): Promise<App> {
     return who ? { account: who.account, name: who.name, email: who.email, isOwner: who.roles.includes("owner") } : null;
   };
 
+  // Two-factor sign-in. Someone who has passed the password but not the
+  // second step is signed in to the kit, and to nothing in HQ.
+  const twoFactorDeps = services.twoFactor;
+  const sessionHashOf = (cookieHeader: string) => sessionKeyOf(cookieHeader, staff.cookieName);
+  // Five tries a minute: a six-digit code is a small space.
+  const secondStepLimit = memoryRateLimit({ max: 5, windowMs: 60_000 });
+  const secondStepDue = (userId: Id, cookieHeader: string) => needsSecondStep(twoFactorDeps, userId, sessionHashOf(cookieHeader));
+
+  const twoFactorView = (actor: Id | null) => {
+    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0 };
+    const left = status.recoveryLeft;
+    const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left: turn it off and on again to get new ones." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
+    return { on: status.on, setup: status.setup, recoveryText };
+  };
+
   const handleStaff = staffRoutes({
     handle: (req, res, url, form) => pages.handle(req, res, url, form),
     session: account,
@@ -279,11 +300,12 @@ export async function createApp(config: AppConfig): Promise<App> {
       const who = account(request.headers.get("cookie") ?? "");
       const user = who ? establishUser(sessionDeps, who) : null;
       const notice = readNotice(new URL(request.url));
-      const actor = user?.id ?? null;
       const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
       const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
+      const pending = user !== null && secondStepDue(user.id, request.headers.get("cookie") ?? "");
+      const actor = pending ? null : (user?.id ?? null);
       const missing = <T,>(): Result<T, "not-found"> => err("not-found");
       return {
         portalAdmin: {
@@ -324,12 +346,19 @@ export async function createApp(config: AppConfig): Promise<App> {
             return found && user && user.status !== "disabled" ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
           },
         },
-        signedIn: who !== null,
-        user: user ? { id: user.id, name: user.name } : null,
+        signedIn: who !== null && !pending,
+        user: user && !pending ? { id: user.id, name: user.name } : null,
         notice,
         signIn,
         today: date,
-        guard: () => (who === null ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 }) : user === null ? forbidden() : null),
+        guard: () =>
+          who === null
+            ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 })
+            : user === null
+              ? forbidden()
+              : pending
+                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
+                : null,
         forbidden,
         dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query) },
         crm: {
@@ -383,14 +412,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           projects: () => projectHealthReport(projectsDeps, actor),
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
-        people: { list: () => listPeople(sessionDeps, actor) },
+        people: { list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true) },
         search: (q) => search(services.search, actor, q),
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
-        settings: { theme: user ? users.themeOf(user.id) : "system", themes },
+        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: twoFactorView(actor) },
       };
     },
   });
@@ -400,7 +429,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const actorOf = (cookieHeader: string): Id | null => {
     const who = account(cookieHeader);
     const user = who ? establishUser(sessionDeps, who) : null;
-    return user?.id ?? null;
+    return user && !secondStepDue(user.id, cookieHeader) ? user.id : null;
   };
   // "Forgot your password?" by email, when email is set up.
   const email = config.email ?? null;
@@ -500,6 +529,24 @@ export async function createApp(config: AppConfig): Promise<App> {
     }),
   );
   forms.route("/", knowledgeRoutes({ knowledge: services.knowledge, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route(
+    "/",
+    twoFactorRoutes({
+      twoFactor: twoFactorDeps,
+      actorOf,
+      pendingOf: (cookieHeader) => {
+        const who = account(cookieHeader);
+        const user = who ? establishUser(sessionDeps, who) : null;
+        const sessionHash = sessionHashOf(cookieHeader);
+        return user && sessionHash && secondStepDue(user.id, cookieHeader) ? { userId: user.id, sessionHash } : null;
+      },
+      sessionOf: sessionHashOf,
+      allowAttempt: secondStepLimit,
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      sign: (location) => notices.sign(location),
+      codesPage: (codes) => renderPage("Your recovery codes", recoveryCodesPage(codes)),
+    }),
+  );
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

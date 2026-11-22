@@ -10,7 +10,11 @@ at least 10 characters. The link works once.
 - **Forgot your password?** Use "Forgot your password?" on the sign-in page
   if email is set up. If not, ask an admin for a new link.
 - **Settings**, top right, has the theme (light, dark, or follow your
-  device), your password, and the People list.
+  device), your password, two-factor sign-in, and the People list.
+- **Two-factor sign-in.** Turn it on in Settings and HQ asks for a code from
+  an authenticator app on your phone after your password. Keep the recovery
+  codes it shows you somewhere safe: each signs you in once if you lose the
+  phone. With neither, an admin can reset it from the People page.
 
 ## What you can do depends on your role
 
