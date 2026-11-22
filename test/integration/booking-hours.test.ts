@@ -90,3 +90,25 @@ test("a booked call shows on Calls and the dashboard, takes its time, has a cale
   assert.equal(problemOf(await member.post(`/calls/${id}/cancel`, {})), "That call has already started, or was cancelled.");
   assert.ok(actions(t.db).includes("booking.made") && actions(t.db).includes("booking.cancelled"));
 });
+
+test("someone who booked from the page goes into the CRM in one step, as a prospect with a consult booked", async () => {
+  const services = createServices(t.db).booking;
+  const slot = (await openTimes(services, "public")).days[3]?.slots[0];
+  assert.ok(slot);
+  const made = await bookCall(services, { kind: "public", name: "Rita Okafor", email: "rita@example.com", phone: "304-555-0177", topic: "Online orders for the diner. Maybe a menu page too." }, slot.start);
+  assert.ok(made.ok);
+  const id = made.value.booking.id;
+  assert.match(textOf(await admin.page("/calls")), /Add to the CRM Business name/);
+  assert.equal(problemOf(await member.post(`/calls/${id}/crm`, { business: "Elk Diner" })), "", "a member may add clients too");
+  const added = t.db.prepare("select crm_client_id, crm_opportunity_id from booking where id = ?").get(id) as { crm_client_id: string; crm_opportunity_id: string };
+  assert.ok(added.crm_client_id);
+  // Already in: a second try is refused, and the form is gone.
+  assert.equal(problemOf(await admin.post(`/calls/${id}/crm`, { business: "Elk Diner" })), "That call is already in the CRM.");
+  const calls = textOf(await admin.page("/calls"));
+  assert.match(calls, /Rita Okafor .* In the CRM/);
+  const opportunity = textOf(await admin.page(`/opportunities/${added.crm_opportunity_id}`));
+  assert.match(opportunity, /First call: Online orders for the diner/);
+  assert.match(opportunity, /Consult booked/);
+  assert.match(textOf(await admin.page(`/clients/${added.crm_client_id}`)), /Elk Diner .* Rita Okafor .* rita@example\.com/);
+  assert.ok(actions(t.db).includes("booking.added-to-crm"));
+});

@@ -5,6 +5,7 @@ import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
 const COLUMNS = "id, kind, status, starts_at, ends_at, name, email, phone, topic, organization_id, client_user_id, host_id, created_at, cancelled_at, cancelled_by, cancel_reason";
+const READ = `${COLUMNS}, crm_client_id, crm_opportunity_id`;
 
 function toBooking(row: Record<string, unknown>): Booking {
   return {
@@ -24,6 +25,8 @@ function toBooking(row: Record<string, unknown>): Booking {
     cancelledAt: (row["cancelled_at"] as string | null) ?? null,
     cancelledBy: (row["cancelled_by"] as Booking["cancelledBy"]) ?? null,
     cancelReason: String(row["cancel_reason"]),
+    crmClientId: (row["crm_client_id"] as Id | null | undefined) ?? null,
+    crmOpportunityId: (row["crm_opportunity_id"] as Id | null | undefined) ?? null,
   };
 }
 
@@ -38,14 +41,15 @@ export function sqliteBookingStore(db: Database): BookingStore {
   const closed = db.prepare("select day, note from booking_closed_day where day >= ? order by day");
   const close = db.prepare("insert into booking_closed_day (day, note) values (?, ?) on conflict (day) do update set note = excluded.note");
   const open = db.prepare("delete from booking_closed_day where day = ?");
-  const booked = db.prepare(`select ${COLUMNS} from booking where status = 'booked' and starts_at < ? and ends_at > ? order by starts_at`);
-  const between = db.prepare(`select ${COLUMNS} from booking where starts_at >= ? and starts_at < ? order by starts_at`);
-  const forOrganization = db.prepare(`select ${COLUMNS} from booking where organization_id = ? and ends_at >= ? order by starts_at`);
-  const get = db.prepare(`select ${COLUMNS} from booking where id = ?`);
-  const byHash = db.prepare(`select ${COLUMNS} from booking where manage_hash = ?`);
+  const booked = db.prepare(`select ${READ} from booking where status = 'booked' and starts_at < ? and ends_at > ? order by starts_at`);
+  const between = db.prepare(`select ${READ} from booking where starts_at >= ? and starts_at < ? order by starts_at`);
+  const forOrganization = db.prepare(`select ${READ} from booking where organization_id = ? and ends_at >= ? order by starts_at`);
+  const get = db.prepare(`select ${READ} from booking where id = ?`);
+  const byHash = db.prepare(`select ${READ} from booking where manage_hash = ?`);
   const add = db.prepare(`insert into booking (${COLUMNS}, manage_hash) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const due = db.prepare(`select ${COLUMNS} from booking where status = 'booked' and reminded_at is null and starts_at >= ? and starts_at < ? order by starts_at`);
+  const due = db.prepare(`select ${READ} from booking where status = 'booked' and reminded_at is null and starts_at >= ? and starts_at < ? order by starts_at`);
   const remind = db.prepare("update booking set reminded_at = ? where id = ?");
+  const crm = db.prepare("update booking set crm_client_id = ?, crm_opportunity_id = ? where id = ?");
   const save = db.prepare("update booking set reminded_at = case when starts_at = ? then reminded_at else null end, status = ?, starts_at = ?, ends_at = ?, phone = ?, topic = ?, cancelled_at = ?, cancelled_by = ?, cancel_reason = ? where id = ?");
   return {
     settings() {
@@ -87,6 +91,9 @@ export function sqliteBookingStore(db: Database): BookingStore {
       add.run(b.id, b.kind, b.status, b.start, b.end, b.name, b.email, b.phone, b.topic, b.organizationId, b.clientUserId, b.hostId, b.createdAt, b.cancelledAt, b.cancelledBy, b.cancelReason, manageHash);
     },
     dueReminders: (from, to) => due.all(from, to).map(toBooking).filter((one) => Temporal.Instant.from(one.start).since(one.createdAt).total("hours") >= 20),
+    setCrm(id, clientId, opportunityId) {
+      crm.run(clientId, opportunityId, id);
+    },
     markReminded(id, at) {
       remind.run(at, id);
     },

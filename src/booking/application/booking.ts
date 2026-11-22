@@ -4,6 +4,7 @@
 // booking page holds a private link instead of an account.
 import { calendarFile, cancel, changeable, checkBooker, whenText, type Booking, type BookerError, type BookerInput } from "../domain/booking.ts";
 import { checkRules, clockValue, DEFAULT_RULES, hoursSummary, isOpen, openSlots, parseClock, WEEKDAY_NAMES, type BookingRules, type Busy, type HoursRange, type OpenDay, type RulesError, type Weekday } from "../domain/hours.ts";
+import { addContact, createClient, createOpportunity, moveOpportunity, SERVICE_OPTIONS, type CrmDeps } from "../../crm/index.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { BookingSettings, BookingStore, BusyCalendar, ClosedDay, ManageTokens } from "./ports.ts";
@@ -299,6 +300,41 @@ export async function moveCall(deps: BookingDeps, changer: Changer, id: Id | nul
 
 export type { Booking } from "../domain/booking.ts";
 
+// ── Into the CRM ────────────────────────────────────────────────────────
+
+export type ToCrmError = "forbidden" | "not-found" | "already-added" | "not-public" | "business-missing" | "business-too-long" | "crm-refused";
+
+/**
+ * Makes a prospect of someone who booked from the public page: a client
+ * named for their business, them as its contact, and an opportunity at
+ * "consult booked" from the website, with what they wrote as its summary.
+ * The call remembers it, and links to it. Permissions: the CRM's own, for
+ * each record it makes.
+ */
+export function addBookingToCrm(deps: BookingDeps, crm: CrmDeps, actorId: Id | null, id: Id | null, input: { readonly business: string; readonly service?: string | null }): Result<{ readonly clientId: Id; readonly opportunityId: Id }, ToCrmError> {
+  if (!allowed(deps, actorId, "client.create") || !allowed(deps, actorId, "opportunity.create")) return err("forbidden");
+  const booking = id ? deps.bookings.get(id) : null;
+  if (!booking) return err("not-found");
+  if (booking.kind !== "public") return err("not-public");
+  if (booking.crmClientId) return err("already-added");
+  const business = input.business.trim().replace(/\s+/g, " ");
+  if (!business) return err("business-missing");
+  if (business.length > 120) return err("business-too-long");
+  // Each step is the CRM's own service, with its own checks and activity.
+  const client = createClient(crm, actorId, { name: business, sizeTier: "small" });
+  if (!client.ok) return err("crm-refused");
+  const contact = addContact(crm, actorId, client.value.id, { name: booking.name, email: booking.email, phone: booking.phone || null, isPrimary: true });
+  const title = booking.topic ? `First call: ${booking.topic.split(/[.\n]/)[0]?.slice(0, 80) ?? ""}`.trim() : `First call with ${booking.name}`;
+  const opportunity = createOpportunity(crm, actorId, client.value.id, { title, leadSource: "website", service: input.service || null, contactId: contact.ok ? contact.value.id : null, summary: booking.topic || null });
+  if (!opportunity.ok) return err("crm-refused");
+  moveOpportunity(crm, actorId, opportunity.value.id, { to: "consult-booked" });
+  return deps.transact(() => {
+    deps.bookings.setCrm(booking.id, client.value.id, opportunity.value.id);
+    recordActivity(deps, { actorId, action: "booking.added-to-crm", recordType: "booking", recordId: booking.id, context: { clientId: client.value.id, opportunityId: opportunity.value.id } });
+    return ok({ clientId: client.value.id, opportunityId: opportunity.value.id });
+  });
+}
+
 // ── Views ───────────────────────────────────────────────────────────────
 
 export type CallLine = {
@@ -314,6 +350,10 @@ export type CallLine = {
   readonly cancelled: boolean;
   readonly cancelText: string;
   readonly changeable: boolean;
+  /** From the public page and not in the CRM yet: it can be added. */
+  readonly canAddToCrm: boolean;
+  /** Its opportunity, once added. */
+  readonly crmHref: string;
 };
 
 const lineOf = (deps: BookingDeps, booking: Booking): CallLine => ({
@@ -329,12 +369,17 @@ const lineOf = (deps: BookingDeps, booking: Booking): CallLine => ({
   cancelled: booking.status === "cancelled",
   cancelText: booking.status !== "cancelled" ? "" : `Cancelled by ${booking.cancelledBy === "staff" ? "Potomac" : booking.name}${booking.cancelReason ? `: ${booking.cancelReason}` : ""}`,
   changeable: changeable(booking, deps.clock()),
+  canAddToCrm: booking.kind === "public" && !booking.crmClientId,
+  crmHref: booking.crmOpportunityId ? `/opportunities/${booking.crmOpportunityId}` : "",
 });
 
 export type CallsView = {
   readonly upcoming: readonly CallLine[];
   readonly past: readonly CallLine[];
   readonly canManage: boolean;
+  /** May add someone who booked from the public page to the CRM. */
+  readonly canAddToCrm: boolean;
+  readonly services: readonly { readonly value: string; readonly label: string }[];
   readonly setUp: boolean;
   readonly portalOpen: boolean;
   readonly publicOpen: boolean;
@@ -351,6 +396,8 @@ export function callsView(deps: BookingDeps, actorId: Id | null): Result<CallsVi
     upcoming: all.filter((one) => !started(one)).map((one) => lineOf(deps, one)),
     past: all.filter(started).toReversed().map((one) => lineOf(deps, one)),
     canManage: allowed(deps, actorId, "booking.manage"),
+    canAddToCrm: allowed(deps, actorId, "client.create") && allowed(deps, actorId, "opportunity.create"),
+    services: SERVICE_OPTIONS,
     setUp: settings !== null && settings.hours.length > 0,
     portalOpen: settings?.portalOpen ?? false,
     publicOpen: settings?.publicOpen ?? false,

@@ -642,7 +642,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", bookingStaffRoutes({ booking: services.booking, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

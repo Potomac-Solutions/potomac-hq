@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Someone who booked from the public page goes into the CRM in one step,
+  from Calls: a client named for their business, them as its contact, and
+  an opportunity from the website at "Consult booked", with what they wrote
+  as its summary. The call then links to it. Migration 0018.
+
 - Booked calls can avoid busy times in a Google Calendar, once
   `HQ_GOOGLE_CALENDAR_ID` and a service account are set and the calendar is
   shared with it as "See only free/busy". HQ asks only whether a time is

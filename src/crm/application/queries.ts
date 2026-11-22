@@ -171,6 +171,9 @@ export function clientDetail(deps: CrmDeps, actorId: Id | null, clientId: Id): R
   });
 }
 
+/** The services an opportunity can be for, for a choice list. */
+export const SERVICE_OPTIONS: readonly { readonly value: string; readonly label: string }[] = options(SERVICE_LABELS);
+
 export function opportunityDetail(deps: CrmDeps, actorId: Id | null, opportunityId: Id, today: string): Result<OpportunityDetailView, Refused> {
   if (!may(deps, actorId, "opportunity.view")) return err("forbidden");
   const opportunity = deps.opportunities.get(opportunityId);

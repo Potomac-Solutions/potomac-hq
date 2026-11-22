@@ -25,6 +25,9 @@ export type Booking = {
   readonly cancelledAt: string | null;
   readonly cancelledBy: "staff" | "booker" | null;
   readonly cancelReason: string;
+  /** For a call from the public page, once added to the CRM. */
+  readonly crmClientId?: Id | null;
+  readonly crmOpportunityId?: Id | null;
 };
 
 export type BookerInput = { readonly name: string; readonly email: string; readonly phone?: string | null; readonly topic?: string | null };

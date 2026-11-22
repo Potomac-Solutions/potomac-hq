@@ -1,7 +1,8 @@
 // HQ's side of booking: the hours, days off, cancelling a call, and a call's
 // calendar file.
 import { Hono } from "hono";
-import { calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, type BookingDeps } from "../application/booking.ts";
+import { addBookingToCrm, calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, type BookingDeps } from "../application/booking.ts";
+import type { CrmDeps } from "../../crm/index.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 import { tell, type BookingEmails } from "./notify.ts";
 
@@ -24,11 +25,17 @@ export const BOOKING_MESSAGES: Readonly<Record<string, string>> = {
   taken: "That time was just taken. Choose another.",
   closed: "Booking is off right now.",
   "calendar-failed": "The calendar couldn’t be checked just now. Try again in a minute.",
+  "already-added": "That call is already in the CRM.",
+  "not-public": "That call is from a client already in the CRM.",
+  "business-missing": "Enter the business’s name, or theirs if there isn’t one.",
+  "business-too-long": "Keep the name under 120 characters.",
+  "crm-refused": "The CRM didn’t take it. Check the name, email and phone, and try again.",
 };
 const messageFor = (code: string): string => BOOKING_MESSAGES[code] ?? "That didn’t work. Try again.";
 
 export type BookingStaffDeps = {
   readonly booking: BookingDeps;
+  readonly crm?: CrmDeps;
   readonly emails?: BookingEmails;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
@@ -45,6 +52,14 @@ export function bookingStaffRoutes(deps: BookingStaffDeps): Hono {
     if (done.ok) await tell(deps.booking, deps.emails ?? null, done.value, { event: "cancelled", by: "staff" });
     return done;
   }, { done: () => "/calls", back: () => "/calls", message: "Cancelled." });
+  if (deps.crm) {
+    const crm = deps.crm;
+    post("/calls/:id/crm", (actor, form, id) => addBookingToCrm(deps.booking, crm, actor, id, { business: form["business"] ?? "", service: form["service"] ?? null }), {
+      done: (value) => `/opportunities/${value.opportunityId}`,
+      back: () => "/calls",
+      message: "Added to the CRM: a client, its contact, and an opportunity at “Consult booked”.",
+    });
+  }
   return app;
 }
 
