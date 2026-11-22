@@ -32,6 +32,13 @@ export type BookingStore = {
   byManageHash(hash: string): Booking | null;
   add(booking: Booking, manageHash: string | null): void;
   save(booking: Booking): void;
+  /**
+   * Booked calls starting from..to with no reminder yet, that were booked
+   * at least 20 hours before they start: a call booked for this afternoon
+   * needs no reminder.
+   */
+  dueReminders(from: string, to: string): readonly Booking[];
+  markReminded(id: Id, at: string): void;
 };
 
 /** Times already taken in another calendar, such as Google Calendar. None until one is connected. */

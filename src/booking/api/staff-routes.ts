@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import { calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, type BookingDeps } from "../application/booking.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
+import { tell, type BookingEmails } from "./notify.ts";
 
 export const BOOKING_MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
@@ -28,6 +29,7 @@ const messageFor = (code: string): string => BOOKING_MESSAGES[code] ?? "That did
 
 export type BookingStaffDeps = {
   readonly booking: BookingDeps;
+  readonly emails?: BookingEmails;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
 };
@@ -38,7 +40,11 @@ export function bookingStaffRoutes(deps: BookingStaffDeps): Hono {
   post("/calls/hours", (actor, form) => saveBookingSetup(deps.booking, actor, form), { done: () => "/calls/hours", back: () => "/calls/hours", message: "Saved. The open times have changed." });
   post("/calls/days-off", (actor, form) => closeBookingDay(deps.booking, actor, form["day"] ?? "", form["note"] ?? ""), { done: () => "/calls/hours#days-off", back: () => "/calls/hours#days-off", message: "That day is closed to calls." });
   post("/calls/days-off/open", (actor, form) => reopenBookingDay(deps.booking, actor, form["day"] ?? ""), { done: () => "/calls/hours#days-off", back: () => "/calls/hours#days-off", message: "That day is open again." });
-  post("/calls/:id/cancel", (actor, form, id) => cancelCall(deps.booking, { kind: "staff", actorId: actor }, id, form["reason"] ?? ""), { done: () => "/calls", back: () => "/calls", message: "Cancelled." });
+  post("/calls/:id/cancel", async (actor, form, id) => {
+    const done = cancelCall(deps.booking, { kind: "staff", actorId: actor }, id, form["reason"] ?? "");
+    if (done.ok) await tell(deps.booking, deps.emails ?? null, done.value, { event: "cancelled", by: "staff" });
+    return done;
+  }, { done: () => "/calls", back: () => "/calls", message: "Cancelled." });
   return app;
 }
 

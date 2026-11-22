@@ -212,6 +212,8 @@ export type PageContext = {
     portalTimes(): Promise<OpenTimesView>;
     portalCalls(): readonly CallLine[];
     publicTimes(): Promise<OpenTimesView>;
+    /** Whether email is set up, so the person who books is emailed. */
+    readonly emails: boolean;
     /** A call booked from the public page, by its private link. */
     byLink(token: string): CallLine | null;
   };
@@ -453,6 +455,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
           portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
           publicTimes: () => openTimes(services.booking, "public"),
+          emails: Boolean(config.email),
           byLink: (token) => {
             const found = bookingByLink(services.booking, token);
             return found ? callLine(services.booking, found) : null;
@@ -621,16 +624,25 @@ export async function createApp(config: AppConfig): Promise<App> {
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );
+  // Emails about booked calls, when email is set up.
+  const bookingEmails = email
+    ? {
+        mail: async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })),
+        options: { publicUrl: (config.publicUrl ?? email.publicUrl ?? "").replace(/\/$/, ""), phone: contact.phone },
+        log,
+      }
+    : null;
   const publicBooking = bookingPublicRoutes({
     booking: services.booking,
+    emails: bookingEmails,
     sign: (location) => notices.sign(location),
     addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
     allowPerAddress: sqliteRateLimit(db, { name: "booking-address", max: 5, windowMs: 60 * 60_000 }),
     allowPerEmail: sqliteRateLimit(db, { name: "booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
   });
   forms.route("/", publicBooking);
-  forms.route("/", bookingPortalRoutes({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", bookingStaffRoutes({ booking: services.booking, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

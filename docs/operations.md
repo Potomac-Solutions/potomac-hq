@@ -183,6 +183,16 @@ Zubra packages are pinned to one exact version.
 5. Never edit a file under `src/shared/ui/zubra`. Fix it upstream and copy
    it again.
 
+## Booked calls
+
+Email about booked calls goes through the same Brevo setup as everything
+else. With no email set up, people book as usual and are told to bookmark
+their call's page. The day-before reminder runs every ten minutes from
+`bin/serve.ts`, and sends each one once.
+
+Link the website to `HQ_PUBLIC_URL/book` once "Anyone can book a call at
+/book" is on under Calls → Hours.
+
 ## Dependency updates
 
 Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:

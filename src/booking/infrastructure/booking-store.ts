@@ -44,7 +44,9 @@ export function sqliteBookingStore(db: Database): BookingStore {
   const get = db.prepare(`select ${COLUMNS} from booking where id = ?`);
   const byHash = db.prepare(`select ${COLUMNS} from booking where manage_hash = ?`);
   const add = db.prepare(`insert into booking (${COLUMNS}, manage_hash) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const save = db.prepare("update booking set status = ?, starts_at = ?, ends_at = ?, phone = ?, topic = ?, cancelled_at = ?, cancelled_by = ?, cancel_reason = ? where id = ?");
+  const due = db.prepare(`select ${COLUMNS} from booking where status = 'booked' and reminded_at is null and starts_at >= ? and starts_at < ? order by starts_at`);
+  const remind = db.prepare("update booking set reminded_at = ? where id = ?");
+  const save = db.prepare("update booking set reminded_at = case when starts_at = ? then reminded_at else null end, status = ?, starts_at = ?, ends_at = ?, phone = ?, topic = ?, cancelled_at = ?, cancelled_by = ?, cancel_reason = ? where id = ?");
   return {
     settings() {
       const row = settings.get();
@@ -84,8 +86,12 @@ export function sqliteBookingStore(db: Database): BookingStore {
     add(b, manageHash) {
       add.run(b.id, b.kind, b.status, b.start, b.end, b.name, b.email, b.phone, b.topic, b.organizationId, b.clientUserId, b.hostId, b.createdAt, b.cancelledAt, b.cancelledBy, b.cancelReason, manageHash);
     },
+    dueReminders: (from, to) => due.all(from, to).map(toBooking).filter((one) => Temporal.Instant.from(one.start).since(one.createdAt).total("hours") >= 20),
+    markReminded(id, at) {
+      remind.run(at, id);
+    },
     save(b) {
-      save.run(b.status, b.start, b.end, b.phone, b.topic, b.cancelledAt, b.cancelledBy, b.cancelReason, b.id);
+      save.run(b.start, b.status, b.start, b.end, b.phone, b.topic, b.cancelledAt, b.cancelledBy, b.cancelReason, b.id);
     },
   };
 }

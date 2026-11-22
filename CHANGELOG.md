@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Emails about booked calls, once email is set up. The person who booked
+  hears about each change: booked, moved, cancelled. Someone from the
+  booking page gets their private link to keep. The host hears about the
+  changes they did not make. A reminder goes the day before, once, for calls
+  booked at least 20 hours ahead. A failed email never undoes a booking.
+  Migration 0017.
+
 - A public booking page at /book, for anyone, such as a prospect from the
   website, once it is switched on under Calls → Hours. They give a name,
   email, an optional phone and what it is about, and choose a time. Their
