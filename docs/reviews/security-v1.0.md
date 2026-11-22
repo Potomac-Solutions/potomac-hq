@@ -64,6 +64,8 @@ Each line says what was checked and what checks it on every merge.
 | Turning it off takes a current code, so a borrowed session cannot | `turnOffTwoFactor` | `two-factor.test.ts` |
 | Codes match the RFC 6238 test vectors | `src/identity/infrastructure/totp.ts` | `totp.test.ts` |
 
+| Refused sign-ins, codes and forms are written down without the password or code typed, and kept apart from the activity log for 90 days | `src/identity/application/refused.ts`, the forms middleware in `src/app.ts` | `refused-attempts.test.ts` |
+
 ## Known gaps
 
 1. **No independent review**, as said above.
@@ -72,8 +74,11 @@ Each line says what was checked and what checks it on every merge.
    for admins. Turn it on for every admin account.
 3. **Rate limits are kept in memory.** They reset when HQ restarts, and
    would not be shared between two replicas. HQ runs one.
-4. **Refused attempts are not written to the audit log**, only successful
-   changes. A run of refusals shows in nothing but the request log.
+4. ~~Refused attempts are not written down.~~ Fixed after 0.11.0: wrong
+   passwords at both sign-ins, wrong two-factor codes and forbidden forms go
+   to their own log, shown on Audit history → Refused attempts and kept 90
+   days. Tries past a rate limit are still not written one by one, and a
+   page someone may not open is not written down: it changes nothing.
 5. **Dependency updates need a person.** Dependabot opens pull requests for
    new versions (`.github/dependabot.yml`), but security alerts are a
    repository setting Mikey turns on (docs/operations.md), and every bump

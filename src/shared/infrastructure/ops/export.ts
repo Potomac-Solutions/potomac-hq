@@ -5,12 +5,12 @@
 // Sign-in secrets are left out: the kit's table holds password hashes,
 // sessions and one-time links, which are no use anywhere else and are a risk
 // in a folder on someone's computer. Two-factor secrets, recovery code
-// hashes and passed sessions too. A backup is the way to move HQ whole.
+// hashes, passed sessions and refused attempts too. A backup is the way to move HQ whole.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Database } from "../database.ts";
 
-const LEFT_OUT = new Set(["kit_document", "file_blob", "user_two_factor", "two_factor_recovery", "two_factor_session"]);
+const LEFT_OUT = new Set(["kit_document", "file_blob", "user_two_factor", "two_factor_recovery", "two_factor_session", "refused_attempt"]);
 
 export type ExportResult = { readonly tables: readonly { readonly name: string; readonly rows: number }[]; readonly files: number; readonly leftOut: readonly string[] };
 
@@ -44,7 +44,7 @@ export function exportAll(db: Database, dir: string, exportedAt: string): Export
     what: "Potomac HQ full data export",
     tables,
     files,
-    leftOut: { kit_document: "Password hashes, sessions and one-time links. Not exported.", file_blob: "File contents. Exported as the files in files/, named <file id>-<name>.", user_two_factor: "Two-factor secrets. Not exported.", two_factor_recovery: "Hashes of recovery codes. Not exported.", two_factor_session: "Sessions. Not exported." },
+    leftOut: { kit_document: "Password hashes, sessions and one-time links. Not exported.", file_blob: "File contents. Exported as the files in files/, named <file id>-<name>.", user_two_factor: "Two-factor secrets. Not exported.", two_factor_recovery: "Hashes of recovery codes. Not exported.", two_factor_session: "Sessions. Not exported.", refused_attempt: "Refused sign-ins and actions, kept 90 days for security. Not exported." },
     notes: ["Money is in minor units (cents) with a currency.", "Times are UTC. Days are in the business time zone, America/New_York.", "activity_event is the audit log."],
   };
   writeFileSync(join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });

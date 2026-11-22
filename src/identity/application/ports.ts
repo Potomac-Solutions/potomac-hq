@@ -84,3 +84,24 @@ export type TwoFactorStore = {
   markSession(sessionHash: string, userId: Id, at: string): void;
   sessionPassed(sessionHash: string, userId: Id): boolean;
 };
+
+export type RefusedKind = "sign-in" | "second-step" | "portal-sign-in" | "permission";
+
+export type RefusedAttempt = {
+  readonly id: Id;
+  readonly occurredAt: string;
+  readonly kind: RefusedKind;
+  readonly userId: Id | null;
+  readonly email: string | null;
+  readonly address: string;
+  readonly detail: string;
+};
+
+/** Refused attempts: kept apart from the activity log, for 90 days. */
+export type RefusedLog = {
+  append(attempt: RefusedAttempt): void;
+  /** Newest first. */
+  since(instant: string, limit: number): readonly RefusedAttempt[];
+  countSince(instant: string): number;
+  prune(before: string): number;
+};

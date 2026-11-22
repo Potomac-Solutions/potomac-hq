@@ -742,6 +742,22 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   `user.two-factor-reset`, `user.two-factor-passed` and
   `user.two-factor-recovery-used`. None carries a code or the secret.
 
+### Refused attempts
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+`refused_attempt`, apart from the activity log: the activity log is kept for
+good and records what people did, and these can come from anyone on the
+internet. Kept 90 days, left out of the export.
+
+| Field | Rule |
+| --- | --- |
+| `kind` | `sign-in`, `second-step`, `portal-sign-in` or `permission` |
+| `user_id` | The HQ user, for a wrong code or a refused form |
+| `email` | The email typed at a sign-in. Never the password, never a code |
+| `address` | Where the request came from |
+| `detail` | Why, or for a form, which one, with ids left out: `POST /people/:id/roles` |
+
 ## Storage for the kit
 
 The kit's `staff` module keeps its accounts and sessions through a store

@@ -9,8 +9,8 @@ import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/inde
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
-import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
-import type { SessionDeps, TwoFactorDeps } from "./identity/index.ts";
+import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
+import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
@@ -30,6 +30,7 @@ export const BUSINESS_TIME_ZONE = "America/New_York";
 export type Services = {
   readonly session: SessionDeps;
   readonly twoFactor: TwoFactorDeps;
+  readonly refused: RefusedDeps;
   /** HQ's own sign-in accounts and sessions, kept by the kit. */
   readonly staff: Staff;
   readonly crm: CrmDeps;
@@ -114,5 +115,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
-  return { session, twoFactor, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

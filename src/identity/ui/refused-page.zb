@@ -1,0 +1,43 @@
+<!--
+  Refused attempts: wrong passwords at either sign-in, wrong two-factor
+  codes, and forms someone was not allowed to use. The last 30 days. For
+  admins only.
+-->
+<script>
+  'use route /activity/refused'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.dashboard.refused()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Refused attempts', view: view.value }
+  }
+</script>
+<style>
+  .refused-list { list-style: none; margin: 0; padding: 0; }
+  .refused-list li { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .refused-list li:first-child { border-top: 0; }
+  .refused-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; }
+  .refused-list time, .refused-more { color: var(--muted-foreground); font-size: 0.85rem; }
+  .refused-more { overflow-wrap: anywhere; margin: 0.15rem 0 0; }
+</style>
+<hq-refused view={{ items: [], total: 0, shown: 0, days: 30 }}>
+  <div class="hq-page">
+    <h1>Refused attempts</h1>
+    <p class="hq-muted">Wrong passwords at HQ and portal sign-in, wrong two-factor codes, and forms someone signed in was not allowed to use. Kept for 90 days. Tries past the limit of a few a minute are turned away without being written down. <a href="/activity">Back to Audit history</a></p>
+    <section class="hq-panel" aria-labelledby="refused-list">
+      <h2 id="refused-list">{view.total} in the last {view.days} days</h2>
+      <p zb-if={view.total > view.shown} class="hq-muted">Showing the newest {view.shown}.</p>
+      <empty-state zb-if={view.items.length === 0} heading="None">Nothing has been refused in the last {view.days} days.</empty-state>
+      <ul zb-else class="refused-list">
+        <zb-each items={view.items} as="item" key={item.id}>
+          <li>
+            <div class="refused-head"><span><strong>{item.kind}</strong> · {item.who}</span><time datetime={item.whenIso}>{item.when}</time></div>
+            <p class="refused-more">{item.detail} · from {item.address}</p>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-refused>

@@ -128,6 +128,8 @@ export type ClientPortalRoutesDeps = {
   readonly sign: (location: string) => string;
   /** The address the request came from, for the sign-in limit. */
   readonly addressOf: (incoming: unknown) => string;
+  /** Writes down a refused portal sign-in: the email typed, and where from. */
+  readonly refusedSignIn: (email: string, address: string) => void;
   /** True if this key may make another attempt now. */
   readonly allowAttempt: (key: string) => boolean;
 };
@@ -142,6 +144,7 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     if (limited(c, "sign-in")) return to(c, "/portal/sign-in", "problem", "Too many tries. Wait a minute, then try again.");
     const { fields } = await readForm(c);
     const result = await client.signInClient(deps.portal, { email: fields["email"] ?? "", password: fields["password"] ?? "", client: deps.addressOf(c.env.incoming) });
+    if (!result.ok) deps.refusedSignIn(fields["email"] ?? "", deps.addressOf(c.env.incoming));
     if (!result.ok) return to(c, "/portal/sign-in", "problem", result.error === "locked" ? "Too many wrong tries. Wait fifteen minutes, then try again." : "That email and password don’t match.");
     c.header("set-cookie", result.value.cookie);
     return c.redirect("/portal", 303);

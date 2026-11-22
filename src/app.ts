@@ -21,7 +21,7 @@ import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, needsSecondStep, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { authorize, establishUser, listPeople, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -130,7 +130,7 @@ export type PageContext = {
   guard(): Answer | null;
   /** The no-access page, for a read that was refused. */
   forbidden(): Answer;
-  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory> };
+  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
     listClients(status?: string): ReturnType<typeof listClients>;
     pipeline(): ReturnType<typeof pipeline>;
@@ -213,6 +213,9 @@ export type PageContext = {
   };
 };
 
+/** What every module answers a form someone may not use with. */
+const NOT_ALLOWED = "You don’t have permission to do that.";
+
 /** An id from an address. Anything that is not one is simply not found. */
 function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-found">): Result<T, "forbidden" | "not-found"> {
   const id = parseId(text);
@@ -272,7 +275,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     return { on: status.on, setup: status.setup, recoveryText };
   };
 
+  const refusedDeps = services.refused;
+
   const handleStaff = staffRoutes({
+    refused: (draft) => recordRefusal(refusedDeps, draft),
     handle: (req, res, url, form) => pages.handle(req, res, url, form),
     session: account,
     clientOf: clientAddressOf,
@@ -362,7 +368,7 @@ export async function createApp(config: AppConfig): Promise<App> {
                 ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
                 : null,
         forbidden,
-        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query) },
+        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query), refused: () => refusedAttempts(refusedDeps, actor) },
         crm: {
           listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
           pipeline: () => pipeline(crmDeps, actor, date),
@@ -471,7 +477,18 @@ export async function createApp(config: AppConfig): Promise<App> {
         )
     : null;
 
-  const forms = new Hono();
+  const forms = new Hono<{ Bindings: { incoming: IncomingMessage } }>();
+  // A form someone signed in was not allowed to use is written down (security
+  // review, gap 4). Every module refuses with the same words, so this one
+  // check covers every form, however its handler is written.
+  forms.use("*", async (c, next) => {
+    await next();
+    if (c.req.method !== "POST" || c.res.status !== 303) return;
+    const location = c.res.headers.get("location") ?? "";
+    if (new URL(location, "http://hq.invalid").searchParams.get("problem") !== NOT_ALLOWED) return;
+    const actor = actorOf(c.req.header("cookie") ?? "");
+    if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
+  });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -516,6 +533,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       sign: (location) => notices.sign(location),
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+      refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
     }),
   );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -547,6 +565,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       sign: (location) => notices.sign(location),
       codesPage: (codes) => renderPage("Your recovery codes", recoveryCodesPage(codes)),
+      refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));

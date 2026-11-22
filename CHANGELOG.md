@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Refused attempts are written down: wrong passwords at HQ and portal
+  sign-in, wrong two-factor codes, and forms someone signed in was not
+  allowed to use. Admins see the last 30 days on Audit history → Refused
+  attempts. Kept 90 days, apart from the activity log, and never with the
+  password or code typed. Migration 0013.
 ## [0.11.0] - 2026-11-22
 
 - An admin without two-factor sign-in is reminded at the top of the

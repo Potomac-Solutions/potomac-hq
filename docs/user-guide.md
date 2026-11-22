@@ -104,7 +104,9 @@ one only if you were expecting it.
   and budget against actual.
 - **Knowledge**: how things are done here, and the decision log. Search it
   first. If the answer is not there, write it down once you know it.
-- **Audit history** (admins): everything anyone did, with filters.
+- **Audit history** (admins): everything anyone did, with filters. Its
+  **Refused attempts** page lists wrong passwords, wrong two-factor codes
+  and forms someone tried without permission, for the last 30 days.
 
 ## Habits that keep HQ worth using
 
