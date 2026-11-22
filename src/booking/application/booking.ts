@@ -270,7 +270,7 @@ export function cancelCall(deps: BookingDeps, changer: Changer, id: Id | null, r
 }
 
 /** Moves a call to another open time. Its own time does not count as taken. */
-export async function moveCall(deps: BookingDeps, changer: Changer, id: Id | null, start: string): Promise<Result<Booking, ChangeError | "taken" | "closed" | "calendar-failed">> {
+export async function moveCall(deps: BookingDeps, changer: Changer, id: Id | null, start: string): Promise<Result<{ readonly booking: Booking; readonly was: string }, ChangeError | "taken" | "closed" | "calendar-failed">> {
   const settings = deps.bookings.settings();
   if (!settings) return err("closed");
   const rules = rulesOf(deps, settings);
@@ -293,9 +293,11 @@ export async function moveCall(deps: BookingDeps, changer: Changer, id: Id | nul
       recordId: moved.id,
       context: { from: found.value.start, to: moved.start, ...(moved.organizationId ? { organizationId: moved.organizationId } : {}) },
     });
-    return ok(moved);
+    return ok({ booking: moved, was: found.value.start });
   });
 }
+
+export type { Booking } from "../domain/booking.ts";
 
 // ── Views ───────────────────────────────────────────────────────────────
 

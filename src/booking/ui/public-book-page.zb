@@ -9,7 +9,7 @@
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
-    return { title: 'Book a call with Potomac Solutions', times: await context.booking.publicTimes(), problem: context.notice.problem }
+    return { title: 'Book a call with Potomac Solutions', times: await context.booking.publicTimes(), emailHint: context.booking.emails ? 'Your booking and a link to change it are sent here' : 'So we can reach you about the call', problem: context.notice.problem }
   }
 </script>
 <style>
@@ -22,7 +22,7 @@
   /* For bots only: people never see or fill it. */
   .book-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 </style>
-<hq-public-book times={{ open: false, days: [] }} problem="">
+<hq-public-book times={{ open: false, days: [] }} email-hint="" problem="">
   <h1>Book a call with Potomac Solutions</h1>
   <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
   <div zb-if={!times.open} class="hq-panel">
@@ -35,7 +35,7 @@
     <p>A {times.callMinutes}-minute call, free, about your business and what would help. Times are Eastern.</p>
     <div class="book-fields">
       <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
-      <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description="So we can reach you about the call"></text-field>
+      <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description={emailHint}></text-field>
       <text-field label="A phone number" name="phone" type="tel" autocomplete="tel" description="If you’d like us to call you"></text-field>
       <text-field label="What would you like to talk about?" name="topic" rows={3} description="Your business, and what you have in mind"></text-field>
       <div class="book-trap" aria-hidden="true"><label for="book-website">Leave this empty</label><input id="book-website" name="website" tabindex="-1" autocomplete="off"></div>

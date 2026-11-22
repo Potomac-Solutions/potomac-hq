@@ -24,6 +24,7 @@ import { syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
+import { sendBookingReminders } from "../src/booking/index.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -145,6 +146,26 @@ if (email) {
   console.log("Notices are off: email is not set up.");
 }
 
+// Booked calls: the day-before reminder, checked every ten minutes.
+let stopReminders: (() => void) | null = null;
+if (email) {
+  const bookingDeps = createServices(db).booking;
+  const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+  let busy = false;
+  const timer = setInterval(() => {
+    if (busy) return;
+    busy = true;
+    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone })
+      .then((sent) => {
+        if (sent.failed > 0) log(`Booking reminders: ${sent.failed} could not be emailed`);
+      })
+      .catch((error: unknown) => log("Booking reminders: the run failed", error))
+      .finally(() => (busy = false));
+  }, 10 * 60_000);
+  timer.unref();
+  stopReminders = () => clearInterval(timer);
+}
+
 // The knowledge base gets HQ's own documents, once each. An article someone
 // edited is never overwritten.
 try {
@@ -177,6 +198,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopSheet?.();
     stopRetention();
     stopNotices?.();
+    stopReminders?.();
     server.close(() => {
       db.close();
       process.exit(0);

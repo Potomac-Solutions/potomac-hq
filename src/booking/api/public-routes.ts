@@ -6,9 +6,11 @@ import { Hono } from "hono";
 import { bookCall, bookingByLink, calendarFor, cancelCall, moveCall, type BookingDeps } from "../application/booking.ts";
 import { readForm, withMessage } from "../../shared/index.ts";
 import { BOOKING_MESSAGES } from "./staff-routes.ts";
+import { tell, type BookingEmails } from "./notify.ts";
 
 export type BookingPublicDeps = {
   readonly booking: BookingDeps;
+  readonly emails?: BookingEmails;
   readonly sign: (location: string) => string;
   /** Where a request came from, behind HQ's proxies. */
   readonly addressOf: (incoming: unknown) => string;
@@ -45,6 +47,7 @@ export function bookingPublicRoutes(deps: BookingPublicDeps): Hono<{ Bindings: {
     if (!deps.allowPerAddress(address) || (email && !deps.allowPerEmail(email))) return go("/book", "problem", messageFor("too-many"));
     const made = await bookCall(deps.booking, { kind: "public", name: fields["name"] ?? "", email, phone: fields["phone"] ?? null, topic: fields["topic"] ?? null }, fields["start"] ?? "");
     if (!made.ok) return go("/book", "problem", messageFor(made.error));
+    await tell(deps.booking, deps.emails ?? null, made.value.booking, { event: "made", by: "booker", manageToken: made.value.manageToken });
     return go(manage(made.value.manageToken ?? ""), "done", "You’re booked. We’ll talk then.");
   });
 
@@ -53,6 +56,7 @@ export function bookingPublicRoutes(deps: BookingPublicDeps): Hono<{ Bindings: {
     const token = fields["token"] ?? "";
     const moved = await moveCall(deps.booking, { kind: "link", token }, null, fields["start"] ?? "");
     if (!moved.ok) return go(moved.error === "not-found" ? "/book" : `${manage(token)}&move=1`, "problem", messageFor(moved.error));
+    await tell(deps.booking, deps.emails ?? null, moved.value.booking, { event: "moved", by: "booker", was: moved.value.was, manageToken: token });
     return go(manage(token), "done", "Your call is moved. Add it to your calendar again to update it there.");
   });
 
@@ -61,6 +65,7 @@ export function bookingPublicRoutes(deps: BookingPublicDeps): Hono<{ Bindings: {
     const token = fields["token"] ?? "";
     const done = cancelCall(deps.booking, { kind: "link", token }, null, fields["reason"] ?? "");
     if (!done.ok) return go(done.error === "not-found" ? "/book" : manage(token), "problem", messageFor(done.error));
+    await tell(deps.booking, deps.emails ?? null, done.value, { event: "cancelled", by: "booker" });
     return go(manage(token), "done", "Your call is cancelled.");
   });
 
