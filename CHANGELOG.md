@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - Someone who booked from the public page goes into the CRM in one step,
   from Calls: a client named for their business, them as its contact, and
   an opportunity from the website at "Consult booked", with what they wrote
@@ -44,8 +46,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   off, and a Calls page with every booked call, its calendar file, and a way
   to cancel it. The next calls are on the dashboard. Clients and the public
   can book in the next releases. Migration 0016, permission `booking.manage`.
-
-## [0.11.0] - 2026-11-22
 
 - New recovery codes from Settings, without turning two-factor sign-in off
   and on: it takes a code from the app, shows ten new codes once, and the
