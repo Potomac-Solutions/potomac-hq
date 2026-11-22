@@ -91,6 +91,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "project.message-received": "A client sent a message",
   "call.requested": "A client asked for a call",
   "booking.made": "A call was booked",
+  "booking.added-to-crm": "added someone who booked a call to the CRM",
   "booking.cancelled": "cancelled a booked call",
   "booking.moved": "moved a booked call",
   "booking.hours-changed": "changed the hours for booked calls",

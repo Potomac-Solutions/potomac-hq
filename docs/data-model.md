@@ -761,7 +761,11 @@ calendar. Needs his approval.
   clock through clock changes.
 - A booking is checked again inside the transaction that saves it, so two
   people cannot take the same time.
-- Events: `booking.made`, `booking.cancelled`, `booking.moved`,
+- A call from the public page can be added to the CRM once: it makes a
+  client, a contact and an opportunity at "consult booked" from the
+  website, through the CRM's own services, and remembers both ids
+  (`crm_client_id`, `crm_opportunity_id`).
+- Events: `booking.made`, `booking.cancelled`, `booking.moved`, `booking.added-to-crm`,
   `booking.hours-changed`, `booking.day-closed`, `booking.day-opened`.
 
 ### Sign-in rules

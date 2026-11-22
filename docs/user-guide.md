@@ -102,7 +102,9 @@ one only if you were expecting it.
   their calendar, and can cancel one with a reason the other side sees.
   With "Clients can book" on, clients choose a time in the portal, and can
   move or cancel their own calls. With "Anyone can book" on, the page at
-  `/book` takes bookings from anyone: link to it from the website.
+  `/book` takes bookings from anyone: link to it from the website. A call
+  from that page has "Add to the CRM", before or after the call: it makes
+  the client, contact and opportunity in one step.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 
