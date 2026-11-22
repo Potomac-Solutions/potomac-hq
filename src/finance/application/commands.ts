@@ -9,7 +9,7 @@ import type { CrmDeps } from "../../crm/index.ts";
 import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
-import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { ExpenseStore, FinanceStore, InvoiceStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
@@ -200,6 +200,31 @@ export function addLineToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceI
     recordActivity(deps, { actorId, action: "invoice.line-added", recordType: "invoice", recordId: invoiceId, context: { projectId: invoice.projectId, number: invoice.number, minor: changed.value.total.minor } });
     return ok(changed.value);
   });
+}
+
+/**
+ * Drafts the deposit invoice for a project whose proposal was just accepted,
+ * so it is ready for Potomac to check and send (docs/workflow.md, B4). It is
+ * only a draft: nothing reaches the client until someone sends it.
+ *
+ * Called from inside the acceptance's own transaction, by whoever recorded
+ * it: Potomac, or the client in the portal (actor null). Whoever may record
+ * an acceptance may cause this, so there is no second permission check. It
+ * does nothing when there is no deposit, or the project already has a
+ * deposit invoice that is not void.
+ */
+export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepted: { readonly projectId: Id; readonly ownerId: Id; readonly deposit: Money | null; readonly title: string; readonly version: number }): Invoice | null {
+  if (!accepted.deposit || accepted.deposit.minor <= 0) return null;
+  if (deps.invoices.listForProject(accepted.projectId).some((invoice) => invoice.kind === "deposit" && invoice.status !== "void")) return null;
+  const amount = (accepted.deposit.minor / 100).toFixed(2);
+  const invoice = newInvoice(
+    { id: deps.newId(), projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
+    { kind: "deposit", description: `Deposit, one third of “${accepted.title}”`.slice(0, 200), amount, note: `Drafted by HQ when version ${accepted.version} of the proposal was accepted.` },
+  );
+  if (!invoice.ok) throw new Error(`Could not draft the deposit invoice: ${invoice.error}`);
+  deps.invoices.insert(invoice.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.drafted-from-proposal", recordType: "invoice", recordId: invoice.value.id, context: { projectId: accepted.projectId, number: invoice.value.number, kind: "deposit", minor: invoice.value.total.minor } });
+  return invoice.value;
 }
 
 /** Moves the project's payment status on when one of its invoices changes, and records it. Inside a transaction. */

@@ -61,7 +61,7 @@
         <a zb-if={view.canSeeEveryone && !view.everyone} href="/time?week={view.week.from}&everyone=1">Show everyone’s</a>
         <a zb-if={view.everyone} href="/time?week={view.week.from}">Show only mine</a>
       </p>
-      <p><strong>{view.total} hours</strong>, {view.billable} billable. {view.week.from} to {view.week.to}.</p>
+      <p><strong>{view.total}</strong> logged, {view.billable} of it billable. {view.week.from} to {view.week.to}.</p>
       <empty-state zb-if={view.entries.length === 0} heading="Nothing logged this week">Move a task to “Working on”, or log time above.</empty-state>
       <table zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Project</th><th scope="col">Task</th><th zb-if={view.everyone} scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -77,7 +77,7 @@
               <td>
                 <form zb-if={!entry.running} method="post" action="/time/{entry.id}/remove" class="hq-inline">
                   <input type="hidden" name="returnTo" value="/time">
-                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} hours on {entry.on}, {entry.projectName}">Remove</button>
+                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} on {entry.on}, {entry.projectName}">Remove</button>
                 </form>
               </td>
             </tr>

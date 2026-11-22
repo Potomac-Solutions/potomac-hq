@@ -55,7 +55,7 @@
               <p class="board-meta">{card.assigneeName || "Nobody yet"}<span zb-if={card.estimate}> · {card.estimate} h</span></p>
               <p zb-if={card.pressing || card.dueOn}>
                 <span zb-if={card.pressing} class="hq-tag">{card.priorityLabel}</span>
-                <span zb-if={card.dueOn}>Due {card.dueOn}</span>
+                <span zb-if={card.dueOn}>Due <time datetime={card.dueOn}>{card.dueText}</time></span>
                 <span zb-if={card.overdue} class="hq-tag due">Overdue</span>
               </p>
               <form zb-if={board.canMove} id="move-{card.id}" method="post" action="/tasks/{card.id}/status" class="board-move">

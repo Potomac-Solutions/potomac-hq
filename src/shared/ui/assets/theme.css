@@ -178,3 +178,17 @@ hq-portal input[type=file] { font: inherit; padding: 0.5rem 0; }
 hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal; }
 hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }
 .portal-preview { display: block; max-width: 100%; height: auto; max-height: 28rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
+
+/*
+ * HQ's top bar has more links than the copied nav-bar folds for: it folds
+ * them behind "Menu" only below 40rem of its own width. Between that and a
+ * wide screen the links wrap onto a second line instead of running off the
+ * edge. To report upstream (zubra-ui, found-by: potomac): see
+ * docs/upstream/zubra-ui-nav-bar-fold.md. Remove this once
+ * nav-bar folds by what fits.
+ */
+@media (min-width: 40.0625rem) and (max-width: 70rem) {
+  hq-app nav-bar .navbar { flex-wrap: wrap; row-gap: 0.35rem; }
+  hq-app nav-bar .navbar-links { flex-wrap: wrap; order: 3; flex-basis: 100%; margin: 0; gap: 0.1rem; }
+  hq-app nav-bar .navbar-links a { padding: 0.35rem 0.55rem; }
+}

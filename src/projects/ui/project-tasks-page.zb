@@ -42,7 +42,7 @@
               <td>{task.statusLabel}</td>
               <td>{task.assigneeName || "Nobody yet"}</td>
               <td>{task.priorityLabel}</td>
-              <td>{task.dueOn} <span zb-if={task.overdue} class="hq-tag due">Overdue</span></td>
+              <td><time zb-if={task.dueOn} datetime={task.dueOn}>{task.dueText}</time> <span zb-if={task.overdue} class="hq-tag due">Overdue</span></td>
               <td>{task.estimate ? task.estimate + " h" : ""}</td>
             </tr>
           </zb-each>

@@ -27,7 +27,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientActivity, clientFiles, clientSession, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
@@ -172,6 +172,7 @@ export type PageContext = {
     updates(projectId: string): ReturnType<typeof projectUpdates>;
     files(projectId: string): ReturnType<typeof clientFiles>;
     fromClients(): ReturnType<typeof clientActivity>;
+    waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
   };
   /** The client portal. Everything here is for the signed-in client's own organization. */
@@ -298,6 +299,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             return parsed.ok ? clientFiles(portalDeps, actor, parsed.value) : { canView: false, items: [] };
           },
           fromClients: () => clientActivity(portalDeps, actor),
+          waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
         },
         portal: {

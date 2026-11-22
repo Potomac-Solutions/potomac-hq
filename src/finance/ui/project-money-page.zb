@@ -187,7 +187,7 @@
               <td>
                 <form zb-if={view.can.removeTime && !entry.running} method="post" action="/time/{entry.id}/remove" class="hq-inline">
                   <input type="hidden" name="returnTo" value="/projects/{id}/money">
-                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} hours on {entry.on} by {entry.who}">Remove</button>
+                  <button class="hq-button secondary small" type="submit" aria-label="Remove {entry.hours} on {entry.on} by {entry.who}">Remove</button>
                 </form>
               </td>
             </tr>

@@ -5,7 +5,7 @@ import { isClientStatus } from "../domain/client.ts";
 import { isFollowUpDue, isOpen, nextStage, STAGES, type Opportunity } from "../domain/opportunity.ts";
 import { pipelineNumbers } from "../domain/pipeline-report.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
+import { dueText, err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
 import type { CrmDeps, Refused } from "./commands.ts";
 
 export type Option = { readonly value: string; readonly label: string };
@@ -93,7 +93,7 @@ export type OpportunityDetailView = {
 };
 
 export type FollowUpsView = {
-  readonly items: readonly { readonly id: string; readonly title: string; readonly clientName: string; readonly followUpOn: string; readonly overdue: boolean }[];
+  readonly items: readonly { readonly id: string; readonly title: string; readonly clientName: string; readonly followUpOn: string; readonly followUpText: string; readonly overdue: boolean }[];
 };
 
 const may = (deps: CrmDeps, actorId: Id | null, action: string): boolean => actorId !== null && authorize(deps, actorId, action).ok;
@@ -226,6 +226,7 @@ export function followUpsDue(deps: CrmDeps, actorId: Id | null, today: string): 
       title: o.title,
       clientName: o.clientName,
       followUpOn: o.followUpOn ?? "",
+      followUpText: o.followUpOn ? dueText(o.followUpOn, today) : "",
       overdue: (o.followUpOn ?? "") < today,
     })),
   });

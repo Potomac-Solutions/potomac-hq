@@ -67,7 +67,7 @@ test("run a project from its pages and the board", async () => {
   await page.getByLabel("Phase", { exact: true }).selectOption({ label: "Design" });
   await page.getByRole("button", { name: "Add milestone" }).click();
   await page.getByText("Milestone added.").waitFor();
-  assert.match(await text(page), /Next milestone ?Design signed off ?, due 2099-12-05/);
+  assert.match(await text(page), /Next milestone ?Design signed off ?, due Sat, Dec 5, 2099, in [\d,]+ days/);
   await page.getByRole("button", { name: "Mark done: Design signed off" }).click();
   await page.getByText("1 of 1 milestones done.").waitFor();
 
@@ -110,8 +110,12 @@ test("run a project from its pages and the board", async () => {
   await page.getByText("Task saved.").waitFor();
 
   // The board: drag one card, move the other with its form.
-  await page.getByRole("link", { name: "Board", exact: true }).click();
+  // The board is reached from Projects, which stays the current tab there.
+  const main = page.getByRole("navigation", { name: "Main" });
+  await main.getByRole("link", { name: "Projects", exact: true }).click();
+  await page.getByRole("link", { name: "Open the board" }).click();
   await page.waitForURL((url) => url.pathname === "/board");
+  assert.equal(await main.getByRole("link", { name: "Projects", exact: true }).getAttribute("aria-current"), "page");
   await assertAccessible(page, "the board");
   const column = (name: string) => page.locator("section.board-column", { has: page.getByRole("heading", { name: new RegExp(`^${name}`) }) });
   assert.equal(await column("To do").locator(".board-card").count(), 2);

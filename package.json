@@ -1,6 +1,6 @@
 {
   "name": "potomac-hq",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Internal operations platform for Potomac Solutions",
   "type": "module",
@@ -35,10 +35,10 @@
   "dependencies": {
     "@hono/node-server": "2.1.8",
     "@potomac-solutions/kit": "github:potomac-solutions/kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
-    "@zubra/compiler": "5.19.0",
-    "@zubra/router": "5.19.0",
-    "@zubra/runtime": "5.19.0",
-    "@zubra/server": "5.19.0",
+    "@zubra/compiler": "6.0.3",
+    "@zubra/router": "6.0.3",
+    "@zubra/runtime": "6.0.3",
+    "@zubra/server": "6.0.3",
     "hono": "4.13.18"
   },
   "devDependencies": {

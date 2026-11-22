@@ -9,6 +9,35 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-22
+
+- Zubra packages upgraded from 5.19.0 to 6.0.3. All four move together and
+  stay pinned to the exact version. Nothing in HQ needed to change: the type
+  check, the Zubra regression suite, every integration test and every
+  browser test with its accessibility checks pass as before.
+
+- The dashboard opens with what clients are waiting on: a message nobody has
+  answered, changes asked for on a deliverable, a call to return, a drafted
+  invoice to send, and an invoice past its due day. Each line goes to the
+  place to deal with it, and shows only to someone who may. It replaces the
+  separate calls panel.
+- Accepting a proposal drafts its deposit invoice, one third of a fixed
+  price, for Potomac to check and send. Nothing reaches the client until it
+  is sent. Hourly, monthly and yearly work gets none, and neither does a
+  project that already has a deposit invoice.
+- Time worked reads as hours and minutes ("2 h 31 min"), not as a decimal
+  that looks like a clock time. Forms still take hours like "1.5".
+- Days in HQ read "Fri, Nov 20, in 4 days" on the dashboard, projects,
+  tasks, the board and reports.
+- The top bar fits at a laptop's width: the board moved under Projects (it
+  is linked from the Projects page and the dashboard), and the signed-in
+  name gives way to the links where the bar is tight.
+- Empty dashboard panels are one line instead of a box.
+- Between a phone's width and about 1,120px the top bar's links take a
+  second row instead of running off the edge. A browser test checks the bar
+  at nine widths. The copied Zubra nav bar folds its links only below 640px;
+  `docs/upstream/zubra-ui-nav-bar-fold.md` is the report to file.
+
 ## [0.9.0] - 2026-11-16
 
 ### Security
