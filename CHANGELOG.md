@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Zubra packages upgraded from 5.19.0 to 6.0.3. All four move together and
+  stay pinned to the exact version. Nothing in HQ needed to change: the type
+  check, the Zubra regression suite, every integration test and every
+  browser test with its accessibility checks pass as before.
+
 - The dashboard opens with what clients are waiting on: a message nobody has
   answered, changes asked for on a deliverable, a call to return, a drafted
   invoice to send, and an invoice past its due day. Each line goes to the
