@@ -97,6 +97,9 @@ one only if you were expecting it.
 
 ## Knowing what is going on
 
+- **Calls.** Managers and admins set the hours for booked calls under
+  Calls → Hours and days off. Everyone sees the calls booked, can add one to
+  their calendar, and can cancel one with a reason the other side sees.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 

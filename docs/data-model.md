@@ -742,6 +742,28 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   `user.two-factor-reset`, `user.two-factor-passed` and
   `user.two-factor-recovery-used`. None carries a code or the secret.
 
+### Booking
+
+Decided 2026-11-22 while Mikey was away, at his request for a booking
+calendar. Needs his approval.
+
+| Table | Holds |
+| --- | --- |
+| `booking_setting` | One row: the host (whose calendar calls go on: whoever last saved the hours), call length, gap after each call, notice, days ahead, and whether clients and the public can book |
+| `booking_hours` | Up to two stretches per weekday, in minutes after midnight, Eastern time |
+| `booking_closed_day` | Days with no calls, with an optional note |
+| `booking` | Each call: client or public, booked or cancelled, start and end (UTC), name, email, phone, topic, the client's organization, and for the public a hash of its private link |
+
+- Open times start at the beginning of each stretch, one call and one gap
+  apart, at least the notice away, and clear of every booked call (and,
+  later, of a connected calendar's busy times) by the gap.
+- A time the clocks skip in spring has no call. Hours stay on the wall
+  clock through clock changes.
+- A booking is checked again inside the transaction that saves it, so two
+  people cannot take the same time.
+- Events: `booking.made`, `booking.cancelled`, `booking.moved`,
+  `booking.hours-changed`, `booking.day-closed`, `booking.day-opened`.
+
 ### Sign-in rules
 
 `sign_in_rule`: one row per rule that is on, with who turned it on and

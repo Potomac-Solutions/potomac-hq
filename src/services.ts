@@ -9,6 +9,8 @@ import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/inde
 import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
+import type { BookingDeps, BusyCalendar } from "./booking/index.ts";
+import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
@@ -43,6 +45,7 @@ export type Services = {
   readonly proposals: ProposalsDeps;
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
+  readonly booking: BookingDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -51,6 +54,8 @@ export type Services = {
 };
 
 export type ServiceOptions = {
+  /** Times already taken in another calendar. None by default. */
+  readonly busyCalendar?: BusyCalendar;
   readonly clock?: Clock;
   readonly today?: () => string;
   /** True when served over https: the portal's cookie is then bound to this host. */
@@ -115,5 +120,17 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
-  return { session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const booking: BookingDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    bookings: sqliteBookingStore(db),
+    busy: options.busyCalendar ?? noBusyCalendar,
+    tokens: manageTokens,
+    timeZone: BUSINESS_TIME_ZONE,
+    formatWhen,
+  };
+  return { booking, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

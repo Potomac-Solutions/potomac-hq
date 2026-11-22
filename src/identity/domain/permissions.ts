@@ -62,6 +62,8 @@ export const PERMISSIONS = [
   "knowledge.view",
   "knowledge.edit",
   "report.view",
+  // After 0.11.0
+  "booking.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -96,6 +98,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "portal.manage",
   "knowledge.edit",
   "report.view",
+  "booking.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {
