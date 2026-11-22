@@ -152,6 +152,12 @@ export type OpenTimesView = {
   readonly calendarFailed: boolean;
 };
 
+/** Whether booking is on for this audience, with hours set: a quick check, without reading any calendar. */
+export function bookingOpen(deps: BookingDeps, audience: "portal" | "public"): boolean {
+  const settings = deps.bookings.settings();
+  return settings !== null && settings.hours.length > 0 && (audience === "portal" ? settings.portalOpen : settings.publicOpen);
+}
+
 /** The open times for clients in the portal, or for the public booking page. */
 export async function openTimes(deps: BookingDeps, audience: "portal" | "public"): Promise<OpenTimesView> {
   const settings = deps.bookings.settings();

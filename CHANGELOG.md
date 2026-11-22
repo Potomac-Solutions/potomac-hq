@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Clients book calls in the portal, once it is switched on under Calls →
+  Hours: they choose an open time, say what it is about, and can move or
+  cancel it and add it to their calendar. "Ask for a call" stays, for when
+  no time suits. HQ sees each call with the client's name and email.
+
 - Booking, first part: the hours Potomac takes calls (up to two stretches a
   weekday, call length, a gap after each call, notice, how far ahead), days
   off, and a Calls page with every booked call, its calendar file, and a way
