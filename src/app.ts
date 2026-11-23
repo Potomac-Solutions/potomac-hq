@@ -23,7 +23,7 @@ import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
-import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
+import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
@@ -907,6 +907,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
   downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: (location) => notices.sign(location), canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
+  downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -915,10 +916,20 @@ export async function createApp(config: AppConfig): Promise<App> {
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
+  function badRequest(res: ServerResponse): void {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    res.end("Bad request");
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
-    const url = new URL(req.url ?? "/", "http://hq.invalid");
+    // Every address HQ serves starts with one slash. Anything else ("//...",
+    // a whole URL, or one that can't be read, which scanners send looking for
+    // files like .env) is refused here, before any router sees it.
+    const target = req.url ?? "/";
+    if (!target.startsWith("/") || target.startsWith("//") || !URL.canParse(target, "http://hq.invalid")) return void badRequest(res);
+    const url = new URL(target, "http://hq.invalid");
     const path = url.pathname;
 
     if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);
@@ -940,7 +951,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

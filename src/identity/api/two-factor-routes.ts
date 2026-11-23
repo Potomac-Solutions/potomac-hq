@@ -2,7 +2,7 @@
 // turning it on and off in Settings, a person's passkeys, and an admin's
 // reset on the People page.
 import { Hono } from "hono";
-import { beginTwoFactor, confirmTwoFactor, newRecoveryCodes, passSecondStep, resetTwoFactor, setTwoFactorRule, turnOffTwoFactor, twoFactorQr, type TwoFactorDeps } from "../application/two-factor.ts";
+import { beginTwoFactor, confirmTwoFactor, newRecoveryCodes, passSecondStep, resetTwoFactor, setTwoFactorRule, turnOffTwoFactor, twoFactorQr, twoFactorStatus, type TwoFactorDeps } from "../application/two-factor.ts";
 import { passkeyRegistrationOptions, passkeyVerifyOptions, passSecondStepWithPasskey, provePasskey, registerPasskey, removePasskey, type PasskeySite } from "../application/passkeys.ts";
 import type { RateLimit } from "../application/ports.ts";
 import type { RefusedDraft } from "../application/refused.ts";
@@ -170,6 +170,22 @@ export function twoFactorRoutes(deps: TwoFactorRoutesDeps): Hono {
   });
 
   post("/people/:id/two-factor-reset", (actor, _form, id) => resetTwoFactor(deps.twoFactor, actor, id as Id), { done: () => "/people", back: () => "/people", message: "Their two-factor sign-in is off. They sign in with their password, and can turn it on again." });
+  return app;
+}
+
+/**
+ * The link that opens an authenticator app on this phone, by redirect:
+ * pages can only link to web addresses, and this link starts otpauth://.
+ * It holds the secret, so only its owner gets it, and nothing keeps a copy.
+ */
+export function twoFactorAppRoute(deps: { readonly twoFactor: TwoFactorDeps; readonly actorOf: (cookieHeader: string) => Id | null }): Hono {
+  const app = new Hono();
+  app.get("/settings/two-factor/app", (c) => {
+    const actor = deps.actorOf(c.req.header("cookie") ?? "");
+    const link = actor ? twoFactorStatus(deps.twoFactor, actor).setup?.link : null;
+    if (!link) return c.text("Not found", 404);
+    return new Response(null, { status: 302, headers: { location: link, "cache-control": "private, no-store", "referrer-policy": "no-referrer" } });
+  });
   return app;
 }
 
