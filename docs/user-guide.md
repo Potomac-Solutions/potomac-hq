@@ -140,6 +140,10 @@ one only if you were expecting it.
   the Hours page (it needs email set up), and link your website to /book.
   People sign up, confirm their email, and book in their own portal. Each
   one shows up in the pipeline as "Signed up to book a call".
+- **Booking links.** To let someone book without an account, make them a
+  link: Calls → Booking links → say who it's for → Make a link, then copy
+  the address and send it. They tell you who they are and what the call is
+  about, and choose a time. Withdraw a link to stop it working.
 - **Your availability.** Under Calls → Usual week, paint the half hours
   you're free for calls: press and drag across the grid. For one week that's
   different, Calls → Availability this week: paint over it. Busy times from

@@ -1,5 +1,6 @@
 import type { Booking } from "../domain/booking.ts";
 import type { ScheduleInvite } from "../domain/invite.ts";
+import type { BookingLink } from "../domain/link.ts";
 import type { Busy, DayRange, HoursRange } from "../domain/hours.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -101,4 +102,17 @@ export type CalendarLinkStore = {
   add(link: CalendarLink): void;
   remove(id: Id): boolean;
   checked(id: Id, at: string, problem: string): void;
+};
+
+export type BookingLinkStore = {
+  add(link: BookingLink): void;
+  /** Newest first. */
+  list(): readonly BookingLink[];
+  get(id: Id): BookingLink | null;
+  byToken(token: string): BookingLink | null;
+  /** Counts a use, unless it is withdrawn or a one-time link already used: false then. */
+  claim(id: Id): boolean;
+  /** Gives back a use that didn't end in a booking. */
+  release(id: Id): void;
+  withdraw(id: Id, at: string): boolean;
 };

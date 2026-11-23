@@ -258,6 +258,37 @@ times are not offered, the same as when Google Calendar can't be read.
 - Events: `booking.calendar-linked`, `booking.calendar-unlinked`;
   `booking.dates-painted` and `schedule-invite.answered` carry `from`.
 
+## Booking links
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+Booking a free call needs a portal account (sign up at `/book`), unless
+Potomac has given the person a booking link.
+
+`booking_link`: who it is for, its token, whether it books one call or any
+number, its last day (a week, a month, three months, or no end), how many
+calls it has booked, and when it was withdrawn. `booking.link_id` and
+`booking.business` record which link a call came from and the business the
+person named.
+
+- The link opens `/book/with/<token>`. It asks for a name, an email, a
+  phone number and what the call is about (all required), and a business
+  (optional), then the open times. Choosing one books it.
+- A link works whether or not sign-up to book is open. It needs only hours.
+- The token is kept as it is, so the link can be copied again from the
+  Calls page. It lets its holder book a call and nothing else. It is never
+  written to the activity log.
+- A one-time link is spent by a booking, not by a try.
+- After booking, the person lands on their call's own page (move, cancel,
+  add to calendar). If sign-up is open they are offered an account there;
+  it is never required and nothing is made for them.
+- A call booked with a link is a "public" call: it shows on Calls as
+  "Booking link" and is added to the CRM by hand, with the business filled
+  in. Their own link moves or cancels it even when booking is closed.
+- Ten bookings an hour from one address.
+- Events: `booking-link.created`, `booking-link.withdrawn`; `booking.made`
+  carries `linkId`.
+
 ## Sign-in rules
 
 `sign_in_rule`: one row per rule that is on, with who turned it on and

@@ -200,7 +200,7 @@ const fill = (pattern: string, id: string) => pattern.replace(/:n\b/, "1").repla
 test("a client's session opens no internal page: each one answers 401 with the sign-in form and no records", async () => {
   // The one page anyone may open signed out: the form that asks for a password reset. It shows no records.
   // And the public booking page, with its private-link page: they show only the call whose link it is.
-  const PUBLIC = ["/forgot-password", "/book", "/book/manage", "/contact", "/contact/thanks"];
+  const PUBLIC = ["/forgot-password", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks"];
   const internal = pagePatterns.filter((pattern) => !pattern.startsWith("/portal") && !PUBLIC.includes(pattern));
   assert.ok(internal.length >= 19, `found ${internal.length} internal pages`);
   for (const path of PUBLIC) assert.doesNotMatch(await ann.page(path), /Gormania|Feed store|Bakery website|Mt\. Storm/, path);

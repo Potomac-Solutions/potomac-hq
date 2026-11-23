@@ -6,3 +6,4 @@ export { sqliteScheduleInviteStore } from "./infrastructure/invite-store.ts";
 export { sqliteCalendarLinkStore } from "./infrastructure/calendar-link-store.ts";
 export { outsideFetch } from "./infrastructure/outside-fetch.ts";
 export { linkedBusyCalendar } from "./infrastructure/linked-busy.ts";
+export { sqliteBookingLinkStore } from "./infrastructure/link-store.ts";
