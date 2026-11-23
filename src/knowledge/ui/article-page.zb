@@ -3,6 +3,8 @@
 -->
 <script>
   'use route /knowledge/:slug'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -20,7 +22,7 @@
 </style>
 <hq-article view={{ article: { tags: [] }, blocks: [], revisions: [] }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/knowledge">Knowledge base</a></p>
+    <breadcrumb-trail items={[{ label: 'Knowledge base', href: '/knowledge' }, { label: view.article.title, href: '' }]}></breadcrumb-trail>
     <h1>{view.article.title}</h1>
     <p class="kb-meta">{view.article.kindLabel} · {view.article.category}<span zb-if={view.article.decidedOn}> · Decided {view.article.decidedOn}</span> · Revision {view.article.revision}<zb-each items={view.article.tags} as="tag" key={tag}> · <a href="/knowledge?tag={tag}">{tag}</a></zb-each></p>
     <div zb-if={done || problem} class="hq-notices">
@@ -60,7 +62,7 @@
       <h2 id="kb-revisions">Revisions</h2>
       <ul class="hq-list">
         <zb-each items={view.revisions} as="one" key={one.revision}>
-          <li><a href="/knowledge/{view.article.slug}/revisions/{one.revision}">Revision {one.revision}</a> <span zb-if={one.current} class="hq-tag">Current</span> <span class="hq-muted">{one.who}, <time datetime={one.whenIso}>{one.when}</time></span></li>
+          <li><a href="/knowledge/{view.article.slug}/revisions/{one.revision}">Revision {one.revision}</a> <status-badge zb-if={one.current}>Current</status-badge> <span class="hq-muted">{one.who}, <time datetime={one.whenIso}>{one.when}</time></span></li>
         </zb-each>
       </ul>
     </section>

@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /pipeline'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
 
@@ -36,12 +37,13 @@
 </script>
 <style>
   .hq-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; align-items: start; }
-  .hq-column { display: grid; gap: 0.75rem; align-content: start; min-height: 6rem; padding: 0.5rem; border: 2px solid transparent; border-radius: var(--radius); }
+  /* Each stage is a lane, tall enough to drop a card into even when empty. */
+  .hq-column { display: grid; gap: 0.75rem; align-content: start; min-height: 22rem; padding: 0.75rem; background: color-mix(in srgb, var(--muted) 55%, transparent); border: 2px solid transparent; border-radius: var(--radius); }
   .hq-column-over { border-color: var(--ring); }
   .hq-card[draggable=true] { cursor: grab; }
-  .hq-column h2 { display: flex; justify-content: space-between; margin: 0; font-size: 1rem; }
+  .hq-column h2 { display: flex; justify-content: space-between; align-items: center; margin: 0; font-size: 0.9375rem; }
   .hq-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-  .hq-card { display: grid; gap: 0.35rem; padding: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-card { display: grid; gap: 0.35rem; padding: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.9rem; }
   .hq-card p { margin: 0; }
   .hq-card form { margin: 0.35rem 0 0; }
   .hq-card .hq-button { height: 2rem; padding: 0 0.75rem; font-size: 0.85rem; }
@@ -57,14 +59,14 @@
     <div zb-else class="hq-columns">
       <zb-each items={view.columns} as="column" key={column.stage}>
         <section class="hq-column" class:hq-column-over={over === column.stage} aria-labelledby="stage-{column.stage}" ondragover={(event) => { event.preventDefault(); over = column.stage }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.stage)}>
-          <h2 id="stage-{column.stage}"><span>{column.label}</span> <span class="hq-tag">{column.items.length}</span></h2>
+          <h2 id="stage-{column.stage}"><span>{column.label}</span> <status-badge>{column.items.length}</status-badge></h2>
           <ul class="hq-cards">
             <zb-each items={column.items} as="item" key={item.id}>
               <li class="hq-card" draggable={view.canMove ? "true" : "false"} ondragstart={(event) => start(event, item.id)}>
                 <p><a href="/opportunities/{item.id}"><strong>{item.title}</strong></a></p>
                 <p class="hq-muted">{item.clientName} · {item.serviceLabel}</p>
                 <p zb-if={item.price}>{item.price}</p>
-                <p zb-if={item.followUpOn}>Follow up {item.followUpOn} <span zb-if={item.followUpDue} class="hq-tag due">Due</span></p>
+                <p zb-if={item.followUpOn}>Follow up <time datetime={item.followUpOn}>{item.followUpText}</time> <status-badge zb-if={item.followUpDue} variant="danger">Due</status-badge></p>
                 <form zb-if={view.canMove} id="stage-{item.id}" data-now={column.stage} method="post" action="/opportunities/{item.id}/stage">
                   <input type="hidden" name="to" value={column.nextStage}>
                   <input type="hidden" name="returnTo" value="pipeline">

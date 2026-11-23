@@ -5,6 +5,7 @@
 -->
 <script>
   'use route /calls'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context }) {
@@ -43,7 +44,7 @@
       <h2 id="calls-invites">Picking times</h2>
       <ul class="hq-links">
         <zb-each items={invites} as="invite" key={invite.id}>
-          <li><span><a href="/calls/invites/{invite.id}">{invite.title}</a> · {invite.who} · {invite.days}</span> <span class={invite.answered ? 'hq-tag due' : 'hq-tag'}>{invite.statusLabel}</span></li>
+          <li><span><a href="/calls/invites/{invite.id}">{invite.title}</a> · {invite.who} · {invite.days}</span> <status-badge variant={invite.answered ? 'danger' : 'neutral'}>{invite.statusLabel}</status-badge></li>
         </zb-each>
       </ul>
       <p class="hq-muted hq-small">Ask someone to pick times from their client’s page, under Client portal.</p>
@@ -54,7 +55,7 @@
       <ul zb-else class="calls">
         <zb-each items={view.upcoming} as="call" key={call.id}>
           <li class={call.cancelled ? 'call-cancelled' : ''}>
-            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <span class="hq-tag">{call.kindLabel}</span></p>
+            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <status-badge>{call.kindLabel}</status-badge></p>
             <p class="hq-small"><a href="mailto:{call.email}">{call.email}</a><span zb-if={call.phone}> · <a href="tel:{call.phone}">{call.phone}</a></span> · <a href="/calls/{call.id}.ics">Add to calendar</a><span zb-if={call.organizationId}> · <a href="/clients/{call.organizationId}">Client</a></span></p>
             <p zb-if={call.topic}>{call.topic}</p>
             <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
@@ -96,7 +97,7 @@
       <ul class="calls">
         <zb-each items={view.past} as="call" key={call.id}>
           <li class={call.cancelled ? 'call-cancelled' : ''}>
-            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <span class="hq-tag">{call.kindLabel}</span></p>
+            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <status-badge>{call.kindLabel}</status-badge></p>
             <p zb-if={call.topic} class="hq-small">{call.topic}</p>
             <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
             <p zb-if={call.crmHref} class="hq-small"><a href={call.crmHref}>In the CRM</a></p>

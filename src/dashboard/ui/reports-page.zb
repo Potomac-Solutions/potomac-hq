@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /reports'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context, url }) {
     const stop = context.guard()
@@ -77,7 +78,7 @@
       <p zb-if={projects.attention.length === 0} class="hq-muted">Every active project is on track.</p>
       <ul zb-else class="hq-list">
         <zb-each items={projects.attention} as="item" key={item.id}>
-          <li><a href="/projects/{item.id}">{item.name}</a> <span class="hq-muted">{item.clientName}</span> <span class="hq-tag">{item.healthLabel}</span><span zb-if={item.next} class="hq-muted"> Next: {item.next}</span></li>
+          <li><a href="/projects/{item.id}">{item.name}</a> <span class="hq-muted">{item.clientName}</span> <status-badge>{item.healthLabel}</status-badge><span zb-if={item.next} class="hq-muted"> Next: {item.next}</span></li>
         </zb-each>
       </ul>
       <h3 data-spaced>Late</h3>
@@ -99,7 +100,7 @@
           <tbody>
             <zb-each items={budget.rows} as="row" key={row.id}>
               <tr>
-                <th scope="row"><a href="/projects/{row.id}/money">{row.name}</a> <span zb-if={row.over} class="hq-tag">Over budget</span></th>
+                <th scope="row"><a href="/projects/{row.id}/money">{row.name}</a> <status-badge zb-if={row.over}>Over budget</status-badge></th>
                 <td class="hq-number">{row.hours.actual}</td><td class="hq-number">{row.hours.budget || "Not set"}</td>
                 <td class="hq-number">{row.cost.actual}</td><td class="hq-number">{row.cost.budget || "Not set"}</td>
                 <td class="hq-number">{row.margin} <span zb-if={row.marginPercent} class="hq-muted">{row.marginPercent}</span></td>

@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /sites'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context }) {
@@ -36,9 +37,9 @@
       <ul class="sites">
         <zb-each items={view.sites} as="site" key={site.id}>
           <li>
-            <p><strong><a href={site.url} rel="noreferrer">{site.host}</a></strong> · <a href="/clients/{site.organizationId}#sites">{site.clientName}</a> <span class={site.state === 'down' ? 'hq-tag due' : 'hq-tag'}>{site.stateLabel}</span> <span zb-if={site.since}>{site.since}</span></p>
+            <p><strong><a href={site.url} rel="noreferrer">{site.host}</a></strong> · <a href="/clients/{site.organizationId}#sites">{site.clientName}</a> <status-badge variant={site.state === 'down' ? 'danger' : 'neutral'}>{site.stateLabel}</status-badge> <span zb-if={site.since}>{site.since}</span></p>
             <p class="hq-small">{site.lastResult}<span zb-if={site.checked}> · checked {site.checked}</span> · {site.uptime} up in 30 days</p>
-            <p zb-if={site.cert} class="hq-small">{site.cert} <span zb-if={site.certSoon} class="hq-tag due">Soon</span></p>
+            <p zb-if={site.cert} class="hq-small">{site.cert} <status-badge zb-if={site.certSoon} variant="danger">Soon</status-badge></p>
             <ul zb-if={site.outages.length > 0} class="outages hq-small">
               <zb-each items={site.outages} as="outage" key={outage.when}><li>Down {outage.when}, {outage.lasted}: {outage.reason}</li></zb-each>
             </ul>

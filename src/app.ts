@@ -146,6 +146,8 @@ export type PageContext = {
   readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: string;
+  /** Today as a person reads it: "Monday, November 23". */
+  readonly todayLabel: string;
   /** The sign-in or no-access page when there is no active HQ user, otherwise null. Every page calls it first. */
   guard(): Answer | null;
   /** The no-access page, for a read that was refused. */
@@ -439,6 +441,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         notice,
         signIn,
         today: date,
+        todayLabel: Temporal.PlainDate.from(date).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
         guard: () =>
           who === null
             ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 })

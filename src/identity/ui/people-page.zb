@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /people'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
@@ -27,7 +28,7 @@
       <ul class="hq-list">
         <zb-each items={view.people} as="person" key={person.id}>
           <li>
-            <p><strong>{person.name}</strong> <span zb-if={person.you} class="hq-tag">You</span> <span class="hq-muted">{person.email}</span></p>
+            <p><strong>{person.name}</strong> <status-badge zb-if={person.you}>You</status-badge> <span class="hq-muted">{person.email}</span></p>
             <p class="hq-small">{person.roleLabels} · {person.statusLabel}<span zb-if={person.twoFactor}> · Two-factor on</span></p>
             <details zb-if={view.can.setRoles || view.can.setStatus || view.can.reset} class="hq-more">
               <summary>Change {person.name}</summary>
@@ -90,7 +91,7 @@
 
     <section zb-if={rule.canSet} class="hq-panel" id="sign-in-rules" aria-labelledby="people-rules">
       <h2 id="people-rules">Sign-in rules</h2>
-      <p zb-if={rule.on}><span class="hq-tag">On</span> Every admin must use two-factor sign-in. An admin without it can open only Settings until it is on, and nobody who is an admin can turn theirs off.</p>
+      <p zb-if={rule.on}><status-badge>On</status-badge> Every admin must use two-factor sign-in. An admin without it can open only Settings until it is on, and nobody who is an admin can turn theirs off.</p>
       <p zb-else>Two-factor sign-in is optional for everyone. Admins without it are reminded on the dashboard.</p>
       <form zb-if={rule.on || rule.yoursOn} method="post" action="/people/two-factor-rule" class="hq-form-row">
         <input type="hidden" name="on" value={rule.on ? "0" : "1"}>

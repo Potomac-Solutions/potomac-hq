@@ -124,7 +124,7 @@ h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 /* The top of a page: where it sits, its name with its status beside it, and
    what can be done from here on the right. */
 .hq-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1.5rem; }
-.hq-head > div { min-width: 0; display: grid; gap: 0.4rem; }
+.hq-head > div:first-child { min-width: 0; display: grid; gap: 0.4rem; }
 .hq-head h1 { margin: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .hq-head p { margin: 0; color: var(--muted-foreground); }
 .hq-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
@@ -133,6 +133,16 @@ h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 .hq-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .hq-split > * { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; min-width: 0; }
 @media (min-width: 72rem) { .hq-split { grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 1fr); } }
+/* In the rail, a small table reads as short blocks, as it does on a phone. */
+.hq-rail .hq-table.hq-stack, .hq-rail .hq-stack tbody, .hq-rail .hq-stack tr, .hq-rail .hq-stack td { display: block; }
+.hq-rail .hq-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hq-rail .hq-stack tr { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.hq-rail .hq-stack tbody tr:first-child { border-top: 0; }
+.hq-rail .hq-stack td { padding: 0.1rem 0; border: 0; overflow-wrap: anywhere; }
+.hq-rail .hq-stack td:empty { display: none; }
+.hq-rail .hq-facts { grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr); }
+/* On a record's page the facts come first, in a rail on the left, so they are also first on a phone. */
+@media (min-width: 72rem) { .hq-split.facts-first { grid-template-columns: minmax(19rem, 1fr) minmax(0, 1.9fr); } }
 /* A row of figures. */
 .hq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; }
 .hq-stats a { color: inherit; text-decoration: none; border-radius: var(--radius); }
@@ -257,3 +267,8 @@ hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal;
 hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }
 .portal-preview { display: block; max-width: 100%; height: auto; max-height: 28rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
 }
+
+/* Outside the layer, because these adjust copied components: stat cards in a
+   row are all as tall as the tallest. */
+.hq-stats a, .hq-stats stat-card { display: grid; }
+.hq-stats .stat { align-content: start; }

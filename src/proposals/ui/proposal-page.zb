@@ -4,6 +4,9 @@
 -->
 <script>
   'use route /proposals/:id'
+  import '../../shared/ui/zubra/select-field.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -27,7 +30,7 @@
 </style>
 <hq-proposal view={{ proposal: {}, opportunity: {}, client: {}, rows: [], summary: {}, versions: [], agreements: [], can: {}, pricings: [], kinds: [], methods: [], decision: null, project: null }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/proposals">Proposals</a> / <a href="/clients/{view.client.id}">{view.client.name}</a> / <a href="/opportunities/{view.opportunity.id}">{view.opportunity.title}</a></p>
+    <breadcrumb-trail items={[{ label: 'Proposals', href: '/proposals' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: view.opportunity.title, href: `/opportunities/${view.opportunity.id}` }, { label: p.title, href: '' }]}></breadcrumb-trail>
     <h1>{p.title}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -65,7 +68,7 @@
         <tbody>
           <zb-each items={view.versions} as="version" key={version.number}>
             <tr>
-              <td>Version {version.number} <span zb-if={version.current} class="hq-tag">Latest</span></td>
+              <td>Version {version.number} <status-badge zb-if={version.current}>Latest</status-badge></td>
               <td>{version.sentWhen}</td>
               <td>{version.sentBy}</td>
               <td class="hq-number">{version.price}</td>
@@ -88,12 +91,7 @@
         </div>
         <text-field label="Who gave the answer" name="byName" required={true} description="The person at the client."></text-field>
         <text-field label="On" name="on" type="date" value={view.today} required={true}></text-field>
-        <div class="hq-field">
-          <label for="decision-method">How the answer was given</label>
-          <select id="decision-method" name="method" required>
-            <zb-each items={view.methods} as="method" key={method.value}><option value={method.value}>{method.label}</option></zb-each>
-          </select>
-        </div>
+        <select-field label="How the answer was given" name="method" options={view.methods} required={true}></select-field>
         <text-field label="Note" name="note" rows={2}></text-field>
         <p class="hq-muted hq-small">Accepting wins the opportunity, starts its project, and sets the project’s baseline from this version’s estimate.</p>
         <div><button class="hq-button" type="submit">Record answer</button></div>

@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /portal/projects/:id'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -27,7 +28,7 @@
 
     <section class="hq-panel" aria-labelledby="pp-progress">
       <h2 id="pp-progress">Where it stands</h2>
-      <p><span class="hq-tag" data-tone={p.tone}>{p.standing}</span><span zb-if={view.next}> Next: {view.next}</span></p>
+      <p><status-badge variant={p.tone === 'warn' ? 'warning' : p.tone === 'ok' ? 'success' : 'neutral'}>{p.standing}</status-badge><span zb-if={view.next}> Next: {view.next}</span></p>
       <p zb-if={p.target}>Planned finish: {p.target}</p>
       <p zb-if={p.description} class="hq-prose">{p.description}</p>
       <p zb-if={view.billableHours} class="hq-muted">Billable hours so far: {view.billableHours}</p>
@@ -36,7 +37,7 @@
         <zb-each items={view.steps} as="step" key={step.id}>
           <li data-done={step.done ? "yes" : "no"}>
             <span class="portal-mark" aria-hidden="true">{step.done ? "✓" : ""}</span>
-            <span><strong>{step.name}</strong> <span zb-if={step.yours} class="hq-tag" data-tone="warn">Yours to do</span><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
+            <span><strong>{step.name}</strong> <status-badge zb-if={step.yours} variant="warning">Yours to do</status-badge><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
           </li>
         </zb-each>
       </ol>
