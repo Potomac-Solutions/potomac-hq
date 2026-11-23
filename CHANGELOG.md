@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Fixed: "Open HQ in your app", while turning on two-factor sign-in on a
+  phone, was left off the page, because pages only link to web addresses.
+  It now goes through HQ, which sends the phone on to the app.
+- Fixed: an address starting with two slashes, as scanners send looking for
+  files like .env, answered with an error and filled the error log. It is
+  now refused as a bad request. Nothing was ever read or shown.
+
 - Import clients, and demo clients. Clients → Import takes a pasted CSV
   (from a spreadsheet or typed): each line becomes a client, its contact
   and, if it names a project, a won project with links to its code and live

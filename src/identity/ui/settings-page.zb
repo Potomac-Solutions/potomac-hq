@@ -96,9 +96,9 @@
           <li zb-if={twoFactor.setup.scannable}>
             Scan this code with the app.
             <img class="hq-qr" src="/settings/two-factor/qr.svg" width="200" height="200" alt="QR code to add Potomac HQ to your authenticator app">
-            On this phone instead? <a href={twoFactor.setup.link}>Open HQ in your app</a>. Or choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code>
+            On this phone instead? <a href="/settings/two-factor/app">Open HQ in your app</a>. Or choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code>
           </li>
-          <li zb-else>On this phone, <a href={twoFactor.setup.link}>open HQ in your app</a>. Otherwise choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code></li>
+          <li zb-else>On this phone, <a href="/settings/two-factor/app">open HQ in your app</a>. Otherwise choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code></li>
           <li>Enter the 6-digit code the app shows for Potomac HQ.</li>
         </ol>
         <form method="post" action="/settings/two-factor/confirm" class="hq-form-row">

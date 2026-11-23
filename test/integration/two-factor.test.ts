@@ -44,7 +44,13 @@ test("turning it on takes a code from the app, and shows the recovery codes once
   const secret = secretOf(mikeyId);
   assert.match(secret, /^[A-Z2-7]{32}$/);
   assert.ok(setup.includes(secret.replace(/(.{4})(?=.)/g, "$1 ")), "the key is shown, grouped for typing");
-  assert.ok(setup.includes(`otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=${secret}`), "and the link an app opens");
+  // Pages can only link to web addresses, so the link that opens the app is a redirect to it.
+  assert.ok(setup.includes('href="/settings/two-factor/app"'), "and a link that opens the app");
+  const opens = await mikey.get("/settings/two-factor/app");
+  assert.equal(opens.status, 302);
+  assert.equal(opens.headers.get("location"), `otpauth://totp/Potomac%20HQ%3Amikey%40example.com?secret=${secret}&issuer=Potomac%20HQ`);
+  assert.equal(opens.headers.get("cache-control"), "private, no-store");
+  assert.equal((await httpClient(t.origin).get("/settings/two-factor/app")).status, 404, "nobody signed in");
 
   // The QR code: only to its owner, only while turning it on, never kept.
   const qr = await mikey.get("/settings/two-factor/qr.svg");
