@@ -34,6 +34,8 @@ import { todayFor, type TodayView } from "./today/index.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
 import { creditInquiry, referralLinks } from "./referrals/index.ts";
+import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
+import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
@@ -97,6 +99,8 @@ export type AppConfig = {
   readonly clientNotices?: boolean;
   /** How a client reaches Potomac, shown in the portal. Each part is left out when empty. */
   readonly contact?: PortalContact;
+  /** Reads and commits to client sites' repositories on GitHub. Without it, sites can't be set up or published. */
+  readonly sitePublisher?: SitePublisher | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
 };
@@ -241,6 +245,14 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Website content: a client's own site in the portal, and every site for Potomac's people. */
+  readonly websites: {
+    /** The signed-in client's site, or null when they have none. */
+    mine(): ReturnType<typeof portalWebsite>;
+    all(): ReturnType<typeof allWebsites>;
+    site(id: string): ReturnType<typeof staffWebsite>;
+    forClient(id: string): ClientWebsiteView | null;
+  };
   readonly monitor: {
     all(): ReturnType<typeof allSites>;
     forClient(id: string): SitesView | null;
@@ -320,6 +332,9 @@ const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+// A photo for a website. Smaller than other files: it is shown on a web page.
+const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos)$/;
+const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import)$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
@@ -329,7 +344,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { sitePublisher: config.sitePublisher ?? null, secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -557,6 +572,15 @@ export async function createApp(config: AppConfig): Promise<App> {
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
         can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok },
+        websites: {
+          mine: () => portalWebsite(services.websites, client),
+          all: () => allWebsites(services.websites, actor),
+          site: (id) => withId(id, (parsed) => staffWebsite(services.websites, actor, parsed)),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientWebsite(services.websites, actor, parsed.value) : null;
+          },
+        },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
@@ -867,6 +891,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
@@ -916,6 +942,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
+  downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -950,16 +977,17 @@ export async function createApp(config: AppConfig): Promise<App> {
       // so the size limit cannot be walked around with a streamed body.
       const length = req.headers["content-length"] === undefined ? Number.NaN : Number(req.headers["content-length"]);
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
-      const upload = type === "multipart/form-data" && UPLOAD_PATHS.test(path);
+      const photo = type === "multipart/form-data" && PHOTO_PATHS.test(path);
+      const upload = photo || (type === "multipart/form-data" && UPLOAD_PATHS.test(path));
       if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      const limit = upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
+      const limit = photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
       if (!(length >= 0 && length <= limit)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

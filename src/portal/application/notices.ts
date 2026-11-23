@@ -63,6 +63,10 @@ function describe(deps: PortalDeps, event: LoggedEvent): Described | null {
       const id = asId(event.recordId);
       return id ? { who, organization, did: "picked times for a call", path: `/calls/invites/${id}`, ownerId: null } : null;
     }
+    case "site-content.submitted": {
+      const id = asId(event.recordId);
+      return id ? { who, organization, did: "sent changes for their website", path: `/websites/${id}`, ownerId: null } : null;
+    }
     case "call.requested":
       return { who, organization, did: "asked for a call", path: `/clients/${user.organizationId}#portal`, ownerId: null };
     default:
@@ -109,6 +113,8 @@ function organizationOf(deps: PortalDeps, event: LoggedEvent): Id | null {
     }
     case "call.confirmed":
     case "call.declined":
+    case "site-content.published":
+    case "site-content.sent-back":
       return idIn(event, "organizationId");
     default:
       return null;

@@ -113,6 +113,7 @@ Do it for the test environment first, then again for production.
 | `HQ_BACKUP_PUBLIC_KEY` | The public key from `npm run backup:keygen` | For backups |
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
+| `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
@@ -309,6 +310,34 @@ on to the page with the form. HQ's own `/contact` needs none of this.
 `?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
 posts from those sites. Five an hour from one address, three a day for one
 email.
+
+## Site content
+
+Clients change their own site's photos, notice and reviews in the portal,
+and HQ commits what you publish to the site's repository
+(`docs/decisions/0003-site-content.md`). It needs one variable:
+
+`HQ_GITHUB_TOKEN`: a GitHub fine-grained personal access token.
+
+1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate
+   new token.
+2. Resource owner: the organization that owns the client sites
+   (Potomac-Solutions). Repository access: only the client sites'
+   repositories. Never "All repositories", and never HQ's own.
+3. Repository permissions: **Contents: Read and write**. Nothing else.
+4. Set an expiry and put a renewal for it in HQ, so it does not run out
+   unnoticed. When it does, publishing answers "GitHub refused".
+5. Set it in Railway for the environment, and redeploy.
+
+Commits are made as the token's owner. If a site's branch is protected,
+that person must be allowed to push to it, or publishing is refused.
+
+To make a site ready: it needs its content in one JSON file in the shape
+the decision describes, and its page code reading that file. Then set it
+up on the client's page in HQ.
+
+Without the token HQ starts and says "Site content can't be set up or
+published". Everything else works.
 
 ## Dependency updates
 

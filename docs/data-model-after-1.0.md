@@ -170,6 +170,47 @@ its certificate's expiry and the expiry already warned about.
 - Seen with `client.view`, changed with `client.edit`. Events:
   `site.watched`, `site.unwatched`, `site.down`, `site.up` (by HQ).
 
+## Site content
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0003-site-content.md` for the choices and what needs his
+approval.
+
+`content_site`: a client (one site each), a name, the repository, branch,
+content file and photo folder, what is on the site (`published`, as JSON),
+when and at which commit HQ last published, the content with the waiting
+changes made (`draft`), its state (none, editing, submitted), who sent it
+in and when, and Potomac's note when sending it back.
+`content_photo`: a photo's bytes, its path in the repository, and whether
+it is in the repository yet.
+
+- A client's change makes or updates the draft and sets it to "editing".
+  Sending it in sets "submitted". A further change by the client takes it
+  back to "editing"; Potomac's own change leaves it as it is. A change that
+  puts things back as they are on the site clears the draft.
+- Publishing makes one commit through the `SitePublisher` port, then, in
+  one transaction, makes the draft the published content, marks new photos
+  as in the repository and deletes the bytes of removed ones. A change made
+  while the commit was on its way stays waiting.
+- One publish at a time for a site.
+- A photo uploaded and then not used (removed again, or the changes
+  discarded) is deleted.
+- Setting up, changing, sending back and publishing need `site.publish`.
+  The list is seen with `client.view`. A client user changes their own
+  organization's site only.
+- Events, all on record type `content-site`: `site-content.set-up`,
+  `site-content.read-again`, `site-content.photo-added`,
+  `site-content.photo-changed`, `site-content.photo-removed`,
+  `site-content.photos-reordered`, `site-content.notice-changed`,
+  `site-content.review-added`, `site-content.review-removed`,
+  `site-content.changes-discarded`, `site-content.submitted`,
+  `site-content.sent-back`, `site-content.published`. A client's carry
+  `clientUserId`.
+- Notices: `site-content.submitted` is emailed to admins and shows on the
+  dashboard under what clients did. `site-content.published` and
+  `site-content.sent-back` are emailed to the client when client notices
+  are on.
+
 ## Referral links
 
 Decided 2026-11-23 at Mikey's request ("a referral code for business cards

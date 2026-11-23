@@ -1,0 +1,82 @@
+<!--
+  One client's website in HQ: where it lives, the changes waiting to go on
+  it, and the same editor the client has. Publishing commits the changes to
+  the site's repository.
+-->
+<script>
+  'use route /websites/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import './site-editor.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.websites.site(params.id)
+    if (!view.ok) return view.error === 'forbidden' ? context.forbidden() : notFound()
+    return { title: view.value.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .ws-changes { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+  .ws-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+  .ws-actions form { margin: 0; }
+  .ws-where { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3rem 1rem; margin: 0; }
+  .ws-where dt { color: var(--muted-foreground); }
+  .ws-where dd { margin: 0; overflow-wrap: anywhere; }
+</style>
+<hq-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none' }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/websites">Site content</a> / <a href="/clients/{view.organizationId}#website">{view.clientName}</a></p>
+    <h1>{view.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.githubSetUp} variant="warning">HQ has no GitHub token, so nothing can be published. Set HQ_GITHUB_TOKEN on the server.</alert-banner>
+
+    <section class="hq-panel" id="waiting" aria-labelledby="ws-waiting">
+      <h2 id="ws-waiting">{view.state === 'submitted' ? 'Changes to check' : view.state === 'editing' ? 'Changes not sent in yet' : 'Nothing is waiting'}</h2>
+      <p zb-if={view.state === 'none'} class="hq-muted">What’s below is on the site. A change made here, or by the client in their portal, waits until it is published.</p>
+      <p zb-if={view.sent}>{view.sent}.</p>
+      <p zb-if={view.state === 'editing' && !view.note} class="hq-muted">Someone is still changing things. You can publish now, or wait for the client to send them in.</p>
+      <p zb-if={view.note} class="hq-muted">Sent back with this note: “{view.note}”</p>
+      <div zb-if={view.canPublish}>
+        <ul class="ws-changes">
+          <zb-each items={view.changes} as="change" key={change}><li>{change}</li></zb-each>
+        </ul>
+        <p class="hq-small hq-muted" data-spaced>Check each new photo below, and what it says it shows, before publishing.</p>
+        <div class="ws-actions">
+          <form method="post" action="/websites/{view.siteId}/publish"><button class="hq-button" type="submit">Publish to the site</button></form>
+          <form method="post" action="/websites/{view.siteId}/discard"><button class="hq-button secondary" type="submit">Discard the changes</button></form>
+        </div>
+        <details zb-if={view.state === 'submitted'} class="hq-more">
+          <summary>Send back to the client</summary>
+          <form method="post" action="/websites/{view.siteId}/send-back" class="hq-form">
+            <div class="hq-field">
+              <label for="ws-note">What should change?</label>
+              <textarea id="ws-note" name="note" rows="3" required maxlength="1000"></textarea>
+            </div>
+            <div><button class="hq-button secondary" type="submit">Send back</button></div>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <site-editor view={view} base="/websites/{view.siteId}" photos="/websites/photos"></site-editor>
+
+    <section class="hq-panel" id="site" aria-labelledby="ws-site">
+      <h2 id="ws-site">Where it lives</h2>
+      <dl class="ws-where">
+        <dt>Repository</dt><dd><a href="https://github.com/{view.repo}" rel="noopener noreferrer">{view.repo}</a>, branch {view.branch}</dd>
+        <dt>Content file</dt><dd>{view.contentPath}</dd>
+        <dt>New photos go in</dt><dd>{view.photoDir}</dd>
+        <dt>Last published</dt><dd>{view.lastPublished || 'Not from HQ yet'}</dd>
+      </dl>
+      <form method="post" action="/websites/{view.siteId}/read-again" data-spaced>
+        <button class="hq-button secondary" type="submit">Read the site again</button>
+        <p class="hq-small hq-muted" data-spaced>After the content file or a photo was changed in the repository by hand. Not while changes are waiting.</p>
+      </form>
+    </section>
+  </div>
+</hq-website>

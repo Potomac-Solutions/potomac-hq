@@ -14,10 +14,13 @@
     if (stop) return stop
     const home = context.portal.home()
     const picks = context.booking.invitesForMe().map((invite) => ({ key: 'i-' + invite.id, text: 'Pick times for a call: ' + invite.title, detail: invite.length + ', ' + invite.days + (invite.answered ? '. You picked times; Potomac Solutions will confirm one.' : '. Mark every time you could do.'), href: '/portal/invites/' + invite.id, action: invite.answered ? 'Change times' : 'Pick times' }))
-    return { title: 'Your portal', view: { ...home, attention: [...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    const website = context.websites.mine()
+    // Changes Potomac sent back come first: the client is the one being waited on.
+    const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
+    return { title: 'Your portal', website, view: { ...home, attention: [...fixes, ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -51,6 +54,19 @@
             </div>
           </li>
         </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={website} class="hq-panel" id="website" aria-labelledby="portal-website">
+      <h2 id="portal-website">Your website</h2>
+      <ul class="portal-cards">
+        <li>
+          <div>
+            <p><strong>{website.name}</strong></p>
+            <p class="hq-muted">{website.state === 'submitted' ? 'Your changes are with Potomac Solutions to check.' : website.state === 'editing' ? 'You have changes you haven’t sent yet.' : 'Change the photos, post a notice, or add a review.'}</p>
+          </div>
+          <a class="hq-button portal-big" href="/portal/website">Update your website</a>
+        </li>
       </ul>
     </section>
 

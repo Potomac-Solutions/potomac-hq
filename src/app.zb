@@ -35,6 +35,7 @@
         { label: 'Board', href: '/board', current: at('/board') },
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
+        { label: 'Site content', href: '/websites', current: at('/websites') },
       ] },
       { label: 'Finance', links: [
         ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),

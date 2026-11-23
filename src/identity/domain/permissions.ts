@@ -66,6 +66,7 @@ export const PERMISSIONS = [
   "booking.manage",
   // After 0.13.0
   "referral.manage",
+  "site.publish",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -102,6 +103,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "report.view",
   "booking.manage",
   "referral.manage",
+  "site.publish",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {
