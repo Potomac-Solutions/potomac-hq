@@ -9,9 +9,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - Fixed: on a phone, a table that scrolls sideways can now be scrolled from
   the keyboard (it takes focus), which the phone pass in 0.11.0 missed.
-
 - Change requests: for work beyond what was agreed. On a project's money
   page, draft one with what it is, its price (or no charge) and its extra
   hours, and send it. The client sees it in the portal, on their "waiting on
@@ -20,14 +21,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
   the project's budget by the change's price and hours and drafts its
   invoice, in one step. Potomac hears about the answer like any other client
   action. Migration 0027.
-
 - Early budget warnings: a project that has used three quarters of its hours
   or money while less of its milestones are done is marked "Watch", before
   it goes over. The dashboard panel is now "Budgets to watch" (over first,
   then watch, each saying how much is used and how many milestones are
   done), Money tags it, and the project's money page says it is time to talk
   to the client about scope.
-
 - Project links: on each project, where its work lives: the staging and live
   sites, the designs, documents, the code. Shared ones show in the client's
   portal under "Where to see the work"; the rest, like the repository, stay
@@ -36,9 +35,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   test's database path was relative and `RAILWAY_RUN_UID` was not set, and
   production had no volume or variables. The guide now lists the Railway
   settings that work and how to check that a deploy is healthy.
-
-## [0.11.0] - 2026-11-22
-
 - Search fits a phone: long results wrap and the box shrinks. The phone
   check now runs at 320px, the narrowest common phone.
 - On a phone: every staff page now fits a 360px screen. Wide tables scroll
