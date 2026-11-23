@@ -14,7 +14,7 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { financeOverview, hoursThisWeek, invoiceDetail, invoiceReminders, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
@@ -167,6 +167,9 @@ export type PageContext = {
     thisWeek(): ReturnType<typeof hoursThisWeek>;
   };
   readonly money: {
+    /** Whether clients are emailed about invoices coming due and overdue, and whether this person may change it. */
+    reminders(): { readonly on: boolean; readonly canEdit: boolean; readonly email: boolean };
+    invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
     recurring(): ReturnType<typeof recurringOverview>;
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
@@ -436,6 +439,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           thisWeek: () => hoursThisWeek(financeDeps, actor),
         },
         money: {
+          reminders: () => ({ on: services.invoiceReminders.reminders.on(), canEdit: actor !== null && authorize(sessionDeps, actor, "finance.edit").ok, email: Boolean(config.email) }),
+          invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
           recurring: () => recurringOverview(financeDeps, actor),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
@@ -544,7 +549,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", financeRoutes({ finance: financeDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   const bookerOf = (cookieHeader: string): PortalBooker | null => {
     const session = clientOf(cookieHeader);

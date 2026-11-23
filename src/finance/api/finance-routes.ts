@@ -2,11 +2,13 @@
 import { Hono } from "hono";
 import * as finance from "../application/commands.ts";
 import { exportFinance, invoiceDocument, type InvoiceDocument } from "../application/queries.ts";
+import * as reminders from "../application/reminders.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type FinanceRoutesDeps = {
   readonly finance: finance.FinanceDeps;
+  readonly reminders?: reminders.RemindersDeps;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
 };
@@ -71,6 +73,15 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
     back: (id) => invoice(id),
     message: "Line added.",
   });
+  if (deps.reminders) {
+    const remindersDeps = deps.reminders;
+    post("/money/reminders", (actor, f) => reminders.setInvoiceReminders(remindersDeps, actor, f["on"] === "1"), {
+      done: (made) => "/money#reminders",
+      back: () => "/money#reminders",
+      message: "Saved.",
+    });
+    post("/invoices/:id/reminders", (actor, f, id) => reminders.setRemindersForInvoice(remindersDeps, actor, id as Id, f["off"] === "1"), { done: (_, id) => `${invoice(id)}#reminders`, back: (id) => invoice(id), message: "Saved." });
+  }
   post("/projects/:id/recurring", (actor, f, id) => finance.addRecurringInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "", every: f["every"] ?? "", firstOn: f["firstOn"] ?? "", endsOn: f["endsOn"] ?? null, autoSend: f["autoSend"] === "1", dueDays: f["dueDays"] ?? null }), {
     done: (_, id) => `${money(id)}#recurring`,
     back: (id) => `${money(id)}#recurring`,

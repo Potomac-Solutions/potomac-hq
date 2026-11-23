@@ -12,11 +12,12 @@
     if (stop) return stop
     const view = context.money.invoice(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    const reminders = context.money.invoiceReminders(params.id)
+    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, done: context.notice.done, problem: context.notice.problem }
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a> / <a href="/projects/{view.project.id}/money">Money</a></p>
     <h1>Invoice {i.label}</h1>
@@ -87,6 +88,21 @@
         <text-field label="Received on" name="on" type="date" value={view.today} required={true}></text-field>
         <text-field label="Reference" name="reference" description="A check number, or the gateway’s reference. Never a card number."></text-field>
         <div><button class="hq-button" type="submit">Record payment</button></div>
+      </form>
+    </section>
+
+    <section zb-if={reminders && !i.draft && i.status !== 'void'} class="hq-panel" id="reminders" aria-labelledby="invoice-reminders">
+      <h2 id="invoice-reminders">Reminders</h2>
+      <p zb-if={!reminders.on} class="hq-muted">Reminders are off for every invoice. <a href="/money#reminders">Turn them on</a> on Money.</p>
+      <p zb-else-if={reminders.off}>No reminders for this invoice.</p>
+      <p zb-else-if={reminders.recipients}>Sent to {reminders.recipients}, when one is due.</p>
+      <p zb-else class="hq-muted">This client has no primary contact with an email, and nobody in the portal, so no reminder can go.</p>
+      <ul zb-if={reminders.sent.length > 0} class="hq-list">
+        <zb-each items={reminders.sent} as="one" key={one.label}><li>{one.label}: {one.when}, to {one.to}</li></zb-each>
+      </ul>
+      <form zb-if={reminders.on && reminders.canEdit && i.status === 'sent'} method="post" action="/invoices/{i.id}/reminders">
+        <input type="hidden" name="off" value={reminders.off ? '0' : '1'}>
+        <button class="hq-button secondary" type="submit">{reminders.off ? 'Send reminders for this invoice' : 'No reminders for this invoice'}</button>
       </form>
     </section>
   </div>

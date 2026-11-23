@@ -760,6 +760,23 @@ or left as a draft, days until due, and whether it is paused.
 - Events: `recurring-invoice.added`, `.paused`, `.resumed`, and the usual
   `invoice.created` and `invoice.sent`, by HQ (no actor).
 
+### Invoice reminders
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+- `finance_setting.reminders_on`: off until someone with `finance.edit`
+  turns it on.
+- Steps: three days before the due day, the day after, a week late, two
+  weeks late. Only the latest step that has come is sent, so an invoice
+  found two weeks late gets one email, not four. After two weeks, a phone
+  call: no more emails.
+- To the client's primary contact with an email, or else its active portal
+  users. `invoice_reminder` records each step sent, before sending, so none
+  goes twice. `invoice_reminder_off` leaves one invoice out.
+- Sent each morning at 09:07 Eastern, when email is set up. Events:
+  `invoice.reminder-sent` (by HQ), `invoice-reminders.on`/`.off`,
+  `invoice.reminders-stopped`/`.reminders-allowed`.
+
 ### Booking
 
 Decided 2026-11-22 while Mikey was away, at his request for a booking

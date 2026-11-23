@@ -109,6 +109,9 @@ one only if you were expecting it.
   maintenance or a retainer: an amount every month, three months or year.
   HQ makes each invoice in the morning on its day, as a draft or sent. The
   Money page shows what recurs a month and a year.
+- **Invoice reminders.** Turn them on under Money, and clients are emailed
+  about a sent invoice three days before it is due and when it is late, up
+  to two weeks. An invoice's page shows what went, and can leave it out.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 
