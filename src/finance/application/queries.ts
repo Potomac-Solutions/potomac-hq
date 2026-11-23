@@ -1,14 +1,14 @@
 // What the time and money pages show. Everyone who logs time sees their own.
 // Costs, budgets and margins need `finance.view`, which a member does not
 // hold. Revenue and margin here are operational estimates, not the books.
-import { budgetPeriod, defaultFinance, standing, type Budget, type Standing } from "../domain/budget.ts";
+import { budgetPeriod, budgetWarning, defaultFinance, standing, type Budget, type BudgetWarning, type Standing } from "../domain/budget.ts";
 import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
 import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
 import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
-import type { Project } from "../../projects/index.ts";
+import { milestoneProgress, type Project } from "../../projects/index.ts";
 import { err, formatHours, formatMoney, friendlyDay, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
 import type { InvoiceRow, TimeRow } from "./ports.ts";
@@ -143,7 +143,10 @@ function measure(deps: FinanceDeps, project: Project, today: string) {
   const budget: Budget = { amount: finance.budget ?? baseline?.amount ?? null, minutes: finance.budgetMinutes ?? (baseline && baseline.minutes > 0 ? baseline.minutes : null) };
   const time = deps.time.totals(project.id, period);
   const expenses = usd(deps.expenses.total(project.id, period));
-  return { finance, baseline, period, budget, time, expenses, standing: standing(budget, { ...time, expenses }, finance.rate), fromProposal: finance.budget === null && finance.budgetMinutes === null && baseline !== null };
+  const s = standing(budget, { ...time, expenses }, finance.rate);
+  // Milestones measure a one-time job's progress; a monthly or yearly plan has no end to measure against.
+  const done = project.kind === "ongoing" ? null : milestoneProgress(deps.milestones.listFor(project.id));
+  return { finance, baseline, period, budget, time, expenses, standing: s, warning: budgetWarning(budget, time, s, done), fromProposal: finance.budget === null && finance.budgetMinutes === null && baseline !== null };
 }
 
 type MoneyLine = { readonly budget: string; readonly actual: string; readonly over: boolean };
@@ -167,6 +170,8 @@ export type ProjectMoneyView = {
   readonly period: string;
   readonly fromProposal: boolean;
   readonly summary: ReturnType<typeof summaryOf>;
+  /** Over budget, or worth watching: three quarters used ahead of the work. */
+  readonly warning: { readonly level: "over" | "watch"; readonly text: string } | null;
   readonly phases: readonly { readonly key: string; readonly name: string; readonly estimate: string; readonly actual: string; readonly over: boolean }[];
   readonly payment: { readonly status: string; readonly statusLabel: string; readonly invoiceRef: string };
   readonly budgetForm: { readonly amount: string; readonly hours: string; readonly rate: string };
@@ -204,6 +209,7 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
     period: m.period.label,
     fromProposal: m.fromProposal,
     summary: summaryOf(m.budget, m.time, m.expenses, m.standing),
+    warning: m.warning ? { level: m.warning.level, text: m.warning.text } : null,
     phases: rows.filter((row) => row.estimate !== "" || row.actual !== "0" || row.key !== "none" || phases.length === 0),
     payment: { status: m.finance.paymentStatus, statusLabel: PAYMENT_LABELS[m.finance.paymentStatus] ?? m.finance.paymentStatus, invoiceRef: m.finance.invoiceRef },
     budgetForm: {
@@ -420,6 +426,8 @@ export type FinanceOverviewView = {
     readonly marginNegative: boolean;
     readonly paymentLabel: string;
     readonly over: boolean;
+    /** Active, and three quarters used ahead of the work. */
+    readonly watch: boolean;
   }[];
   readonly totals: { readonly budget: string; readonly cost: string; readonly margin: string };
   readonly canExport: boolean;
@@ -452,27 +460,31 @@ export function financeOverview(deps: FinanceDeps, actorId: Id | null): Result<F
         marginNegative: s.marginNegative,
         paymentLabel: PAYMENT_LABELS[m.finance.paymentStatus] ?? m.finance.paymentStatus,
         over: s.over,
+        watch: project.status === "active" && m.warning?.level === "watch",
       };
     });
   return ok({ rows, totals: { budget: formatMoney(usd(budget)), cost: formatMoney(usd(cost)), margin: formatMoney(usd(budget - cost)) }, canExport: may(deps, actorId, "finance.export") });
 }
 
-export type OverBudgetView = { readonly items: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly why: string }[] };
+export type OverBudgetView = { readonly items: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly why: string; readonly level: BudgetWarning["level"]; readonly warning: string }[] };
 
-/** The dashboard's panel: active projects past their hours or their budget. */
+/**
+ * The dashboard's panel: active projects past their hours or their budget,
+ * then those worth watching (see `budgetWarning`).
+ */
 export function projectsOverBudget(deps: FinanceDeps, actorId: Id | null): Result<OverBudgetView, "forbidden"> {
   if (!may(deps, actorId, "finance.view")) return err("forbidden");
   const today = deps.today();
   const items = [];
   for (const project of deps.projects.list().filter((one) => one.status === "active")) {
     const m = measure(deps, project, today);
-    if (!m.standing.over) continue;
+    if (!m.warning) continue;
     const parts = [];
-    if (m.standing.overHours && m.budget.minutes !== null) parts.push(`${formatHours(m.time.minutes)} of ${formatHours(m.budget.minutes)} hours`);
-    if (m.standing.overCost && m.budget.amount !== null) parts.push(`${formatMoney(m.standing.cost)} of ${formatMoney(m.budget.amount)}`);
-    items.push({ id: project.id, name: project.name, clientName: project.clientName, why: `${parts.join(", ")} ${m.period.label}` });
+    if (m.budget.minutes !== null) parts.push(`${formatHours(m.time.minutes)} of ${formatHours(m.budget.minutes)} hours`);
+    if (m.budget.amount !== null) parts.push(`${formatMoney(m.standing.cost)} of ${formatMoney(m.budget.amount)}`);
+    items.push({ id: project.id, name: project.name, clientName: project.clientName, why: `${parts.join(", ")} ${m.period.label}`, level: m.warning.level, warning: m.warning.text });
   }
-  return ok({ items });
+  return ok({ items: [...items.filter((one) => one.level === "over"), ...items.filter((one) => one.level === "watch")] });
 }
 
 export type CsvFile = { readonly fileName: string; readonly csv: string };

@@ -52,7 +52,7 @@ test("time and money for a project", async () => {
   // The dashboard's panels.
   await page.goto(`${t.origin}/`);
   await page.getByRole("heading", { name: "Hours this week" }).waitFor();
-  await page.getByRole("heading", { name: "Projects over budget" }).waitFor();
+  await page.getByRole("heading", { name: "Budgets to watch" }).waitFor();
   await assertAccessible(page, "the dashboard with hours and budgets");
 
   // A project's money.
@@ -101,7 +101,7 @@ test("time and money for a project", async () => {
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Time, every entry (CSV)" }).click()]);
   assert.match(download.suggestedFilename(), /^hq-time-\d{4}-\d{2}-\d{2}\.csv$/);
   await page.goto(`${t.origin}/`);
-  assert.match(await text(page), /Projects over budget ?Bakery website/);
+  assert.match(await text(page), /Budgets to watch ?Bakery website/);
 
   assert.deepEqual(problems, []);
   await context.close();

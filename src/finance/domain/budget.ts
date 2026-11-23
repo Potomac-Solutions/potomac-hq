@@ -97,3 +97,31 @@ export function budgetPeriod(pricing: string | null, today: string): { readonly 
   if (pricing === "yearly") return { from: day.with({ month: 1, day: 1 }).toString(), to: day.with({ month: 12, day: 31 }).toString(), label: "this year" };
   return { from: "0000-01-01", to: "9999-12-31", label: "so far" };
 }
+
+/** Share of a budget used before a project is worth watching. */
+export const WATCH_AT_PERCENT = 75;
+
+export type BudgetWarning = {
+  readonly level: "over" | "watch";
+  /** Like "78% of hours used, 2 of 6 milestones done". */
+  readonly text: string;
+};
+
+/**
+ * Over, or worth watching: three quarters or more of the hours or the money
+ * used while less of the work is done. "Done" is the share of milestones
+ * finished; with no milestones, or for a monthly or yearly plan, using three
+ * quarters is enough. Null when it is fine or has no budget.
+ */
+export function budgetWarning(budget: Budget, actual: { readonly minutes: number }, s: Standing, done: { readonly done: number; readonly total: number } | null): BudgetWarning | null {
+  const hoursUsed = budget.minutes !== null && budget.minutes > 0 ? Math.round((actual.minutes / budget.minutes) * 100) : null;
+  const moneyUsed = budget.amount !== null && budget.amount.minor > 0 ? Math.round((s.cost.minor / budget.amount.minor) * 100) : null;
+  const used = Math.max(hoursUsed ?? -1, moneyUsed ?? -1);
+  if (used < 0) return null;
+  const what = (hoursUsed ?? -1) >= (moneyUsed ?? -1) ? `${hoursUsed}% of hours used` : `${moneyUsed}% of the budget used`;
+  const work = done && done.total > 0 ? `, ${done.done} of ${done.total} milestones done` : "";
+  if (s.over) return { level: "over", text: `${what}${work}` };
+  if (used < WATCH_AT_PERCENT) return null;
+  if (done && done.total > 0 && (done.done / done.total) * 100 >= used) return null;
+  return { level: "watch", text: `${what}${work}` };
+}

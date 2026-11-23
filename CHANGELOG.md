@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Early budget warnings: a project that has used three quarters of its hours
+  or money while less of its milestones are done is marked "Watch", before
+  it goes over. The dashboard panel is now "Budgets to watch" (over first,
+  then watch, each saying how much is used and how many milestones are
+  done), Money tags it, and the project's money page says it is time to talk
+  to the client about scope.
+
 - Project links: on each project, where its work lives: the staging and live
   sites, the designs, documents, the code. Shared ones show in the client's
   portal under "Where to see the work"; the rest, like the repository, stay
