@@ -7,6 +7,7 @@
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import './site-editor.zb'
+  import './site-status.zb'
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
@@ -20,7 +21,7 @@
   .pw-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
   .pw-actions form { margin: 0; }
 </style>
-<hq-portal-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none' }} done="" problem="">
+<hq-portal-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {} }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{view.name}</h1>
@@ -28,6 +29,8 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
+
+    <site-status status={view.status} base="/portal/website"></site-status>
 
     <section class="hq-panel" id="waiting" aria-labelledby="pw-waiting">
       <h2 id="pw-waiting">{view.state === 'submitted' ? 'Sent to Potomac Solutions' : view.state === 'editing' ? 'Your changes aren’t on your website yet' : 'This is what’s on your website now'}</h2>

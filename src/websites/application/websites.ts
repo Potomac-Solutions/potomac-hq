@@ -5,6 +5,7 @@
 // Nothing a client does here reaches their site by itself. Their changes
 // wait until someone with `site.publish` publishes them.
 import { changesBetween, isMove, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, LIMITS, MAX_PHOTOS, MAX_REVIEWS, type ContentError, type SiteContent } from "../domain/content.ts";
+import { cleanSiteAddress, describeLaunch, isOpen, launchBlock, launchFrom, opensFields, previewLink, readLaunch, type Launch, type LaunchError, type LaunchInput } from "../domain/launch.ts";
 import { checkPhoto, contentTypeOf, photoFileName, MAX_PHOTO_BYTES, type PhotoError } from "../domain/photo.ts";
 import { discarded, publishedAs, repoPathFor, sentBack, siteSetup, srcFor, submitted, withDraft, working, type ContentSite, type SetupError, type SetupInput } from "../domain/site.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
@@ -22,7 +23,18 @@ export type WebsitesDeps = ActivityDeps & {
   readonly formatWhen: (instant: string) => string;
   /** Reads and commits to GitHub. Null when HQ has no token for it. */
   readonly publisher: SitePublisher | null;
+  /** The business's time zone: an opening time is a day and a time there. */
+  readonly timeZone: string;
+  /** SHA-256 of a text, as lower-case hex. */
+  readonly digest: (text: string) => string;
+  /** Random bytes, for a preview key. */
+  readonly random: (length: number) => Uint8Array;
 };
+
+/** The site's content file as it is written to its repository: the content, and the site's status. */
+function fileFor(deps: WebsitesDeps, site: Pick<ContentSite, "launch" | "previewKey">, content: SiteContent): Uint8Array {
+  return new TextEncoder().encode(writeContent(content, launchBlock(site.launch, deps.timeZone, site.previewKey ? deps.digest(site.previewKey) : null)));
+}
 
 /** A client signed in to the portal. The same shape as the portal's session. */
 export type ClientEditor = { readonly clientUserId: Id; readonly organizationId: Id; readonly name: string };
@@ -82,7 +94,7 @@ function change(deps: WebsitesDeps, editor: Editor, siteId: Id | null, action: s
 type ReadError = "github-not-set-up" | RepoError | "content-invalid" | "photo-unreadable";
 
 /** Reads a site's content file and every photo it names. */
-async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">): Promise<Result<{ content: SiteContent; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
+async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">): Promise<Result<{ content: SiteContent; launch: Launch; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
   if (!deps.publisher) return err("github-not-set-up");
   const file = await deps.publisher.read(setup.repo, setup.contentPath);
   if (!file.ok) return file;
@@ -101,7 +113,7 @@ async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "c
     if (!body.ok) return err(body.error === "repo-missing" ? "photo-unreadable" : body.error);
     photos.push({ id: photo.id, path, body: body.value });
   }
-  return ok({ content: content.value, photos });
+  return ok({ content: content.value, launch: readLaunch(text), photos });
 }
 
 /**
@@ -120,7 +132,7 @@ export async function setUpSite(deps: WebsitesDeps, actorId: Id | null, organiza
   return deps.transact(() => {
     if (deps.sites.forOrganization(organizationId)) return err("already-set-up");
     const at = deps.clock();
-    const site: ContentSite = { id: deps.newId(), organizationId, ...setup.value, published: read.value.content, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "" };
+    const site: ContentSite = { id: deps.newId(), organizationId, ...setup.value, published: read.value.content, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", launch: read.value.launch, previewKey: null };
     deps.sites.insert(site, at);
     for (const photo of read.value.photos) deps.photos.put({ id: photo.id, siteId: site.id, path: photo.path, contentType: contentTypeOf(photo.path), inRepo: true }, photo.body, at);
     recordActivity(deps, { actorId, action: "site-content.set-up", recordType: "content-site", recordId: site.id, context: { organizationId, repo: `${site.repo.owner}/${site.repo.name}`, branch: site.repo.branch, photos: read.value.photos.length } });
@@ -144,7 +156,7 @@ export async function readSiteAgain(deps: WebsitesDeps, actorId: Id | null, site
     if (!site) return err("not-found");
     if (site.draft) return err("changes-waiting");
     const at = deps.clock();
-    const next: ContentSite = { ...site, published: read.value.content };
+    const next: ContentSite = { ...site, published: read.value.content, launch: read.value.launch };
     deps.sites.save(next, at);
     deps.photos.removeAllFor(site.id);
     for (const photo of read.value.photos) deps.photos.put({ id: photo.id, siteId: site.id, path: photo.path, contentType: contentTypeOf(photo.path), inRepo: true }, photo.body, at);
@@ -274,7 +286,7 @@ export async function publishChanges(deps: WebsitesDeps, actorId: Id | null, sit
   try {
     const draft = site.draft;
     const stored = new Map(deps.photos.listFor(site.id).map((photo) => [photo.id, photo]));
-    const write: { path: string; bytes: Uint8Array }[] = [{ path: site.contentPath, bytes: new TextEncoder().encode(writeContent(draft)) }];
+    const write: { path: string; bytes: Uint8Array }[] = [{ path: site.contentPath, bytes: fileFor(deps, site, draft) }];
     const added: StoredPhoto[] = [];
     for (const photo of draft.gallery) {
       const one = stored.get(photo.id);
@@ -310,7 +322,127 @@ export async function publishChanges(deps: WebsitesDeps, actorId: Id | null, sit
   }
 }
 
+// ── Whether the site is open ─────────────────────────────────────────────
+
+const sameLaunch = (a: Launch, b: Launch) => a.mode === b.mode && a.opensAt === b.opensAt && a.message === b.message;
+const newPreviewKey = (deps: WebsitesDeps) => [...deps.random(16)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+/** Commits the site's content file as it is on the site, with a new status block. */
+async function commitStatus(deps: WebsitesDeps, site: ContentSite, next: Pick<ContentSite, "launch" | "previewKey">, message: string): Promise<Result<{ readonly commit: string }, "github-not-set-up" | "busy" | RepoError>> {
+  if (!deps.publisher) return err("github-not-set-up");
+  if (publishing.has(site.id)) return err("busy");
+  publishing.add(site.id);
+  try {
+    return await deps.publisher.commit(site.repo, { message: `${message}\n\nSet from Potomac HQ.`, write: [{ path: site.contentPath, bytes: fileFor(deps, next, site.published) }], remove: [] });
+  } finally {
+    publishing.delete(site.id);
+  }
+}
+
+/**
+ * Opens the site, or puts "coming soon" or "closed for maintenance" in
+ * front of it, with a time it opens by itself. Takes effect at once: one
+ * commit to the site's repository with the status and nothing else, so
+ * changes still waiting to be checked stay waiting. A client does this for
+ * their own site; Potomac's people need `site.publish`.
+ *
+ * The first time a site is closed it gets a preview key. Only the key's
+ * hash goes in the site's file.
+ */
+export async function setSiteStatus(deps: WebsitesDeps, editor: Editor, siteId: Id | null, input: LaunchInput): Promise<Result<ContentSite, Refused | LaunchError | "unchanged" | "github-not-set-up" | "busy" | RepoError>> {
+  const found = siteFor(deps, editor, siteId);
+  if (!found.ok) return found;
+  const site = found.value;
+  const launch = launchFrom(input, deps.timeZone, deps.clock());
+  if (!launch.ok) return launch;
+  if (sameLaunch(launch.value, site.launch)) return err("unchanged");
+  const previewKey = site.previewKey ?? (launch.value.mode === "live" ? null : newPreviewKey(deps));
+  const words = launch.value.mode === "live" ? "open to everyone" : `${launch.value.mode === "coming-soon" ? "coming soon" : "closed for maintenance"}${launch.value.opensAt ? `, opens ${launch.value.opensAt}` : ""}`;
+  const committed = await commitStatus(deps, site, { launch: launch.value, previewKey }, `Site status: ${words}`);
+  if (!committed.ok) return committed;
+  return deps.transact(() => {
+    const next: ContentSite = { ...(deps.sites.get(site.id) ?? site), launch: launch.value, previewKey };
+    deps.sites.save(next, deps.clock());
+    note(deps, editor, "site-content.status-changed", next, { mode: launch.value.mode, ...(launch.value.opensAt ? { opensAt: launch.value.opensAt } : {}), commit: committed.value.commit });
+    return ok(next);
+  });
+}
+
+/**
+ * Makes a new preview link, so the old one stops working: for when it has
+ * been passed on further than meant. While the site is closed this is a
+ * commit, because the site checks the link against the hash in its file.
+ */
+export async function newPreviewLink(deps: WebsitesDeps, editor: Editor, siteId: Id | null): Promise<Result<ContentSite, Refused | "github-not-set-up" | "busy" | RepoError>> {
+  const found = siteFor(deps, editor, siteId);
+  if (!found.ok) return found;
+  const site = found.value;
+  const previewKey = newPreviewKey(deps);
+  if (site.launch.mode !== "live") {
+    const committed = await commitStatus(deps, site, { launch: site.launch, previewKey }, "Site status: new preview link");
+    if (!committed.ok) return committed;
+  }
+  return deps.transact(() => {
+    const next: ContentSite = { ...(deps.sites.get(site.id) ?? site), previewKey };
+    deps.sites.save(next, deps.clock());
+    note(deps, editor, "site-content.preview-link-renewed", next);
+    return ok(next);
+  });
+}
+
+/** Sets the site's own address, which its preview link is made from. Permission: `site.publish`. */
+export function setSiteAddress(deps: WebsitesDeps, actorId: Id | null, siteId: Id, typed: string): Result<ContentSite, Refused | "address-invalid" | "unchanged"> {
+  const editor: Editor = { kind: "staff", actorId };
+  return deps.transact(() => {
+    const site = siteFor(deps, editor, siteId);
+    if (!site.ok) return site;
+    const address = cleanSiteAddress(typed);
+    if (!address.ok) return address;
+    if (address.value === site.value.siteUrl) return err("unchanged");
+    const next: ContentSite = { ...site.value, siteUrl: address.value };
+    deps.sites.save(next, deps.clock());
+    note(deps, editor, "site-content.address-changed", next, { siteUrl: address.value });
+    return ok(next);
+  });
+}
+
 // ── What people are shown ────────────────────────────────────────────────
+
+export type StatusView = {
+  /** What the form should have chosen: "live" once the site has opened by itself. */
+  readonly mode: string;
+  /** True when visitors see the site itself. */
+  readonly open: boolean;
+  readonly label: string;
+  readonly summary: string;
+  readonly opensOn: string;
+  readonly opensTime: string;
+  readonly message: string;
+  /** "Eastern Time": where the opening time is. */
+  readonly zone: string;
+  /** The earliest day an opening time can be. */
+  readonly today: string;
+  readonly siteUrl: string;
+  /** The link that shows the real site while it is closed. Empty when the site's address isn't known or it was never closed. */
+  readonly previewUrl: string;
+};
+
+function statusView(deps: WebsitesDeps, site: ContentSite): StatusView {
+  const now = deps.clock();
+  const open = isOpen(site.launch, now);
+  const zone = new Intl.DateTimeFormat("en-US", { timeZone: deps.timeZone, timeZoneName: "longGeneric" }).formatToParts(new Date(now)).find((part) => part.type === "timeZoneName")?.value ?? deps.timeZone;
+  return {
+    mode: open ? "live" : site.launch.mode,
+    open,
+    label: open ? "Open" : site.launch.mode === "coming-soon" ? "Coming soon" : "Closed for maintenance",
+    summary: describeLaunch(site.launch, deps.timeZone, now),
+    ...(open ? { opensOn: "", opensTime: "", message: "" } : { ...opensFields(site.launch, deps.timeZone), message: site.launch.message }),
+    zone,
+    today: Temporal.Instant.from(now).toZonedDateTimeISO(deps.timeZone).toPlainDate().toString(),
+    siteUrl: site.siteUrl,
+    previewUrl: site.siteUrl && site.previewKey ? previewLink(site.siteUrl, site.previewKey) : "",
+  };
+}
 
 export type PhotoLine = { readonly id: string; readonly title: string; readonly alt: string; readonly caption: string; readonly isNew: boolean; readonly first: boolean; readonly last: boolean; readonly position: number };
 
@@ -332,6 +464,8 @@ export type EditorView = {
   readonly note: string;
   readonly limits: typeof LIMITS;
   readonly photoRule: string;
+  /** Whether the site is open to everyone. */
+  readonly status: StatusView;
 };
 
 function editorView(deps: WebsitesDeps, site: ContentSite): EditorView {
@@ -351,6 +485,7 @@ function editorView(deps: WebsitesDeps, site: ContentSite): EditorView {
     sent: site.draftState === "submitted" && site.submittedAt ? `Sent by ${site.submittedBy ?? "the client"}, ${deps.formatWhen(site.submittedAt)}` : "",
     note: site.note,
     limits: LIMITS,
+    status: statusView(deps, site),
     photoRule: `A JPEG, PNG or WebP photo. Up to ${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))} MB after HQ shrinks it for the web.`,
   };
 }

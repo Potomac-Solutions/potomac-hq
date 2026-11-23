@@ -122,6 +122,17 @@ you publish it.
    The site rebuilds in a minute or two. Or "Send back to the client" with
    a note saying what to fix; it shows first in their portal.
 
+**Opening and closing the site.** At the top of the site's page, and of
+the client's "Your website" page, "Is the website open?" chooses what
+visitors see: the website, a "Coming soon" page, or a "Closed for
+maintenance" page. Give a day and a time and it opens by itself then.
+Unlike photos and words, this takes effect as soon as it is saved, by you
+or by the client; you are emailed when they change it. While the site is
+closed, "Preview the website" opens the real site for whoever has that
+link. It needs the site's own address, which you set under "Where it
+lives". The holding page keeps people out of the way, not out: don't put
+anything on a site that must stay secret until launch.
+
 If you change the site's content file in the repository by hand, press
 "Read the site again" on the site's page afterwards, or the next publish
 puts back what HQ had.

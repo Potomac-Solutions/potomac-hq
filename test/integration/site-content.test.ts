@@ -72,7 +72,8 @@ test("a site is set up on its client's page by reading its repository; what can'
   assert.equal(problemOf(await admin.post(`/clients/${clientId}/website`, SETUP)), "This client’s site is already set up.");
   assert.equal(count(t.db, "content_photo"), 2);
   const page = textOf(await admin.page(`/websites/${siteId}`));
-  assert.match(page, /Nu Finish website Nothing is waiting/);
+  assert.match(page, /Nu Finish website Is the website open\? Open Open to everyone\./);
+  assert.match(page, /Nothing is waiting What’s below is on the site\./);
   assert.match(page, /1\. Paint Booth Where refinishing happens\. For someone who can’t see it: A clean paint booth/);
   assert.match(page, /2\. Parts Bay/);
   assert.match(page, /“They made it easy\.” Evelyn S\. · via Yelp/);
@@ -82,10 +83,11 @@ test("a site is set up on its client's page by reading its repository; what can'
 });
 
 test("the client sees their site in the portal, with its photos; nobody else does", async () => {
-  assert.match(textOf(await dana.page("/portal")), /Your website Nu Finish website Change the photos, post a notice, or add a review\. Update your website/);
+  assert.match(textOf(await dana.page("/portal")), /Your website Nu Finish website Open to everyone\. Change the photos, post a notice, or add a review\. Update your website/);
   assert.doesNotMatch(textOf(await stranger.page("/portal")), /Your website/);
   const page = textOf(await dana.page("/portal/website"));
-  assert.match(page, /Nu Finish website This is what’s on your website now/);
+  assert.match(page, /Nu Finish website Is the website open\?/);
+  assert.match(page, /This is what’s on your website now/);
   assert.match(page, /1\. Paint Booth/);
   assert.doesNotMatch(page, /Repository|Publish|GitHub/, "nothing of how it is published");
   const booth = photoId("Paint Booth");

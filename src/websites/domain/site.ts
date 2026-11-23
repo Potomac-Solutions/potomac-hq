@@ -4,6 +4,7 @@ import { requiredText } from "../../shared/domain/fields.ts";
 import type { Id } from "../../shared/domain/id.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 import { sameContent, type SiteContent } from "./content.ts";
+import { cleanSiteAddress, type Launch } from "./launch.ts";
 
 /** Where the site's code lives on GitHub. */
 export type Repo = { readonly owner: string; readonly name: string; readonly branch: string };
@@ -36,10 +37,16 @@ export type ContentSite = {
   readonly submittedBy: string | null;
   /** What Potomac wrote when sending changes back. */
   readonly note: string;
+  /** The site's own address, like https://nufinishcollision.com. Empty until someone gives it. */
+  readonly siteUrl: string;
+  /** Whether the site is open to everyone, as last written to it. */
+  readonly launch: Launch;
+  /** The key in the site's preview link. Null until the site is first closed. */
+  readonly previewKey: string | null;
 };
 
-export type SetupError = "name-missing" | "name-too-long" | "repo-invalid" | "branch-invalid" | "content-path-invalid" | "photo-dir-invalid";
-export type SetupInput = { readonly name: string; readonly repo: string; readonly branch?: string | null; readonly contentPath?: string | null; readonly photoDir?: string | null };
+export type SetupError = "name-missing" | "name-too-long" | "repo-invalid" | "branch-invalid" | "content-path-invalid" | "photo-dir-invalid" | "address-invalid";
+export type SetupInput = { readonly name: string; readonly repo: string; readonly branch?: string | null; readonly contentPath?: string | null; readonly photoDir?: string | null; readonly siteUrl?: string | null };
 
 export const DEFAULTS = { branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" } as const;
 
@@ -57,7 +64,7 @@ export function cleanRepo(typed: string): Result<{ owner: string; name: string }
   return ok({ owner: match[1] as string, name: match[2] as string });
 }
 
-export type SiteSetup = Pick<ContentSite, "name" | "repo" | "contentPath" | "photoDir">;
+export type SiteSetup = Pick<ContentSite, "name" | "repo" | "contentPath" | "photoDir" | "siteUrl">;
 
 export function siteSetup(input: SetupInput): Result<SiteSetup, SetupError> {
   const name = requiredText(input.name, 80);
@@ -70,7 +77,9 @@ export function siteSetup(input: SetupInput): Result<SiteSetup, SetupError> {
   if (!contentPath || !contentPath.endsWith(".json")) return err("content-path-invalid");
   const photoDir = cleanPath((input.photoDir ?? "").trim() || DEFAULTS.photoDir);
   if (!photoDir) return err("photo-dir-invalid");
-  return ok({ name: name.value, repo: { ...repo.value, branch }, contentPath, photoDir });
+  const siteUrl = cleanSiteAddress(input.siteUrl ?? "");
+  if (!siteUrl.ok) return siteUrl;
+  return ok({ name: name.value, repo: { ...repo.value, branch }, contentPath, photoDir, siteUrl: siteUrl.value });
 }
 
 /**

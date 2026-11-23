@@ -120,6 +120,7 @@
           <text-field label="Branch" name="branch" value={website.defaults.branch} required={true} description="The branch the live site builds from."></text-field>
           <text-field label="Content file" name="contentPath" value={website.defaults.contentPath} required={true}></text-field>
           <text-field label="Photo folder" name="photoDir" value={website.defaults.photoDir} required={true}></text-field>
+          <text-field label="The site’s own address" name="siteUrl" description="Like nufinishcollision.com. For the preview link. Leave empty if it has none yet."></text-field>
           <div><button class="hq-button" type="submit">Set up and read the site</button></div>
         </form>
       </details>

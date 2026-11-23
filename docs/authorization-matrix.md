@@ -171,8 +171,10 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 A client user holds no permission key. Signed in to the portal, they may
 change the content of their own organization's website and send the changes
 in: the organization comes from their session and from nothing they send.
-Nothing they change reaches the site until someone with `site.publish`
-publishes it. The list of sites and what is waiting on each is seen with
+Nothing they change in its content reaches the site until someone with
+`site.publish` publishes it. Whether the site is open, coming soon or
+closed for maintenance is the exception: a client sets that for their own
+site and it takes effect at once (`docs/decisions/0004-site-launch.md`). The list of sites and what is waiting on each is seen with
 `client.view`.
 
 ### Platform (v1.0)

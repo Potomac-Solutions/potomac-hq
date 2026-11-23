@@ -211,6 +211,32 @@ it is in the repository yet.
   `site-content.sent-back` are emailed to the client when client notices
   are on.
 
+## Site status
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0004-site-launch.md`.
+
+On `content_site`: `launch_mode` (live, coming-soon, maintenance),
+`opens_at` (the instant it opens by itself, or null), `launch_message`,
+`site_url` (the site's own address) and `preview_key` (32 hex characters,
+made the first time a site is closed).
+
+- Changing the status is one commit of the content file as it is on the
+  site, with a new `launch` block. A draft waiting to be checked is not in
+  it. The record is saved after the commit succeeds.
+- An opening time is a day and a time in the business time zone, stored as
+  an instant. One already gone is refused.
+- A site whose opening time has come is open, and HQ says so. Nothing is
+  committed at that moment: the site switches by itself.
+- The file holds the SHA-256 of the preview key, never the key. A new key
+  is a commit while the site is closed.
+- A client user sets the status of their own organization's site, and it
+  takes effect at once. Potomac's people need `site.publish`, which also
+  sets the site's address.
+- Events: `site-content.status-changed` (with the mode and opening time),
+  `site-content.preview-link-renewed`, `site-content.address-changed`. A
+  client's status change is emailed to admins and shows on the dashboard.
+
 ## Referral links
 
 Decided 2026-11-23 at Mikey's request ("a referral code for business cards

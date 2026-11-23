@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Open, coming soon, or closed for maintenance. On a site's page in HQ and
+  in the client's portal, "Is the website open?" chooses what visitors see
+  and, if wanted, the day and time the site opens by itself. It takes
+  effect as soon as it is saved, by Potomac or by the client, as one commit
+  of the site's status. While a site is closed, a preview link shows the
+  real site to whoever holds it; a new link can be made if it gets passed
+  on. Needs the site's code to read the `launch` block of its content file
+  (`docs/decisions/0004-site-launch.md`). Migration 0036.
+
 - Clients change their own website. On a client's page, under Website
   editing, say where their site's code lives on GitHub; HQ reads its
   gallery, notice and reviews. In the portal, under "Your website", the

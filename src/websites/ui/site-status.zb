@@ -1,0 +1,58 @@
+<!--
+  Whether one website is open to everyone, with the form that changes it and
+  its preview link. Used in the client's portal and on the site's page in
+  HQ: `base` is where its forms post. Saving changes the site at once.
+-->
+<script>
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/zubra/date-field.zb'
+</script>
+<style>
+  :host { display: block; }
+  .ss-now { margin: 0 0 0.75rem; }
+  .ss-modes { display: grid; gap: 0.5rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+  .ss-modes legend { padding: 0; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.35rem; }
+  .ss-modes label { display: flex; align-items: baseline; gap: 0.55rem; font-weight: 400; font-size: 1rem; }
+  .ss-modes input { width: 1.1rem; height: 1.1rem; min-height: 0; flex: none; accent-color: var(--primary); position: relative; top: 0.15rem; }
+  .ss-when { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .ss-when > * { flex: 1 1 11rem; }
+  .ss-preview { display: grid; gap: 0.4rem; justify-items: start; margin: 0 0 1rem; }
+  .ss-preview p { margin: 0; }
+</style>
+<site-status status={{ mode: 'live', open: true, label: '', summary: '', opensOn: '', opensTime: '', message: '', zone: '', today: '', siteUrl: '', previewUrl: '' }} base="" staff={false}>
+  <section class="hq-panel" id="status" aria-labelledby="ss-heading">
+    <h2 id="ss-heading">Is the website open?</h2>
+    <p class="ss-now"><status-badge variant={status.open ? 'success' : 'warning'}>{status.label}</status-badge> {status.summary}</p>
+
+    <div zb-if={!status.open} class="ss-preview">
+      <a zb-if={status.previewUrl} class="hq-button secondary portal-big" href={status.previewUrl} target="_blank" rel="noopener noreferrer">Preview the website<span class="sr-only"> (opens in a new tab)</span></a>
+      <p zb-if={status.previewUrl} class="hq-small hq-muted">Shows the real website on this device, while everyone else sees what’s chosen below. Anyone you send this link to can see it too.</p>
+      <p zb-else class="hq-small hq-muted">{staff ? 'Add the site’s address under “Where it lives” to get a preview link.' : 'Potomac Solutions will send you a link to preview your website.'}</p>
+    </div>
+
+    <form method="post" action="{base}/status" class="hq-form">
+      <fieldset class="ss-modes">
+        <legend>What visitors see</legend>
+        <label><input type="radio" name="mode" value="live" checked={status.mode === 'live'} required> The website</label>
+        <label><input type="radio" name="mode" value="coming-soon" checked={status.mode === 'coming-soon'}> A “Coming soon” page, for before it opens</label>
+        <label><input type="radio" name="mode" value="maintenance" checked={status.mode === 'maintenance'}> A “Closed for maintenance” page, while it’s being worked on</label>
+      </fieldset>
+      <div class="ss-when">
+        <date-field label="Open it by itself on" name="opensOn" value={status.opensOn} min={status.today} description="Leave empty to open it yourself."></date-field>
+        <text-field label="At what time" name="opensTime" type="time" value={status.opensTime} description="{status.zone}. Midnight is 12:00 AM."></text-field>
+      </div>
+      <text-field label="A line of your own on that page" name="message" value={status.message} maxlength={200} description="Like: Call us in the meantime. We’re open as usual."></text-field>
+      <div><button class="hq-button portal-big" type="submit">Save and update the website</button></div>
+      <p class="hq-small hq-muted">The website changes a minute or two after you save. A page already open in someone’s browser switches by itself at the opening time.</p>
+    </form>
+
+    <details zb-if={status.previewUrl} class="hq-more">
+      <summary>Make a new preview link</summary>
+      <form method="post" action="{base}/preview-link">
+        <p class="hq-muted">The old link stops working. Do this if it has been passed on further than you meant.</p>
+        <button class="hq-button secondary" type="submit">Make a new link</button>
+      </form>
+    </details>
+  </section>
+</site-status>

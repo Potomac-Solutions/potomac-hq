@@ -9,6 +9,7 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/status-badge.zb'
   import './site-editor.zb'
+  import './site-status.zb'
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
@@ -25,7 +26,7 @@
   .ws-where dt { color: var(--muted-foreground); }
   .ws-where dd { margin: 0; overflow-wrap: anywhere; }
 </style>
-<hq-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none' }} done="" problem="">
+<hq-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {} }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/websites">Site content</a> / <a href="/clients/{view.organizationId}#website">{view.clientName}</a></p>
     <h1>{view.name}</h1>
@@ -34,6 +35,8 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <alert-banner zb-if={!view.githubSetUp} variant="warning">HQ has no GitHub token, so nothing can be published. Set HQ_GITHUB_TOKEN on the server.</alert-banner>
+
+    <site-status status={view.status} base="/websites/{view.siteId}" staff={true}></site-status>
 
     <section class="hq-panel" id="waiting" aria-labelledby="ws-waiting">
       <h2 id="ws-waiting">{view.state === 'submitted' ? 'Changes to check' : view.state === 'editing' ? 'Changes not sent in yet' : 'Nothing is waiting'}</h2>
@@ -73,6 +76,11 @@
         <dt>New photos go in</dt><dd>{view.photoDir}</dd>
         <dt>Last published</dt><dd>{view.lastPublished || 'Not from HQ yet'}</dd>
       </dl>
+      <form method="post" action="/websites/{view.siteId}/address" class="hq-form-row" data-spaced>
+        <div class="hq-field"><label for="ws-address">The site’s own address</label><input id="ws-address" name="siteUrl" value={view.status.siteUrl} placeholder="nufinishcollision.com"></div>
+        <button class="hq-button secondary" type="submit">Save address</button>
+      </form>
+      <p class="hq-small hq-muted">Used for the preview link. Empty until the site has an address.</p>
       <form method="post" action="/websites/{view.siteId}/read-again" data-spaced>
         <button class="hq-button secondary" type="submit">Read the site again</button>
         <p class="hq-small hq-muted" data-spaced>After the content file or a photo was changed in the repository by hand. Not while changes are waiting.</p>
