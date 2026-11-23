@@ -1,4 +1,4 @@
-// HQ on a phone: every staff page fits a 360px screen with real-looking data
+// HQ on a phone: every staff page fits a 320px screen with real-looking data
 // (long names, a long email address, tables), and a contact's phone number
 // is a tap to call. Wide tables scroll inside their panel, never the page.
 import assert from "node:assert/strict";
@@ -21,7 +21,7 @@ after(async () => {
 });
 
 test("every staff page fits a phone, and contacts are a tap to call", async () => {
-  const page = await (await browser.newContext({ viewport: { width: 360, height: 780 } })).newPage();
+  const page = await (await browser.newContext({ viewport: { width: 320, height: 780 } })).newPage();
   await setUpAdmin(t, page);
   const me = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   const client = unwrap(crm.createClient(t.services.crm, me, { name: "Gormania Feed and Farm Supply", sizeTier: "small" }));
@@ -32,7 +32,7 @@ test("every staff page fits a phone, and contacts are a tap to call", async () =
   for (const path of pages) {
     const res = await page.goto(t.origin + path);
     assert.equal(res?.status(), 200, path);
-    assert.equal(await page.evaluate("document.documentElement.scrollWidth"), 360, `${path} is wider than the phone`);
+    assert.equal(await page.evaluate("document.documentElement.scrollWidth"), 320, `${path} is wider than the phone`);
   }
   await page.goto(`${t.origin}/opportunities/${opportunity.id}`);
   assert.equal(await page.getByRole("link", { name: "304-555-0100" }).getAttribute("href"), "tel:304-555-0100", "the client's primary contact, a tap to call");

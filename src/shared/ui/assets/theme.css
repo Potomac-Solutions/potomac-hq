@@ -118,7 +118,7 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 }
 .hq-form { display: grid; gap: 1rem; max-width: 34rem; }
 .hq-form-row { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
-.hq-field { display: grid; gap: 0.35rem; }
+.hq-field { display: grid; gap: 0.35rem; min-width: 0; }
 .hq-field label { font-weight: 600; font-size: 0.9rem; }
 .hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.5rem; padding: 0.45rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
 .hq-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }

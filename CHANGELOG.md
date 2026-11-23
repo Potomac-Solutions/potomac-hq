@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Search fits a phone: long results wrap and the box shrinks. The phone
+  check now runs at 320px, the narrowest common phone.
+
 - On a phone: every staff page now fits a 360px screen. Wide tables scroll
   inside their panel instead of widening the page, long names and email
   addresses wrap, and a client's contacts stack instead of squeezing into
