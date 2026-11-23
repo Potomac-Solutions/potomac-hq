@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Fixed: on a phone, a table that scrolls sideways can now be scrolled from
+  the keyboard (it takes focus), which the phone pass in 0.11.0 missed.
+
+- Change requests: for work beyond what was agreed. On a project's money
+  page, draft one with what it is, its price (or no charge) and its extra
+  hours, and send it. The client sees it in the portal, on their "waiting on
+  you" list and in their email notice, and approves or declines it, saying
+  why if they like; or record an answer they gave by phone. Approving raises
+  the project's budget by the change's price and hours and drafts its
+  invoice, in one step. Potomac hears about the answer like any other client
+  action. Migration 0027.
+
 - Early budget warnings: a project that has used three quarters of its hours
   or money while less of its milestones are done is marked "Watch", before
   it goes over. The dashboard panel is now "Budgets to watch" (over first,

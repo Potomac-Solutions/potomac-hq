@@ -35,7 +35,7 @@
     <section zb-if={recurring} class="hq-panel" id="recurring" aria-labelledby="money-recurring">
       <h2 id="money-recurring">Recurring: {recurring.monthly} a month, {recurring.yearly} a year</h2>
       <p zb-if={recurring.items.length === 0} class="hq-muted">Nothing recurs yet. Set up hosting, maintenance or a retainer on a project’s Money page.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">For</th><th scope="col">Project</th><th scope="col">How often</th><th scope="col">Next</th><th scope="col" class="hq-number">Each time</th><th scope="col" class="hq-number">A month</th></tr></thead>
         <tbody>
           <zb-each items={recurring.items} as="plan" key={plan.id}>
@@ -63,7 +63,7 @@
     <section class="hq-panel" aria-labelledby="money-projects">
       <h2 id="money-projects">By project</h2>
       <empty-state zb-if={view.rows.length === 0} heading="No projects yet">A project starts when a won opportunity is turned into one.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Cost</th><th scope="col" class="hq-number">Margin</th><th scope="col">Payment</th></tr></thead>
         <tbody>
           <zb-each items={view.rows} as="row" key={row.id}>

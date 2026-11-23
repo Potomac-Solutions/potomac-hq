@@ -33,7 +33,7 @@
     <section class="hq-panel" aria-labelledby="task-list">
       <h2 id="task-list" class="sr-only">Task list</h2>
       <empty-state zb-if={view.tasks.length === 0} heading="No tasks yet">Break the work into pieces someone can pick up.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Who</th><th scope="col">Priority</th><th scope="col">Due</th><th scope="col">Estimate</th></tr></thead>
         <tbody>
           <zb-each items={view.tasks} as="task" key={task.id}>

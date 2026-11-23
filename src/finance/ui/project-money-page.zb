@@ -14,12 +14,13 @@
     if (stop) return stop
     const view = context.money.project(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Money: ' + view.value.project.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    const changes = context.money.changes(params.id)
+    return { title: 'Money: ' + view.value.project.name, view: view.value, changes: changes.ok ? changes.value : null, done: context.notice.done, problem: context.notice.problem }
   }
   const s = view.summary
   const id = view.project.id
 </script>
-<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} done="" problem="">
+<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{id}">{view.project.name}</a></p>
     <h1>Money</h1>
@@ -38,7 +39,7 @@
       <h2 id="money-standing">Estimate against actual, {view.period}</h2>
       <alert-banner zb-if={view.warning && view.warning.level === 'watch'} variant="warning" heading="Worth watching">{view.warning.text}. Three quarters of the budget is used ahead of the work. Now is the time to talk to the client about scope, before it runs over.</alert-banner>
       <alert-banner zb-if={view.warning && view.warning.level === 'over'} variant="danger" heading="Over budget">{view.warning.text}.</alert-banner>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Measure</th><th scope="col" class="hq-number">Budget</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
         <tbody>
           <tr><th scope="row">Hours</th><td class="hq-number">{s.hours.budget || "None set"}</td><td class="hq-number">{s.hours.actual}</td><td><span zb-if={s.hours.over} class="hq-tag due">Over</span><span zb-else-if={s.hours.budget}>Within</span></td></tr>
@@ -65,7 +66,7 @@
 
     <section class="hq-panel" aria-labelledby="money-phases">
       <h2 id="money-phases">Hours by phase</h2>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Phase</th><th scope="col" class="hq-number">Estimated</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
         <tbody>
           <zb-each items={view.phases} as="phase" key={phase.key}>
@@ -91,10 +92,55 @@
       </form>
     </section>
 
+    <section zb-if={changes} class="hq-panel" id="changes" aria-labelledby="money-changes">
+      <h2 id="money-changes">Change requests</h2>
+      <p class="hq-muted">Work beyond what was agreed. Send one and the client approves or declines it in the portal. Approved, it raises the budget by its price and hours and drafts its invoice.</p>
+      <ul zb-if={changes.items.length > 0} class="hq-links">
+        <zb-each items={changes.items} as="change" key={change.id}>
+          <li>
+            <div>
+              <p><strong>{change.label}: {change.title}</strong> · {change.price}<span zb-if={change.hours}> · {change.hours}</span></p>
+              <p zb-if={change.description} class="hq-small">{change.description}</p>
+              <p class="hq-small"><span class={change.status === 'sent' ? 'hq-tag due' : 'hq-tag'}>{change.statusLabel}</span> <span zb-if={change.answered} class="hq-muted">{change.answered}</span><span zb-if={change.note}> · “{change.note}”</span><span zb-if={change.invoiceId}> · <a href="/invoices/{change.invoiceId}">{change.invoiceLabel}</a> drafted</span></p>
+            </div>
+            <div zb-if={changes.canEdit && (change.status === 'draft' || change.status === 'sent')} class="hq-form-row">
+              <form zb-if={change.status === 'draft'} method="post" action="/changes/{change.id}/send"><button class="hq-button small" type="submit">Send to the client<span class="sr-only">: {change.title}</span></button></form>
+              <form zb-if={change.status === 'sent'} method="post" action="/changes/{change.id}/decision"><input type="hidden" name="decision" value="approve"><input type="hidden" name="note" value="Approved by phone or email."><button class="hq-button secondary small" type="submit">They approved it<span class="sr-only">: {change.title}</span></button></form>
+              <form zb-if={change.status === 'sent'} method="post" action="/changes/{change.id}/decision"><input type="hidden" name="decision" value="decline"><input type="hidden" name="note" value="Declined by phone or email."><button class="hq-button secondary small" type="submit">They declined it<span class="sr-only">: {change.title}</span></button></form>
+              <form method="post" action="/changes/{change.id}/withdraw"><button class="hq-button secondary small" type="submit">Withdraw<span class="sr-only">: {change.title}</span></button></form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={changes.canEdit && changes.open} class="hq-more">
+        <summary>Draft a change request</summary>
+        <form method="post" action="/projects/{id}/changes" class="hq-form">
+          <div class="hq-field">
+            <label for="change-title">What the change is</label>
+            <input id="change-title" name="title" type="text" maxlength="120" required placeholder="Gift cards on the ordering page">
+          </div>
+          <div class="hq-field">
+            <label for="change-description">What it covers (optional)</label>
+            <textarea id="change-description" name="description" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div class="hq-form-row">
+            <div class="hq-field">
+              <label for="change-amount">Price in dollars</label>
+              <input id="change-amount" name="amount" type="text" inputmode="decimal" placeholder="0 for no charge">
+            </div>
+            <div class="hq-field">
+              <label for="change-hours">Extra hours (optional)</label>
+              <input id="change-hours" name="hours" type="text" inputmode="decimal">
+            </div>
+          </div>
+          <div><button class="hq-button" type="submit">Draft it</button></div>
+        </form>
+      </details>
+    </section>
     <section zb-if={view.can.viewInvoices} class="hq-panel" id="invoices" aria-labelledby="money-invoices">
       <h2 id="money-invoices">Invoices</h2>
       <empty-state zb-if={view.invoices.length === 0} heading="No invoices yet">Draft one for the deposit, the balance or the full amount.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Issued</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
         <tbody>
           <zb-each items={view.invoices} as="invoice" key={invoice.id}>
@@ -163,7 +209,7 @@
     <section class="hq-panel" id="expenses" aria-labelledby="money-expenses">
       <h2 id="money-expenses">Expenses</h2>
       <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">Record what this job costs beyond time: hosting, software, a contractor.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Category</th><th scope="col" class="hq-number">Amount</th><th scope="col">Note</th><th scope="col">Receipt</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>
           <zb-each items={view.expenses} as="expense" key={expense.id}>
@@ -208,7 +254,7 @@
     <section class="hq-panel" aria-labelledby="money-time">
       <h2 id="money-time">Time logged</h2>
       <empty-state zb-if={view.entries.length === 0} heading="No time yet">Time is logged from the Time page, or by the timer when a task is being worked on.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Task</th><th scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>
           <zb-each items={view.entries} as="entry" key={entry.id}>

@@ -27,6 +27,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "when-too-long": "That is too long.",
   "reply-too-long": "That reply is too long.",
   "not-awaiting-decision": "That has already been decided.",
+  "not-waiting": "That has already been answered.",
   "invalid-decision": "Choose one of the two answers.",
   "note-required": "Say what you would like changed.",
   "note-too-long": "That is too long.",
@@ -180,6 +181,11 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     // The project comes from the form only to choose where to go back to. The service checked whose it is.
     back: (_, f) => (parseId(f["projectId"] ?? "").ok ? `/portal/projects/${f["projectId"]}#deliverables` : "/portal"),
     message: "Thank you. Your decision is recorded.",
+  });
+  post("/portal/changes/:id/decision", (session, f, id) => signedIn(session, (s) => client.decideOnChange(deps.portal, s, id as Id, { decision: f["decision"] ?? "", note: f["note"] ?? null })), {
+    done: (change) => `/portal/projects/${change.projectId}#changes`,
+    back: (_, f) => (parseId(f["projectId"] ?? "").ok ? `/portal/projects/${f["projectId"]}#changes` : "/portal"),
+    message: "Thank you. Your answer is recorded.",
   });
   post("/portal/proposals/:id/answer", (session, f, id) => signedIn(session, (s) => client.answerProposal(deps.portal, s, id as Id, { decision: f["decision"] ?? "", typedName: f["typedName"] ?? "" })), {
     done: (_, id) => `/portal/proposals/${id}`,

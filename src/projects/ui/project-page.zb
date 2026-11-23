@@ -90,7 +90,7 @@
     <section zb-if={view.baseline} class="hq-panel" aria-labelledby="project-baseline">
       <h2 id="project-baseline">What was agreed</h2>
       <p>{view.baseline.amount}<span zb-if={view.baseline.hours}>, {view.baseline.hours} hours</span>. From <a href="/proposals/{view.baseline.proposalId}/versions/{view.baseline.version}">the accepted proposal, version {view.baseline.version}</a>.</p>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Total</th></tr></thead>
         <tbody>
           <zb-each items={view.baseline.lines} as="line" key={line.key}><tr><td>{line.item}</td><td class="hq-number">{line.quantity}</td><td class="hq-number">{line.total}</td></tr></zb-each>
@@ -103,7 +103,7 @@
       <p zb-if={view.progress.total > 0} class="hq-muted">{view.progress.done} of {view.progress.total} milestones done.</p>
       <p zb-if={view.phases.length > 0}>Phases: <zb-each items={view.phases} as="phase" key={phase.id}><span class="hq-tag">{phase.name}</span> </zb-each></p>
       <empty-state zb-if={view.milestones.length === 0} heading="No milestones yet">Add the points you and the client will check the work against.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Milestone</th><th scope="col">Phase</th><th scope="col">Due</th><th scope="col">Done</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
           <zb-each items={view.milestones} as="milestone" key={milestone.id}>
@@ -197,7 +197,7 @@
     <section class="hq-panel" id="deliverables" aria-labelledby="project-deliverables">
       <h2 id="project-deliverables">Deliverables</h2>
       <empty-state zb-if={view.deliverables.length === 0} heading="No deliverables yet">Upload what you hand over: designs, documents, exports.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Deliverable</th><th scope="col">File</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
           <zb-each items={view.deliverables} as="item" key={item.id}>

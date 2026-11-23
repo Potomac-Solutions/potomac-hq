@@ -60,7 +60,7 @@
 
     <section zb-if={view.versions.length > 0} class="hq-panel" aria-labelledby="proposal-versions">
       <h2 id="proposal-versions">Sent versions</h2>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Version</th><th scope="col">Sent</th><th scope="col">By</th><th scope="col" class="hq-number">Price</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
         <tbody>
           <zb-each items={view.versions} as="version" key={version.number}>
@@ -141,7 +141,7 @@
         <div>
           <h3 id="estimate-heading">Estimate</h3>
           <p class="hq-muted hq-small">One line each. Leave a row empty to drop it. Saving gives you more empty rows.</p>
-          <table class="hq-table estimate" aria-labelledby="estimate-heading">
+          <table tabindex="0" class="hq-table estimate" aria-labelledby="estimate-heading">
             <thead><tr><th scope="col">Item</th><th scope="col" class="kind">Counted in</th><th scope="col" class="narrow">Hours or quantity</th><th scope="col" class="narrow">Rate in dollars</th><th scope="col" class="hq-number">Total</th></tr></thead>
             <tbody>
               <zb-each items={view.rows} as="row" key={row.index}>

@@ -1,4 +1,5 @@
-import type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, ReminderStore, TimeRow, TimeStore } from "../application/ports.ts";
+import type { ChangeRequestStore, ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, ReminderStore, TimeRow, TimeStore } from "../application/ports.ts";
+import type { ChangeRequest, ChangeStatus } from "../domain/change-request.ts";
 import type { PaymentStatus, ProjectFinance } from "../domain/budget.ts";
 import type { Expense, ExpenseCategory } from "../domain/expense.ts";
 import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, PaymentMethod } from "../domain/invoice.ts";
@@ -325,5 +326,49 @@ export function sqliteReminderStore(db: Database): ReminderStore {
       if (off) setOff.run(invoiceId, by, at);
       else clearOff.run(invoiceId);
     },
+  };
+}
+
+export function sqliteChangeRequestStore(db: Database): ChangeRequestStore {
+  const columns = "id, project_id, number, title, description, amount_minor, minutes, status, sent_at, decided_at, decided_by_client, decided_by_user, decision_note, invoice_id, created_by";
+  const next = db.prepare("select coalesce(max(number), 0) + 1 as n from change_request where project_id = ?");
+  const insert = db.prepare(`insert into change_request (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const update = db.prepare("update change_request set title = ?, description = ?, amount_minor = ?, minutes = ?, status = ?, sent_at = ?, decided_at = ?, decided_by_client = ?, decided_by_user = ?, decision_note = ?, invoice_id = ?, updated_at = ? where id = ?");
+  const get = db.prepare(`select ${columns} from change_request where id = ?`);
+  const listFor = db.prepare(`select ${columns} from change_request where project_id = ? order by number desc`);
+  const toChange = (row: Record<string, unknown>): ChangeRequest => {
+    const client = row["decided_by_client"] as Id | null;
+    const user = row["decided_by_user"] as Id | null;
+    return {
+      id: row["id"] as Id,
+      projectId: row["project_id"] as Id,
+      number: Number(row["number"]),
+      title: String(row["title"]),
+      description: String(row["description"]),
+      amount: { minor: Number(row["amount_minor"]), currency: "USD" },
+      minutes: row["minutes"] === null ? null : Number(row["minutes"]),
+      status: row["status"] as ChangeStatus,
+      sentAt: (row["sent_at"] as string | null) ?? null,
+      decidedAt: (row["decided_at"] as string | null) ?? null,
+      decidedBy: client ? { clientUserId: client } : user ? { userId: user } : null,
+      decisionNote: String(row["decision_note"]),
+      invoiceId: (row["invoice_id"] as Id | null) ?? null,
+      createdBy: row["created_by"] as Id,
+    };
+  };
+  const who = (c: ChangeRequest) => [c.decidedBy && "clientUserId" in c.decidedBy ? c.decidedBy.clientUserId : null, c.decidedBy && "userId" in c.decidedBy ? c.decidedBy.userId : null] as const;
+  return {
+    nextNumber: (projectId) => Number(next.get(projectId)?.["n"] ?? 1),
+    insert(c, at) {
+      insert.run(c.id, c.projectId, c.number, c.title, c.description, c.amount.minor, c.minutes, c.status, c.sentAt, c.decidedAt, ...who(c), c.decisionNote, c.invoiceId, c.createdBy, at, at);
+    },
+    update(c, at) {
+      update.run(c.title, c.description, c.amount.minor, c.minutes, c.status, c.sentAt, c.decidedAt, ...who(c), c.decisionNote, c.invoiceId, at, c.id);
+    },
+    get(id) {
+      const row = get.get(id);
+      return row ? toChange(row) : null;
+    },
+    listFor: (projectId) => listFor.all(projectId).map(toChange),
   };
 }
