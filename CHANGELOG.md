@@ -9,9 +9,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - Search fits a phone: long results wrap and the box shrinks. The phone
   check now runs at 320px, the narrowest common phone.
-
 - On a phone: every staff page now fits a 360px screen. Wide tables scroll
   inside their panel instead of widening the page, long names and email
   addresses wrap, and a client's contacts stack instead of squeezing into
@@ -19,15 +20,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   An opportunity shows its contact (the client's primary contact when none
   was chosen) with phone and email, and its call log and to-dos come right
   after "Where it stands", so logging a call is near the top.
-
 - Going cold: an open opportunity with no follow-up set and no contact with
   its client for 14 days shows on Today, quietest first, with a button to log
   a call, and is flagged on its own page. Any call, email, text or meeting
   with the client, or a change to the opportunity, warms it; so does setting
   a follow-up.
-
-## [0.11.0] - 2026-11-22
-
 - The morning email: at 7 each morning, everyone gets their Today list by
   email, numbered in order with a link to each thing. A day with nothing due
   sends nothing, and it goes once a day even if HQ restarts. Turn it off in
