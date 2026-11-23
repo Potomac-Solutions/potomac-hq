@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Fill in availability from somewhere else. On Calls → Hours, link up to
+  five calendars by their private address (Google, Outlook, Apple): their
+  busy times are never offered for calls and show on the week's grid. On
+  Calls → Availability, paint the next two weeks from a Timeful event or
+  from Calendly. A client answering an invite can fill it in from their
+  calendar's address, a Timeful event or Calendly instead of marking by
+  hand. Repeating events, time zones and moved occurrences are understood.
+  Addresses are read only on the public internet; a calendar's address and
+  a Calendly token are never logged, and a client's are never kept.
+  Migration 0031.
+
 ## [0.12.0] - 2026-11-23
 
 - Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on

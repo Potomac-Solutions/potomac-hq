@@ -7,6 +7,7 @@
 <script>
   'use route /calls/hours'
   import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/parts/availability-grid.zb'
   export async function load({ context }) {
     const stop = context.guard()
@@ -14,7 +15,8 @@
     const view = context.booking.setup()
     if (!view.ok) return context.forbidden()
     const weekly = context.booking.weekly()
-    return { title: 'Hours for calls', view: view.value, weekly: weekly.ok ? weekly.value : { rows: [], columns: [] }, lengths: [15, 20, 30, 45, 60, 90], done: context.notice.done, problem: context.notice.problem }
+    const links = context.booking.calendarLinks()
+    return { title: 'Hours for calls', view: view.value, weekly: weekly.ok ? weekly.value : { rows: [], columns: [] }, calendars: links.ok ? links.value : { links: [], canAdd: false }, lengths: [15, 20, 30, 45, 60, 90], done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -23,9 +25,11 @@
   .hours-check input { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; }
   .days-off { list-style: none; margin: 0 0 1rem; padding: 0; }
   .days-off li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border); }
-  .days-off form { margin: 0; }
+  .days-off form { margin: 0 0 0 auto; }
+  .calendar-address { flex: 1 1 18rem; }
+  .calendar-address input { width: 100%; }
 </style>
-<hq-booking-hours view={{ days: [], closed: [] }} weekly={{ rows: [], columns: [] }} lengths={[]} done="" problem="">
+<hq-booking-hours view={{ days: [], closed: [] }} weekly={{ rows: [], columns: [] }} calendars={{ links: [], canAdd: false }} lengths={[]} done="" problem="">
   <div class="hq-page">
     <h1>Hours for calls</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -33,7 +37,7 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <p class="hq-muted">Times are in Eastern time. Calls go on {view.hostName}’s calendar: whoever saves this page. <a href="/calls">Back to Calls</a></p>
-    <p class="hq-muted">{view.calendar === 'none' ? 'Open times avoid calls already booked in HQ. To avoid everything else in your Google Calendar too, see “Booked calls” in the operations guide.' : 'Open times also avoid busy times in ' + view.calendar + '.'}</p>
+    <p class="hq-muted">{view.calendar === 'none' ? 'Open times avoid calls already booked in HQ. To avoid everything else in your calendar too, link it below.' : 'Open times also avoid busy times in ' + view.calendar + '.'}</p>
 
     <form method="post" action="/calls/hours/week" class="hq-panel" id="usual-week" aria-labelledby="hours-week">
       <h2 id="hours-week">Your usual week</h2>
@@ -41,6 +45,33 @@
       <availability-grid grid={weekly} caption="Your usual week: each half hour you’re free for calls"></availability-grid>
       <p><button class="hq-button" type="submit">Save my usual week</button></p>
     </form>
+
+    <section class="hq-panel" id="calendars" aria-labelledby="hours-calendars">
+      <h2 id="hours-calendars">Your calendars</h2>
+      <p class="hq-muted">Link a calendar and its busy times are never offered for calls, and show on <a href="/calls/availability">this week’s grid</a>. HQ reads only when you’re busy, never what the events are. Works with Google Calendar, Outlook and Apple.</p>
+      <ul zb-if={calendars.links.length > 0} class="days-off" aria-label="Linked calendars">
+        <zb-each items={calendars.links} as="link" key={link.id}>
+          <li>
+            <span><strong>{link.label}</strong> <span class="hq-muted">{link.site}</span></span>
+            <status-badge zb-if={link.problem} variant="danger">{link.problem}</status-badge>
+            <status-badge zb-else variant="success">Reading</status-badge>
+            <form method="post" action={`/calls/calendar-links/${link.id}/remove`}><button class="hq-button secondary small" type="submit" aria-label={`Remove calendar ${link.label}`}>Remove</button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <form zb-if={calendars.canAdd} method="post" action="/calls/calendar-links" class="hq-form-row">
+        <div class="hq-field">
+          <label for="calendar-label">Name</label>
+          <input id="calendar-label" name="label" maxlength="60" placeholder="Personal" autocomplete="off">
+        </div>
+        <div class="hq-field calendar-address">
+          <label for="calendar-link">Private address</label>
+          <input id="calendar-link" name="link" type="url" inputmode="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" required>
+        </div>
+        <button class="hq-button secondary" type="submit">Link calendar</button>
+      </form>
+      <p class="hq-muted hq-small">In Google Calendar: Settings → your calendar → Integrate calendar → “Secret address in iCal format”. In Outlook: Settings → Calendar → Shared calendars → Publish a calendar → ICS. The address is a secret: anyone who has it can read that calendar. HQ never shows it again.</p>
+    </section>
 
     <form method="post" action="/calls/hours" class="hq-panel" aria-labelledby="hours-settings">
       <h2 id="hours-settings">Calls</h2>

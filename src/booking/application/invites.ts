@@ -19,14 +19,14 @@ const allowed = (deps: BookingDeps, actorId: Id | null, action: string): actorId
 const HALF_HOUR_MS = 30 * 60_000;
 
 /** A half hour's start on a day, in UTC. */
-const cellStart = (deps: BookingDeps, day: Temporal.PlainDate, at: number) => day.toPlainDateTime({ hour: Math.floor(at / 60), minute: at % 60 }).toZonedDateTime(deps.timeZone, { disambiguation: "earlier" }).toInstant();
+export const cellStart = (deps: BookingDeps, day: Temporal.PlainDate, at: number) => day.toPlainDateTime({ hour: Math.floor(at / 60), minute: at % 60 }).toZonedDateTime(deps.timeZone, { disambiguation: "earlier" }).toInstant();
 
 /**
  * Potomac's free half hours over an invite's days: painted free (the day's
  * own painting, or its weekday's), not a day off, not busy in the calendar,
  * no call booked, and not already past.
  */
-async function hostFree(deps: BookingDeps, invite: Pick<ScheduleInvite, "firstDay" | "lastDay">): Promise<{ readonly free: ReadonlySet<string>; readonly failed: boolean; readonly rangesOf: (day: Temporal.PlainDate) => readonly DayRange[] }> {
+export async function hostFree(deps: BookingDeps, invite: Pick<ScheduleInvite, "firstDay" | "lastDay">): Promise<{ readonly free: ReadonlySet<string>; readonly failed: boolean; readonly rangesOf: (day: Temporal.PlainDate) => readonly DayRange[] }> {
   const days = inviteDays(invite);
   const settings = deps.bookings.settings();
   const hours = settings?.hours ?? [];
@@ -87,8 +87,8 @@ export function cancelInvite(deps: InviteDeps, actorId: Id | null, id: Id): Resu
   });
 }
 
-type Guest = { readonly organizationId: Id; readonly clientUserId: Id };
-const theirs = (deps: InviteDeps, guest: Guest, id: Id) => {
+export type Guest = { readonly organizationId: Id; readonly clientUserId: Id };
+export const theirs = (deps: InviteDeps, guest: Guest, id: Id) => {
   const found = deps.invites.get(id);
   return found && found.organizationId === guest.organizationId ? found : null;
 };

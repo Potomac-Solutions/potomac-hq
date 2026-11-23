@@ -225,6 +225,39 @@ calendar. Needs his approval.
 - Events: `booking.made`, `booking.cancelled`, `booking.moved`, `booking.added-to-crm`,
   `booking.hours-changed`, `booking.day-closed`, `booking.day-opened`.
 
+## Linked calendars and filling in availability
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+`calendar_link`: up to five calendars' private addresses (iCalendar, as
+Google, Outlook and Apple publish them), with a name, who added it, when it
+was last read and why it couldn't be. HQ reads each at most every five
+minutes for busy times only, and never keeps or shows what an event is. If
+one can't be read, its last answer is used for an hour; after that open
+times are not offered, the same as when Google Calendar can't be read.
+
+- The address is a secret: it is checked once when linked, never shown
+  again, and never written to the activity log (only its name and site).
+- Potomac can paint the next 14 days from a Timeful event (the times one
+  person marked on it) or Calendly (the times it offers, by a personal
+  access token). Days the source speaks for are painted in place of the
+  usual week. Nothing about the source is kept.
+- Someone answering an invite can fill it in from their calendar's address
+  (every open half hour they aren't busy), a Timeful event or Calendly. It
+  replaces their answer and counts as answering; nothing about the source is
+  kept, and a Calendly token is used once.
+- A half hour is free only when all of it is; busy when any of it is.
+- Timeful has no published server API. HQ reads the same two addresses its
+  event page does (`/api/events/<id>` and `.../responses`), only ever on
+  `timeful.app`. If Timeful changes them, the fill says so and nothing
+  else breaks. Events that hide answers or ask only about days can't be read.
+- Addresses people type are read only over https, only on the public
+  internet (never an address inside the server's network, checked on the
+  connection itself), with at most three redirects, 2 MB and ten seconds.
+  Ten reads an hour for each person.
+- Events: `booking.calendar-linked`, `booking.calendar-unlinked`;
+  `booking.dates-painted` and `schedule-invite.answered` carry `from`.
+
 ## Sign-in rules
 
 `sign_in_rule`: one row per rule that is on, with who turned it on and
