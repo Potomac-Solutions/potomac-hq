@@ -46,4 +46,15 @@ test("log a voicemail, set the follow-up, add a to-do and tick it off", async ()
   await page.getByRole("button", { name: "Done: Send Bob the mock-up" }).click();
   await page.getByRole("heading", { name: "Done this week" }).waitFor();
   await assertAccessible(page, "to-dos with one done");
+  await page.goto(`${t.origin}/today`);
+  await page.getByLabel("What needs doing").fill("Call the bank");
+  await page.getByRole("button", { name: "Add it" }).click();
+  await page.getByRole("heading", { name: "In order" }).waitFor();
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.reload();
+    await assertAccessible(page, `today (${colorScheme})`);
+  }
+  await page.getByRole("button", { name: "Done: Call the bank" }).click();
+  await page.getByRole("heading", { name: "Done today: 2" }).waitFor();
 });

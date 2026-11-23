@@ -146,3 +146,10 @@ export function todosAt(deps: TodosDeps, actorId: Id | null, where: { readonly c
   const found = "clientId" in where ? deps.todos.openAtClient(where.clientId) : deps.todos.openOnOpportunity(where.opportunityId);
   return ok({ items: found.map((one) => lineOf(deps, actorId, one, today)), canEdit: allowed(deps, actorId, "task.edit"), people: peopleOptions(deps, actorId) });
 }
+
+/** Your to-dos ticked off since this instant, newest first. Empty without `task.view`. */
+export function todosDoneSince(deps: TodosDeps, actorId: Id | null, since: string): readonly TodoLine[] {
+  if (!allowed(deps, actorId, "task.view")) return [];
+  const today = deps.today();
+  return deps.todos.doneSince(actorId, since).map((one) => lineOf(deps, actorId, one, today));
+}

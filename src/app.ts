@@ -30,6 +30,7 @@ import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView 
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
+import { todayFor, type TodayView } from "./today/index.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
@@ -228,6 +229,7 @@ export type PageContext = {
     forClient(id: string): SitesView | null;
     attention(): ReturnType<typeof sitesNeedingAttention>;
   };
+  agenda(): TodayView;
   readonly todos: {
     list(everyone: boolean): Result<TodosView, "forbidden">;
     atClient(id: string): TodosPanel | null;
@@ -508,6 +510,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
           attention: () => sitesNeedingAttention(services.monitor, actor),
         },
+        agenda: () => todayFor(services.day, actor),
         todos: {
           list: (everyone) => listTodos(services.todos, actor, { everyone }),
           atClient: (id) => {
