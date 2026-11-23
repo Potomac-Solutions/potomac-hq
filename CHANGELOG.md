@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-23
+
 - Fixed: "Open HQ in your app", while turning on two-factor sign-in on a
   phone, was left off the page, because pages only link to web addresses.
   It now goes through HQ, which sends the phone on to the app.
@@ -24,8 +26,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   demo: a made-up business you show prospects. Demos carry a Demo badge and
   are kept out of the dashboard's figures, Today, deadlines, the reports and
   Money. Clients can be filtered to real or demo. Migration 0033.
-
-## [0.13.0] - 2026-11-23
 
 - Booking links. Booking a free call needs a portal account, unless you
   give someone a link. On Calls, make a link for a person (one call or any
