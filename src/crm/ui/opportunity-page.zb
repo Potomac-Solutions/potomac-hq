@@ -40,13 +40,15 @@
         <dt zb-if={view.can.viewValue}>Price</dt><dd zb-if={view.can.viewValue}>{o.price || "Not set"}</dd>
         <dt>Follow-up</dt><dd>{o.followUpOn || "None"} <span zb-if={o.followUpDue} class="hq-tag due">Due</span></dd>
         <dt>Found you by</dt><dd>{o.leadSourceLabel}</dd>
-        <dt>Contact</dt><dd>{view.contactName || "None"}</dd>
+        <dt>Contact</dt><dd>{view.contactName || "None"}<span zb-if={view.contactIsPrimary} class="hq-muted"> (primary at the client)</span><span zb-if={view.contactPhone}> · <a href="tel:{view.contactPhone}" class="hq-nowrap">{view.contactPhone}</a></span><span zb-if={view.contactEmail}> · <a href="mailto:{view.contactEmail}">{view.contactEmail}</a></span></dd>
         <dt>Owner</dt><dd>{view.ownerName}</dd>
         <dt zb-if={o.lostReason}>Why it was lost</dt><dd zb-if={o.lostReason}>{o.lostReason}</dd>
         <dt zb-if={o.summary}>Notes</dt><dd zb-if={o.summary}>{o.summary}</dd>
       </dl>
     </section>
 
+    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
+    <todos-panel zb-if={todos} todos={todos} where="opportunity" id={o.id}></todos-panel>
     <section zb-if={canMove} class="hq-panel" aria-labelledby="opportunity-stage">
       <h2 id="opportunity-stage">Move it on</h2>
       <div class="hq-actions">
@@ -123,8 +125,6 @@
       </form>
       <p zb-else class="hq-muted">Not started yet.</p>
     </section>
-    <todos-panel zb-if={todos} todos={todos} where="opportunity" id={o.id}></todos-panel>
-    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
     <notes-panel notes={notes}></notes-panel>
   </div>
 </hq-opportunity>

@@ -35,7 +35,7 @@
         <dt>Status</dt><dd>{view.client.statusLabel}</dd>
         <dt>Size</dt><dd>{view.client.sizeTierLabel || "Not set"}</dd>
         <dt>Website</dt><dd><a zb-if={view.client.website} href={view.client.website} rel="noopener noreferrer">{view.client.website}</a><span zb-else class="hq-muted">None</span></dd>
-        <dt>Phone</dt><dd>{view.client.phone || "None"}</dd>
+        <dt>Phone</dt><dd><a zb-if={view.client.phone} href="tel:{view.client.phone}">{view.client.phone}</a><span zb-else>None</span></dd>
         <dt>Address</dt><dd>{view.client.address || "None"}</dd>
       </dl>
       <form zb-if={view.can.setStatus} method="post" action="/clients/{view.client.id}/status" class="hq-form-row" data-spaced>
@@ -52,7 +52,7 @@
     <section class="hq-panel" id="contacts" aria-labelledby="client-contacts">
       <h2 id="client-contacts">Contacts</h2>
       <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
-      <table zb-else class="hq-table">
+      <table zb-else class="hq-table hq-stack">
         <thead><tr><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
         <tbody>
           <zb-each items={view.contacts} as="contact" key={contact.id}>
@@ -60,7 +60,7 @@
               <td>{contact.name} <span zb-if={contact.isPrimary} class="hq-tag">Primary</span></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
-              <td>{contact.phone}</td>
+              <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a></td>
             </tr>
           </zb-each>
         </tbody>
