@@ -12,10 +12,10 @@
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
     const recurring = context.money.recurring()
-    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -49,6 +49,15 @@
           </zb-each>
         </tbody>
       </table>
+    </section>
+    <section class="hq-panel" id="reminders" aria-labelledby="money-reminders">
+      <h2 id="money-reminders">Invoice reminders: {reminders.on ? 'on' : 'off'}</h2>
+      <p>{reminders.on ? 'Clients are emailed about a sent invoice three days before it is due, the day after, a week late and two weeks late. Then it is a phone call.' : 'When on, clients are emailed about a sent invoice three days before it is due, the day after, a week late and two weeks late.'} Each goes to the client’s primary contact, or their portal users, once. Any invoice can be left out on its own page.</p>
+      <p zb-if={!reminders.email} class="hq-muted">Email isn’t set up, so nothing is sent yet.</p>
+      <form zb-if={reminders.canEdit} method="post" action="/money/reminders">
+        <input type="hidden" name="on" value={reminders.on ? '0' : '1'}>
+        <button class="hq-button secondary" type="submit">{reminders.on ? 'Turn reminders off' : 'Turn reminders on'}</button>
+      </form>
     </section>
     <section class="hq-panel" aria-labelledby="money-projects">
       <h2 id="money-projects">By project</h2>

@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
-import { runRecurringInvoices, syncFinanceSheet } from "../src/finance/index.ts";
+import { runRecurringInvoices, sendInvoiceReminders, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
@@ -162,6 +162,18 @@ if (email) {
   console.log("Notices are off: email is not set up.");
 }
 
+// Invoice reminders to clients, when turned on: every morning at 09:07.
+const stopInvoiceReminders = email
+  ? scheduleDaily(
+      async () => {
+        const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, { publicUrl, phone: contact.phone, address: contact.address });
+        if (result.sent + result.failed + result.skipped > 0) console.log(`Invoice reminders: sent ${result.sent}, failed ${result.failed}, no one to send to ${result.skipped}.`);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 9, minute: 7, clock: systemClock, log, name: "invoice reminders" },
+    )
+  : null;
+
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
 if (email) {
@@ -214,6 +226,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopSheet?.();
     stopRetention();
     stopRecurring();
+    stopInvoiceReminders?.();
     stopNotices?.();
     stopReminders?.();
     server.close(() => {

@@ -1,8 +1,9 @@
-import type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, TimeRow, TimeStore } from "../application/ports.ts";
+import type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, ReminderStore, TimeRow, TimeStore } from "../application/ports.ts";
 import type { PaymentStatus, ProjectFinance } from "../domain/budget.ts";
 import type { Expense, ExpenseCategory } from "../domain/expense.ts";
 import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, PaymentMethod } from "../domain/invoice.ts";
 import type { Every, RecurringInvoice } from "../domain/recurring.ts";
+import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Currency, Id } from "../../shared/index.ts";
@@ -298,6 +299,31 @@ export function sqliteRecurringStore(db: Database): RecurringStore {
     due: (today) => due.all(today).map(toRecurring),
     markInvoice(invoiceId, recurringId) {
       mark.run(recurringId, invoiceId);
+    },
+  };
+}
+
+export function sqliteReminderStore(db: Database): ReminderStore {
+  const on = db.prepare("select reminders_on from finance_setting where id = 1");
+  const setOn = db.prepare("insert into finance_setting (id, reminders_on, updated_by, updated_at) values (1, ?, ?, ?) on conflict (id) do update set reminders_on = excluded.reminders_on, updated_by = excluded.updated_by, updated_at = excluded.updated_at");
+  const sent = db.prepare("select kind, sent_at, sent_to from invoice_reminder where invoice_id = ? order by sent_at");
+  const record = db.prepare("insert into invoice_reminder (invoice_id, kind, sent_at, sent_to) values (?, ?, ?, ?) on conflict do nothing");
+  const isOff = db.prepare("select 1 from invoice_reminder_off where invoice_id = ?");
+  const setOff = db.prepare("insert into invoice_reminder_off (invoice_id, set_by, set_at) values (?, ?, ?) on conflict do nothing");
+  const clearOff = db.prepare("delete from invoice_reminder_off where invoice_id = ?");
+  return {
+    on: () => on.get()?.["reminders_on"] === 1,
+    setOn(value, by, at) {
+      setOn.run(value ? 1 : 0, by, at);
+    },
+    sent: (invoiceId) => sent.all(invoiceId).map((row) => ({ kind: row["kind"] as ReminderKind, sentAt: String(row["sent_at"]), sentTo: String(row["sent_to"]) })),
+    record(invoiceId, kind, at, to) {
+      record.run(invoiceId, kind, at, to);
+    },
+    isOff: (invoiceId) => isOff.get(invoiceId) !== undefined,
+    setOff(invoiceId, off, by, at) {
+      if (off) setOff.run(invoiceId, by, at);
+      else clearOff.run(invoiceId);
     },
   };
 }

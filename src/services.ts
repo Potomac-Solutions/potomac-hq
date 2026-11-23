@@ -6,8 +6,8 @@ import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from ".
 import type { CrmDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, BusyCalendar } from "./booking/index.ts";
 import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
@@ -46,6 +46,7 @@ export type Services = {
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
   readonly booking: BookingDeps;
+  readonly invoiceReminders: RemindersDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -120,6 +121,15 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     events: sqliteEventReader(db),
     auth: createPortalAuth(sqliteKitStore(db), { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) }),
   };
+  // Who at a client gets their invoices: the primary contact with an email, or else their portal users.
+  const clientEmails: ClientEmails = (organizationId) => {
+    const users = portal.clientUsers.listFor(organizationId).filter((one) => one.status === "active" && one.portalAccount !== null);
+    const primary = crm.contacts.listFor(organizationId).find((one) => one.isPrimary && one.email);
+    const email = primary?.email?.toLowerCase();
+    if (primary && email) return [{ name: primary.name, email, portal: users.some((one) => one.email === email) }];
+    return users.map((one) => ({ name: one.name, email: one.email, portal: true }));
+  };
+  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
   const booking: BookingDeps = {
     users,
     transact: sqliteTransact(db),
@@ -132,5 +142,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     formatWhen,
   };
-  return { booking, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { booking, invoiceReminders, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

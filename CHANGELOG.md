@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Invoice reminders emailed to clients, off until turned on under Money:
+  three days before a sent invoice is due, the day after, a week late and
+  two weeks late, then no more. Each goes once, to the client's primary
+  contact or else their portal users, with what is owed and how to pay. An
+  invoice can be left out on its own page, which lists what was sent.
+  Migration 0020.
+
 - Recurring invoices, for hosting, maintenance or a retainer: on a
   project's Money page, an amount every month, three months or year, from a
   first day, until a last day or until paused. Each morning HQ makes the
