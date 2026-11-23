@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-23
+
 - Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on
   with a passkey (your fingerprint, face or PIN, or a security key) instead
   of an authenticator app, or add passkeys beside the app. After the
@@ -42,8 +44,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   for the pages to use: status badge, breadcrumb trail, stat card, avatar,
   progress bar, code input, select field, check box, date field and step
   indicator. The top nav bar component is no longer used.
-
-## [0.12.0] - 2026-11-23
 
 - Scheduling invites, like a Timeful poll: from a client's page, ask
   someone in their portal to pick times for a call (what it's for, how long,
