@@ -4,6 +4,7 @@
 // cookie and from nothing else.
 import { Hono } from "hono";
 import * as client from "../application/client-side.ts";
+import { signUpForPortal } from "../application/sign-up.ts";
 import type { ClientSession } from "../application/client-side.ts";
 import * as staff from "../application/staff-side.ts";
 import type { InvoiceDocument } from "../../finance/index.ts";
@@ -133,6 +134,24 @@ export type ClientPortalRoutesDeps = {
   readonly refusedSignIn: (email: string, address: string) => void;
   /** True if this key may make another attempt now. */
   readonly allowAttempt: (key: string) => boolean;
+  /** Signing up to book. Null when it isn't open: booking for new people is off, or email isn't set up. */
+  readonly signUp?: {
+    readonly open: () => boolean;
+    /** Who new prospects' opportunities belong to. */
+    readonly ownerFor: () => Id | null;
+    readonly publicUrl: string;
+    readonly mail: (to: { readonly email: string; readonly name: string }, link: string, kind: "new" | "invite-again" | "reset") => Promise<boolean>;
+    readonly allowPerAddress: (key: string) => boolean;
+    readonly allowPerEmail: (key: string) => boolean;
+  };
+};
+
+const SIGN_UP_MESSAGES: Readonly<Record<string, string>> = {
+  "name-missing": "Enter your name.",
+  "name-too-long": "Keep your name under 80 characters.",
+  "email-invalid": "Enter your email, like you@example.com.",
+  "phone-invalid": "Check the phone number: like 304-555-0142.",
+  "business-too-long": "Keep the business name under 120 characters.",
 };
 
 /** What a client posts from inside the portal, and the portal's sign-in. */
@@ -151,6 +170,22 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     return c.redirect("/portal", 303);
   });
 
+  app.post("/portal/sign-up", async (c) => {
+    const { fields } = await readForm(c);
+    // A bot filled in the field people never see: nothing made, and nothing said about why.
+    if ((fields["website"] ?? "") !== "") return c.redirect("/portal/sign-up", 303);
+    const up = deps.signUp;
+    const owner = up?.ownerFor() ?? null;
+    if (!up || !up.open() || !owner) return to(c, "/portal/sign-up", "problem", "Signing up isn’t open right now. Call or write, and we’ll find a time.");
+    const email = (fields["email"] ?? "").trim().toLowerCase();
+    if (!up.allowPerAddress(deps.addressOf(c.env.incoming)) || (email && !up.allowPerEmail(email))) return to(c, "/portal/sign-up", "problem", "That’s a lot of sign-ups at once. Call or write instead.");
+    const made = await signUpForPortal(deps.portal, owner, { name: fields["name"] ?? "", email, phone: fields["phone"] ?? null, business: fields["business"] ?? null });
+    if (!made.ok) return to(c, "/portal/sign-up", "problem", SIGN_UP_MESSAGES[made.error] ?? "That didn’t work. Try again.");
+    if (made.value) await up.mail({ email: made.value.email, name: made.value.name }, `${up.publicUrl}${made.value.path}`, made.value.kind);
+    // The same answer whether the email was new, known or turned off: nothing here says which.
+    return to(c, "/portal/sign-up", "done", `Check your email at ${email}. We sent a link to confirm it and choose your password. Then you can book.`);
+  });
+
   app.post("/portal/sign-out", async (c) => {
     c.header("set-cookie", await client.signOutClient(deps.portal, c.req.header("cookie") ?? ""));
     return to(c, "/portal/sign-in", "done", "You are signed out.");
@@ -164,6 +199,7 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     // Back to the same link's page: it is still unused, so the person can try another password.
     if (!result.ok) return to(c, /^[A-Za-z0-9_-]{43}$/.test(token) ? `/portal/accept?token=${token}` : "/portal/sign-in", "problem", result.message);
     c.header("set-cookie", result.cookie);
+    if (fields["next"] === "book") return to(c, "/portal/book", "done", "You’re signed in. Choose a time for your call.");
     return to(c, "/portal", "done", "Your password is set and you are signed in.");
   });
 

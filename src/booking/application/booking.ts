@@ -158,16 +158,23 @@ export type OpenTimesView = {
 };
 
 /** Whether booking is on for this audience, with hours set: a quick check, without reading any calendar. */
+/**
+ * Whether someone signed in to the portal can book: clients when portal
+ * booking is on, and anyone when sign-up to book is on, since that is how a
+ * new person books once they have an account.
+ */
+const portalBooking = (settings: BookingSettings): boolean => settings.portalOpen || settings.publicOpen;
+
 export function bookingOpen(deps: BookingDeps, audience: "portal" | "public"): boolean {
   const settings = deps.bookings.settings();
-  return settings !== null && settings.hours.length > 0 && (audience === "portal" ? settings.portalOpen : settings.publicOpen);
+  return settings !== null && settings.hours.length > 0 && (audience === "portal" ? portalBooking(settings) : settings.publicOpen);
 }
 
 /** The open times for clients in the portal, or for the public booking page. */
 export async function openTimes(deps: BookingDeps, audience: "portal" | "public"): Promise<OpenTimesView> {
   const settings = deps.bookings.settings();
   const closed = { open: false, callMinutes: 0, days: [], calendarFailed: false };
-  if (!settings || !(audience === "portal" ? settings.portalOpen : settings.publicOpen) || settings.hours.length === 0) return closed;
+  if (!settings || !(audience === "portal" ? portalBooking(settings) : settings.publicOpen) || settings.hours.length === 0) return closed;
   const rules = rulesOf(deps, settings);
   const { others, failed } = await busyIn(deps, rules);
   if (failed) return { ...closed, open: true, callMinutes: settings.callMinutes, calendarFailed: true };
@@ -193,7 +200,7 @@ export type BookError = BookerError | "closed" | "taken" | "calendar-failed";
  */
 export async function bookCall(deps: BookingDeps, booker: Booker, start: string): Promise<Result<{ readonly booking: Booking; readonly manageToken: string | null }, BookError>> {
   const settings = deps.bookings.settings();
-  if (!settings || !(booker.kind === "client" ? settings.portalOpen : settings.publicOpen)) return err("closed");
+  if (!settings || !(booker.kind === "client" ? portalBooking(settings) : settings.publicOpen)) return err("closed");
   const who = checkBooker(booker);
   if (!who.ok) return who;
   const rules = rulesOf(deps, settings);

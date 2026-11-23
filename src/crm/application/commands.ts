@@ -216,6 +216,48 @@ export function convertOpportunity(deps: CrmDeps, actorId: Id | null, opportunit
   });
 }
 
+// ── Sign-ups from the booking page ───────────────────────────────────────
+
+export type SignUpInput = { readonly name: string; readonly email: string; readonly phone?: string | null; readonly business?: string | null };
+export type SignUpError = "name-missing" | "name-too-long" | "email-invalid" | "phone-invalid" | "business-too-long";
+
+/**
+ * Someone signed up to book a call: anyone on the internet, so no
+ * permission, and HQ is the actor. Someone already in the CRM by email is
+ * left as they are. Anyone else becomes a new prospective client with them
+ * as its primary contact, and a new opportunity owned by `ownerId`, so they
+ * show in the pipeline.
+ */
+export function recordSignUp(deps: CrmDeps, ownerId: Id, input: SignUpInput): Result<{ readonly clientId: Id; readonly contactId: Id; readonly known: boolean }, SignUpError> {
+  const name = input.name.trim().replace(/\s+/g, " ");
+  if (!name) return err("name-missing");
+  if (name.length > 100) return err("name-too-long");
+  const email = input.email.trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("email-invalid");
+  const business = (input.business ?? "").trim().replace(/\s+/g, " ");
+  if (business.length > 120) return err("business-too-long");
+  const phone = (input.phone ?? "").trim();
+  return deps.transact(() => {
+    const at = deps.clock();
+    const known = deps.contacts.byEmail(email);
+    if (known) return ok({ clientId: known.organizationId, contactId: known.id, known: true });
+    const client = newClient(deps.newId(), { name: business || name, sizeTier: "small" });
+    if (!client.ok) return err("business-too-long");
+    const contact = newContact(deps.newId(), client.value.id, { name, email, phone: phone || null, isPrimary: true });
+    if (!contact.ok) return err(contact.error === "invalid-phone" ? "phone-invalid" : "email-invalid");
+    deps.clients.insert(client.value, at);
+    recordActivity(deps, { actorId: null, action: "client.created", recordType: "client-organization", recordId: client.value.id, context: { name: client.value.name, from: "sign-up" } });
+    deps.contacts.insert(contact.value, at);
+    recordActivity(deps, { actorId: null, action: "contact.created", recordType: "contact", recordId: contact.value.id, context: { clientId: client.value.id, primary: true } });
+    const made = newOpportunity({ id: deps.newId(), organizationId: client.value.id, ownerId }, { title: `Signed up to book a call`, leadSource: "website", service: null, contactId: contact.value.id, summary: "Created an account on the booking page." });
+    if (made.ok) {
+      deps.opportunities.insert(made.value, at);
+      recordActivity(deps, { actorId: null, action: "opportunity.signed-up", recordType: "opportunity", recordId: made.value.id, context: { clientId: client.value.id } });
+    }
+    return ok({ clientId: client.value.id, contactId: contact.value.id, known: false });
+  });
+}
+
 // ── Inquiries from the website ───────────────────────────────────────────
 
 export type InquiryInput = { readonly name: string; readonly email: string; readonly phone?: string | null; readonly business?: string | null; readonly message: string; readonly service?: string | null };
