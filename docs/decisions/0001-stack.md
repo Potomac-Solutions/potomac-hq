@@ -37,7 +37,7 @@ Three facts about the kit (version 0.8.0, commit `41d3587`) shaped the choice:
 | Second host framework | Held for the client portal at v0.6 |
 | Zubra packages | Exact versions: `@zubra/server`, `@zubra/runtime`, `@zubra/compiler` and `@zubra/router` at 6.0.3, all four at one version, with no range. Nothing older than 5.19.0: 5.17.0 and 5.18.0 have router guard bypasses |
 | Kit | Installed from GitHub at an exact commit |
-| Zubra UI | Source `.zb` files copied in from commit `ba5737e` into `src/shared/ui/zubra`. `zubra-ui.lock.json` records the commit and a checksum per file, and CI fails if a copy is edited |
+| Zubra UI | Source `.zb` files copied in (first from commit `ba5737e`, now `0f852ba`) into `src/shared/ui/zubra`. `zubra-ui.lock.json` records the commit and a checksum per file, and CI fails if a copy is edited |
 | Boundary lint | dependency-cruiser |
 | Package manager | npm |
 | Tests | `node:test` for domain and integration tests, Playwright for end-to-end tests |

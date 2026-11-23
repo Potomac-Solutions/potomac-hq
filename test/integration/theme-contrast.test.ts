@@ -47,12 +47,26 @@ const TEXT: [string, string][] = [
   // Error text.
   ["destructive", "background"],
   ["destructive", "card"],
+  // The page behind the cards.
+  ["foreground", "canvas"],
+  ["muted-foreground", "canvas"],
+  ["primary", "canvas"],
+  ["destructive", "canvas"],
+  // Good and cautionary news.
+  ["success", "card"],
+  ["warning", "card"],
+  // The sidebar: its links, its group headings, and the current link.
+  ["sidebar-foreground", "sidebar"],
+  ["sidebar-muted", "sidebar"],
+  ["sidebar-foreground", "sidebar-accent"],
 ];
 const EDGES: [string, string][] = [
   ["input", "background"],
   ["input", "card"],
   ["ring", "background"],
   ["ring", "card"],
+  ["input", "canvas"],
+  ["ring", "canvas"],
 ];
 
 for (const [name, selector] of [["light", ":root"], ["dark", ".dark"]] as const) {
