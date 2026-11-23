@@ -42,6 +42,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "content-path-invalid": "The content file is a path to a .json file in the repository, like src/content/site.json.",
   "photo-dir-invalid": "The photo folder is a path in the repository, like public/gallery.",
   "already-set-up": "This client’s site is already set up.",
+  "repo-in-use": "That repository’s content file is already set up for another client.",
   "changes-waiting": "Changes are waiting. Publish or discard them before reading the site again.",
   "github-not-set-up": "HQ has no GitHub token, so it can’t read or publish sites. Set HQ_GITHUB_TOKEN on the server.",
   "repo-refused": "GitHub refused. Check that HQ’s token may read and write this repository, and that the branch isn’t protected against it.",

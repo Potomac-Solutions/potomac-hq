@@ -20,7 +20,7 @@
   .ss-preview { display: grid; gap: 0.4rem; justify-items: start; margin: 0 0 1rem; }
   .ss-preview p { margin: 0; }
 </style>
-<site-status status={{ mode: 'live', open: true, label: '', summary: '', opensOn: '', opensTime: '', message: '', zone: '', today: '', siteUrl: '', previewUrl: '' }} base="" staff={false}>
+<site-status status={{ mode: 'live', open: true, label: '', summary: '', opensOn: '', opensTime: '', message: '', zone: '', today: '', siteUrl: '', previewUrl: '', hasPreviewKey: false }} base="" staff={false}>
   <section class="hq-panel" id="status" aria-labelledby="ss-heading">
     <h2 id="ss-heading">Is the website open?</h2>
     <p class="ss-now"><status-badge variant={status.open ? 'success' : 'warning'}>{status.label}</status-badge> {status.summary}</p>
@@ -47,12 +47,16 @@
       <p class="hq-small hq-muted">The website changes a minute or two after you save. A page already open in someone’s browser switches by itself at the opening time.</p>
     </form>
 
-    <details zb-if={status.previewUrl} class="hq-more">
+    <details zb-if={status.hasPreviewKey} class="hq-more">
       <summary>Make a new preview link</summary>
       <form method="post" action="{base}/preview-link">
         <p class="hq-muted">The old link stops working. Do this if it has been passed on further than you meant.</p>
         <button class="hq-button secondary" type="submit">Make a new link</button>
       </form>
     </details>
+    <form zb-if={!status.hasPreviewKey && !status.open} method="post" action="{base}/preview-link" data-spaced>
+      <button class="hq-button secondary" type="submit">Make a preview link</button>
+      <p class="hq-small hq-muted" data-spaced>This site was closed before HQ knew it, so it has no preview link yet.</p>
+    </form>
   </section>
 </site-status>

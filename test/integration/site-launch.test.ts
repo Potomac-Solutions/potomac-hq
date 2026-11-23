@@ -137,3 +137,21 @@ test("a status already in the site's file is read when the site is read again", 
   assert.match(textOf(await admin.page(`/websites/${siteId}`)), /Closed for maintenance Visitors see “Closed for maintenance” until someone opens it\./);
   assert.match(await admin.page(`/websites/${siteId}`), /value="Back Monday\."/);
 });
+
+test("a site already closed when it is set up has no preview link yet, and either side can make one", async () => {
+  const otherId = t.db.prepare("select id from client_organization where name = 'Gormania Feed'").get()?.["id"] as string;
+  assert.equal(problemOf(await admin.post(`/clients/${otherId}/website`, { ...SETUP, repo: "potomac-solutions/NU-FINISH-SITE" })), "That repository’s content file is already set up for another client.");
+  // A site started as a copy of Nu Finish's: its file still carries Nu Finish's photo ids.
+  const made = await admin.post(`/clients/${otherId}/website`, { ...SETUP, repo: "Potomac-Solutions/feed-store-site", name: "Feed store website", siteUrl: "gormaniafeed.example" });
+  const second = /\/websites\/([0-9a-f-]{36})/.exec(made.headers.get("location") ?? "")?.[1] ?? "";
+  assert.ok(second, `${made.status} ${made.headers.get("location")}`);
+  assert.equal(t.db.prepare("select count(*) as n from content_photo where site_id = ?").get(second)?.["n"], 1, "its photo got an id of its own");
+  const keyOf = () => t.db.prepare("select preview_key from content_site where id = ?").get(second)?.["preview_key"] as string | null;
+  assert.equal(keyOf(), null);
+  const page = textOf(await stranger.page("/portal/website"));
+  assert.match(page, /Closed for maintenance .* Make a preview link This site was closed before HQ knew it/);
+  assert.doesNotMatch(page, /Make a new preview link/);
+  assert.equal(doneOf(await stranger.post("/portal/website/preview-link", {})), "New preview link made. The old one no longer works.");
+  assert.equal(launchInFile()?.["previewKeyHash"], sha256(keyOf() ?? ""));
+  assert.ok((await stranger.page("/portal/website")).includes(`href="https://gormaniafeed.example/?preview=${keyOf()}"`));
+});

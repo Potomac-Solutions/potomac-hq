@@ -94,7 +94,7 @@ function change(deps: WebsitesDeps, editor: Editor, siteId: Id | null, action: s
 type ReadError = "github-not-set-up" | RepoError | "content-invalid" | "photo-unreadable";
 
 /** Reads a site's content file and every photo it names. */
-async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">): Promise<Result<{ content: SiteContent; launch: Launch; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
+async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">, siteId: Id | null): Promise<Result<{ content: SiteContent; launch: Launch; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
   if (!deps.publisher) return err("github-not-set-up");
   const file = await deps.publisher.read(setup.repo, setup.contentPath);
   if (!file.ok) return file;
@@ -104,8 +104,14 @@ async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "c
   } catch {
     return err("content-invalid");
   }
-  const content = readContent(text, deps.newId);
-  if (!content.ok) return content;
+  const read = readContent(text, deps.newId);
+  if (!read.ok) return read;
+  // A site started as a copy of another carries that site's photo ids. An id belongs to one site: give those new ones.
+  const taken = (id: Id) => {
+    const owner = deps.photos.get(id)?.siteId;
+    return owner !== undefined && owner !== siteId;
+  };
+  const content = { ok: true as const, value: { ...read.value, gallery: read.value.gallery.map((photo) => (taken(photo.id) ? { ...photo, id: deps.newId() } : photo)) } };
   const photos: { id: Id; path: string; body: Uint8Array }[] = [];
   for (const photo of content.value.gallery) {
     const path = repoPathFor(setup.photoDir, photo.src);
@@ -121,13 +127,15 @@ async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "c
  * its content file and photos from the repository. Permission:
  * `site.publish`. A client has one site.
  */
-export async function setUpSite(deps: WebsitesDeps, actorId: Id | null, organizationId: Id, input: SetupInput): Promise<Result<ContentSite, Refused | SetupError | ReadError | "already-set-up">> {
+export async function setUpSite(deps: WebsitesDeps, actorId: Id | null, organizationId: Id, input: SetupInput): Promise<Result<ContentSite, Refused | SetupError | ReadError | "already-set-up" | "repo-in-use">> {
   if (!may(deps, actorId, "site.publish")) return err("forbidden");
   if (deps.clientName(organizationId) === null) return err("not-found");
   if (deps.sites.forOrganization(organizationId)) return err("already-set-up");
   const setup = siteSetup(input);
   if (!setup.ok) return setup;
-  const read = await readSite(deps, setup.value);
+  const sameFile = (site: ContentSite) => site.repo.owner.toLowerCase() === setup.value.repo.owner.toLowerCase() && site.repo.name.toLowerCase() === setup.value.repo.name.toLowerCase() && site.contentPath === setup.value.contentPath;
+  if (deps.sites.list().some(sameFile)) return err("repo-in-use");
+  const read = await readSite(deps, setup.value, null);
   if (!read.ok) return read;
   return deps.transact(() => {
     if (deps.sites.forOrganization(organizationId)) return err("already-set-up");
@@ -149,7 +157,7 @@ export async function readSiteAgain(deps: WebsitesDeps, actorId: Id | null, site
   const found = siteFor(deps, { kind: "staff", actorId }, siteId);
   if (!found.ok) return found;
   if (found.value.draft) return err("changes-waiting");
-  const read = await readSite(deps, found.value);
+  const read = await readSite(deps, found.value, siteId);
   if (!read.ok) return read;
   return deps.transact(() => {
     const site = deps.sites.get(siteId);
@@ -425,6 +433,8 @@ export type StatusView = {
   readonly siteUrl: string;
   /** The link that shows the real site while it is closed. Empty when the site's address isn't known or it was never closed. */
   readonly previewUrl: string;
+  /** True once the site has a preview key, whether or not its address is known. */
+  readonly hasPreviewKey: boolean;
 };
 
 function statusView(deps: WebsitesDeps, site: ContentSite): StatusView {
@@ -441,6 +451,7 @@ function statusView(deps: WebsitesDeps, site: ContentSite): StatusView {
     today: Temporal.Instant.from(now).toZonedDateTimeISO(deps.timeZone).toPlainDate().toString(),
     siteUrl: site.siteUrl,
     previewUrl: site.siteUrl && site.previewKey ? previewLink(site.siteUrl, site.previewKey) : "",
+    hasPreviewKey: site.previewKey !== null,
   };
 }
 
