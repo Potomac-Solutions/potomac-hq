@@ -1,0 +1,50 @@
+<!--
+  Every client website HQ watches: down ones first, each with its last
+  check, its uptime over 30 days, its certificate and its recent outages.
+-->
+<script>
+  'use route /sites'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.monitor.all()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Sites', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .sites { list-style: none; margin: 0; padding: 0; }
+  .sites > li { display: grid; gap: 0.25rem; padding: 0.8rem 0; border-top: 1px solid var(--border); }
+  .sites > li:first-child { border-top: 0; }
+  .sites p { margin: 0; overflow-wrap: anywhere; }
+  .site-up { color: var(--success, var(--foreground)); }
+  .outages { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+</style>
+<hq-sites view={{ sites: [], down: 0, canEdit: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Sites</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">HQ checks each site every five minutes. Two failed checks in a row mean it’s down. Add a site on its client’s page.</p>
+    <empty-state zb-if={view.sites.length === 0} heading="No sites watched yet">On a client’s page, under Sites, add their website’s address.</empty-state>
+    <section zb-else class="hq-panel" aria-labelledby="sites-all">
+      <h2 id="sites-all">{view.heading}</h2>
+      <ul class="sites">
+        <zb-each items={view.sites} as="site" key={site.id}>
+          <li>
+            <p><strong><a href={site.url} rel="noreferrer">{site.host}</a></strong> · <a href="/clients/{site.organizationId}#sites">{site.clientName}</a> <span class={site.state === 'down' ? 'hq-tag due' : 'hq-tag'}>{site.stateLabel}</span> <span zb-if={site.since}>{site.since}</span></p>
+            <p class="hq-small">{site.lastResult}<span zb-if={site.checked}> · checked {site.checked}</span> · {site.uptime} up in 30 days</p>
+            <p zb-if={site.cert} class="hq-small">{site.cert} <span zb-if={site.certSoon} class="hq-tag due">Soon</span></p>
+            <ul zb-if={site.outages.length > 0} class="outages hq-small">
+              <zb-each items={site.outages} as="outage" key={outage.when}><li>Down {outage.when}, {outage.lasted}: {outage.reason}</li></zb-each>
+            </ul>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-sites>

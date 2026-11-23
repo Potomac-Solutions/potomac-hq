@@ -36,6 +36,7 @@
       waiting: waiting.items,
       calls: context.booking.next(),
       renewals: context.renewals.comingUp(),
+      sites: context.monitor.attention(),
       showFollowUps: due.ok,
       items: feed.value.items,
       everything: feed.value.everything,
@@ -64,7 +65,7 @@
   .hq-waiting { border-left: 0.3rem solid var(--primary); }
   .hq-waiting .hq-scope { margin: 0; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} done="" problem="" remind-two-factor={false}>
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false}>
   <h1>Dashboard</h1>
   <div zb-if={done || problem || remindTwoFactor} class="hq-notices">
     <alert-banner zb-if={remindTwoFactor} variant="warning" heading="Turn on two-factor sign-in">You're an admin, so your password alone opens everything in HQ, including who can sign in. <a href="/settings#two-factor">Turn it on</a> in Settings. It takes a minute and an app on your phone.</alert-banner>
@@ -88,6 +89,15 @@
       </zb-each>
     </ul>
     <p><a href="/calls">All calls</a></p>
+  </section>
+  <section zb-if={sites.length > 0} class="hq-panel hq-waiting" aria-labelledby="sites-attention">
+    <h2 id="sites-attention">Sites that need you</h2>
+    <ul class="hq-activity">
+      <zb-each items={sites} as="site" key={site.id}>
+        <li><span><strong>{site.host}</strong> · {site.clientName}<br><span class="hq-scope">{site.state === 'down' ? 'Down ' + site.since + ': ' + site.lastResult : site.cert}</span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/sites">All sites</a></p>
   </section>
   <section zb-if={renewals.length > 0} class="hq-panel" aria-labelledby="renewals-coming-up">
     <h2 id="renewals-coming-up">Renewals in the next 30 days</h2>

@@ -26,6 +26,8 @@ import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
+import { checkSites } from "../src/monitor/index.ts";
+import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -174,6 +176,20 @@ const stopInvoiceReminders = email
     )
   : null;
 
+// Client websites: checked every five minutes. Changes are emailed to the
+// alert address when email and HQ_ALERT_EMAIL are set.
+const siteChecker = httpSiteChecker();
+const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...message })) : null;
+let checkingSites = false;
+const siteTimer = setInterval(() => {
+  if (checkingSites) return;
+  checkingSites = true;
+  checkSites(createServices(db).monitor, siteChecker, siteAlert)
+    .catch((error: unknown) => log("Site checks: the run failed", error))
+    .finally(() => (checkingSites = false));
+}, 5 * 60_000);
+siteTimer.unref();
+
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
 if (email) {
@@ -226,6 +242,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopSheet?.();
     stopRetention();
     stopRecurring();
+    clearInterval(siteTimer);
     stopInvoiceReminders?.();
     stopNotices?.();
     stopReminders?.();

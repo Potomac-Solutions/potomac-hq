@@ -760,6 +760,26 @@ or left as a draft, days until due, and whether it is paused.
 - Events: `recurring-invoice.added`, `.paused`, `.resumed`, and the usual
   `invoice.created` and `invoice.sent`, by HQ (no actor).
 
+### Site monitoring
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+`monitored_site`: a client, an address, its state (unknown, up, down),
+failed checks in a row, when it went down, the last check and its result,
+its certificate's expiry and the expiry already warned about.
+`site_outage`: when each outage started and ended, and why.
+
+- Checked every five minutes from `bin/serve.ts`, four at a time, with a
+  ten-second limit. Under HTTP 400 is up.
+- Down after two failed checks in a row; up after one good one. Each change
+  is emailed once to `HQ_ALERT_EMAIL`, and the certificate two weeks before
+  it runs out.
+- **Only the public internet.** An address is refused if it is an IP, a
+  local name, or a name that resolves to a private, loopback or link-local
+  address, so a client's domain cannot be used to reach Railway's network.
+- Seen with `client.view`, changed with `client.edit`. Events:
+  `site.watched`, `site.unwatched`, `site.down`, `site.up` (by HQ).
+
 ### Renewals
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
