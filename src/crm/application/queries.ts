@@ -13,6 +13,9 @@ export type Option = { readonly value: string; readonly label: string };
 export type ClientListView = {
   /** The status the list is filtered by, or "" for every client. */
   readonly status: string;
+  /** "real", "demo", or "" for both. */
+  readonly kind: string;
+  readonly demoCount: number;
   readonly statuses: readonly Option[];
   readonly clients: readonly {
     readonly id: string;
@@ -21,6 +24,7 @@ export type ClientListView = {
     readonly statusLabel: string;
     readonly sizeTierLabel: string;
     readonly openOpportunities: number;
+    readonly demo: boolean;
   }[];
   readonly canCreate: boolean;
   readonly sizeTiers: readonly Option[];
@@ -47,6 +51,7 @@ export type ClientDetailView = {
     readonly website: string;
     readonly phone: string;
     readonly address: string;
+    readonly demo: boolean;
   };
   readonly contacts: readonly { readonly id: string; readonly name: string; readonly email: string; readonly phone: string; readonly title: string; readonly isPrimary: boolean }[];
   readonly opportunities: readonly OpportunityRow[];
@@ -117,15 +122,18 @@ function row(opportunity: Opportunity, showValue: boolean): OpportunityRow {
 }
 
 /** Every client, or only those with one status. An unknown status shows every client. */
-export function listClients(deps: CrmDeps, actorId: Id | null, filter: { readonly status?: string } = {}): Result<ClientListView, "forbidden"> {
+export function listClients(deps: CrmDeps, actorId: Id | null, filter: { readonly status?: string; readonly kind?: string } = {}): Result<ClientListView, "forbidden"> {
   if (!may(deps, actorId, "client.view")) return err("forbidden");
   const status = filter.status && isClientStatus(filter.status) ? filter.status : "";
+  const kind = filter.kind === "real" || filter.kind === "demo" ? filter.kind : "";
+  const all = deps.clients.list();
   return ok({
     status,
+    kind,
+    demoCount: all.filter((client) => client.demo).length,
     statuses: options(CLIENT_STATUS_LABELS),
-    clients: deps.clients
-      .list()
-      .filter((client) => status === "" || client.status === status)
+    clients: all
+      .filter((client) => (status === "" || client.status === status) && (kind === "" || (kind === "demo") === (client.demo === true)))
       .map((client) => ({
       id: client.id,
       name: client.name,
@@ -133,6 +141,7 @@ export function listClients(deps: CrmDeps, actorId: Id | null, filter: { readonl
       statusLabel: CLIENT_STATUS_LABELS[client.status] ?? client.status,
       sizeTierLabel: client.sizeTier ? (SIZE_TIER_LABELS[client.sizeTier] ?? client.sizeTier) : "",
       openOpportunities: client.openOpportunities,
+      demo: client.demo === true,
     })),
     canCreate: may(deps, actorId, "client.create"),
     sizeTiers: options(SIZE_TIER_LABELS),
@@ -155,6 +164,7 @@ export function clientDetail(deps: CrmDeps, actorId: Id | null, clientId: Id): R
       website: client.website ?? "",
       phone: client.phone ?? "",
       address: client.address ?? "",
+      demo: client.demo === true,
     },
     contacts: deps.contacts.listFor(clientId).map((contact) => ({
       id: contact.id,
@@ -319,7 +329,9 @@ export function pipelineReport(deps: CrmDeps, actorId: Id | null, today: string,
   if (!may(deps, actorId, "report.view") || !may(deps, actorId, "opportunity.view-value")) return err("forbidden");
   const period = (REPORT_PERIODS as readonly number[]).includes(days) ? days : 90;
   const since = `${Temporal.PlainDate.from(today).subtract({ days: period }).toString()}T00:00:00Z`;
-  const numbers = pipelineNumbers(deps.opportunities.listAll(), since);
+  // Demo clients' opportunities aren't real work: they would skew the win rate.
+  const demos = new Set(deps.clients.list().filter((client) => client.demo).map((client) => client.id));
+  const numbers = pipelineNumbers(deps.opportunities.listAll().filter((one) => !demos.has(one.organizationId)), since);
   const dollars = (minor: number) => formatMoney({ minor, currency: "USD" });
   return ok({
     days: period,

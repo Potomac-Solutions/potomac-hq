@@ -65,7 +65,7 @@ Nobody can edit or delete an activity event. There is no permission for it.
 | View client organizations and contacts | `client.view` | Yes | Yes | Yes | No (v0.6: own organization only) |
 | Create a client organization | `client.create` | Yes | Yes | Yes | No |
 | Edit a client organization | `client.edit` | Yes | Yes | Yes | No |
-| Change a client's status | `client.set-status` | Yes | Yes | Yes | No |
+| Change a client's status, or mark it a demo | `client.set-status` | Yes | Yes | Yes | No |
 | Create or edit a contact | `contact.edit` | Yes | Yes | Yes | No |
 
 ### Opportunities (v0.2)
@@ -183,6 +183,11 @@ sit on top of them:
 - HQ always has an admin who can sign in. The last active admin cannot be
   turned off or lose the admin role.
 - Nobody turns off their own account.
+- Importing clients from a pasted list (Clients → Import) has no key of its
+  own: it takes every key adding them by hand would (`client.create`,
+  `contact.edit`, `opportunity.create`, `opportunity.set-value`,
+  `opportunity.set-stage`, `opportunity.convert`, `project.edit`), so only
+  managers and admins can.
 - An invited person gets their roles when they first use their link. Until
   then they are an invite, not a user, and an admin can withdraw it.
 

@@ -225,5 +225,5 @@ test("the clients list filters by status", async () => {
   const any = visible(await (await admin.get("/clients?status=nonsense")).text());
   assert.match(any, /Harpers Ferry Museum/);
   const none = visible(await (await admin.get("/clients?status=former")).text());
-  assert.match(none, /No clients have that status\./);
+  assert.match(none, /No clients match\./);
 });

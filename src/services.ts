@@ -3,7 +3,7 @@
 // the commands in bin/ and the tests all start here, so they are wired the
 // same way.
 import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore, sqliteTouchStore } from "./crm/adapters.ts";
-import type { CrmDeps, TouchDeps } from "./crm/index.ts";
+import type { CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
@@ -65,6 +65,8 @@ export type Services = {
   readonly invites: InviteDeps;
   /** Linked calendars, and filling availability in from a calendar, Timeful or Calendly. */
   readonly sources: SourceDeps;
+  /** Importing clients, their contacts and projects from a pasted CSV. */
+  readonly clientImport: ImportDeps;
   /** Booking links: booking a call without an account. */
   readonly links: LinkDeps;
   /** The morning email of that list. */
@@ -200,9 +202,10 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       },
     },
   };
+  const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { booking, sources, links, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

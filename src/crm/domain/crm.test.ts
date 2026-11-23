@@ -21,7 +21,7 @@ function opp(over: Partial<Opportunity> = {}): Opportunity {
 test("a new client is a trimmed prospect, and a bare domain becomes a website", () => {
   assert.deepEqual(newClient(id(1), { name: "  Mt. Storm Bakery ", sizeTier: "small", website: "mtstormbakery.com", phone: "(304) 555-0100", address: "" }), {
     ok: true,
-    value: { id: id(1), name: "Mt. Storm Bakery", status: "prospective", sizeTier: "small", website: "https://mtstormbakery.com/", phone: "(304) 555-0100", address: null },
+    value: { id: id(1), name: "Mt. Storm Bakery", status: "prospective", sizeTier: "small", website: "https://mtstormbakery.com/", phone: "(304) 555-0100", address: null, demo: false },
   });
 });
 

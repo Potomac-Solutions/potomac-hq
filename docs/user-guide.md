@@ -140,6 +140,14 @@ one only if you were expecting it.
   the Hours page (it needs email set up), and link your website to /book.
   People sign up, confirm their email, and book in their own portal. Each
   one shows up in the pipeline as "Signed up to book a call".
+- **Importing clients.** Clients → Import clients: paste a list with a
+  header line (Client, Contact, Phone, Email, Project, Pricing, Price,
+  Repository, Live, Demo, in any order). Each line becomes a client, its
+  contact and, with a Project, the project. Nothing is saved if a line is
+  wrong, and clients already in HQ are skipped.
+- **Demo clients.** Mark a made-up business you show prospects as a demo
+  (on the client's page, or Demo = yes when importing). It keeps its Demo
+  badge and stays out of the dashboard, Today and the reports.
 - **Booking links.** To let someone book without an account, make them a
   link: Calls → Booking links → say who it's for → Make a link, then copy
   the address and send it. They tell you who they are and what the call is

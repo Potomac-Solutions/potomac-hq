@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Import clients, and demo clients. Clients → Import takes a pasted CSV
+  (from a spreadsheet or typed): each line becomes a client, its contact
+  and, if it names a project, a won project with links to its code and live
+  site. Every line is checked first, one mistake saves nothing and says
+  which line, and clients already in HQ are skipped. A client can be a
+  demo: a made-up business you show prospects. Demos carry a Demo badge and
+  are kept out of the dashboard's figures, Today, deadlines, the reports and
+  Money. Clients can be filtered to real or demo. Migration 0033.
+
 ## [0.13.0] - 2026-11-23
 
 - Booking links. Booking a free call needs a portal account, unless you

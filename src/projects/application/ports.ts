@@ -6,7 +6,7 @@ import type { Project } from "../domain/project.ts";
 import type { Task } from "../domain/task.ts";
 import type { Id } from "../../shared/index.ts";
 
-export type ProjectRow = Project & { readonly clientName: string; readonly ownerName: string; readonly openTasks: number };
+export type ProjectRow = Project & { readonly clientName: string; readonly ownerName: string; readonly openTasks: number; /** Its client is a demo. */ readonly demo: boolean };
 
 export type ProjectStore = {
   insert(project: Project, at: string): void;

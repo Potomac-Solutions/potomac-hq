@@ -36,6 +36,8 @@ export type ProjectListView = {
     readonly healthLabel: string;
     readonly targetOn: string;
     readonly openTasks: number;
+    /** Its client is a demo. */
+    readonly demo: boolean;
     /** "Design signed off, due 2026-12-05", or "" when there is none. */
     readonly next: string;
     readonly nextOverdue: boolean;
@@ -43,7 +45,7 @@ export type ProjectListView = {
 };
 
 /** Every project, or only those with one status. An unknown status shows every project. */
-export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { readonly status?: string } = {}): Result<ProjectListView, "forbidden"> {
+export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { readonly status?: string; readonly withoutDemos?: boolean } = {}): Result<ProjectListView, "forbidden"> {
   if (!may(deps, actorId, "project.view")) return err("forbidden");
   const status = filter.status && (PROJECT_STATUSES as readonly string[]).includes(filter.status) ? filter.status : "";
   const today = deps.today();
@@ -53,13 +55,14 @@ export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { r
     statuses: options(STATUS_LABELS),
     projects: deps.projects
       .list()
-      .filter((project) => status === "" || project.status === status)
+      .filter((project) => (status === "" || project.status === status) && !(filter.withoutDemos && project.demo))
       .map((project) => {
         const next = nextMilestone(open.filter((milestone) => milestone.projectId === project.id));
         return {
           id: project.id,
           name: project.name,
           clientName: project.clientName,
+          demo: project.demo,
           ownerName: project.ownerName,
           status: project.status,
           statusLabel: STATUS_LABELS[project.status] ?? project.status,
@@ -90,6 +93,7 @@ export type ProjectView = {
     readonly ownerName: string;
     readonly active: boolean;
     readonly ongoing: boolean;
+    readonly demo: boolean;
   };
   readonly clientId: string;
   readonly clientName: string;
@@ -184,6 +188,7 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
       ownerName: project.ownerName,
       active,
       ongoing: project.kind === "ongoing",
+      demo: project.demo,
     },
     clientId: project.organizationId,
     clientName: project.clientName,
@@ -367,9 +372,9 @@ export type ActiveProjectsView = {
   readonly items: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly health: string; readonly healthLabel: string; readonly next: string; readonly nextOverdue: boolean }[];
 };
 
-/** The dashboard's active projects panel. */
+/** The dashboard's active projects panel. Demo clients' projects are left out. */
 export function activeProjects(deps: ProjectsDeps, actorId: Id | null): Result<ActiveProjectsView, "forbidden"> {
-  const list = listProjects(deps, actorId, { status: "active" });
+  const list = listProjects(deps, actorId, { status: "active", withoutDemos: true });
   if (!list.ok) return list;
   return ok({ items: list.value.projects.map((p) => ({ id: p.id, name: p.name, clientName: p.clientName, health: p.health, healthLabel: p.healthLabel, next: p.next, nextOverdue: p.nextOverdue })) });
 }
@@ -379,19 +384,20 @@ export type DeadlinesView = {
   readonly items: readonly { readonly key: string; readonly kind: string; readonly title: string; readonly href: string; readonly projectName: string; readonly dueOn: string; readonly dueText: string; readonly overdue: boolean }[];
 };
 
-/** Open milestones and tasks of active projects due within `days`, or already late, soonest first. */
+/** Open milestones and tasks of active projects due within `days`, or already late, soonest first. Demo clients' are left out. */
 export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days = 14): Result<DeadlinesView, "forbidden"> {
   if (!may(deps, actorId, "project.view")) return err("forbidden");
   const today = deps.today();
+  const demo = demoProjects(deps);
   const until = Temporal.PlainDate.from(today).add({ days }).toString();
   const milestones = deps.milestones
     .listOpen()
-    .filter((milestone) => milestone.dueOn !== null && milestone.dueOn <= until)
+    .filter((milestone) => milestone.dueOn !== null && milestone.dueOn <= until && !demo.has(milestone.projectId))
     .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "", overdue: isMilestoneOverdue(milestone, today) }));
   const tasks = may(deps, actorId, "task.view")
     ? deps.tasks
         .listBoard("9999")
-        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until)
+        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId))
         .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "", overdue: isTaskOverdue(task, today) }))
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
@@ -405,19 +411,20 @@ export type ProjectHealthReportView = {
   readonly attention: readonly { readonly id: string; readonly name: string; readonly clientName: string; readonly healthLabel: string; readonly next: string }[];
 };
 
-/** The project health report. Permission: `report.view` and `project.view`. */
+/** The project health report. Demo clients' projects are left out. Permission: `report.view` and `project.view`. */
 export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Result<ProjectHealthReportView, "forbidden"> {
   if (!may(deps, actorId, "report.view") || !may(deps, actorId, "project.view")) return err("forbidden");
   const today = deps.today();
-  const all = deps.projects.list();
+  const all = deps.projects.list().filter((project) => !project.demo);
+  const demo = demoProjects(deps);
   const active = all.filter((project) => project.status === "active");
   const lateMilestones = deps.milestones
     .listOpen()
-    .filter((milestone) => isMilestoneOverdue(milestone, today))
+    .filter((milestone) => isMilestoneOverdue(milestone, today) && !demo.has(milestone.projectId))
     .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "" }));
   const lateTasks = deps.tasks
     .listBoard("9999")
-    .filter((task) => isTaskOverdue(task, today))
+    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId))
     .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "" }));
   return ok({
     statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),
@@ -431,6 +438,11 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
         return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "" };
       }),
   });
+}
+
+/** The projects of demo clients, by id. */
+function demoProjects(deps: ProjectsDeps): ReadonlySet<string> {
+  return new Set(deps.projects.list().filter((project) => project.demo).map((project) => project.id));
 }
 
 export type ProjectLinksView = {
