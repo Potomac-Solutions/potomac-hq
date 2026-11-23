@@ -11,7 +11,9 @@
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    return { title: 'Your portal', view: context.portal.home(), booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    const home = context.portal.home()
+    const picks = context.booking.invitesForMe().map((invite) => ({ key: 'i-' + invite.id, text: 'Pick times for a call: ' + invite.title, detail: invite.length + ', ' + invite.days + (invite.answered ? '. You picked times; Potomac Solutions will confirm one.' : '. Mark every time you could do.'), href: '/portal/invites/' + invite.id, action: invite.answered ? 'Change times' : 'Pick times' }))
+    return { title: 'Your portal', view: { ...home, attention: [...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">

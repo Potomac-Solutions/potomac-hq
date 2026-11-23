@@ -35,7 +35,7 @@
     <form method="post" action="/calls/availability" class="hq-panel" aria-labelledby="week-heading">
       <input type="hidden" name="week" value={view.week}>
       <h2 id="week-heading">{view.label}</h2>
-      <availability-grid grid={view} legend={true} caption={'Free for calls, ' + view.label}></availability-grid>
+      <availability-grid grid={view} legend="hours" caption={'Free for calls, ' + view.label}></availability-grid>
       <p><button class="hq-button" type="submit">Save this week</button></p>
     </form>
   </div>

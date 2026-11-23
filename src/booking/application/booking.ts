@@ -457,10 +457,19 @@ export type GridView = {
   readonly rows: readonly { readonly at: number; readonly label: string; readonly hour: boolean; readonly cells: readonly GridCell[] }[];
 };
 
-type CellFacts = { readonly on: boolean; readonly busy: boolean; readonly booked: boolean };
+export type CellFacts = {
+  readonly on: boolean;
+  readonly busy: boolean;
+  readonly booked: boolean;
+  /** More classes for the cell, like "match". */
+  readonly extra?: string;
+  /** What to add to its label instead of busy or booked. */
+  readonly note?: string;
+  readonly disabled?: boolean;
+};
 
 /** Lays the grid out row by row for the page. */
-function layGrid(rowStarts: readonly number[], columns: readonly GridColumn[], factsOf: (column: GridColumn, at: number) => CellFacts): GridView {
+export function layGrid(rowStarts: readonly number[], columns: readonly GridColumn[], factsOf: (column: GridColumn, at: number) => CellFacts): GridView {
   return {
     columns,
     rows: rowStarts.map((at, row) => ({
@@ -469,15 +478,15 @@ function layGrid(rowStarts: readonly number[], columns: readonly GridColumn[], f
       hour: at % 60 === 0,
       cells: columns.map((column, col) => {
         const facts = factsOf(column, at);
-        const note = facts.booked ? ", a call is booked" : facts.busy ? ", busy in your calendar" : "";
-        return { name: `c-${column.key}-${at}`, label: `${column.name}, ${cellLabel(at)}${note}`, className: ["cell", facts.busy ? "busy" : "", facts.booked ? "booked" : ""].filter(Boolean).join(" "), on: facts.on, disabled: column.past, col, row };
+        const note = facts.note ?? (facts.booked ? ", a call is booked" : facts.busy ? ", busy in your calendar" : "");
+        return { name: `c-${column.key}-${at}`, label: `${column.name}, ${cellLabel(at)}${note}`, className: ["cell", facts.busy ? "busy" : "", facts.booked ? "booked" : "", facts.extra ?? ""].filter(Boolean).join(" "), on: facts.on, disabled: column.past || facts.disabled === true, col, row };
       }),
     })),
   };
 }
 
 const GRID_DAYS = [1, 2, 3, 4, 5, 6, 7] as const satisfies readonly Weekday[];
-const SHORT: Readonly<Record<Weekday, string>> = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun" };
+export const SHORT_DAYS: Readonly<Record<Weekday, string>> = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun" };
 
 
 /** The usual week, painted. Permission: `booking.manage`. */
@@ -485,7 +494,7 @@ export function weeklyGrid(deps: BookingDeps, actorId: Id | null): Result<GridVi
   if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
   const hours = deps.bookings.settings()?.hours ?? [];
   const on = new Map(GRID_DAYS.map((weekday) => [String(weekday), cellsFromRanges(rangesOn(hours, weekday))]));
-  const columns = GRID_DAYS.map((weekday) => ({ key: String(weekday), name: `${WEEKDAY_NAMES[weekday]}s`, short: SHORT[weekday], sub: "", painted: false, closed: false, past: false }));
+  const columns = GRID_DAYS.map((weekday) => ({ key: String(weekday), name: `${WEEKDAY_NAMES[weekday]}s`, short: SHORT_DAYS[weekday], sub: "", painted: false, closed: false, past: false }));
   return ok(layGrid(gridRows(hours), columns, (column, at) => ({ on: on.get(column.key)?.has(at) ?? false, busy: false, booked: false })));
 }
 
@@ -566,7 +575,7 @@ export async function weekGrid(deps: BookingDeps, actorId: Id | null, wanted?: s
       days.map((day) => ({
         key: day.toString(),
         name: day.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
-        short: SHORT[day.dayOfWeek as Weekday],
+        short: SHORT_DAYS[day.dayOfWeek as Weekday],
         sub: day.toLocaleString("en-US", { month: "short", day: "numeric" }),
         painted: painted[day.toString()] !== undefined,
         closed: closed.has(day.toString()),

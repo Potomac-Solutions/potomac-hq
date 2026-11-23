@@ -24,7 +24,7 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingByLink, bookingOpen, bookingSetup, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
@@ -37,6 +37,7 @@ import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
+import { inviteRoutes } from "./booking/api/invite-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -250,6 +251,12 @@ export type PageContext = {
     calls(): ReturnType<typeof callsView>;
     setup(): ReturnType<typeof bookingSetup>;
     weekly(): ReturnType<typeof weeklyGrid>;
+    invites(): ReturnType<typeof openInvites>;
+    invite(id: string): ReturnType<typeof staffInvite> | Promise<null>;
+    clientInvites(organizationId: string): ReturnType<typeof clientInvites>;
+    /** The signed-in client's open invites to pick times. */
+    invitesForMe(): ReturnType<typeof invitesWaitingOn>;
+    guestInvite(id: string): ReturnType<typeof guestInvite> | Promise<null>;
     week(week: string | null): ReturnType<typeof weekGrid>;
     next(): ReturnType<typeof nextCalls>;
     /** For the signed-in client: whether they can book, and their calls from now. */
@@ -553,6 +560,20 @@ export async function createApp(config: AppConfig): Promise<App> {
           calls: () => callsView(services.booking, actor),
           setup: () => bookingSetup(services.booking, actor),
           weekly: () => weeklyGrid(services.booking, actor),
+          invites: () => openInvites(services.invites, actor),
+          invite: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? staffInvite(services.invites, actor, parsed.value) : Promise.resolve(null);
+          },
+          clientInvites: (organizationId) => {
+            const parsed = parseId(organizationId);
+            return parsed.ok ? clientInvites(services.invites, actor, parsed.value) : [];
+          },
+          invitesForMe: () => (client ? invitesWaitingOn(services.invites, client.organizationId) : []),
+          guestInvite: (id) => {
+            const parsed = parseId(id);
+            return client && parsed.ok ? guestInvite(services.invites, client, parsed.value) : Promise.resolve(null);
+          },
           week: (week) => weekGrid(services.booking, actor, week),
           next: () => nextCalls(services.booking, actor),
           // Each of these reads only the signed-in client's organization.
@@ -798,6 +819,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(

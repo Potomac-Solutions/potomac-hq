@@ -12,7 +12,7 @@
     if (stop) return stop
     const view = context.booking.calls()
     if (!view.ok) return context.forbidden()
-    return { title: 'Calls', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Calls', view: view.value, invites: context.booking.invites(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -25,7 +25,7 @@
   .call-cancelled strong { text-decoration: line-through; }
   details summary { cursor: pointer; }
 </style>
-<hq-calls view={{ upcoming: [], past: [], canManage: false, canAddToCrm: false, services: [], setUp: false }} done="" problem="">
+<hq-calls view={{ upcoming: [], past: [], canManage: false, canAddToCrm: false, services: [], setUp: false }} invites={[]} done="" problem="">
   <div class="hq-page">
     <h1>Calls</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -39,6 +39,15 @@
       <a zb-if={view.canManage} href="/calls/hours">Usual week, hours and days off</a>
     </p>
 
+    <section zb-if={invites.length > 0} class="hq-panel" aria-labelledby="calls-invites">
+      <h2 id="calls-invites">Picking times</h2>
+      <ul class="hq-links">
+        <zb-each items={invites} as="invite" key={invite.id}>
+          <li><span><a href="/calls/invites/{invite.id}">{invite.title}</a> · {invite.who} · {invite.days}</span> <span class={invite.answered ? 'hq-tag due' : 'hq-tag'}>{invite.statusLabel}</span></li>
+        </zb-each>
+      </ul>
+      <p class="hq-muted hq-small">Ask someone to pick times from their client’s page, under Client portal.</p>
+    </section>
     <section class="hq-panel" aria-labelledby="calls-upcoming">
       <h2 id="calls-upcoming">Coming up</h2>
       <empty-state zb-if={view.upcoming.length === 0} heading="No calls booked">When someone books a time, it shows here.</empty-state>

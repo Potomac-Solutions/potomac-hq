@@ -1,0 +1,61 @@
+<!--
+  A scheduling invite as Potomac sees it: who, which days, the grid of your
+  free time with their answer over it, and every time free for both. Pick
+  one to book it. For anyone who answers calls; managers and admins confirm.
+-->
+<script>
+  'use route /calls/invites/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/parts/availability-grid.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = await context.booking.invite(params.id)
+    if (!view) return notFound()
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Picking times: ' + view.value.invite.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .starts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .starts form { margin: 0; }
+</style>
+<hq-invite view={{ invite: {}, grid: { rows: [], columns: [] }, starts: [], calendarFailed: false, canManage: false }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/calls">Calls</a> / <a href="/clients/{view.invite.organizationId}#portal">Client</a></p>
+    <h1>{view.invite.title}</h1>
+    <div zb-if={done || problem || view.calendarFailed} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+      <alert-banner zb-if={view.calendarFailed} variant="warning">Your calendar couldn’t be read just now, so your free time may be wrong. Try again in a minute.</alert-banner>
+    </div>
+    <p>{view.invite.who} · {view.invite.length} · {view.invite.days} · <span class={view.invite.status === 'open' ? 'hq-tag due' : 'hq-tag'}>{view.invite.statusLabel}</span></p>
+    <p zb-if={view.invite.note} class="hq-muted">“{view.invite.note}”</p>
+
+    <section zb-if={view.invite.status === 'open'} class="hq-panel" aria-labelledby="invite-starts">
+      <h2 id="invite-starts">{view.starts.length === 0 ? 'No time free for both yet' : 'Free for both: pick one to book it'}</h2>
+      <p zb-if={!view.invite.answered} class="hq-muted">{view.invite.who} hasn’t picked times yet. They were emailed a link to their portal, if email is set up.</p>
+      <p zb-else-if={view.starts.length === 0} class="hq-muted">None of the times they picked is free for you for {view.invite.length}. Paint more time free on <a href="/calls/availability">Availability</a>, or ask them for more.</p>
+      <ul zb-if={view.starts.length > 0} class="starts">
+        <zb-each items={view.starts} as="slot" key={slot.start}>
+          <li>
+            <form zb-if={view.canManage} method="post" action="/invites/{view.invite.id}/confirm"><input type="hidden" name="start" value={slot.start}><button class="hq-button secondary" type="submit" aria-label="Book {slot.label}">{slot.label}</button></form>
+            <span zb-else class="hq-tag">{slot.label}</span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="invite-grid">
+      <h2 id="invite-grid">Your free time and theirs</h2>
+      <availability-grid grid={view.grid} legend="invite" caption={'Free time for ' + view.invite.title}></availability-grid>
+    </section>
+
+    <form zb-if={view.canManage && view.invite.status === 'open'} method="post" action="/invites/{view.invite.id}/cancel">
+      <button class="hq-button secondary" type="submit">Withdraw this invite</button>
+    </form>
+    <p zb-if={view.invite.status === 'confirmed'}><a href="/calls">See it in Calls</a></p>
+  </div>
+</hq-invite>

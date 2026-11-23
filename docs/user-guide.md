@@ -126,6 +126,10 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **Finding a time together.** On a client's page, under Client portal,
+  "Ask someone to pick times for a call". They mark every half hour they
+  could do on a grid of your free time; you pick one that suits both and
+  it's booked. Like a Timeful poll, inside HQ.
 - **New people booking a call.** Turn on "Anyone can sign up at /book" on
   the Hours page (it needs email set up), and link your website to /book.
   People sign up, confirm their email, and book in their own portal. Each

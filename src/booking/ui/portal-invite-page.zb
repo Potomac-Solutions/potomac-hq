@@ -1,0 +1,40 @@
+<!--
+  An invite to pick times, as the client sees it in the portal: Potomac's
+  free half hours over a few days. They mark every one they could do and
+  save; Potomac confirms one, and both are emailed.
+-->
+<script>
+  'use route /portal/invites/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/availability-grid.zb'
+  export async function load({ context, params }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = await context.booking.guestInvite(params.id)
+    if (!view || !view.ok) return notFound()
+    return { title: 'Pick times: ' + view.value.invite.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-portal-invite view={{ invite: {}, grid: { rows: [], columns: [] }, freeCount: 0, calendarFailed: false }} done="" problem="">
+  <div class="hq-page">
+    <p><a href="/portal">Back to your portal</a></p>
+    <h1>Pick times: {view.invite.title}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p>A {view.invite.length} call with Potomac Solutions, {view.invite.days}. Times are Eastern.</p>
+    <p zb-if={view.invite.note}>“{view.invite.note}”</p>
+    <div zb-if={view.invite.status === 'confirmed'} class="hq-panel"><p><strong>It’s booked.</strong> You were emailed the time; it’s also under your calls in <a href="/portal#calls">your portal</a>.</p></div>
+    <div zb-else-if={view.invite.status === 'cancelled'} class="hq-panel"><p>Potomac Solutions withdrew this invite. Nothing more to do.</p></div>
+    <div zb-else-if={view.calendarFailed} class="hq-panel"><p>The calendar couldn’t be checked just now. Try again in a minute.</p></div>
+    <div zb-else-if={view.freeCount === 0} class="hq-panel"><p>There aren’t any open times on these days now. Potomac Solutions will be in touch with others.</p></div>
+    <form zb-else method="post" action="/portal/invites/{view.invite.id}" class="hq-panel" aria-labelledby="pick-heading">
+      <h2 id="pick-heading">{view.invite.answered ? 'Your times (change them any time)' : 'Mark every time you could do'}</h2>
+      <p class="hq-muted">Tap each half hour that works. With a mouse, press and drag to mark many. The more you mark, the easier it is to find a time.</p>
+      <availability-grid grid={view.grid} legend="guest" caption={'Times you could do for ' + view.invite.title}></availability-grid>
+      <p><button class="hq-button portal-big" type="submit">Save my times</button></p>
+    </form>
+  </div>
+</hq-portal-invite>

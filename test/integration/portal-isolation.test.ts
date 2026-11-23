@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import * as booking from "../../src/booking/index.ts";
 import * as crm from "../../src/crm/index.ts";
 import * as finance from "../../src/finance/index.ts";
 import * as portal from "../../src/portal/index.ts";
@@ -24,6 +25,8 @@ let bob: Client; // client B: Gormania Feed
 
 type World = { clientId: Id; projectId: Id; sharedDeliverable: Id; sharedFile: Id; draftDeliverable: Id; draftFile: Id; sharedProposal: Id; privateProposal: Id; sentInvoice: Id; draftInvoice: Id; sentChange: Id; draftChange: Id };
 let a: World;
+let aInvite: Id;
+let bInvite: Id;
 let b: World;
 
 /** A client with a project, a shared and a draft deliverable, a shared and an unshared proposal, and a sent and a draft invoice. */
@@ -61,6 +64,11 @@ before(async () => {
   b = await world("Gormania Feed", "Feed store site");
   ann = await clientSignedIn(t, admin, a.clientId, "Ann Baker", "ann@bakery.example");
   bob = await clientSignedIn(t, admin, b.clientId, "Bob Miller", "bob@feed.example");
+  // An invite to pick times for each client.
+  const day = Temporal.Now.plainDateISO("America/New_York").add({ days: 2 }).toString();
+  const inviteFor = (email: string, title: string) => unwrap(booking.createInvite(t.services.invites, mikey, t.db.prepare("select id from client_user where email = ?").get(email)?.["id"] as Id, { title, minutes: "30", firstDay: day, lastDay: day })).id;
+  aInvite = inviteFor("ann@bakery.example", "Bakery kickoff");
+  bInvite = inviteFor("bob@feed.example", "Feed store kickoff");
 });
 after(() => t.stop());
 
@@ -97,6 +105,7 @@ test("client A cannot read anything of client B's: every portal page and downloa
     `/portal/proposals/${b.sharedProposal}/pdf`,
     `/portal/invoices/${b.sentInvoice}/pdf`,
     `/portal/files/${b.sharedFile}`,
+    `/portal/invites/${bInvite}`,
   ];
   // Their own records that were never shared with them are just as absent.
   const unshared = [`/portal/files/${a.draftFile}`, `/portal/proposals/${a.privateProposal}`, `/portal/proposals/${a.privateProposal}/pdf`, `/portal/invoices/${a.draftInvoice}/pdf`];
@@ -108,6 +117,7 @@ test("client A cannot read anything of client B's: every portal page and downloa
   }
   // The same addresses work for the client they belong to, so the 404s above are isolation, not broken routes.
   for (const path of theirs) assert.equal((await bob.get(path)).status, 200, `${path} for its own client`);
+  assert.equal((await ann.get(`/portal/invites/${aInvite}`)).status, 200, "and Ann opens her own invite");
 });
 
 test("client A cannot change anything of client B's: every portal form is refused and writes nothing", async () => {
@@ -117,6 +127,7 @@ test("client A cannot change anything of client B's: every portal form is refuse
     [`/portal/deliverables/${b.sharedDeliverable}/decision`, { decision: "approved", projectId: b.projectId }],
     [`/portal/deliverables/${a.draftDeliverable}/decision`, { decision: "approved", projectId: a.projectId }],
     [`/portal/changes/${b.sentChange}/decision`, { decision: "approve", projectId: b.projectId }],
+    [`/portal/invites/${bInvite}`, { "c-2099-01-01-540": "1" }],
     [`/portal/changes/${a.draftChange}/decision`, { decision: "approve", projectId: a.projectId }],
     [`/portal/proposals/${b.sharedProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     [`/portal/proposals/${a.privateProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],

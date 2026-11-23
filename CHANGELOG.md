@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Scheduling invites, like a Timeful poll: from a client's page, ask
+  someone in their portal to pick times for a call (what it's for, how long,
+  up to two weeks of days, a note). They're emailed a link, and it's first on
+  their portal's "waiting on you" list. On a grid of your free time over those
+  days they tap or drag every half hour they could do. You see your free time
+  and theirs, and every start free for both for the call's length; pick one
+  and it's booked as their call, with emails to both. Withdraw an invite any
+  time. Open invites are listed on Calls. Migration 0029.
+
 - Sign up to book: booking a call now needs a free account. /book explains
   the three steps and sends people to sign up (name, business, email,
   phone) or sign in. HQ emails a link to confirm the address and choose a
