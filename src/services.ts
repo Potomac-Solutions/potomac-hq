@@ -6,7 +6,7 @@ import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore } from ".
 import type { CrmDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteTimeStore } from "./finance/adapters.ts";
+import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type FinanceDeps, type InvoiceDocument } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, BusyCalendar } from "./booking/index.ts";
@@ -101,7 +101,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {

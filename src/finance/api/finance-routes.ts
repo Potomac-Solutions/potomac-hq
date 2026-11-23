@@ -71,6 +71,13 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
     back: (id) => invoice(id),
     message: "Line added.",
   });
+  post("/projects/:id/recurring", (actor, f, id) => finance.addRecurringInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "", every: f["every"] ?? "", firstOn: f["firstOn"] ?? "", endsOn: f["endsOn"] ?? null, autoSend: f["autoSend"] === "1", dueDays: f["dueDays"] ?? null }), {
+    done: (_, id) => `${money(id)}#recurring`,
+    back: (id) => `${money(id)}#recurring`,
+    message: "Recurring invoice set up. HQ makes each one on its day.",
+  });
+  post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
+  post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
   post("/invoices/:id/send", (actor, _f, id) => finance.sendInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice sent. Download the PDF to give it to the client." });
   post("/invoices/:id/void", (actor, _f, id) => finance.voidInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice voided." });
   post(

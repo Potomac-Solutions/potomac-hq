@@ -5,9 +5,10 @@ import { budgetPeriod, defaultFinance, standing, type Budget, type Standing } fr
 import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
+import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
 import { authorize } from "../../identity/index.ts";
 import type { Project } from "../../projects/index.ts";
-import { err, formatHours, formatMoney, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
+import { err, formatHours, formatMoney, friendlyDay, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
 import type { InvoiceRow, TimeRow } from "./ports.ts";
 
@@ -174,6 +175,8 @@ export type ProjectMoneyView = {
   /** Amounts to offer in the new-invoice form, worked out from the budget and what is already invoiced. */
   readonly invoiceForm: { readonly deposit: string; readonly balance: string; readonly full: string };
   readonly invoiceKinds: readonly Option[];
+  readonly recurring: readonly RecurringLine[];
+  readonly everyOptions: readonly Option[];
   readonly can: { readonly edit: boolean; readonly addExpense: boolean; readonly export: boolean; readonly download: boolean; readonly removeTime: boolean; readonly viewInvoices: boolean; readonly editInvoices: boolean };
   readonly categories: readonly Option[];
   readonly paymentStatuses: readonly Option[];
@@ -220,6 +223,8 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
     invoices: may(deps, actorId, "invoice.view") ? deps.invoices.listForProject(projectId).map((invoice) => invoiceRowView(invoice, today)) : [],
     invoiceForm: invoiceSuggestions(m.budget.amount, deps.invoices.listForProject(projectId)),
     invoiceKinds: options(INVOICE_KIND_LABELS),
+    recurring: may(deps, actorId, "invoice.view") ? deps.recurring.listForProject(projectId).map((one) => recurringLine(one, project.name, "", today)) : [],
+    everyOptions: options(EVERY_LABELS),
     can: {
       viewInvoices: may(deps, actorId, "invoice.view"),
       editInvoices: may(deps, actorId, "invoice.edit"),
@@ -348,6 +353,56 @@ export function invoiceDocument(deps: FinanceDeps, actorId: Id | null, invoiceId
   const invoice = deps.invoices.get(invoiceId);
   if (!invoice || invoice.status === "draft" || invoice.status === "void") return err("not-found");
   return ok(documentForInvoice(invoice));
+}
+
+export type RecurringLine = {
+  readonly id: string;
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly clientName: string;
+  readonly description: string;
+  readonly amount: string;
+  readonly everyLabel: string;
+  readonly next: string;
+  readonly nextOn: string;
+  readonly endsText: string;
+  readonly autoSend: boolean;
+  readonly active: boolean;
+  readonly monthly: string;
+};
+
+function recurringLine(one: RecurringInvoice, projectName: string, clientName: string, today: string): RecurringLine {
+  return {
+    id: one.id,
+    projectId: one.projectId,
+    projectName,
+    clientName,
+    description: one.description,
+    amount: formatMoney(one.amount),
+    everyLabel: EVERY_LABELS[one.every],
+    next: friendlyDay(one.nextOn, today),
+    nextOn: one.nextOn,
+    endsText: one.endsOn ? `until ${friendlyDay(one.endsOn, today)}` : "",
+    autoSend: one.autoSend,
+    active: one.active,
+    monthly: formatMoney(usd(monthlyMinor(one))),
+  };
+}
+
+export type RecurringOverviewView = { readonly items: readonly RecurringLine[]; readonly monthly: string; readonly yearly: string };
+
+/** Every active recurring invoice, and what they bring in a month and a year. Permission: `invoice.view`. */
+export function recurringOverview(deps: FinanceDeps, actorId: Id | null): Result<RecurringOverviewView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const projects = new Map(deps.projects.list().map((project) => [project.id, project]));
+  const active = deps.recurring.listActive();
+  const today = deps.today();
+  const monthly = active.reduce((sum, one) => sum + monthlyMinor(one), 0);
+  return ok({
+    items: active.map((one) => recurringLine(one, projects.get(one.projectId)?.name ?? "A removed project", projects.get(one.projectId)?.clientName ?? "", today)),
+    monthly: formatMoney(usd(monthly)),
+    yearly: formatMoney(usd(monthly * 12)),
+  });
 }
 
 export type FinanceOverviewView = {

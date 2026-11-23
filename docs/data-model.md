@@ -742,6 +742,24 @@ Decided 2026-11-22 while Mikey was away. Needs his approval.
   `user.two-factor-reset`, `user.two-factor-passed` and
   `user.two-factor-recovery-used`. None carries a code or the secret.
 
+### Recurring invoices
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+`recurring_invoice`: a project, a description, an amount, every month,
+quarter or year, an anchor day (later ones fall on it, or on a shorter
+month's last day), the next day, an optional last day, whether each is sent
+or left as a draft, days until due, and whether it is paused.
+`invoice.recurring_id` says which made an invoice.
+
+- HQ runs it each morning at 06:13 Eastern, and once when it starts. Each
+  invoice and the move to the next day are one transaction, so no period is
+  billed twice. Up to a year of missed periods are caught up.
+- Started again after a pause, it picks up from its next day after today:
+  the paused months are not billed.
+- Events: `recurring-invoice.added`, `.paused`, `.resumed`, and the usual
+  `invoice.created` and `invoice.sent`, by HQ (no actor).
+
 ### Booking
 
 Decided 2026-11-22 while Mikey was away, at his request for a booking

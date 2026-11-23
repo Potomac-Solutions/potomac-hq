@@ -11,10 +11,11 @@
     if (stop) return stop
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
-    return { title: 'Money', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    const recurring = context.money.recurring()
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -29,6 +30,25 @@
         <dt>Margin</dt><dd><strong>{view.totals.margin}</strong></dd>
       </dl>
       <p class="hq-muted hq-small" data-spaced>Budgets come from accepted proposals unless set by hand. Cost is time at each project’s hourly rate plus expenses. A recurring plan is measured over its current month or year. This is not the books.</p>
+    </section>
+    <section zb-if={recurring} class="hq-panel" id="recurring" aria-labelledby="money-recurring">
+      <h2 id="money-recurring">Recurring: {recurring.monthly} a month, {recurring.yearly} a year</h2>
+      <p zb-if={recurring.items.length === 0} class="hq-muted">Nothing recurs yet. Set up hosting, maintenance or a retainer on a project’s Money page.</p>
+      <table zb-else class="hq-table">
+        <thead><tr><th scope="col">For</th><th scope="col">Project</th><th scope="col">How often</th><th scope="col">Next</th><th scope="col" class="hq-number">Each time</th><th scope="col" class="hq-number">A month</th></tr></thead>
+        <tbody>
+          <zb-each items={recurring.items} as="plan" key={plan.id}>
+            <tr>
+              <td>{plan.description}</td>
+              <td><a href="/projects/{plan.projectId}/money#recurring">{plan.projectName}</a><span zb-if={plan.clientName} class="hq-muted"> · {plan.clientName}</span></td>
+              <td>{plan.everyLabel}</td>
+              <td><time datetime={plan.nextOn}>{plan.next}</time></td>
+              <td class="hq-number">{plan.amount}</td>
+              <td class="hq-number">{plan.monthly}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
     </section>
     <section class="hq-panel" aria-labelledby="money-projects">
       <h2 id="money-projects">By project</h2>

@@ -105,6 +105,10 @@ one only if you were expecting it.
   `/book` takes bookings from anyone: link to it from the website. A call
   from that page has "Add to the CRM", before or after the call: it makes
   the client, contact and opportunity in one step.
+- **Recurring invoices.** On a project's Money page, set up hosting,
+  maintenance or a retainer: an amount every month, three months or year.
+  HQ makes each invoice in the morning on its day, as a draft or sent. The
+  Money page shows what recurs a month and a year.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 
