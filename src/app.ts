@@ -24,7 +24,7 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingByLink, bookingOpen, bookingSetup, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
@@ -247,6 +247,8 @@ export type PageContext = {
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
     setup(): ReturnType<typeof bookingSetup>;
+    weekly(): ReturnType<typeof weeklyGrid>;
+    week(week: string | null): ReturnType<typeof weekGrid>;
     next(): ReturnType<typeof nextCalls>;
     /** For the signed-in client: whether they can book, and their calls from now. */
     portal(): { readonly open: boolean; readonly calls: readonly CallLine[] };
@@ -547,6 +549,8 @@ export async function createApp(config: AppConfig): Promise<App> {
         booking: {
           calls: () => callsView(services.booking, actor),
           setup: () => bookingSetup(services.booking, actor),
+          weekly: () => weeklyGrid(services.booking, actor),
+          week: (week) => weekGrid(services.booking, actor, week),
           next: () => nextCalls(services.booking, actor),
           // Each of these reads only the signed-in client's organization.
           portal: () => ({ open: client !== null && bookingOpen(services.booking, "portal"), calls: client ? callsForClient(services.booking, client.organizationId) : [] }),

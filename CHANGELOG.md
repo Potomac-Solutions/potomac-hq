@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The availability grid: paint when you're free for calls, half hour by half
+  hour, like Timeful. Press and drag to paint a rectangle (drag from a
+  painted cell to rub out); on a phone, tap; with a keyboard, Space. Your
+  usual week is painted on Hours; any one week can be painted differently on
+  the new Availability page (a holiday, an early finish, an extra evening),
+  with busy times from your calendar and calls already booked shown
+  underneath. Open times for booking follow the painted days. Migration 0028.
+
 ## [0.11.0] - 2026-11-22
 
 - Fixed: on a phone, a table that scrolls sideways can now be scrolled from

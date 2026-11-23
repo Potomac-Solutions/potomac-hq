@@ -35,7 +35,8 @@
     <p class="hq-muted">
       <span zb-if={view.setUp}>Clients can book in the portal: {view.portalOpen ? 'on' : 'off'}. Anyone can book at /book: {view.publicOpen ? 'on' : 'off'}.</span>
       <span zb-else>No hours are set, so nobody can book a call yet.</span>
-      <a zb-if={view.canManage} href="/calls/hours">Hours and days off</a>
+      <a zb-if={view.canManage} href="/calls/availability">Availability this week</a>
+      <a zb-if={view.canManage} href="/calls/hours">Usual week, hours and days off</a>
     </p>
 
     <section class="hq-panel" aria-labelledby="calls-upcoming">

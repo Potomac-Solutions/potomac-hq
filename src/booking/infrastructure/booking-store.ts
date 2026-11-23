@@ -39,6 +39,11 @@ export function sqliteBookingStore(db: Database): BookingStore {
   const clearHours = db.prepare("delete from booking_hours");
   const addHours = db.prepare("insert into booking_hours (weekday, start, end) values (?, ?, ?)");
   const closed = db.prepare("select day, note from booking_closed_day where day >= ? order by day");
+  const painted = db.prepare("select d.day, h.start, h.end from booking_date d left join booking_date_hours h on h.day = d.day where d.day >= ? order by d.day, h.start");
+  const unpaint = db.prepare("delete from booking_date where day = ?");
+  const unpaintHours = db.prepare("delete from booking_date_hours where day = ?");
+  const paint = db.prepare("insert into booking_date (day, updated_at) values (?, ?)");
+  const paintHours = db.prepare("insert into booking_date_hours (day, start, end) values (?, ?, ?)");
   const close = db.prepare("insert into booking_closed_day (day, note) values (?, ?) on conflict (day) do update set note = excluded.note");
   const open = db.prepare("delete from booking_closed_day where day = ?");
   const booked = db.prepare(`select ${READ} from booking where status = 'booked' and starts_at < ? and ends_at > ? order by starts_at`);
@@ -52,6 +57,26 @@ export function sqliteBookingStore(db: Database): BookingStore {
   const crm = db.prepare("update booking set crm_client_id = ?, crm_opportunity_id = ? where id = ?");
   const save = db.prepare("update booking set reminded_at = case when starts_at = ? then reminded_at else null end, status = ?, starts_at = ?, ends_at = ?, phone = ?, topic = ?, cancelled_at = ?, cancelled_by = ?, cancel_reason = ? where id = ?");
   return {
+    saveWeek(value, at) {
+      clearHours.run();
+      for (const range of value) addHours.run(range.weekday, range.start, range.end);
+      db.prepare("update booking_setting set updated_at = ? where id = 1").run(at);
+    },
+    paintedDates(fromDay) {
+      const days: Record<string, { start: number; end: number }[]> = {};
+      for (const row of painted.all(fromDay)) {
+        const list = (days[String(row["day"])] ??= []);
+        if (row["start"] !== null) list.push({ start: Number(row["start"]), end: Number(row["end"]) });
+      }
+      return days;
+    },
+    paintDate(day, ranges, at) {
+      unpaintHours.run(day);
+      unpaint.run(day);
+      if (ranges === null) return;
+      paint.run(day, at);
+      for (const range of ranges) paintHours.run(day, range.start, range.end);
+    },
     settings() {
       const row = settings.get();
       if (!row) return null;

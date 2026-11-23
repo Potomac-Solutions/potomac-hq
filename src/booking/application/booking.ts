@@ -3,7 +3,8 @@
 // event. A client books for their own organization; someone from the public
 // booking page holds a private link instead of an account.
 import { calendarFile, cancel, changeable, checkBooker, whenText, type Booking, type BookerError, type BookerInput } from "../domain/booking.ts";
-import { checkRules, clockValue, DEFAULT_RULES, hoursSummary, isOpen, openSlots, parseClock, WEEKDAY_NAMES, type BookingRules, type Busy, type HoursRange, type OpenDay, type RulesError, type Weekday } from "../domain/hours.ts";
+import { cellLabel, cellsFromRanges, gridRows, paintedIn, rangesFromCells, rangesOn, sameCells } from "../domain/grid.ts";
+import { checkRules, clockLabel, clockValue, DEFAULT_RULES, hoursSummary, isOpen, openSlots, parseClock, WEEKDAY_NAMES, type BookingRules, type Busy, type HoursRange, type OpenDay, type RulesError, type Weekday } from "../domain/hours.ts";
 import { addContact, createClient, createOpportunity, moveOpportunity, SERVICE_OPTIONS, type CrmDeps } from "../../crm/index.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
@@ -23,7 +24,7 @@ const allowed = (deps: BookingDeps, actorId: Id | null, action: string): actorId
 
 function rulesOf(deps: BookingDeps, settings: BookingSettings): BookingRules {
   const today = Temporal.Instant.from(deps.clock()).toZonedDateTimeISO(deps.timeZone).toPlainDate().toString();
-  return { callMinutes: settings.callMinutes, gapMinutes: settings.gapMinutes, noticeHours: settings.noticeHours, daysAhead: settings.daysAhead, hours: settings.hours, closedDays: deps.bookings.closedDays(today).map((one) => one.day) };
+  return { callMinutes: settings.callMinutes, gapMinutes: settings.gapMinutes, noticeHours: settings.noticeHours, daysAhead: settings.daysAhead, hours: settings.hours, closedDays: deps.bookings.closedDays(today).map((one) => one.day), dates: deps.bookings.paintedDates(today) };
 }
 
 /** The window open times are read from: now to the last day anyone can book, and a day either side. */
@@ -94,7 +95,10 @@ export type SetupError = RulesError | "time-invalid" | "number-invalid";
 export function saveBookingSetup(deps: BookingDeps, actorId: Id | null, form: Readonly<Record<string, string>>): Result<true, "forbidden" | SetupError> {
   if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
   const hours: HoursRange[] = [];
-  for (let day = 1 as Weekday; day <= 7; day = (day + 1) as Weekday) {
+  // The availability grid saves the hours now; a settings form without them keeps the saved ones.
+  const typed = Object.keys(form).some((key) => key.startsWith("start-") || key.startsWith("end-"));
+  if (!typed) hours.push(...(deps.bookings.settings()?.hours ?? []));
+  for (let day = 1 as Weekday; typed && day <= 7; day = (day + 1) as Weekday) {
     for (const n of [0, 1]) {
       const start = (form[`start-${day}-${n}`] ?? "").trim();
       const end = (form[`end-${day}-${n}`] ?? "").trim();
@@ -435,3 +439,172 @@ export function calendarFor(deps: BookingDeps, booking: Booking): string {
 }
 
 export const WEEKDAYS = Object.entries(WEEKDAY_NAMES).map(([weekday, name]) => ({ weekday: Number(weekday) as Weekday, name }));
+
+// ── The availability grid ──────────────────────────────────────────────
+
+export type GridCell = { readonly name: string; readonly label: string; readonly className: string; readonly on: boolean; readonly disabled: boolean; readonly col: number; readonly row: number };
+export type GridColumn = { readonly key: string; readonly name: string; readonly short: string; readonly sub: string; readonly painted: boolean; readonly closed: boolean; readonly past: boolean };
+export type GridView = {
+  readonly columns: readonly GridColumn[];
+  /** Row by row, a cell for each column. */
+  readonly rows: readonly { readonly at: number; readonly label: string; readonly hour: boolean; readonly cells: readonly GridCell[] }[];
+};
+
+type CellFacts = { readonly on: boolean; readonly busy: boolean; readonly booked: boolean };
+
+/** Lays the grid out row by row for the page. */
+function layGrid(rowStarts: readonly number[], columns: readonly GridColumn[], factsOf: (column: GridColumn, at: number) => CellFacts): GridView {
+  return {
+    columns,
+    rows: rowStarts.map((at, row) => ({
+      at,
+      label: clockLabel(at).replace(":00 ", " "),
+      hour: at % 60 === 0,
+      cells: columns.map((column, col) => {
+        const facts = factsOf(column, at);
+        const note = facts.booked ? ", a call is booked" : facts.busy ? ", busy in your calendar" : "";
+        return { name: `c-${column.key}-${at}`, label: `${column.name}, ${cellLabel(at)}${note}`, className: ["cell", facts.busy ? "busy" : "", facts.booked ? "booked" : ""].filter(Boolean).join(" "), on: facts.on, disabled: column.past, col, row };
+      }),
+    })),
+  };
+}
+
+const GRID_DAYS = [1, 2, 3, 4, 5, 6, 7] as const satisfies readonly Weekday[];
+const SHORT: Readonly<Record<Weekday, string>> = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun" };
+
+
+/** The usual week, painted. Permission: `booking.manage`. */
+export function weeklyGrid(deps: BookingDeps, actorId: Id | null): Result<GridView, "forbidden"> {
+  if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
+  const hours = deps.bookings.settings()?.hours ?? [];
+  const on = new Map(GRID_DAYS.map((weekday) => [String(weekday), cellsFromRanges(rangesOn(hours, weekday))]));
+  const columns = GRID_DAYS.map((weekday) => ({ key: String(weekday), name: `${WEEKDAY_NAMES[weekday]}s`, short: SHORT[weekday], sub: "", painted: false, closed: false, past: false }));
+  return ok(layGrid(gridRows(hours), columns, (column, at) => ({ on: on.get(column.key)?.has(at) ?? false, busy: false, booked: false })));
+}
+
+/** Saves the usual week from the grid. Whoever saves it first becomes the host. Permission: `booking.manage`. */
+export function saveWeeklyGrid(deps: BookingDeps, actorId: Id | null, form: Readonly<Record<string, string>>): Result<true, "forbidden" | RulesError> {
+  if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
+  const hours: HoursRange[] = GRID_DAYS.flatMap((weekday) => rangesFromCells(paintedIn(form, String(weekday))).map((range) => ({ weekday, ...range })));
+  const current = deps.bookings.settings();
+  const checked = checkRules({ ...DEFAULT_RULES, ...(current ?? {}), hours, closedDays: [] });
+  if (!checked.ok) return checked;
+  return deps.transact(() => {
+    if (current) deps.bookings.saveWeek(hours, deps.clock());
+    else deps.bookings.saveSettings({ hostId: actorId, callMinutes: DEFAULT_RULES.callMinutes, gapMinutes: DEFAULT_RULES.gapMinutes, noticeHours: DEFAULT_RULES.noticeHours, daysAhead: DEFAULT_RULES.daysAhead, hours, portalOpen: false, publicOpen: false }, deps.clock());
+    recordActivity(deps, { actorId, action: "booking.hours-changed", recordType: "booking-setting", recordId: deps.newId(), context: { stretches: hours.length } });
+    return ok(true as const);
+  });
+}
+
+export type WeekGridView = GridView & {
+  readonly week: string;
+  readonly label: string;
+  readonly previous: string;
+  readonly next: string;
+  readonly thisWeek: string;
+  /** The calendar's busy times couldn't be read. */
+  readonly calendarFailed: boolean;
+  readonly calendar: string;
+};
+
+/** The Monday of the week a day is in. */
+const mondayOf = (day: Temporal.PlainDate) => day.subtract({ days: day.dayOfWeek - 1 });
+
+/**
+ * One week of dates, painted: each day's own stretches if it was painted
+ * differently, otherwise its weekday's. Busy times from the calendar and
+ * calls already booked show underneath. Permission: `booking.manage`.
+ */
+export async function weekGrid(deps: BookingDeps, actorId: Id | null, wanted?: string | null): Promise<Result<WeekGridView, "forbidden">> {
+  if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
+  const today = Temporal.Instant.from(deps.clock()).toZonedDateTimeISO(deps.timeZone).toPlainDate();
+  let start = mondayOf(today);
+  try {
+    if (wanted) start = mondayOf(Temporal.PlainDate.from(wanted, { overflow: "reject" }));
+  } catch {
+    // An address that isn't a date shows this week.
+  }
+  const days = GRID_DAYS.map((n) => start.add({ days: n - 1 }));
+  const hours = deps.bookings.settings()?.hours ?? [];
+  const painted = deps.bookings.paintedDates(start.toString());
+  const closed = new Set(deps.bookings.closedDays(start.toString()).map((one) => one.day));
+  const from = start.toZonedDateTime(deps.timeZone).toInstant();
+  const to = start.add({ days: 7 }).toZonedDateTime(deps.timeZone).toInstant();
+  let busy: readonly Busy[] = [];
+  let failed = false;
+  try {
+    busy = await deps.busy.busy(from.toString(), to.toString());
+  } catch {
+    failed = true;
+  }
+  const booked = deps.bookings.booked(from.toString(), to.toString());
+  const rangesFor = (day: Temporal.PlainDate) => painted[day.toString()] ?? rangesOn(hours, day.dayOfWeek as Weekday);
+  const rowStarts = gridRows([...hours, ...days.flatMap((day) => rangesFor(day))]);
+  const overlaps = (list: readonly { start: string; end: string }[], day: Temporal.PlainDate, at: number) => {
+    const cellStart = day.toPlainDateTime({ hour: Math.floor(at / 60), minute: at % 60 }).toZonedDateTime(deps.timeZone).toInstant().epochMilliseconds;
+    const cellEnd = cellStart + 30 * 60_000;
+    return list.some((one) => Temporal.Instant.from(one.start).epochMilliseconds < cellEnd && Temporal.Instant.from(one.end).epochMilliseconds > cellStart);
+  };
+  return ok({
+    week: start.toString(),
+    label: `Week of ${start.toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+    previous: start.subtract({ days: 7 }).toString(),
+    next: start.add({ days: 7 }).toString(),
+    thisWeek: mondayOf(today).toString(),
+    calendarFailed: failed,
+    calendar: deps.busy.name,
+    ...layGrid(
+      rowStarts,
+      days.map((day) => ({
+        key: day.toString(),
+        name: day.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
+        short: SHORT[day.dayOfWeek as Weekday],
+        sub: day.toLocaleString("en-US", { month: "short", day: "numeric" }),
+        painted: painted[day.toString()] !== undefined,
+        closed: closed.has(day.toString()),
+        past: Temporal.PlainDate.compare(day, today) < 0,
+      })),
+      (column, at) => {
+        const day = Temporal.PlainDate.from(column.key);
+        return { on: cellsFromRanges(rangesFor(day)).has(at), busy: overlaps(busy, day, at), booked: overlaps(booked, day, at) };
+      },
+    ),
+  });
+}
+
+/**
+ * Saves one week's dates from the grid. A day painted the same as its
+ * weekday goes back to the usual week; a past day is left as it was.
+ * Permission: `booking.manage`.
+ */
+export function saveWeekGrid(deps: BookingDeps, actorId: Id | null, week: string, form: Readonly<Record<string, string>>): Result<{ readonly changed: number }, "forbidden" | "day-invalid" | "no-hours-yet"> {
+  if (!allowed(deps, actorId, "booking.manage")) return err("forbidden");
+  let start: Temporal.PlainDate;
+  try {
+    start = mondayOf(Temporal.PlainDate.from(week, { overflow: "reject" }));
+  } catch {
+    return err("day-invalid");
+  }
+  const settings = deps.bookings.settings();
+  if (!settings) return err("no-hours-yet");
+  const today = Temporal.Instant.from(deps.clock()).toZonedDateTimeISO(deps.timeZone).toPlainDate();
+  const before = deps.bookings.paintedDates(start.toString());
+  return deps.transact(() => {
+    let changed = 0;
+    for (const n of GRID_DAYS) {
+      const day = start.add({ days: n - 1 });
+      if (Temporal.PlainDate.compare(day, today) < 0) continue;
+      const ranges = rangesFromCells(paintedIn(form, day.toString()));
+      const usual = rangesOn(settings.hours, day.dayOfWeek as Weekday);
+      const next = sameCells(ranges, usual) ? null : ranges;
+      const was = before[day.toString()] ?? null;
+      if (next === null && was === null) continue;
+      if (next !== null && was !== null && sameCells(next, was)) continue;
+      deps.bookings.paintDate(day.toString(), next, deps.clock());
+      changed += 1;
+    }
+    if (changed > 0) recordActivity(deps, { actorId, action: "booking.dates-painted", recordType: "booking-setting", recordId: deps.newId(), context: { week: start.toString(), days: changed } });
+    return ok({ changed });
+  });
+}

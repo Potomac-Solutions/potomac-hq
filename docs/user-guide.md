@@ -126,6 +126,10 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **Your availability.** Under Calls → Usual week, paint the half hours
+  you're free for calls: press and drag across the grid. For one week that's
+  different, Calls → Availability this week: paint over it. Busy times from
+  your calendar and calls already booked show underneath.
 - **Change requests.** When a client asks for something that wasn't in the
   agreement, don't just do it. On the project's money page, draft a change
   with its price and hours and send it. They approve it in the portal (or
