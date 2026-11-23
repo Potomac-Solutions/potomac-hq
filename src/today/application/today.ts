@@ -1,11 +1,11 @@
 // Today: one list, in order, of what wants doing today across HQ. Booked
 // calls, what clients are waiting on, sites that are down, follow-ups due,
-// to-dos, project deadlines and renewals this week. Each part shows only to
+// to-dos, project deadlines, opportunities going cold and renewals this week. Each part shows only to
 // someone who may see it, by the permission its own module checks. The same
 // list is the morning email.
 import { headline, orderAgenda, AGENDA_LABELS, type AgendaItem, type AgendaKind } from "../domain/agenda.ts";
 import { nextCalls, type BookingDeps } from "../../booking/index.ts";
-import { followUpsDue, type CrmDeps } from "../../crm/index.ts";
+import { followUpsDue, goingCold, type TouchDeps } from "../../crm/index.ts";
 import { sitesNeedingAttention, type MonitorDeps } from "../../monitor/index.ts";
 import { staffWaiting, type PortalDeps } from "../../portal/index.ts";
 import { upcomingDeadlines, type ProjectsDeps } from "../../projects/index.ts";
@@ -15,7 +15,8 @@ import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
 export type TodayDeps = {
-  readonly crm: CrmDeps;
+  /** The CRM, with its call log, for follow-ups and opportunities going cold. */
+  readonly crm: TouchDeps;
   readonly todos: TodosDeps;
   readonly booking: BookingDeps;
   readonly portal: PortalDeps;
@@ -67,6 +68,9 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
   const deadlines = upcomingDeadlines(deps.projects, actorId, 0);
   for (const one of deadlines.ok ? deadlines.value.items : []) {
     add("deadline", { key: `deadline-${one.key}`, text: `${one.kind}: ${one.title}`, detail: `${one.projectName} · ${one.dueText}`, href: one.href, action: "Open", overdue: one.overdue, at: one.dueOn });
+  }
+  for (const one of goingCold(deps.crm, actorId)) {
+    add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });
   }
   for (const one of renewalsComingUp(deps.renewals, actorId)) {
     const days = daysUntil(one.renewsOn, today);

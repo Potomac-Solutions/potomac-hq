@@ -163,7 +163,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       clients: () => crm.clients.list().filter((one) => one.status !== "former").map((one) => ({ id: one.id, name: one.name })),
     },
   };
-  const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today };
+  const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today, timeZone: BUSINESS_TIME_ZONE };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const booking: BookingDeps = {
@@ -178,7 +178,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     formatWhen,
   };
-  const day: TodayDeps = { crm, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   return { booking, invoiceReminders, renewals, monitor, touches, todos, day, morning, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

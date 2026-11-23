@@ -770,6 +770,17 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+### Going cold
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+Not stored: worked out each time. An open opportunity is going cold when it
+has no follow-up set and its last sign of life is 14 or more days ago
+(`COLD_AFTER_DAYS` in `src/crm/domain/cold.ts`). Its last sign of life is the
+latest touch with its client, about anything, or its own last change,
+whichever is later. An overdue follow-up is not cold: Today already shows it
+as overdue.
+
 ### To-dos
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.
