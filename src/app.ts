@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -40,6 +40,7 @@ import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { inviteRoutes } from "./booking/api/invite-routes.ts";
 import { sourceRoutes } from "./booking/api/source-routes.ts";
 import { linkRoutes } from "./booking/api/link-routes.ts";
+import { importRoutes } from "./crm/api/import-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -161,7 +162,9 @@ export type PageContext = {
     clientTouches(id: string): TouchesView | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
-    listClients(status?: string): ReturnType<typeof listClients>;
+    listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
+    /** May import clients from a CSV. */
+    canImport(): boolean;
     pipeline(): ReturnType<typeof pipeline>;
     clientDetail(id: string): ReturnType<typeof clientDetail>;
     opportunityDetail(id: string): ReturnType<typeof opportunityDetail>;
@@ -315,7 +318,7 @@ const MAX_FORM_BYTES = 16 * 1024;
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // Forms with long text in them: a proposal's sections, and an article.
-const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36})$/;
+const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import)$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
@@ -495,7 +498,8 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           inquiryServices: () => SERVICE_OPTIONS,
-          listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
+          listClients: (status, demo) => listClients(crmDeps, actor, { status: status ?? "", kind: demo ?? "" }),
+          canImport: () => mayImport(crmDeps, actor),
           pipeline: () => pipeline(crmDeps, actor, date),
           clientDetail: (id) => withId(id, (clientId) => clientDetail(crmDeps, actor, clientId)),
           opportunityDetail: (id) => withId(id, (opportunityId) => opportunityDetail(crmDeps, actor, opportunityId, date)),
@@ -704,6 +708,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
   });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));

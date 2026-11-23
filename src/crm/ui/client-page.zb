@@ -28,7 +28,7 @@
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
       <div><h1>{view.client.name}</h1></div>
-      <div class="hq-head-actions"><status-badge variant={view.client.status === 'active' ? 'success' : view.client.status === 'prospective' ? 'primary' : 'neutral'}>{view.client.statusLabel}</status-badge></div>
+      <div class="hq-head-actions"><status-badge zb-if={view.client.demo} variant="outline">Demo</status-badge><status-badge variant={view.client.status === 'active' ? 'success' : view.client.status === 'prospective' ? 'primary' : 'neutral'}>{view.client.statusLabel}</status-badge></div>
     </div>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -53,6 +53,11 @@
           </select>
         </div>
         <button class="hq-button secondary" type="submit">Save status</button>
+      </form>
+      <form zb-if={view.can.setStatus} method="post" action="/clients/{view.client.id}/demo" class="hq-form-row" data-spaced>
+        <input type="hidden" name="demo" value={view.client.demo ? '0' : '1'}>
+        <p class="hq-muted hq-small">{view.client.demo ? 'A demo: a made-up business, left out of figures and reports.' : 'A made-up business you show prospects? Mark it a demo to keep it out of figures and reports.'}</p>
+        <button class="hq-button secondary small" type="submit">{view.client.demo ? 'It’s a real client' : 'Mark as a demo'}</button>
       </form>
     </section>
     <section class="hq-panel" id="contacts" aria-labelledby="client-contacts">

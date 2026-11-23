@@ -1,0 +1,81 @@
+<!--
+  Importing clients: paste a CSV with a header line, from a spreadsheet or
+  typed. Each line is a client, with its contact and, when it names one, a
+  project already won, with links to its code and live site. Everything is
+  checked first; one mistake saves nothing and says which line. What was
+  pasted is kept in this tab if it comes back refused.
+-->
+<script>
+  'use route /clients/import'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    if (!context.crm.canImport()) return context.forbidden()
+    return { title: 'Import clients', done: context.notice.done, problem: context.notice.problem }
+  }
+
+  // Keep what was pasted in this tab, so a refusal doesn't lose it.
+  const KEY = 'hq-client-import'
+  function keep(event) {
+    try {
+      sessionStorage.setItem(KEY, event.currentTarget.querySelector('textarea').value)
+    } catch {}
+  }
+  function restore(event) {
+    const box = event.currentTarget
+    try {
+      if (problem && !box.value) box.value = sessionStorage.getItem(KEY) ?? ''
+      if (!problem) sessionStorage.removeItem(KEY)
+    } catch {}
+  }
+</script>
+<style>
+  .import-box { width: 100%; min-height: 16rem; padding: 0.6rem 0.75rem; font: 0.85rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); resize: vertical; }
+  .import-box:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .import-columns { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0; font-size: 0.9rem; }
+  .import-columns dt { font-weight: 600; }
+  .import-columns dd { margin: 0; color: var(--muted-foreground); }
+  .import-example { overflow-x: auto; margin: 0; padding: 0.6rem 0.75rem; font-size: 0.8rem; background: var(--muted); border-radius: calc(var(--radius) - 2px); }
+</style>
+<hq-clients-import done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: 'Import', href: '' }]}></breadcrumb-trail>
+    <h1>Import clients</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <div class="hq-split">
+      <form method="post" action="/clients/import" class="hq-panel" aria-labelledby="import-heading" onsubmit={keep}>
+        <h2 id="import-heading">Paste your clients</h2>
+        <p class="hq-muted">One client a line, with a header line first. Copy it from a spreadsheet saved as CSV, or type it. Every line is checked before anything is saved. A client already in HQ, by name, is skipped, so pasting the same list twice is safe.</p>
+        <label for="import-rows" class="hq-label">Clients, as CSV</label>
+        <textarea id="import-rows" name="rows" class="import-box" spellcheck="false" required onfocus={restore}></textarea>
+        <p><button class="hq-button" type="submit">Import</button> <a href="/clients">Cancel</a></p>
+      </form>
+      <aside class="hq-panel" aria-labelledby="columns-heading">
+        <h2 id="columns-heading">The columns</h2>
+        <p class="hq-muted">Any order. Only Client is needed. A value with a comma in it goes in double quotes.</p>
+        <dl class="import-columns">
+          <dt>Client</dt><dd>The business’s name</dd>
+          <dt>Contact</dt><dd>The person you deal with; with Title, Email and Phone</dd>
+          <dt>Website</dt><dd>The business’s website</dd>
+          <dt>Project</dt><dd>Work already won, like Website. Makes the project</dd>
+          <dt>Service</dt><dd>website (the default), landing page, blog, application, automation, consulting, social media, domain management</dd>
+          <dt>Pricing</dt><dd>free, fixed, hourly, monthly or yearly</dd>
+          <dt>Price</dt><dd>Like 1500; none when free</dd>
+          <dt>Source</dt><dd>Where they came from: word of mouth, referral and so on</dd>
+          <dt>Repository</dt><dd>The code, like a GitHub link: on the project, for you</dd>
+          <dt>Live</dt><dd>The live site: on the project, and in their portal</dd>
+          <dt>Demo</dt><dd>yes for a made-up business you show prospects</dd>
+        </dl>
+        <h3>Example</h3>
+        <pre class="import-example" tabindex="0" aria-label="Example list">Client,Contact,Phone,Project,Pricing,Price,Repository,Demo
+Elk Diner,Dana Reyes,304-555-0142,Website,fixed,1500,https://github.com/you/elk-diner,no
+Hickory Hollow Bakehouse,,,Counter,free,,https://github.com/you/counter,yes</pre>
+      </aside>
+    </div>
+  </div>
+</hq-clients-import>

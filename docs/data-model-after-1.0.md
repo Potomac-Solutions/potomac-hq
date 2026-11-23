@@ -289,6 +289,36 @@ person named.
 - Events: `booking-link.created`, `booking-link.withdrawn`; `booking.made`
   carries `linkId`.
 
+## Importing clients, and demo clients
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+`client_organization.demo`: a made-up business Potomac shows prospects (the
+demo apps). Shown with a Demo badge on Clients, the client, Projects and the
+project. Left out of: the dashboard's active projects and deadlines, Today,
+the morning email, the pipeline report, the project health report, and
+Money's budget against actual. Still everywhere else (the board, time, the
+portal), so a demo can be shown working. Whoever may change a client's
+status may mark it a demo or real (`client.demo-changed`).
+
+Clients → Import takes a pasted CSV with a header line. Columns, in any
+order: Client (needed), Contact, Title, Email, Phone, Website, Project,
+Service, Pricing, Price, Source, Repository, Live, Demo. Up to 200 lines.
+
+- Every line is checked first; one bad line saves nothing and names the
+  line. All lines are saved in one transaction.
+- A client already in HQ by name (any case) is skipped, so pasting the same
+  list again is safe. Two lines with the same client are refused.
+- A line with a Project becomes a won opportunity (moved through each
+  stage, priced) converted to an active project, through the same steps and
+  events as by hand, so the client becomes active. Without one the client
+  stays a prospect. A project needs its pricing; a price unless free.
+- Repository becomes a link for Potomac only; Live becomes a link shared
+  in the client's portal.
+- No key of its own: it takes every key adding the lines by hand would.
+- Events: the usual ones for each record, `imported: true` on the client
+  and opportunity, and one `client.imported` with the counts.
+
 ## Sign-in rules
 
 `sign_in_rule`: one row per rule that is on, with who turned it on and

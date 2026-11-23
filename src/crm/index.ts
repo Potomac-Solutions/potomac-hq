@@ -8,3 +8,4 @@ export type { Contact, ContactError } from "./domain/contact.ts";
 export type { Opportunity, OpportunityError, StageError, ValueError } from "./domain/opportunity.ts";
 export * from "./application/touches.ts";
 export type { TouchStore } from "./application/ports.ts";
+export * from "./application/import.ts";

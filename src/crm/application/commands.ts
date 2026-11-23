@@ -59,6 +59,23 @@ export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id,
   });
 }
 
+/**
+ * Marks a client as a demo (a made-up business shown to prospects), or as
+ * real. Permission: `client.set-status`.
+ */
+export function setClientDemo(deps: CrmDeps, actorId: Id | null, clientId: Id, demo: boolean): Result<Client, Refused | "unchanged"> {
+  if (!allowed(deps, actorId, "client.set-status")) return err("forbidden");
+  return deps.transact(() => {
+    const client = deps.clients.get(clientId);
+    if (!client) return err("not-found");
+    if ((client.demo === true) === demo) return err("unchanged");
+    const changed = { ...client, demo };
+    deps.clients.update(changed, deps.clock());
+    recordActivity(deps, { actorId, action: "client.demo-changed", recordType: "client-organization", recordId: clientId, context: { demo } });
+    return ok(changed);
+  });
+}
+
 export function addContact(deps: CrmDeps, actorId: Id | null, clientId: Id, input: ContactInput): Result<Contact, Refused | ContactError> {
   if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
   return deps.transact(() => {

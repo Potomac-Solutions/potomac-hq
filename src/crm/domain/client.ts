@@ -17,6 +17,8 @@ export type Client = {
   readonly website: string | null;
   readonly phone: string | null;
   readonly address: string | null;
+  /** A made-up business Potomac shows prospects: left out of figures and reports. */
+  readonly demo?: boolean;
 };
 
 export type ClientInput = {
@@ -25,6 +27,7 @@ export type ClientInput = {
   readonly website?: string | null;
   readonly phone?: string | null;
   readonly address?: string | null;
+  readonly demo?: boolean;
 };
 
 export type ClientError =
@@ -63,6 +66,7 @@ export function newClient(id: Id, input: ClientInput): Result<Client, ClientErro
     website: website.value,
     phone: phone.value,
     address: address.value,
+    demo: input.demo === true,
   });
 }
 

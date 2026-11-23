@@ -16,6 +16,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "user.passkey-added": "added a passkey",
   "booking.calendar-linked": "linked a calendar for busy times",
   "booking-link.created": "made a booking link",
+  "client.demo-changed": "changed whether a client is a demo",
+  "client.imported": "imported clients",
   "booking-link.withdrawn": "withdrew a booking link",
   "booking.calendar-unlinked": "removed a linked calendar",
   "user.passkey-removed": "removed a passkey",
