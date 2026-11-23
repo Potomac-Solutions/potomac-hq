@@ -92,6 +92,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "call.requested": "A client asked for a call",
   "booking.made": "A call was booked",
   "touch.logged": "logged a call or message",
+  "project.link-added": "added a link to a project",
+  "project.link-removed": "removed a link from a project",
   "todo.added": "added a to-do",
   "user.morning-email-on": "turned on their morning email",
   "user.morning-email-off": "turned off their morning email",

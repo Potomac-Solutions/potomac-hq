@@ -16,7 +16,7 @@
   }
   const p = view.project
 </script>
-<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [] }} done="" problem="">
+<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [], links: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{p.name}</h1>
@@ -42,6 +42,14 @@
       </ol>
     </section>
 
+    <section zb-if={view.links.length > 0} class="hq-panel" id="links" aria-labelledby="pp-links">
+      <h2 id="pp-links">Where to see the work</h2>
+      <ul class="hq-links">
+        <zb-each items={view.links} as="link" key={link.id}>
+          <li><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}</span></li>
+        </zb-each>
+      </ul>
+    </section>
     <section class="hq-panel" id="deliverables" aria-labelledby="pp-deliverables">
       <h2 id="pp-deliverables">For you to look at</h2>
       <empty-state zb-if={view.deliverables.length === 0} heading="Nothing yet">Designs and documents appear here when they are ready for you.</empty-state>

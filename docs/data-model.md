@@ -770,6 +770,15 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+### Project links
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+`project_link`: a project, what it is (staging site, live site, designs,
+documents, code repository, other), an optional name, a web address (http or
+https only), and whether the client sees it in the portal. Added and removed
+with `project.edit`. Events: `project.link-added`, `project.link-removed`.
+
 ### Going cold
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.

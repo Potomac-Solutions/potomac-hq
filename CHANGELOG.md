@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Project links: on each project, where its work lives: the staging and live
+  sites, the designs, documents, the code. Shared ones show in the client's
+  portal under "Where to see the work"; the rest, like the repository, stay
+  with Potomac. Addresses typed without https:// get it. Migration 0026.
+
 ## [0.11.0] - 2026-11-22
 
 - Search fits a phone: long results wrap and the box shrinks. The phone

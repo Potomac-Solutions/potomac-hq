@@ -14,7 +14,7 @@ export type { ClientSession };
 import { daysUntil, dueText, friendlyDay, howSoon } from "../../shared/index.ts";
 import { CLIENT_UPLOAD, formatSize, MAX_FILE_BYTES, saveFileFromClient, type FileRecord } from "../../files/index.ts";
 import { documentForInvoice, invoiceLabel, type InvoiceDocument } from "../../finance/index.ts";
-import { decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
+import { linkName, decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
 import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
@@ -222,6 +222,8 @@ export type PortalProjectView = {
   readonly fileRules: string;
   /** Hours logged as billable on the project (docs/workflow.md, B6). Empty when there are none. */
   readonly billableHours: string;
+  /** Where to see the work: the links Potomac shared. */
+  readonly links: readonly { readonly id: string; readonly name: string; readonly url: string; readonly host: string }[];
 };
 
 // Said the way a client would: the full list of endings is long and means little to them.
@@ -265,6 +267,7 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     files: sentFiles(deps, project.id),
     fileRules: FILE_RULES,
     billableHours: billableMinutes > 0 ? readableHours(billableMinutes) : "",
+    links: deps.links.listFor(project.id).filter((one) => one.shared).map((one) => ({ id: one.id, name: linkName(one), url: one.url, host: new URL(one.url).host })),
   });
 }
 

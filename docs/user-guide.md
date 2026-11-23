@@ -126,6 +126,9 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **Project links.** On a project, add where the work lives: the staging
+  site, the designs, the code. Tick "Show it to the client" and it appears in
+  their portal, so they always know where to look.
 - **On your phone.** HQ works on a phone. From Today, tap "Log a call" on a
   follow-up; the opportunity page has the contact's number as a tap to call,
   and the call log right below it.

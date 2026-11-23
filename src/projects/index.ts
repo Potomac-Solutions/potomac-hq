@@ -6,6 +6,7 @@ export { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone, t
 export { formatHours, parseHours, type Task } from "./domain/task.ts";
 export { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, STATUS_LABELS } from "./domain/labels.ts";
 export type { Baseline, BaselineLine } from "./domain/baseline.ts";
-export type { BaselineStore, DeliverableRow, DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore } from "./application/ports.ts";
+export { LINK_KIND_LABELS, LINK_KINDS, linkName, type LinkKind, type ProjectLink } from "./domain/link.ts";
+export type { BaselineStore, DeliverableRow, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore } from "./application/ports.ts";
 export * from "./application/commands.ts";
 export * from "./application/queries.ts";

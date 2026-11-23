@@ -1,5 +1,6 @@
 // What the projects module's pages show. Each read checks permission.
 // Reading changes nothing, so it writes no activity event.
+import { LINK_KIND_LABELS, LINK_KINDS, linkName } from "../domain/link.ts";
 import { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, options, PRIORITY_LABELS, STATUS_LABELS, TASK_STATUS_LABELS } from "../domain/labels.ts";
 import { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone } from "../domain/plan.ts";
 import { PROJECT_STATUSES } from "../domain/project.ts";
@@ -429,5 +430,21 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
         const next = nextMilestone(deps.milestones.listFor(project.id));
         return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "" };
       }),
+  });
+}
+
+export type ProjectLinksView = {
+  readonly items: readonly { readonly id: string; readonly name: string; readonly kindLabel: string; readonly url: string; readonly host: string; readonly shared: boolean }[];
+  readonly canEdit: boolean;
+  readonly kinds: readonly { readonly value: string; readonly label: string }[];
+};
+
+/** A project's links, for its page. Permission: `project.view`. */
+export function projectLinks(deps: ProjectsDeps, actorId: Id | null, projectId: Id): Result<ProjectLinksView, "forbidden"> {
+  if (!may(deps, actorId, "project.view")) return err("forbidden");
+  return ok({
+    items: deps.links.listFor(projectId).map((one) => ({ id: one.id, name: linkName(one), kindLabel: LINK_KIND_LABELS[one.kind], url: one.url, host: new URL(one.url).host, shared: one.shared })),
+    canEdit: may(deps, actorId, "project.edit"),
+    kinds: LINK_KINDS.map((value) => ({ value, label: LINK_KIND_LABELS[value] })),
   });
 }

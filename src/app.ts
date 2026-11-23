@@ -48,7 +48,7 @@ import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -163,6 +163,7 @@ export type PageContext = {
   readonly projects: {
     list(status?: string): ReturnType<typeof listProjects>;
     overview(id: string): ReturnType<typeof projectOverview>;
+    links(id: string): ProjectLinksView | null;
     tasks(id: string): ReturnType<typeof projectTasks>;
     /** One project's board, or every active project's when `projectId` is "". */
     board(projectId: string, mine: boolean): ReturnType<typeof board>;
@@ -458,6 +459,11 @@ export async function createApp(config: AppConfig): Promise<App> {
         projects: {
           list: (status) => listProjects(projectsDeps, actor, { status: status ?? "" }),
           overview: (id) => withId(id, (projectId) => projectOverview(projectsDeps, actor, projectId)),
+          links: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? projectLinks(projectsDeps, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
           tasks: (id) => withId(id, (projectId) => projectTasks(projectsDeps, actor, projectId)),
           board: (id, mine) => (id === "" ? board(projectsDeps, actor, { mine }) : withId(id, (projectId) => board(projectsDeps, actor, { projectId, mine }))),
           task: (id) => withId(id, (taskId) => taskDetail(projectsDeps, actor, taskId)),

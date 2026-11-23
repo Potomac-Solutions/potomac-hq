@@ -100,6 +100,10 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-table thead th { border-top: 0; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; }
 .hq-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0; }
 .hq-nowrap { white-space: nowrap; }
+.hq-links { list-style: none; margin: 0; padding: 0; }
+.hq-links li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.35rem 1rem; padding: 0.55rem 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.hq-links li:first-child { border-top: 0; }
+.hq-links form { margin: 0; }
 .hq-facts dt { color: var(--muted-foreground); }
 .hq-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 /* On a phone, a table keeps its columns and scrolls sideways in its panel. */
