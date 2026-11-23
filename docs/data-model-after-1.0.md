@@ -170,6 +170,44 @@ its certificate's expiry and the expiry already warned about.
 - Seen with `client.view`, changed with `client.edit`. Events:
   `site.watched`, `site.unwatched`, `site.down`, `site.up` (by HQ).
 
+## Referral links
+
+Decided 2026-11-23 at Mikey's request ("a referral code for business cards
+that scan a QR code, to a special link that tracks the success rate").
+Needs his approval of the choices below.
+
+`referral_link`: a code (the end of `/r/<code>`), a label saying what it is
+printed on, and where a scan goes. `referral_scan`: one row a scan, holding
+the link and the time. `referral_inquiry`: an opportunity credited to a
+link, once.
+
+- `/r/<code>` answers anyone. It counts the visit, then redirects to the
+  destination with `?ref=<code>` added. The answer is never cached, so
+  every scan reaches HQ.
+- **A scan keeps a time and nothing else**: no address, no device, no
+  cookie. So the count is of scans, not of people: someone who scans twice
+  counts twice.
+- Link previews, crawlers and HEAD requests are sent on and not counted.
+  They are told apart by their User-Agent, which is a guess: a program that
+  claims to be a phone is counted.
+- The inquiry form takes a `ref` field. When it names a link, the new
+  opportunity is credited to it. HQ's own `/contact` fills the field in
+  from its address; a form on another site must do the same
+  (`docs/operations.md`, "The inquiry form"). A `ref` that names no link is
+  ignored. **Only inquiries are credited**: a call booked at `/book`, or a
+  phone call, is not.
+- The success rate is inquiries over scans.
+- A destination is an https address or one of HQ's own pages. A link's
+  code never changes, because it is printed; its label and destination
+  can. A link that has been scanned cannot be removed.
+- **The printed code depends on HQ's address.** It holds
+  `HQ_PUBLIC_URL/r/<code>`. If HQ moves to another address, the old one
+  must keep redirecting, or the printed codes stop working.
+- Made, changed and seen with `referral.manage` (admins and managers).
+  Events: `referral-link.created`, `referral-link.edited`,
+  `referral-link.removed`, `referral-link.inquiry` (by HQ). A scan writes no
+  event: its row is the record.
+
 ## Renewals
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.

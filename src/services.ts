@@ -11,6 +11,8 @@ import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, 
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { RenewalsDeps } from "./renewals/index.ts";
+import type { ReferralsDeps } from "./referrals/index.ts";
+import { sqliteReferralStore } from "./referrals/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
@@ -57,6 +59,8 @@ export type Services = {
   readonly invoiceReminders: RemindersDeps;
   readonly renewals: RenewalsDeps;
   readonly monitor: MonitorDeps;
+  /** Referral links: short addresses printed as QR codes, and what came of them. */
+  readonly referrals: ReferralsDeps;
   readonly touches: TouchDeps;
   readonly todos: TodosDeps;
   /** The day's list, across HQ. */
@@ -176,6 +180,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today, timeZone: BUSINESS_TIME_ZONE };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
+  const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
@@ -207,5 +212,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

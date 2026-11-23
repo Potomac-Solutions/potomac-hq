@@ -15,6 +15,7 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | A rate limit's count of tries | Until its window ends (a minute, or an hour for "Forgot your password?") | It is only for counting |
 | A session's two-factor pass | With its session | It means nothing without the session |
 | A booking link | Kept, with how many calls it booked | It says where a call came from. Withdrawing it stops it working |
+| A referral link's scans | Kept | Each is a time only: no address and nothing about the person or their device. They are the count the link exists for |
 | A linked calendar's address | Until it is removed | It is how HQ reads the busy times. What it reads is not kept |
 | A calendar address, Timeful link or Calendly token typed to fill in times | Not kept | It is used once |
 | A passkey challenge | Until it is answered, or five minutes | It is for one use |

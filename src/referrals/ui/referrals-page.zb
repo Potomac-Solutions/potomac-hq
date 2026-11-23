@@ -1,0 +1,88 @@
+<!--
+  Referral links: each one's short address and QR code, how many times it
+  was scanned, and how many scans led to an inquiry.
+-->
+<script>
+  'use route /referrals'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.referrals.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Referral links', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .referrals { list-style: none; margin: 0; padding: 0; }
+  .referrals > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem 1.25rem; padding: 1rem 0; border-top: 1px solid var(--border); }
+  .referrals > li:first-child { border-top: 0; }
+  .referrals p { margin: 0 0 0.3rem; overflow-wrap: anywhere; }
+  .referral-code { display: grid; gap: 0.4rem; justify-items: center; }
+  .referral-code img { width: 8rem; height: 8rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: #fff; }
+  .referral-address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; user-select: all; }
+  .referral-rate { font-weight: 600; }
+  .referral-inquiries { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+  .referral-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+  .referral-actions form { margin: 0; }
+  @media (max-width: 34rem) { .referrals > li { grid-template-columns: minmax(0, 1fr); } .referral-code { justify-items: start; } }
+</style>
+<hq-referrals view={{ links: [], totalScans: 0, totalInquiries: 0, publicUrlSet: true }} done="" problem="">
+  <div class="hq-page">
+    <h1>Referral links</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">A short address to print as a QR code on business cards, flyers or a sign. HQ counts each scan, sends the person on, and counts the inquiries that follow. Make one link for each thing you print, so you can tell them apart.</p>
+    <alert-banner zb-if={!view.publicUrlSet} variant="warning">HQ doesn’t know its own address, so it can’t make QR codes. Set HQ_PUBLIC_URL on the server.</alert-banner>
+
+    <empty-state zb-if={view.links.length === 0} heading="No referral links yet">Make the first one below, then print its QR code.</empty-state>
+    <section zb-else class="hq-panel" aria-labelledby="referrals-all">
+      <h2 id="referrals-all">{view.totalScans} {view.totalScans === 1 ? 'scan' : 'scans'}, {view.totalInquiries} {view.totalInquiries === 1 ? 'inquiry' : 'inquiries'}</h2>
+      <ul class="referrals">
+        <zb-each items={view.links} as="link" key={link.id}>
+          <li id="link-{link.code}">
+            <div>
+              <p><strong>{link.label}</strong></p>
+              <p class="referral-address">{link.address}</p>
+              <p class="hq-small">Goes to <a href={link.destination} rel="noopener noreferrer">{link.destination}</a></p>
+              <p class="referral-rate">{link.rate}</p>
+              <p zb-if={link.scans > 0} class="hq-small hq-muted">{link.recentScans} in the last 30 days · last scanned {link.lastScan}</p>
+              <ul zb-if={link.inquiries.length > 0} class="referral-inquiries hq-small">
+                <zb-each items={link.inquiries} as="inquiry" key={inquiry.opportunityId}><li><a href="/opportunities/{inquiry.opportunityId}">{inquiry.title}</a>, {inquiry.when}</li></zb-each>
+              </ul>
+              <details class="hq-more">
+                <summary>Change<span class="sr-only">: {link.label}</span></summary>
+                <form method="post" action="/referrals/{link.id}" class="hq-form">
+                  <text-field label="What it’s printed on" name="label" value={link.label} required={true} maxlength={120}></text-field>
+                  <text-field label="Where a scan goes" name="destination" value={link.destination} required={true} description="The printed code stays the same. Only where it leads changes."></text-field>
+                  <div><button class="hq-button" type="submit">Save<span class="sr-only">: {link.label}</span></button></div>
+                </form>
+              </details>
+              <div class="referral-actions">
+                <a zb-if={link.scannable} class="hq-button secondary" href="/referrals/{link.id}/qr.svg?download=1">Download QR code<span class="sr-only">: {link.label}</span></a>
+                <form zb-if={link.removable} method="post" action="/referrals/{link.id}/remove"><button class="hq-button secondary" type="submit">Remove<span class="sr-only">: {link.label}</span></button></form>
+              </div>
+            </div>
+            <div zb-if={link.scannable} class="referral-code">
+              <img src="/referrals/{link.id}/qr.svg" alt="QR code for {link.address}" width="128" height="128">
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" id="add" aria-labelledby="referrals-add">
+      <h2 id="referrals-add">Make a link</h2>
+      <form method="post" action="/referrals" class="hq-form">
+        <text-field label="What it’s printed on" name="label" required={true} maxlength={120} description="Like: Business cards, winter 2026"></text-field>
+        <text-field label="Where a scan goes" name="destination" required={true} description="An address like potomac.solutions, or a page here: /contact or /book"></text-field>
+        <text-field label="Code" name="code" maxlength={32} description="The end of the short address, like card. Leave it empty and HQ makes one up. It can’t be changed once made."></text-field>
+        <div><button class="hq-button" type="submit">Make link</button></div>
+      </form>
+    </section>
+  </div>
+</hq-referrals>
