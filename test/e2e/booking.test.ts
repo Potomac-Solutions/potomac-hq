@@ -23,9 +23,10 @@ test("set the hours, then see them on Calls", async () => {
   const page = await (await browser.newContext()).newPage();
   await setUpAdmin(t, page);
   await page.goto(`${t.origin}/calls/hours`);
-  await page.getByLabel("Monday, first stretch starts").fill("09:00");
-  await page.getByLabel("Monday, first stretch ends").fill("12:00");
-  await page.getByRole("button", { name: "Save" }).click();
+  for (const label of ["Mondays, 9:00 AM to 9:30 AM", "Mondays, 9:30 AM to 10:00 AM"]) await page.getByLabel(label, { exact: true }).click();
+  await page.getByRole("button", { name: "Save my usual week" }).click();
+  await page.getByText("Your usual week is saved.").waitFor();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("Saved. The open times have changed.").waitFor();
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });

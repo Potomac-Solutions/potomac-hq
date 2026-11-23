@@ -8,6 +8,7 @@ const TAGS: Readonly<Record<string, string>> = {
   workflow: "sales, delivery",
   "tool-boundaries": "tools, money",
   "data-model": "data, records",
+  "data-model-after-1.0": "data, records",
   "authorization-matrix": "roles, permissions",
   conventions: "code, releases",
   "user-guide": "how to, start here",

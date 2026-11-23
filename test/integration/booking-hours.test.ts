@@ -26,7 +26,7 @@ before(async () => {
 after(() => t.stop());
 
 test("until hours are set nobody can book, and the hours page says so", async () => {
-  assert.match(textOf(await admin.page("/calls")), /No hours are set, so nobody can book a call yet\. Hours and days off/);
+  assert.match(textOf(await admin.page("/calls")), /No hours are set, so nobody can book a call yet\. Availability this week Usual week, hours and days off/);
   const view = await openTimes(createServices(t.db).booking, "public");
   assert.equal(view.open, false);
   assert.equal((await member.get("/calls/hours")).status, 403, "a member sees calls, not the hours");

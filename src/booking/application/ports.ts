@@ -1,5 +1,5 @@
 import type { Booking } from "../domain/booking.ts";
-import type { Busy, HoursRange } from "../domain/hours.ts";
+import type { Busy, DayRange, HoursRange } from "../domain/hours.ts";
 import type { Id } from "../../shared/index.ts";
 
 export type BookingSettings = {
@@ -21,6 +21,12 @@ export type BookingStore = {
   settings(): BookingSettings | null;
   saveSettings(settings: BookingSettings, at: string): void;
   closedDays(fromDay: string): readonly ClosedDay[];
+  /** Replaces the usual week's stretches, keeping the other settings. */
+  saveWeek(hours: readonly HoursRange[], at: string): void;
+  /** Days from this one painted differently from the usual week, with their stretches. */
+  paintedDates(fromDay: string): Readonly<Record<string, readonly DayRange[]>>;
+  /** Paints a day differently; null puts it back to the usual week. */
+  paintDate(day: string, ranges: readonly DayRange[] | null, at: string): void;
   closeDay(day: ClosedDay): void;
   openDay(day: string): boolean;
   /** Booked calls that overlap from..to, earliest first. */

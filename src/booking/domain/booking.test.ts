@@ -47,7 +47,8 @@ test("rules are checked", () => {
   assert.deepEqual(checkRules({ ...rules, callMinutes: 25 }), { ok: false, error: "call-length" });
   assert.deepEqual(checkRules({ ...rules, gapMinutes: 61 }), { ok: false, error: "gap" });
   assert.deepEqual(checkRules({ ...rules, daysAhead: 0 }), { ok: false, error: "days-ahead" });
-  assert.deepEqual(checkRules({ ...rules, hours: [{ weekday: 1, start: 540, end: 560 }] }), { ok: false, error: "hours-invalid" }, "shorter than a call");
+  assert.equal(checkRules({ ...rules, hours: [{ weekday: 1, start: 540, end: 560 }] }).ok, true, "shorter than a call is allowed; it has no open time");
+  assert.deepEqual(checkRules({ ...rules, hours: [{ weekday: 1, start: 540, end: 540 }] }), { ok: false, error: "hours-invalid" });
   assert.deepEqual(checkRules({ ...rules, hours: [{ weekday: 1, start: 540, end: 720 }, { weekday: 1, start: 700, end: 800 }] }), { ok: false, error: "hours-overlap" });
   assert.deepEqual(parseClock("9:00"), 540);
   assert.equal(parseClock("24:00"), 1440);

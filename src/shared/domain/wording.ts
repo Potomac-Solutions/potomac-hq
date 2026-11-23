@@ -113,6 +113,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "booking.hours-changed": "changed the hours for booked calls",
   "booking.day-closed": "closed a day to booked calls",
   "booking.day-opened": "opened a day to booked calls again",
+  "booking.dates-painted": "painted a week of availability",
   "notice.sent": "Notices were emailed",
   "notice.failed": "Notices could not be emailed",
   "client-user.notices-changed": "A client changed whether they are emailed",
