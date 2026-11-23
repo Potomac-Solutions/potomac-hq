@@ -123,6 +123,8 @@ one only if you were expecting it.
   follow-ups, to-dos and deadlines, and renewals this week. Work down it.
   For a follow-up, "Log a call" opens the opportunity where you log it and
   set the next one.
+- **The morning email.** The same list arrives at 7 each morning, so the day
+  starts with it. Turn it off in Settings if you'd rather not.
 - **To-dos.** Anything you need to remember to do: "renew the business
   license", "send Rita the quote". Give it a day or leave it for whenever,
   give it to someone else, and add it from a client or an opportunity to tie

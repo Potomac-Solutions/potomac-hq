@@ -267,6 +267,8 @@ export type PageContext = {
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
+    /** The Today list by email each morning, and whether HQ can send email at all. */
+    readonly morningEmail: { readonly on: boolean; readonly emailSetUp: boolean; readonly address: string };
     /** An admin without two-factor sign-in, reminded on the dashboard. */
     readonly remindTwoFactor: boolean;
     readonly twoFactor: { readonly required: boolean; readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
@@ -560,7 +562,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
-        settings: { theme: actor ? users.themeOf(actor) : "system", themes, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
+        settings: { theme: actor ? users.themeOf(actor) : "system", themes, morningEmail: { on: actor ? users.morningEmailOf(actor) : false, emailSetUp: Boolean(config.email), address: user?.email ?? "" }, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
   });

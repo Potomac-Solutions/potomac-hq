@@ -15,7 +15,8 @@ import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
 import type { TodosDeps } from "./todos/index.ts";
-import type { TodayDeps } from "./today/index.ts";
+import type { MorningDeps, TodayDeps } from "./today/index.ts";
+import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
 import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
@@ -60,6 +61,8 @@ export type Services = {
   readonly todos: TodosDeps;
   /** The day's list, across HQ. */
   readonly day: TodayDeps;
+  /** The morning email of that list. */
+  readonly morning: MorningDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -176,5 +179,6 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     formatWhen,
   };
   const day: TodayDeps = { crm, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
-  return { booking, invoiceReminders, renewals, monitor, touches, todos, day, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
+  return { booking, invoiceReminders, renewals, monitor, touches, todos, day, morning, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

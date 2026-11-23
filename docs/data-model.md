@@ -780,6 +780,16 @@ project task permissions: `task.view` to see and `task.edit` to add and tick
 off, so a member can give one to anyone. Done ones are kept. Events:
 `todo.added`, `todo.done`, `todo.reopened`.
 
+### Morning email
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+`user_preference.morning_email`: on (1) unless the person turns it off.
+`morning_email_sent`: one row per person per day it went, claimed before
+sending so a restart can't send twice. Sent at 07:03 business time, and on
+start after 7 if it hasn't gone. Events: `user.morning-email-on`,
+`user.morning-email-off`, `user.morning-email-sent`.
+
 ### Site monitoring
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.

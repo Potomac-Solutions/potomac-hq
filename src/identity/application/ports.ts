@@ -19,6 +19,9 @@ export type UserStore = {
   /** The theme a user chose, or "system" if they never chose. */
   themeOf(userId: Id): Theme;
   setTheme(userId: Id, theme: Theme, at: string): void;
+  /** Whether they get the Today list by email each morning. On unless they turned it off. */
+  morningEmailOf(userId: Id): boolean;
+  setMorningEmail(userId: Id, on: boolean, at: string): void;
   findByEmail(email: string): User | null;
   rolesOf(userId: Id): RoleKey[];
   /** Replaces a user's roles. */
