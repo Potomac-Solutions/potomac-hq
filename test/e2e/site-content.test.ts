@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { chromium, type Browser } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
@@ -31,6 +31,8 @@ const repo = fakeSiteRepo({
 
 let t: TestApp;
 let browser: Browser;
+/** Mikey's browser, signed in by the first test and used again by the next. */
+let staffPage: Page;
 let dir = "";
 before(async () => {
   t = await testApp({ passwordCost: TEST_PASSWORD_COST, sitePublisher: repo.publisher });
@@ -47,6 +49,7 @@ after(async () => {
 
 test("a client changes their own site, and Potomac publishes it", async () => {
   const staff = await (await browser.newContext()).newPage();
+  staffPage = staff;
   const staffProblems = watch(staff);
   await setUpAdmin(t, staff);
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
@@ -142,6 +145,54 @@ test("a client changes their own site, and Potomac publishes it", async () => {
   await dana.getByRole("heading", { name: "This is what’s on your website now" }).waitFor();
   assert.deepEqual(staffProblems, []);
   assert.deepEqual(danaProblems, []);
+});
+
+test("the client sets their site to coming soon with an opening time, and gets a preview link", async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const dana = await context.newPage();
+  const problems = watch(dana);
+  await dana.goto(`${t.origin}/portal/sign-in`);
+  await dana.getByLabel("Email").fill("dana@nufinish.example");
+  await dana.getByLabel("Password").fill(PASSWORD);
+  await dana.getByRole("button", { name: "Sign in" }).click();
+  await dana.goto(`${t.origin}/portal/website`);
+  await dana.getByRole("heading", { name: "Is the website open?" }).waitFor();
+  await dana.getByLabel("A “Coming soon” page, for before it opens").check();
+  await dana.getByLabel("Open it by itself on").fill("2099-01-01");
+  await dana.getByLabel("At what time").fill("00:00");
+  await dana.getByLabel("A line of your own on that page").fill("Call us in the meantime.");
+  await dana.getByRole("button", { name: "Save and update the website" }).click();
+  await dana.getByText("Saved. Your website updates in a minute or two.").waitFor();
+  assert.match(await text(dana, "#status"), /Coming soon Visitors see “Coming soon”\. It opens by itself on Thursday, January 1, 2099 at 12:00 AM\./);
+  const launch = (JSON.parse(repo.text("src/content/site.json")) as { launch: Record<string, string> }).launch;
+  assert.equal(launch["mode"], "coming-soon");
+  assert.equal(launch["opensAt"], "2099-01-01T05:00:00Z");
+  assert.match(launch["previewKeyHash"] ?? "", /^[0-9a-f]{64}$/);
+  assert.ok(Number(await dana.evaluate("document.documentElement.scrollWidth")) <= 390, "the status panel fits a phone");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await dana.emulateMedia({ colorScheme });
+    await assertAccessible(dana, `your website, coming soon (${colorScheme})`);
+  }
+
+  // Potomac gives the site its address, and both sides have the preview link.
+  const staff = staffPage;
+  await staff.emulateMedia({ colorScheme: "light" });
+  await staff.goto(`${t.origin}/websites`);
+  await staff.getByRole("link", { name: "Nu Finish website" }).click();
+  await staff.getByLabel("The site’s own address").fill("nufinishcollision.com");
+  await staff.getByRole("button", { name: "Save address" }).click();
+  await staff.getByText("Saved.").waitFor();
+  const key = t.db.prepare("select preview_key from content_site").get()?.["preview_key"] as string;
+  const link = `https://nufinishcollision.com/?preview=${key}`;
+  assert.equal(await staff.getByRole("link", { name: /Preview the website/ }).getAttribute("href"), link);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await staff.emulateMedia({ colorScheme });
+    await assertAccessible(staff, `a site that is coming soon (${colorScheme})`);
+  }
+  await dana.reload();
+  assert.equal(await dana.getByRole("link", { name: /Preview the website/ }).getAttribute("href"), link);
+  await assertAccessible(dana, "your website, with a preview link");
+  assert.deepEqual(problems, []);
 });
 
 test("with scripts off, a small photo is still added as it is", async () => {

@@ -42,6 +42,9 @@ permissions, and an activity log.
 | Who the commit is by | The token's owner. The message lists the changes and ends "Published from Potomac HQ." |
 | Which branch | The one given when the site is set up. For a site that deploys from `main`, that is `main` |
 
+Added the same day: whether the site is open at all is a separate matter
+with a different answer, in `0004-site-launch.md`.
+
 ## The content file
 
 ```json

@@ -42,6 +42,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "content-path-invalid": "The content file is a path to a .json file in the repository, like src/content/site.json.",
   "photo-dir-invalid": "The photo folder is a path in the repository, like public/gallery.",
   "already-set-up": "This client’s site is already set up.",
+  "repo-in-use": "That repository’s content file is already set up for another client.",
   "changes-waiting": "Changes are waiting. Publish or discard them before reading the site again.",
   "github-not-set-up": "HQ has no GitHub token, so it can’t read or publish sites. Set HQ_GITHUB_TOKEN on the server.",
   "repo-refused": "GitHub refused. Check that HQ’s token may read and write this repository, and that the branch isn’t protected against it.",
@@ -52,11 +53,18 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "photo-unreadable": "A photo named in the content file isn’t in the repository where HQ looked. Check the photo folder.",
   "photo-lost": "A new photo’s file is missing in HQ. Remove that photo and add it again.",
   busy: "This site is being published right now. Wait a moment.",
+  "mode-invalid": "Choose what visitors see.",
+  "opens-invalid": "Enter the day and the time as they are on a calendar and a clock.",
+  "opens-time-missing": "Enter the time of day too. Midnight is 12:00 AM.",
+  "opens-past": "That time has already passed. Choose a later one, or choose “The website” to open it now.",
+  "status-message-too-long": "Keep your line under 200 characters.",
+  "address-invalid": "Enter the site’s address, like nufinishcollision.com. It must be an https address.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
 const photoInput = (f: FormFields, files: FormFiles) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "", bytes: files["photo"]?.bytes ?? null });
 const words = (f: FormFields) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "" });
+const status = (f: FormFields) => ({ mode: f["mode"] ?? "", opensOn: f["opensOn"] ?? "", opensTime: f["opensTime"] ?? "", message: f["message"] ?? "" });
 const indexOf = (f: FormFields) => (/^\d{1,3}$/.test(f["index"] ?? "") ? Number(f["index"]) : -1);
 
 export type WebsiteRoutesDeps = {
@@ -77,7 +85,7 @@ export function websiteStaffRoutes(deps: WebsiteRoutesDeps): Hono {
   /** After a change to a photo, whose address names the photo and not its site. */
   const backToSite = (_: Id | null, f: FormFields) => (parseId(f["siteId"] ?? "").ok ? `/websites/${f["siteId"]}#photos` : "/websites");
 
-  post("/clients/:id/website", (actor, f, id) => websites.setUpSite(deps.websites, actor, id as Id, { name: f["name"] ?? "", repo: f["repo"] ?? "", branch: f["branch"] ?? "", contentPath: f["contentPath"] ?? "", photoDir: f["photoDir"] ?? "" }), {
+  post("/clients/:id/website", (actor, f, id) => websites.setUpSite(deps.websites, actor, id as Id, { name: f["name"] ?? "", repo: f["repo"] ?? "", branch: f["branch"] ?? "", contentPath: f["contentPath"] ?? "", photoDir: f["photoDir"] ?? "", siteUrl: f["siteUrl"] ?? "" }), {
     done: (site) => `/websites/${site.id}`,
     back: (id) => `/clients/${id}#website`,
     message: "Set up. HQ read the site’s photos, notice and reviews. The client can change them in their portal now.",
@@ -92,6 +100,9 @@ export function websiteStaffRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/websites/:id/reviews/remove", (actor, f, id) => websites.removeReview(deps.websites, staff(actor), id as Id, indexOf(f)), { done: (site) => page(site, "reviews"), back: back("reviews"), message: "Review removed." });
   post("/websites/:id/discard", (actor, _f, id) => websites.discardChanges(deps.websites, staff(actor), id as Id), { done: (site) => `/websites/${site.id}`, back: back("waiting"), message: "Changes discarded. The site is as it was." });
   post("/websites/:id/send-back", (actor, f, id) => websites.sendChangesBack(deps.websites, actor, id as Id, f["note"] ?? ""), { done: (site) => `/websites/${site.id}`, back: back("waiting"), message: "Sent back. The client sees your note in their portal." });
+  post("/websites/:id/status", (actor, f, id) => websites.setSiteStatus(deps.websites, staff(actor), id as Id, status(f)), { done: (site) => page(site, "status"), back: back("status"), message: "Saved. The website updates in a minute or two." });
+  post("/websites/:id/preview-link", (actor, _f, id) => websites.newPreviewLink(deps.websites, staff(actor), id as Id), { done: (site) => page(site, "status"), back: back("status"), message: "New preview link made. The old one no longer works." });
+  post("/websites/:id/address", (actor, f, id) => websites.setSiteAddress(deps.websites, actor, id as Id, f["siteUrl"] ?? ""), { done: (site) => page(site, "site"), back: back("site"), message: "Saved." });
   post("/websites/:id/publish", (actor, _f, id) => websites.publishChanges(deps.websites, actor, id as Id), { done: (site) => `/websites/${site.id}`, back: back("waiting"), message: "Published. The site rebuilds with the changes in a minute or two." });
   return app;
 }
@@ -111,6 +122,8 @@ export function websitePortalRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/portal/website/notice", (session, f) => websites.setNotice(deps.websites, client(session), null, f["notice"] ?? ""), { done: at("notice"), back: at("notice"), message: `Saved.${NOT_ON_SITE}` });
   post("/portal/website/reviews", (session, f) => websites.addReview(deps.websites, client(session), null, { quote: f["quote"] ?? "", by: f["by"] ?? "" }), { done: at("reviews"), back: at("reviews"), message: `Review added.${NOT_ON_SITE}` });
   post("/portal/website/reviews/remove", (session, f) => websites.removeReview(deps.websites, client(session), null, indexOf(f)), { done: at("reviews"), back: at("reviews"), message: `Review removed.${NOT_ON_SITE}` });
+  post("/portal/website/status", (session, f) => websites.setSiteStatus(deps.websites, client(session), null, status(f)), { done: at("status"), back: at("status"), message: "Saved. Your website updates in a minute or two." });
+  post("/portal/website/preview-link", (session) => websites.newPreviewLink(deps.websites, client(session), null), { done: at("status"), back: at("status"), message: "New preview link made. The old one no longer works." });
   post("/portal/website/discard", (session) => websites.discardChanges(deps.websites, client(session), null), { done: () => "/portal/website", back: () => "/portal/website", message: "Your changes are undone. Your website is as it was." });
   post("/portal/website/submit", (session) => websites.submitChanges(deps.websites, session), { done: () => "/portal/website", back: () => "/portal/website", message: "Sent to Potomac Solutions. We’ll check your changes and put them on your website." });
   return app;

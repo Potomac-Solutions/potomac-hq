@@ -154,7 +154,8 @@ export function readContent(json: string, newId: () => Id): Result<SiteContent, 
     return err("content-invalid");
   }
   if (!isRecord(parsed) || !Array.isArray(parsed["gallery"]) || parsed["gallery"].length === 0 || parsed["gallery"].length > MAX_PHOTOS) return err("content-invalid");
-  const { notice, gallery, testimonials, ...extra } = parsed;
+  // `launch` is the site's status, read and written on its own (launch.ts).
+  const { notice, gallery, testimonials, launch: _launch, ...extra } = parsed;
   const seen = new Set<string>();
   const photos: Photo[] = [];
   for (const item of gallery as unknown[]) {
@@ -176,10 +177,15 @@ export function readContent(json: string, newId: () => Id): Result<SiteContent, 
   return ok({ notice: line(text(notice)).slice(0, LIMITS.notice), gallery: photos, reviews, extra });
 }
 
-/** The content as the site's file: what `readContent` reads back unchanged. */
-export function writeContent(content: SiteContent): string {
+/**
+ * The content as the site's file: what `readContent` reads back unchanged.
+ * `launch` is the site's status block, when the file is being written for
+ * the site and not only compared.
+ */
+export function writeContent(content: SiteContent, launch?: Record<string, unknown>): string {
   const file = {
     ...content.extra,
+    ...(launch ? { launch } : {}),
     notice: content.notice,
     gallery: content.gallery.map((photo) => ({ id: photo.id, src: photo.src, alt: photo.alt, title: photo.title, ...(photo.caption ? { caption: photo.caption } : {}), ...photo.extra })),
     testimonials: content.reviews.map((review) => ({ quote: review.quote, by: review.by })),
