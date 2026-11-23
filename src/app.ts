@@ -24,7 +24,7 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
@@ -39,6 +39,7 @@ import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { inviteRoutes } from "./booking/api/invite-routes.ts";
 import { sourceRoutes } from "./booking/api/source-routes.ts";
+import { linkRoutes } from "./booking/api/link-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -257,6 +258,10 @@ export type PageContext = {
     setup(): ReturnType<typeof bookingSetup>;
     weekly(): ReturnType<typeof weeklyGrid>;
     calendarLinks(): ReturnType<typeof calendarLinks>;
+    links(): ReturnType<typeof bookingLinks>;
+    linkPage(token: string): ReturnType<typeof bookingLinkPage>;
+    /** HQ's public address, for links to copy. */
+    publicUrl: string;
     invites(): ReturnType<typeof openInvites>;
     invite(id: string): ReturnType<typeof staffInvite> | Promise<null>;
     clientInvites(organizationId: string): ReturnType<typeof clientInvites>;
@@ -270,6 +275,8 @@ export type PageContext = {
     portalTimes(): Promise<OpenTimesView>;
     portalCalls(): readonly CallLine[];
     publicTimes(): Promise<OpenTimesView>;
+    /** Open times for someone who already holds a link to their call. */
+    manageTimes(): ReturnType<typeof openTimes>;
     publicOpen(): boolean;
     /** Whether email is set up, so the person who books is emailed. */
     readonly emails: boolean;
@@ -586,6 +593,9 @@ export async function createApp(config: AppConfig): Promise<App> {
           setup: () => bookingSetup(services.booking, actor),
           weekly: () => weeklyGrid(services.booking, actor),
           calendarLinks: () => calendarLinks(services.sources, actor),
+          links: () => bookingLinks(services.links, actor),
+          linkPage: (token) => bookingLinkPage(services.links, token),
+          publicUrl: (config.publicUrl ?? "").replace(/\/$/, ""),
           invites: () => openInvites(services.invites, actor),
           invite: (id) => {
             const parsed = parseId(id);
@@ -607,6 +617,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
           portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
           publicTimes: () => openTimes(services.booking, "public"),
+          manageTimes: () => openTimes(services.booking, "link"),
           publicOpen: () => bookingOpen(services.booking, "public"),
           emails: Boolean(config.email),
           byLink: (token) => {
@@ -841,6 +852,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     sign: (location) => notices.sign(location),
   });
   forms.route("/", publicBooking);
+  forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));

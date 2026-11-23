@@ -5,7 +5,7 @@ import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
 const COLUMNS = "id, kind, status, starts_at, ends_at, name, email, phone, topic, organization_id, client_user_id, host_id, created_at, cancelled_at, cancelled_by, cancel_reason";
-const READ = `${COLUMNS}, crm_client_id, crm_opportunity_id`;
+const READ = `${COLUMNS}, crm_client_id, crm_opportunity_id, link_id, business`;
 
 function toBooking(row: Record<string, unknown>): Booking {
   return {
@@ -27,6 +27,8 @@ function toBooking(row: Record<string, unknown>): Booking {
     cancelReason: String(row["cancel_reason"]),
     crmClientId: (row["crm_client_id"] as Id | null | undefined) ?? null,
     crmOpportunityId: (row["crm_opportunity_id"] as Id | null | undefined) ?? null,
+    linkId: (row["link_id"] as Id | null | undefined) ?? null,
+    business: String(row["business"] ?? ""),
   };
 }
 
@@ -51,7 +53,7 @@ export function sqliteBookingStore(db: Database): BookingStore {
   const forOrganization = db.prepare(`select ${READ} from booking where organization_id = ? and ends_at >= ? order by starts_at`);
   const get = db.prepare(`select ${READ} from booking where id = ?`);
   const byHash = db.prepare(`select ${READ} from booking where manage_hash = ?`);
-  const add = db.prepare(`insert into booking (${COLUMNS}, manage_hash) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const add = db.prepare(`insert into booking (${COLUMNS}, manage_hash, link_id, business) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const due = db.prepare(`select ${READ} from booking where status = 'booked' and reminded_at is null and starts_at >= ? and starts_at < ? order by starts_at`);
   const remind = db.prepare("update booking set reminded_at = ? where id = ?");
   const crm = db.prepare("update booking set crm_client_id = ?, crm_opportunity_id = ? where id = ?");
@@ -113,7 +115,7 @@ export function sqliteBookingStore(db: Database): BookingStore {
       return row ? toBooking(row) : null;
     },
     add(b, manageHash) {
-      add.run(b.id, b.kind, b.status, b.start, b.end, b.name, b.email, b.phone, b.topic, b.organizationId, b.clientUserId, b.hostId, b.createdAt, b.cancelledAt, b.cancelledBy, b.cancelReason, manageHash);
+      add.run(b.id, b.kind, b.status, b.start, b.end, b.name, b.email, b.phone, b.topic, b.organizationId, b.clientUserId, b.hostId, b.createdAt, b.cancelledAt, b.cancelledBy, b.cancelReason, manageHash, b.linkId ?? null, b.business ?? "");
     },
     dueReminders: (from, to) => due.all(from, to).map(toBooking).filter((one) => Temporal.Instant.from(one.start).since(one.createdAt).total("hours") >= 20),
     setCrm(id, clientId, opportunityId) {

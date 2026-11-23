@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Booking links. Booking a free call needs a portal account, unless you
+  give someone a link. On Calls, make a link for a person (one call or any
+  number; a week, a month, three months, or no end) and copy it. With it
+  they give their name, business, email, phone number and what the call is
+  about, choose a time, and are booked with no account. Afterwards they are
+  offered a free account, and need not take one. The call shows on Calls as
+  "Booking link" with the business and the reason, ready to add to the CRM.
+  Migration 0032.
+
 - Fill in availability from somewhere else. On Calls → Hours, link up to
   five calendars by their private address (Google, Outlook, Apple): their
   busy times are never offered for calls and show on the week's grid. On

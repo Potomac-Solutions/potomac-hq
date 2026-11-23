@@ -1,0 +1,72 @@
+<!--
+  Booking a call with a link Potomac gave you: no account needed. It asks
+  who you are and what the call is about, then you choose a time, which
+  books it. Works with no scripts: each time is a button in one form.
+-->
+<script>
+  'use route /book/with/:token'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const view = await context.booking.linkPage(params.token)
+    return { title: 'Book a call with Potomac Solutions', view, token: params.token, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .book-days { display: grid; gap: 1rem; }
+  .book-day h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .book-times { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .book-times button { min-width: 6.5rem; min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-weight: 600; color: var(--primary); background: var(--background); border: 1px solid var(--primary); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
+  .book-fields { display: grid; gap: 1rem; margin-bottom: 1.5rem; }
+  .book-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: 1rem; }
+  .book-step { margin: 0 0 0.75rem; font-size: 1.05rem; }
+</style>
+<hq-link-book view={{ state: 'unknown', times: { open: false, days: [] } }} token="" problem="">
+  <h1>Book a call with Potomac Solutions</h1>
+  <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+  <div zb-if={view.state === 'unknown'} class="hq-panel">
+    <p>This booking link isn’t one of ours. Check it was copied whole, or call or write, below.</p>
+  </div>
+  <div zb-else-if={view.state !== 'open'} class="hq-panel">
+    <p>This booking link has stopped working. Ask Potomac Solutions for a new one, or call or write, below.</p>
+  </div>
+  <div zb-else-if={!view.times.open} class="hq-panel">
+    <p>Booking online isn’t set up yet. Call or write, below, and we’ll find a time.</p>
+  </div>
+  <div zb-else-if={view.times.calendarFailed} class="hq-panel">
+    <p>The calendar couldn’t be checked just now. Try again in a minute.</p>
+  </div>
+  <form zb-else method="post" action="/book/with" class="hq-panel">
+    <input type="hidden" name="link" value={token}>
+    <p>A free {view.times.callMinutes}-minute call. No account needed: tell us who you are, then choose a time.</p>
+    <h2 class="book-step">About you</h2>
+    <div class="book-fields">
+      <div class="book-pair">
+        <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
+        <text-field label="Your business" name="business" autocomplete="organization" description="Leave it empty if there isn’t one yet"></text-field>
+      </div>
+      <div class="book-pair">
+        <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description="We’ll send the time here"></text-field>
+        <text-field label="Phone number" name="phone" type="tel" autocomplete="tel" required={true} description="The number we should call"></text-field>
+      </div>
+      <text-field label="What would you like to talk about?" name="topic" rows={3} required={true} description="A sentence or two: what you need, and anything we should look at first."></text-field>
+    </div>
+    <h2 class="book-step">Choose a time</h2>
+    <p class="hq-muted">Times are Eastern. Choosing one books it.</p>
+    <empty-state zb-if={view.times.days.length === 0} heading="No open times">Every time is taken for now. Call or write, below, and we’ll find one.</empty-state>
+    <div zb-else class="book-days">
+      <zb-each items={view.times.days} as="day" key={day.day}>
+        <section class="book-day" aria-labelledby="day-{day.day}">
+          <h3 id="day-{day.day}">{day.label}</h3>
+          <ul class="book-times">
+            <zb-each items={day.slots} as="slot" key={slot.start}>
+              <li><button type="submit" name="start" value={slot.start} aria-label="{day.label}, {slot.label}">{slot.label}</button></li>
+            </zb-each>
+          </ul>
+        </section>
+      </zb-each>
+    </div>
+  </form>
+</hq-link-book>

@@ -13,20 +13,24 @@
     if (stop) return stop
     const view = context.booking.calls()
     if (!view.ok) return context.forbidden()
-    return { title: 'Calls', view: view.value, invites: context.booking.invites(), done: context.notice.done, problem: context.notice.problem }
+    const links = context.booking.links()
+    return { title: 'Calls', view: view.value, invites: context.booking.invites(), links: links.ok ? links.value : null, base: context.booking.publicUrl, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   .calls { list-style: none; margin: 0; padding: 0; }
   .calls > li { display: grid; gap: 0.3rem; padding: 0.85rem 0; border-top: 1px solid var(--border); }
   .calls > li:first-child { border-top: 0; }
+  .link-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .link-row form { margin: 0; }
+  .link-address { flex: 1 1 16rem; min-width: 0; height: 2rem; padding: 0 0.5rem; font: inherit; font-size: 0.85rem; color: var(--foreground); background: var(--muted); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .calls p { margin: 0; overflow-wrap: anywhere; }
   .call-head { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; }
   .call-cancelled { color: var(--muted-foreground); }
   .call-cancelled strong { text-decoration: line-through; }
   details summary { cursor: pointer; }
 </style>
-<hq-calls view={{ upcoming: [], past: [], canManage: false, canAddToCrm: false, services: [], setUp: false }} invites={[]} done="" problem="">
+<hq-calls view={{ upcoming: [], past: [], canManage: false, canAddToCrm: false, services: [], setUp: false }} invites={[]} links={null} base="" done="" problem="">
   <div class="hq-page">
     <h1>Calls</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -49,6 +53,41 @@
       </ul>
       <p class="hq-muted hq-small">Ask someone to pick times from their client’s page, under Client portal.</p>
     </section>
+    <section zb-if={links} class="hq-panel" id="booking-links" aria-labelledby="calls-links">
+      <h2 id="calls-links">Booking links</h2>
+      <p class="hq-muted">Booking a call needs a portal account, unless you give someone a link. With a link they say who they are and what it’s about, choose a time, and are offered an account afterwards.</p>
+      <ul zb-if={links.length > 0} class="calls">
+        <zb-each items={links} as="link" key={link.id}>
+          <li>
+            <p class="call-head"><strong>{link.label}</strong> <status-badge variant={link.state === 'open' ? 'success' : 'neutral'}>{link.stateLabel}</status-badge> <span class="hq-muted hq-small">{link.terms}</span></p>
+            <div zb-if={link.state === 'open'} class="link-row">
+              <input class="link-address" readonly value={base + link.path} aria-label={`Booking link for ${link.label}`} onfocus={(event) => event.target.select()}>
+              <form method="post" action={`/calls/links/${link.id}/withdraw`}><button class="hq-button secondary small" type="submit" aria-label={`Withdraw the link for ${link.label}`}>Withdraw</button></form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+      <form method="post" action="/calls/links" class="hq-form-row">
+        <div class="hq-field">
+          <label for="link-label">Who it’s for</label>
+          <input id="link-label" name="label" maxlength="80" placeholder="Dana at Elk Diner" required>
+        </div>
+        <div class="hq-field">
+          <label for="link-lasts">Works for</label>
+          <select id="link-lasts" name="lasts">
+            <option value="7">A week</option>
+            <option value="30" selected>A month</option>
+            <option value="90">Three months</option>
+            <option value="">No end date</option>
+          </select>
+        </div>
+        <div class="hq-check">
+          <input id="link-one-time" name="oneTime" type="checkbox" value="1" checked>
+          <label for="link-one-time">One call only</label>
+        </div>
+        <button class="hq-button secondary" type="submit">Make a link</button>
+      </form>
+    </section>
     <section class="hq-panel" aria-labelledby="calls-upcoming">
       <h2 id="calls-upcoming">Coming up</h2>
       <empty-state zb-if={view.upcoming.length === 0} heading="No calls booked">When someone books a time, it shows here.</empty-state>
@@ -57,6 +96,7 @@
           <li class={call.cancelled ? 'call-cancelled' : ''}>
             <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <status-badge>{call.kindLabel}</status-badge></p>
             <p class="hq-small"><a href="mailto:{call.email}">{call.email}</a><span zb-if={call.phone}> · <a href="tel:{call.phone}">{call.phone}</a></span> · <a href="/calls/{call.id}.ics">Add to calendar</a><span zb-if={call.organizationId}> · <a href="/clients/{call.organizationId}">Client</a></span></p>
+            <p zb-if={call.business} class="hq-small">{call.business}</p>
             <p zb-if={call.topic}>{call.topic}</p>
             <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
             <p zb-if={call.crmHref} class="hq-small"><a href={call.crmHref}>In the CRM</a></p>
@@ -65,7 +105,7 @@
               <form method="post" action="/calls/{call.id}/crm" class="hq-form-row">
                 <div class="hq-field">
                   <label for="business-{call.id}">Business name</label>
-                  <input id="business-{call.id}" name="business" value={call.who} maxlength="120" required>
+                  <input id="business-{call.id}" name="business" value={call.business || call.who} maxlength="120" required>
                 </div>
                 <div class="hq-field">
                   <label for="service-{call.id}">Service, if you know</label>
@@ -106,7 +146,7 @@
               <form method="post" action="/calls/{call.id}/crm" class="hq-form-row">
                 <div class="hq-field">
                   <label for="business-{call.id}">Business name</label>
-                  <input id="business-{call.id}" name="business" value={call.who} maxlength="120" required>
+                  <input id="business-{call.id}" name="business" value={call.business || call.who} maxlength="120" required>
                 </div>
                 <div class="hq-field">
                   <label for="service-{call.id}">Service, if you know</label>

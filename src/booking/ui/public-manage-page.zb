@@ -11,7 +11,7 @@
     const token = url.searchParams.get('token') ?? ''
     const call = context.booking.byLink(token)
     const moving = Boolean(call && call.changeable && url.searchParams.get('move') === '1')
-    return { title: call ? 'Your call with Potomac Solutions' : 'Link not found', call, token, moving, emailed: context.booking.emails, times: moving ? await context.booking.publicTimes() : null, done: context.notice.done, problem: context.notice.problem }
+    return { title: call ? 'Your call with Potomac Solutions' : 'Link not found', call, token, moving, emailed: context.booking.emails, times: moving ? await context.booking.manageTimes() : null, account: context.portal.signUpOpen, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -22,7 +22,7 @@
   .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
   .manage-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 0; }
 </style>
-<hq-public-manage call={null} token="" moving={false} emailed={false} times={null} done="" problem="">
+<hq-public-manage call={null} token="" moving={false} emailed={false} times={null} account={false} done="" problem="">
   <div zb-if={!call}>
     <h1>Link not found</h1>
     <p>This link doesn’t match a booking. Check it was copied whole, or <a href="/book">book a call</a>.</p>
@@ -43,6 +43,12 @@
         <a class="hq-button" href="/book/manage/call.ics?token={token}">Add to your calendar</a>
         <a class="hq-button secondary" href="/book/manage?token={token}&move=1">Move it</a>
       </div>
+    </section>
+
+    <section zb-if={account && call.viaLink && !call.cancelled && !moving} class="hq-panel" aria-labelledby="account-heading">
+      <h2 id="account-heading">Want an account? It’s free, and up to you</h2>
+      <p>With a Potomac Solutions account you can move or cancel calls, book the next one without a link, and later see your project, files and invoices in one place. Your call is booked either way.</p>
+      <p><a class="hq-button secondary" href="/portal/sign-up">Make a free account</a></p>
     </section>
 
     <form zb-if={moving} method="post" action="/book/manage/move" class="hq-panel">
