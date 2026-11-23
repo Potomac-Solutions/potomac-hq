@@ -15,7 +15,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   with Potomac. Addresses typed without https:// get it. Migration 0026.
 - Operations: why no Railway deploy stayed up. HQ stopped at start because
   test's database path was relative and `RAILWAY_RUN_UID` was not set, and
-  production had no volume or variables. The guide now lists the Railway
+  production had no volume or variables. Then the domain answered 502
+  because HQ listened on Railway's port 8080, not 3000. The guide now lists the Railway
   settings that work and how to check that a deploy is healthy.
 
 ## [0.11.0] - 2026-11-22
