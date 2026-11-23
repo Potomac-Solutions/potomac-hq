@@ -226,6 +226,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | Accept or decline a proposal by typing their name | It is waiting for an answer |
 | Download an invoice's PDF | It is theirs and was sent. Drafts and voided invoices are not shown |
 | Ask for a call, and see the answer | Always |
+| Mark the times they could do for a scheduling invite | It is for their organization and still open. Only Potomac’s free half hours can be picked |
 | Sign up, confirm their email, and book a call | Anyone, while sign-up to book is on and email is set up. They become a client user of a new prospective client |
 | Turn their own "something is waiting" emails off or on | Always. Only their own |
 

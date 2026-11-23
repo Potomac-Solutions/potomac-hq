@@ -17,10 +17,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), renewals: context.renewals.forClient(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} sites={null} touches={null} todos={null} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} sites={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/clients">Clients</a></p>
     <h1>{view.client.name}</h1>
@@ -207,6 +207,35 @@
           </zb-each>
         </tbody>
       </table>
+      <div zb-if={invites.length > 0} data-spaced>
+        <h3>Picking times for a call</h3>
+        <ul class="hq-links">
+          <zb-each items={invites} as="invite" key={invite.id}>
+            <li><span><a href="/calls/invites/{invite.id}">{invite.title}</a> · {invite.who} · {invite.days}</span> <span class={invite.status === 'open' ? 'hq-tag due' : 'hq-tag'}>{invite.statusLabel}</span></li>
+          </zb-each>
+        </ul>
+      </div>
+      <details zb-if={portal.canManage && portal.users.some((person) => person.status !== 'disabled')} class="hq-more">
+        <summary>Ask someone to pick times for a call</summary>
+        <form method="post" action="/invites" class="hq-form">
+          <input type="hidden" name="organizationId" value={view.client.id}>
+          <p class="hq-muted">They mark every time they could do on a grid of your free time, in their portal. You confirm one and it’s booked.</p>
+          <div class="hq-field">
+            <label for="invite-who">Who</label>
+            <select id="invite-who" name="clientUserId">
+              <zb-each items={portal.users.filter((person) => person.status !== 'disabled')} as="person" key={person.id}><option value={person.id}>{person.name}{person.status === 'invited' ? ' (hasn’t signed in yet)' : ''}</option></zb-each>
+            </select>
+          </div>
+          <div class="hq-field"><label for="invite-title">What the call is for</label><input id="invite-title" name="title" maxlength="80" required placeholder="Kickoff call"></div>
+          <div class="hq-form-row">
+            <div class="hq-field"><label for="invite-minutes">How long</label><select id="invite-minutes" name="minutes"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="15">15 minutes</option></select></div>
+            <div class="hq-field"><label for="invite-first">From</label><input id="invite-first" name="firstDay" type="date" min={minDay} required></div>
+            <div class="hq-field"><label for="invite-last">To</label><input id="invite-last" name="lastDay" type="date" min={minDay} required></div>
+          </div>
+          <div class="hq-field"><label for="invite-note">A note for them (optional)</label><textarea id="invite-note" name="note" rows="2" maxlength="500"></textarea></div>
+          <div><button class="hq-button" type="submit">Send the invite</button></div>
+        </form>
+      </details>
       <details zb-if={portal.canManage} class="hq-more">
         <summary>Invite someone to the portal</summary>
         <form method="post" action="/clients/{view.client.id}/portal-users" class="hq-form">

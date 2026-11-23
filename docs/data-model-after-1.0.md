@@ -32,6 +32,25 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+## Scheduling invites
+
+Decided 2026-11-23 at Mikey's request. Needs his approval.
+
+`schedule_invite`: a client, the client user it is for, a title, the call's
+length, the first and last days (up to 14, from today on), a note, status
+(open, confirmed, cancelled), when they answered, and the booking once
+confirmed. `schedule_invite_cell`: each half hour they said they could do,
+as a UTC instant. Only Potomac's free half hours are kept: painted free
+(the day's own painting or its weekday's), not a day off, not busy in the
+calendar, no call booked, not past.
+
+Inviting, confirming and withdrawing need `booking.manage`; seeing invites
+needs `call.respond`. The client answers in the portal, always through their
+own organization; answering again replaces their answer. Confirming checks
+the start is still free for both for the whole call, then books a client
+call on the host's calendar. Events: `schedule-invite.sent`, `.answered`
+(which notifies Potomac), `.confirmed`, `.cancelled`, and `booking.made`.
+
 ## Sign up to book
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.

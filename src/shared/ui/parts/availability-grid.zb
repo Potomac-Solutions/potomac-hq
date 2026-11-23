@@ -6,7 +6,8 @@
 
   `grid` is a GridView (src/booking/application/booking.ts): day columns,
   and rows of cells, each with its field name, label, classes and state.
-  Fields are named c-<column key>-<minutes>, value 1. `legend` adds the key.
+  Fields are named c-<column key>-<minutes>, value 1. `legend` adds a key:
+  "hours", "invite" (Potomac’s view of an invite) or "guest" (the invitee’s).
 -->
 <script>
   // Press on a cell and drag: every cell in the rectangle from there to the
@@ -87,6 +88,13 @@
   .cell:checked { background: var(--primary); }
   .cell:checked.busy, .cell:checked.booked { background: repeating-linear-gradient(135deg, var(--primary) 0 4px, color-mix(in srgb, var(--primary) 70%, var(--background)) 4px 8px); }
   .cell:disabled { cursor: not-allowed; opacity: 0.45; }
+  /* On an invite: free for both, only them, only you, and not open to pick. */
+  .cell.match, .cell.guest, .cell.host { opacity: 1; cursor: default; }
+  .cell.match { background: var(--primary); }
+  .cell.guest { background: repeating-linear-gradient(135deg, var(--primary) 0 3px, var(--background) 3px 7px); }
+  .cell.host { background: color-mix(in srgb, var(--primary) 18%, var(--background)); }
+  .cell.unavailable { background: var(--muted); opacity: 1; }
+  .cell.unavailable:checked { background: var(--muted); }
   .cell:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; position: relative; z-index: 2; }
   .key { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0; padding: 0; list-style: none; font-size: 0.85rem; color: var(--muted-foreground); }
   .key li { display: flex; align-items: center; gap: 0.35rem; }
@@ -94,12 +102,24 @@
   .swatch.on { background: var(--primary); }
   .swatch.busy { background: repeating-linear-gradient(135deg, var(--muted) 0 3px, var(--background) 3px 6px); }
   .swatch.booked { background: repeating-linear-gradient(135deg, var(--accent) 0 3px, var(--muted) 3px 6px); }
+  .swatch.guest { background: repeating-linear-gradient(135deg, var(--primary) 0 3px, var(--background) 3px 6px); }
+  .swatch.host { background: color-mix(in srgb, var(--primary) 18%, var(--background)); }
+  .swatch.unavailable { background: var(--muted); }
 </style>
-<availability-grid grid={{ rows: [], columns: [] }} legend={false} caption="">
-  <ul zb-if={legend} class="key" aria-label="Key">
+<availability-grid grid={{ rows: [], columns: [] }} legend="" caption="">
+  <ul zb-if={legend === 'hours'} class="key" aria-label="Key">
     <li><span class="swatch on"></span> Free for calls</li>
     <li><span class="swatch busy"></span> Busy in your calendar</li>
     <li><span class="swatch booked"></span> A call already booked</li>
+  </ul>
+  <ul zb-if={legend === 'invite'} class="key" aria-label="Key">
+    <li><span class="swatch on"></span> Free for both</li>
+    <li><span class="swatch guest"></span> They can, you aren’t free</li>
+    <li><span class="swatch host"></span> You’re free</li>
+  </ul>
+  <ul zb-if={legend === 'guest'} class="key" aria-label="Key">
+    <li><span class="swatch on"></span> You could do it</li>
+    <li><span class="swatch unavailable"></span> Not open</li>
   </ul>
   <div class="grid-wrap" onpointerdown={down} onpointerover={over} onpointerup={up} onpointerleave={up} onclick={click}>
     <table>
