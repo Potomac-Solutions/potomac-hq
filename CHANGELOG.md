@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-23
+
 - Scheduling invites, like a Timeful poll: from a client's page, ask
   someone in their portal to pick times for a call (what it's for, how long,
   up to two weeks of days, a note). They're emailed a link, and it's first on
