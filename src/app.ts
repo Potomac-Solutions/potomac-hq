@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -23,8 +23,8 @@ import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
-import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
+import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
@@ -38,6 +38,9 @@ import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { inviteRoutes } from "./booking/api/invite-routes.ts";
+import { sourceRoutes } from "./booking/api/source-routes.ts";
+import { linkRoutes } from "./booking/api/link-routes.ts";
+import { importRoutes } from "./crm/api/import-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -75,6 +78,8 @@ export type AppConfig = {
   readonly inquiryEmail?: string;
   /** Times already taken in another calendar, such as Google Calendar. */
   readonly busyCalendar?: BusyCalendar;
+  /** How addresses people type (a calendar, Timeful, Calendly) are read. Tests give their own. */
+  readonly outsideFetch?: OutsideFetch;
   /** Sign-in attempts allowed per address per minute. */
   readonly attemptsPerMinute?: number;
   /**
@@ -157,7 +162,9 @@ export type PageContext = {
     clientTouches(id: string): TouchesView | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
-    listClients(status?: string): ReturnType<typeof listClients>;
+    listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
+    /** May import clients from a CSV. */
+    canImport(): boolean;
     pipeline(): ReturnType<typeof pipeline>;
     clientDetail(id: string): ReturnType<typeof clientDetail>;
     opportunityDetail(id: string): ReturnType<typeof opportunityDetail>;
@@ -253,6 +260,11 @@ export type PageContext = {
     calls(): ReturnType<typeof callsView>;
     setup(): ReturnType<typeof bookingSetup>;
     weekly(): ReturnType<typeof weeklyGrid>;
+    calendarLinks(): ReturnType<typeof calendarLinks>;
+    links(): ReturnType<typeof bookingLinks>;
+    linkPage(token: string): ReturnType<typeof bookingLinkPage>;
+    /** HQ's public address, for links to copy. */
+    publicUrl: string;
     invites(): ReturnType<typeof openInvites>;
     invite(id: string): ReturnType<typeof staffInvite> | Promise<null>;
     clientInvites(organizationId: string): ReturnType<typeof clientInvites>;
@@ -266,6 +278,8 @@ export type PageContext = {
     portalTimes(): Promise<OpenTimesView>;
     portalCalls(): readonly CallLine[];
     publicTimes(): Promise<OpenTimesView>;
+    /** Open times for someone who already holds a link to their call. */
+    manageTimes(): ReturnType<typeof openTimes>;
     publicOpen(): boolean;
     /** Whether email is set up, so the person who books is emailed. */
     readonly emails: boolean;
@@ -304,7 +318,7 @@ const MAX_FORM_BYTES = 16 * 1024;
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // Forms with long text in them: a proposal's sections, and an article.
-const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36})$/;
+const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import)$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
@@ -312,7 +326,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}) });
+  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -484,7 +498,8 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           inquiryServices: () => SERVICE_OPTIONS,
-          listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
+          listClients: (status, demo) => listClients(crmDeps, actor, { status: status ?? "", kind: demo ?? "" }),
+          canImport: () => mayImport(crmDeps, actor),
           pipeline: () => pipeline(crmDeps, actor, date),
           clientDetail: (id) => withId(id, (clientId) => clientDetail(crmDeps, actor, clientId)),
           opportunityDetail: (id) => withId(id, (opportunityId) => opportunityDetail(crmDeps, actor, opportunityId, date)),
@@ -581,6 +596,10 @@ export async function createApp(config: AppConfig): Promise<App> {
           calls: () => callsView(services.booking, actor),
           setup: () => bookingSetup(services.booking, actor),
           weekly: () => weeklyGrid(services.booking, actor),
+          calendarLinks: () => calendarLinks(services.sources, actor),
+          links: () => bookingLinks(services.links, actor),
+          linkPage: (token) => bookingLinkPage(services.links, token),
+          publicUrl: (config.publicUrl ?? "").replace(/\/$/, ""),
           invites: () => openInvites(services.invites, actor),
           invite: (id) => {
             const parsed = parseId(id);
@@ -602,6 +621,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
           portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
           publicTimes: () => openTimes(services.booking, "public"),
+          manageTimes: () => openTimes(services.booking, "link"),
           publicOpen: () => bookingOpen(services.booking, "public"),
           emails: Boolean(config.email),
           byLink: (token) => {
@@ -688,6 +708,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
   });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
@@ -836,12 +857,14 @@ export async function createApp(config: AppConfig): Promise<App> {
     sign: (location) => notices.sign(location),
   });
   forms.route("/", publicBooking);
+  forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
@@ -884,6 +907,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
   downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: (location) => notices.sign(location), canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
+  downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -892,10 +916,20 @@ export async function createApp(config: AppConfig): Promise<App> {
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
+  function badRequest(res: ServerResponse): void {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    res.end("Bad request");
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
-    const url = new URL(req.url ?? "/", "http://hq.invalid");
+    // Every address HQ serves starts with one slash. Anything else ("//...",
+    // a whole URL, or one that can't be read, which scanners send looking for
+    // files like .env) is refused here, before any router sees it.
+    const target = req.url ?? "/";
+    if (!target.startsWith("/") || target.startsWith("//") || !URL.canParse(target, "http://hq.invalid")) return void badRequest(res);
+    const url = new URL(target, "http://hq.invalid");
     const path = url.pathname;
 
     if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);
@@ -917,7 +951,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

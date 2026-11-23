@@ -225,6 +225,100 @@ calendar. Needs his approval.
 - Events: `booking.made`, `booking.cancelled`, `booking.moved`, `booking.added-to-crm`,
   `booking.hours-changed`, `booking.day-closed`, `booking.day-opened`.
 
+## Linked calendars and filling in availability
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+`calendar_link`: up to five calendars' private addresses (iCalendar, as
+Google, Outlook and Apple publish them), with a name, who added it, when it
+was last read and why it couldn't be. HQ reads each at most every five
+minutes for busy times only, and never keeps or shows what an event is. If
+one can't be read, its last answer is used for an hour; after that open
+times are not offered, the same as when Google Calendar can't be read.
+
+- The address is a secret: it is checked once when linked, never shown
+  again, and never written to the activity log (only its name and site).
+- Potomac can paint the next 14 days from a Timeful event (the times one
+  person marked on it) or Calendly (the times it offers, by a personal
+  access token). Days the source speaks for are painted in place of the
+  usual week. Nothing about the source is kept.
+- Someone answering an invite can fill it in from their calendar's address
+  (every open half hour they aren't busy), a Timeful event or Calendly. It
+  replaces their answer and counts as answering; nothing about the source is
+  kept, and a Calendly token is used once.
+- A half hour is free only when all of it is; busy when any of it is.
+- Timeful has no published server API. HQ reads the same two addresses its
+  event page does (`/api/events/<id>` and `.../responses`), only ever on
+  `timeful.app`. If Timeful changes them, the fill says so and nothing
+  else breaks. Events that hide answers or ask only about days can't be read.
+- Addresses people type are read only over https, only on the public
+  internet (never an address inside the server's network, checked on the
+  connection itself), with at most three redirects, 2 MB and ten seconds.
+  Ten reads an hour for each person.
+- Events: `booking.calendar-linked`, `booking.calendar-unlinked`;
+  `booking.dates-painted` and `schedule-invite.answered` carry `from`.
+
+## Booking links
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+Booking a free call needs a portal account (sign up at `/book`), unless
+Potomac has given the person a booking link.
+
+`booking_link`: who it is for, its token, whether it books one call or any
+number, its last day (a week, a month, three months, or no end), how many
+calls it has booked, and when it was withdrawn. `booking.link_id` and
+`booking.business` record which link a call came from and the business the
+person named.
+
+- The link opens `/book/with/<token>`. It asks for a name, an email, a
+  phone number and what the call is about (all required), and a business
+  (optional), then the open times. Choosing one books it.
+- A link works whether or not sign-up to book is open. It needs only hours.
+- The token is kept as it is, so the link can be copied again from the
+  Calls page. It lets its holder book a call and nothing else. It is never
+  written to the activity log.
+- A one-time link is spent by a booking, not by a try.
+- After booking, the person lands on their call's own page (move, cancel,
+  add to calendar). If sign-up is open they are offered an account there;
+  it is never required and nothing is made for them.
+- A call booked with a link is a "public" call: it shows on Calls as
+  "Booking link" and is added to the CRM by hand, with the business filled
+  in. Their own link moves or cancels it even when booking is closed.
+- Ten bookings an hour from one address.
+- Events: `booking-link.created`, `booking-link.withdrawn`; `booking.made`
+  carries `linkId`.
+
+## Importing clients, and demo clients
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+`client_organization.demo`: a made-up business Potomac shows prospects (the
+demo apps). Shown with a Demo badge on Clients, the client, Projects and the
+project. Left out of: the dashboard's active projects and deadlines, Today,
+the morning email, the pipeline report, the project health report, and
+Money's budget against actual. Still everywhere else (the board, time, the
+portal), so a demo can be shown working. Whoever may change a client's
+status may mark it a demo or real (`client.demo-changed`).
+
+Clients → Import takes a pasted CSV with a header line. Columns, in any
+order: Client (needed), Contact, Title, Email, Phone, Website, Project,
+Service, Pricing, Price, Source, Repository, Live, Demo. Up to 200 lines.
+
+- Every line is checked first; one bad line saves nothing and names the
+  line. All lines are saved in one transaction.
+- A client already in HQ by name (any case) is skipped, so pasting the same
+  list again is safe. Two lines with the same client are refused.
+- A line with a Project becomes a won opportunity (moved through each
+  stage, priced) converted to an active project, through the same steps and
+  events as by hand, so the client becomes active. Without one the client
+  stays a prospect. A project needs its pricing; a price unless free.
+- Repository becomes a link for Potomac only; Live becomes a link shared
+  in the client's portal.
+- No key of its own: it takes every key adding the lines by hand would.
+- Events: the usual ones for each record, `imported: true` on the client
+  and opportunity, and one `client.imported` with the counts.
+
 ## Sign-in rules
 
 `sign_in_rule`: one row per rule that is on, with who turned it on and

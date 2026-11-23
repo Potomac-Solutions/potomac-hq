@@ -441,7 +441,8 @@ export function financeOverview(deps: FinanceDeps, actorId: Id | null): Result<F
   let cost = 0;
   const rows = deps.projects
     .list()
-    .filter((project) => project.status !== "cancelled")
+    // Demo clients' projects aren't real work: they stay off Money and the reports.
+    .filter((project) => project.status !== "cancelled" && !project.demo)
     .map((project) => {
       const m = measure(deps, project, today);
       const s = summaryOf(m.budget, m.time, m.expenses, m.standing);

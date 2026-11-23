@@ -9,6 +9,44 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-23
+
+- Fixed: "Open HQ in your app", while turning on two-factor sign-in on a
+  phone, was left off the page, because pages only link to web addresses.
+  It now goes through HQ, which sends the phone on to the app.
+- Fixed: an address starting with two slashes, as scanners send looking for
+  files like .env, answered with an error and filled the error log. It is
+  now refused as a bad request. Nothing was ever read or shown.
+
+- Import clients, and demo clients. Clients → Import takes a pasted CSV
+  (from a spreadsheet or typed): each line becomes a client, its contact
+  and, if it names a project, a won project with links to its code and live
+  site. Every line is checked first, one mistake saves nothing and says
+  which line, and clients already in HQ are skipped. A client can be a
+  demo: a made-up business you show prospects. Demos carry a Demo badge and
+  are kept out of the dashboard's figures, Today, deadlines, the reports and
+  Money. Clients can be filtered to real or demo. Migration 0033.
+
+- Booking links. Booking a free call needs a portal account, unless you
+  give someone a link. On Calls, make a link for a person (one call or any
+  number; a week, a month, three months, or no end) and copy it. With it
+  they give their name, business, email, phone number and what the call is
+  about, choose a time, and are booked with no account. Afterwards they are
+  offered a free account, and need not take one. The call shows on Calls as
+  "Booking link" with the business and the reason, ready to add to the CRM.
+  Migration 0032.
+
+- Fill in availability from somewhere else. On Calls → Hours, link up to
+  five calendars by their private address (Google, Outlook, Apple): their
+  busy times are never offered for calls and show on the week's grid. On
+  Calls → Availability, paint the next two weeks from a Timeful event or
+  from Calendly. A client answering an invite can fill it in from their
+  calendar's address, a Timeful event or Calendly instead of marking by
+  hand. Repeating events, time zones and moved occurrences are understood.
+  Addresses are read only on the public internet; a calendar's address and
+  a Calendly token are never logged, and a client's are never kept.
+  Migration 0031.
+
 ## [0.12.0] - 2026-11-23
 
 - Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on

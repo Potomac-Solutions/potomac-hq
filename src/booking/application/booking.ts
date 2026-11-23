@@ -165,16 +165,20 @@ export type OpenTimesView = {
  */
 const portalBooking = (settings: BookingSettings): boolean => settings.portalOpen || settings.publicOpen;
 
-export function bookingOpen(deps: BookingDeps, audience: "portal" | "public"): boolean {
+/** Who is asking for open times. "link": the holder of a booking link, or of a booked call's own link. */
+export type Audience = "portal" | "public" | "link";
+const openTo = (settings: BookingSettings, audience: Audience): boolean => (audience === "link" ? true : audience === "portal" ? portalBooking(settings) : settings.publicOpen);
+
+export function bookingOpen(deps: BookingDeps, audience: Audience): boolean {
   const settings = deps.bookings.settings();
-  return settings !== null && settings.hours.length > 0 && (audience === "portal" ? portalBooking(settings) : settings.publicOpen);
+  return settings !== null && settings.hours.length > 0 && openTo(settings, audience);
 }
 
 /** The open times for clients in the portal, or for the public booking page. */
-export async function openTimes(deps: BookingDeps, audience: "portal" | "public"): Promise<OpenTimesView> {
+export async function openTimes(deps: BookingDeps, audience: Audience): Promise<OpenTimesView> {
   const settings = deps.bookings.settings();
   const closed = { open: false, callMinutes: 0, days: [], calendarFailed: false };
-  if (!settings || !(audience === "portal" ? portalBooking(settings) : settings.publicOpen) || settings.hours.length === 0) return closed;
+  if (!settings || !openTo(settings, audience) || settings.hours.length === 0) return closed;
   const rules = rulesOf(deps, settings);
   const { others, failed } = await busyIn(deps, rules);
   if (failed) return { ...closed, open: true, callMinutes: settings.callMinutes, calendarFailed: true };
@@ -188,7 +192,8 @@ export async function openTimes(deps: BookingDeps, audience: "portal" | "public"
 
 export type Booker =
   | { readonly kind: "client"; readonly organizationId: Id; readonly clientUserId: Id; readonly name: string; readonly email: string; readonly phone?: string | null; readonly topic?: string | null }
-  | ({ readonly kind: "public" } & BookerInput);
+  /** `linkId`: booked with a booking link Potomac gave them, which works whether or not sign-up to book is open. */
+  | ({ readonly kind: "public"; readonly linkId?: Id | null; readonly business?: string } & BookerInput);
 
 export type BookError = BookerError | "closed" | "taken" | "calendar-failed";
 
@@ -200,7 +205,7 @@ export type BookError = BookerError | "closed" | "taken" | "calendar-failed";
  */
 export async function bookCall(deps: BookingDeps, booker: Booker, start: string): Promise<Result<{ readonly booking: Booking; readonly manageToken: string | null }, BookError>> {
   const settings = deps.bookings.settings();
-  if (!settings || !(booker.kind === "client" ? portalBooking(settings) : settings.publicOpen)) return err("closed");
+  if (!settings || !(booker.kind === "client" ? portalBooking(settings) : Boolean(booker.linkId) || settings.publicOpen)) return err("closed");
   const who = checkBooker(booker);
   if (!who.ok) return who;
   const rules = rulesOf(deps, settings);
@@ -220,6 +225,8 @@ export async function bookCall(deps: BookingDeps, booker: Booker, start: string)
       organizationId: booker.kind === "client" ? booker.organizationId : null,
       clientUserId: booker.kind === "client" ? booker.clientUserId : null,
       hostId: settings.hostId,
+      linkId: booker.kind === "public" ? (booker.linkId ?? null) : null,
+      business: booker.kind === "public" ? (booker.business ?? "") : "",
       createdAt: deps.clock(),
       cancelledAt: null,
       cancelledBy: null,
@@ -232,7 +239,7 @@ export async function bookCall(deps: BookingDeps, booker: Booker, start: string)
       action: "booking.made",
       recordType: "booking",
       recordId: booking.id,
-      context: { kind: booking.kind, start: booking.start, ...(booking.organizationId ? { organizationId: booking.organizationId } : {}) },
+      context: { kind: booking.kind, start: booking.start, ...(booking.organizationId ? { organizationId: booking.organizationId } : {}), ...(booking.linkId ? { linkId: booking.linkId } : {}) },
     });
     return ok({ booking, manageToken: token });
   });
@@ -357,6 +364,10 @@ export type CallLine = {
   readonly email: string;
   readonly phone: string;
   readonly topic: string;
+  /** The business they named, when they booked with a link. */
+  readonly business: string;
+  /** Booked with a booking link. */
+  readonly viaLink: boolean;
   readonly organizationId: Id | null;
   readonly cancelled: boolean;
   readonly cancelText: string;
@@ -372,7 +383,9 @@ const lineOf = (deps: BookingDeps, booking: Booking): CallLine => ({
   when: whenText(booking.start, booking.end, deps.timeZone),
   whenIso: booking.start,
   who: booking.name,
-  kindLabel: booking.kind === "client" ? "Client" : "Booking page",
+  kindLabel: booking.kind === "client" ? "Client" : booking.linkId ? "Booking link" : "Booking page",
+  business: booking.business ?? "",
+  viaLink: Boolean(booking.linkId),
   email: booking.email,
   phone: booking.phone,
   topic: booking.topic,

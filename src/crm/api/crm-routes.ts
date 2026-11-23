@@ -52,6 +52,12 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     message: "Status changed.",
   });
 
+  post("/clients/:id/demo", (actor, f, id) => crm.setClientDemo(deps.crm, actor, id as Id, f["demo"] === "1"), {
+    done: (_, id) => `/clients/${id}`,
+    back: (id) => `/clients/${id}`,
+    message: "Saved.",
+  });
+
   post(
     "/clients/:id/contacts",
     (actor, f, id) =>

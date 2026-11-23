@@ -41,7 +41,7 @@
         <tbody>
           <zb-each items={view.projects} as="project" key={project.id}>
             <tr>
-              <td><a href="/projects/{project.id}">{project.name}</a></td>
+              <td><a href="/projects/{project.id}">{project.name}</a> <status-badge zb-if={project.demo} variant="outline">Demo</status-badge></td>
               <td>{project.clientName}</td>
               <td>{project.ownerName}</td>
               <td>{project.statusLabel}</td>

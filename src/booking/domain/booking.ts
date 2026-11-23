@@ -28,6 +28,9 @@ export type Booking = {
   /** For a call from the public page, once added to the CRM. */
   readonly crmClientId?: Id | null;
   readonly crmOpportunityId?: Id | null;
+  /** The booking link it was made with, if any, and the business they named. */
+  readonly linkId?: Id | null;
+  readonly business?: string;
 };
 
 export type BookerInput = { readonly name: string; readonly email: string; readonly phone?: string | null; readonly topic?: string | null };

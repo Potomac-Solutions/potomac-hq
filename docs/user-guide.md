@@ -140,10 +140,28 @@ one only if you were expecting it.
   the Hours page (it needs email set up), and link your website to /book.
   People sign up, confirm their email, and book in their own portal. Each
   one shows up in the pipeline as "Signed up to book a call".
+- **Importing clients.** Clients → Import clients: paste a list with a
+  header line (Client, Contact, Phone, Email, Project, Pricing, Price,
+  Repository, Live, Demo, in any order). Each line becomes a client, its
+  contact and, with a Project, the project. Nothing is saved if a line is
+  wrong, and clients already in HQ are skipped.
+- **Demo clients.** Mark a made-up business you show prospects as a demo
+  (on the client's page, or Demo = yes when importing). It keeps its Demo
+  badge and stays out of the dashboard, Today and the reports.
+- **Booking links.** To let someone book without an account, make them a
+  link: Calls → Booking links → say who it's for → Make a link, then copy
+  the address and send it. They tell you who they are and what the call is
+  about, and choose a time. Withdraw a link to stop it working.
 - **Your availability.** Under Calls → Usual week, paint the half hours
   you're free for calls: press and drag across the grid. For one week that's
   different, Calls → Availability this week: paint over it. Busy times from
   your calendar and calls already booked show underneath.
+- **Your calendars.** On the Hours page, under Your calendars, paste a
+  calendar's private address (Google: Settings → your calendar → "Secret
+  address in iCal format"). Its busy times are never offered for calls. Up
+  to five. Already keep free times in Timeful or Calendly? On Availability,
+  "Fill in from somewhere else" paints the next two weeks from them.
+  Clients answering an invite get the same three ways to fill it in.
 - **Change requests.** When a client asks for something that wasn't in the
   agreement, don't just do it. On the project's money page, draft a change
   with its price and hours and send it. They approve it in the portal (or

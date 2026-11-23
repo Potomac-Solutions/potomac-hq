@@ -27,7 +27,7 @@
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
       <div><h1>{p.name}</h1><p><a href="/clients/{view.clientId}">{view.clientName}</a></p></div>
-      <div class="hq-head-actions"><status-badge variant="outline">{p.statusLabel}</status-badge><status-badge variant={p.health === 'on-track' ? 'success' : p.health === 'at-risk' ? 'warning' : p.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{p.healthLabel}</status-badge></div>
+      <div class="hq-head-actions"><status-badge zb-if={p.demo} variant="outline">Demo</status-badge><status-badge variant="outline">{p.statusLabel}</status-badge><status-badge variant={p.health === 'on-track' ? 'success' : p.health === 'at-risk' ? 'warning' : p.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{p.healthLabel}</status-badge></div>
     </div>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>

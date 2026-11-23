@@ -34,7 +34,7 @@ export function sqliteProjectStore(db: Database): ProjectStore {
   const byOpportunity = db.prepare(`select ${columns} from project where opportunity_id = ?`);
   const listFor = db.prepare(`select ${columns} from project where organization_id = ? order by created_at desc, rowid desc`);
   const list = db.prepare(
-    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, c.name as client_name, u.name as owner_name,
+    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, c.name as client_name, c.demo as client_demo, u.name as owner_name,
             (select count(*) from task t where t.project_id = p.id and t.status <> 'done') as open_tasks
        from project p
        join client_organization c on c.id = p.organization_id
@@ -57,7 +57,7 @@ export function sqliteProjectStore(db: Database): ProjectStore {
       return row ? toProject(row) : null;
     },
     list() {
-      return (list.all() as Row[]).map((r): ProjectRow => ({ ...toProject(r), clientName: text(r, "client_name"), ownerName: text(r, "owner_name"), openTasks: r["open_tasks"] as number }));
+      return (list.all() as Row[]).map((r): ProjectRow => ({ ...toProject(r), clientName: text(r, "client_name"), ownerName: text(r, "owner_name"), openTasks: r["open_tasks"] as number, demo: r["client_demo"] === 1 }));
     },
     listFor(organizationId) {
       return (listFor.all(organizationId) as Row[]).map(toProject);

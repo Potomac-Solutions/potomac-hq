@@ -1,5 +1,6 @@
 import type { Booking } from "../domain/booking.ts";
 import type { ScheduleInvite } from "../domain/invite.ts";
+import type { BookingLink } from "../domain/link.ts";
 import type { Busy, DayRange, HoursRange } from "../domain/hours.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -74,4 +75,44 @@ export type ScheduleInviteStore = {
 /** People in the client portal, as booking needs them: who an invite is for. */
 export type ClientPeople = {
   get(clientUserId: Id): { readonly organizationId: Id; readonly name: string; readonly email: string; readonly active: boolean } | null;
+};
+
+export type OutsideAnswer = { readonly status: number; readonly text: string };
+export type OutsideError = "address-invalid" | "address-private" | "unreachable" | "too-large";
+/**
+ * Reads an address someone typed, on the public internet: https only, never
+ * an address inside the server's own network, with a size and a time limit.
+ */
+export type OutsideFetch = (url: string, headers?: Readonly<Record<string, string>>) => Promise<{ readonly ok: true; readonly value: OutsideAnswer } | { readonly ok: false; readonly error: OutsideError }>;
+
+/** A calendar's private address, read for busy times. */
+export type CalendarLink = {
+  readonly id: Id;
+  readonly label: string;
+  readonly url: string;
+  readonly addedBy: Id;
+  readonly addedAt: string;
+  readonly checkedAt: string | null;
+  /** Why it couldn't be read last time; empty when it could. */
+  readonly problem: string;
+};
+
+export type CalendarLinkStore = {
+  list(): readonly CalendarLink[];
+  add(link: CalendarLink): void;
+  remove(id: Id): boolean;
+  checked(id: Id, at: string, problem: string): void;
+};
+
+export type BookingLinkStore = {
+  add(link: BookingLink): void;
+  /** Newest first. */
+  list(): readonly BookingLink[];
+  get(id: Id): BookingLink | null;
+  byToken(token: string): BookingLink | null;
+  /** Counts a use, unless it is withdrawn or a one-time link already used: false then. */
+  claim(id: Id): boolean;
+  /** Gives back a use that didn't end in a booking. */
+  release(id: Id): void;
+  withdraw(id: Id, at: string): boolean;
 };

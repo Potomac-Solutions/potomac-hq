@@ -5,7 +5,7 @@ import type { LeadSource, Opportunity, Pricing, Service, Stage } from "../domain
 import type { Database } from "../../shared/adapters.ts";
 import type { Currency, Id } from "../../shared/index.ts";
 
-type ClientRow = { id: string; name: string; status: string; size_tier: string | null; website: string | null; phone: string | null; address: string | null };
+type ClientRow = { id: string; name: string; status: string; size_tier: string | null; website: string | null; phone: string | null; address: string | null; demo: number };
 const toClient = (r: ClientRow): Client => ({
   id: r.id as Id,
   name: r.name,
@@ -14,25 +14,26 @@ const toClient = (r: ClientRow): Client => ({
   website: r.website,
   phone: r.phone,
   address: r.address,
+  demo: r.demo === 1,
 });
 
 export function sqliteClientStore(db: Database): ClientStore {
-  const cols = "id, name, status, size_tier, website, phone, address";
-  const insert = db.prepare(`insert into client_organization (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const update = db.prepare("update client_organization set name = ?, status = ?, size_tier = ?, website = ?, phone = ?, address = ?, updated_at = ? where id = ?");
+  const cols = "id, name, status, size_tier, website, phone, address, demo";
+  const insert = db.prepare(`insert into client_organization (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const update = db.prepare("update client_organization set name = ?, status = ?, size_tier = ?, website = ?, phone = ?, address = ?, demo = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${cols} from client_organization where id = ?`);
   const list = db.prepare(
-    `select c.id, c.name, c.status, c.size_tier, c.website, c.phone, c.address,
+    `select c.id, c.name, c.status, c.size_tier, c.website, c.phone, c.address, c.demo,
             (select count(*) from opportunity o where o.organization_id = c.id and o.stage not in ('won', 'lost')) as open
        from client_organization c
       order by c.created_at desc, c.rowid desc`,
   );
   return {
     insert(c, at) {
-      insert.run(c.id, c.name, c.status, c.sizeTier, c.website, c.phone, c.address, at, at);
+      insert.run(c.id, c.name, c.status, c.sizeTier, c.website, c.phone, c.address, c.demo ? 1 : 0, at, at);
     },
     update(c, at) {
-      update.run(c.name, c.status, c.sizeTier, c.website, c.phone, c.address, at, c.id);
+      update.run(c.name, c.status, c.sizeTier, c.website, c.phone, c.address, c.demo ? 1 : 0, at, c.id);
     },
     get(id) {
       const r = get.get(id) as ClientRow | undefined;
