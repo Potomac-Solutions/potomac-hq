@@ -2,8 +2,8 @@
 
 The internal operations platform for Potomac Solutions.
 
-Status: release 0.11.0. v0.1 to v1.0 are built and nothing is deployed yet. The deploy and
-backups wait on the Railway project and the R2 bucket:
+Status: release 0.12.0. v0.1 to v1.0 are built, and HQ runs on Railway.
+Backups wait on the R2 bucket, and email on the Brevo key:
 `docs/operations.md` has the checklist. Nothing has been used with real
 records, so the roadmap's gates between versions are still open.
 

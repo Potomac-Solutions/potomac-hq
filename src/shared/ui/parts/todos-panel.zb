@@ -3,6 +3,7 @@
   `where` is "client" or "opportunity"; `id` is that record's id.
 -->
 <script>
+  import '../zubra/select-field.zb'
   import './todo-list.zb'
 </script>
 <style>
@@ -30,12 +31,7 @@
             <label for="todo-due-{where}">Due (optional)</label>
             <input id="todo-due-{where}" name="dueOn" type="date">
           </div>
-          <div class="hq-field">
-            <label for="todo-who-{where}">Whose</label>
-            <select id="todo-who-{where}" name="assigneeId">
-              <zb-each items={todos.people} as="person" key={person.value}><option value={person.value}>{person.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="Whose" name="assigneeId" options={todos.people}></select-field>
         </div>
         <div><button class="hq-button" type="submit">Add it</button></div>
       </form>

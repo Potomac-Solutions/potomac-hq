@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /todos'
+  import '../../shared/ui/zubra/select-field.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/parts/todo-list.zb'
@@ -45,12 +46,7 @@
             <label for="todo-due">Due (optional)</label>
             <input id="todo-due" name="dueOn" type="date">
           </div>
-          <div class="hq-field">
-            <label for="todo-who">Whose</label>
-            <select id="todo-who" name="assigneeId">
-              <zb-each items={view.people} as="person" key={person.value}><option value={person.value}>{person.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="Whose" name="assigneeId" options={view.people}></select-field>
           <div class="hq-field">
             <label for="todo-client">About a client (optional)</label>
             <select id="todo-client" name="clientId">

@@ -1,3 +1,7 @@
+/* The typeface: IBM Plex Sans, one variable file served from HQ itself
+   (SIL Open Font License; see plex-sans.LICENSE.txt). */
+@font-face { font-family: "IBM Plex Sans"; src: url("/assets/plex-sans.woff2") format("woff2"); font-weight: 100 700; font-style: normal; font-display: swap; }
+
 /* The Potomac theme for Zubra UI. The names are shadcn/ui's, which every Zubra
    UI component reads. Neutrals come from potomac.solutions, the primary blue
    from the Potomac mark. Every colour is a light and dark pair. A person picks
@@ -13,7 +17,10 @@
   --duration-slow: 400ms;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
 
-  --background: #eaede8;
+  /* Zubra UI reads --background as the surface a control sits on, so it is
+     white like the cards. The page behind the cards is --canvas. */
+  --background: #ffffff;
+  --canvas: #eef1ed;
   --foreground: #152b2b;
   --card: #ffffff;
   --card-foreground: #152b2b;
@@ -31,6 +38,15 @@
   --border: #c2cbc3;
   --input: #7b8b86;
   --ring: #0060b4;
+  --success: #17683f;
+  --warning: #8a4b00;
+  /* The sidebar: the deep channel of the river, in both themes. */
+  --sidebar: #0f2a33;
+  --sidebar-foreground: #eef4f2;
+  --sidebar-muted: #a9bfc0;
+  --sidebar-accent: #1d4756;
+  --sidebar-border: #24424d;
+  --shadow: 0 1px 2px rgb(21 43 43 / 0.06);
 }
 
 .dark {
@@ -53,23 +69,35 @@
   --border: #2c404a;
   --input: #71858f;
   --ring: #5bb8f5;
+  --canvas: #101820;
+  --success: #6fd3a0;
+  --warning: #f0b45c;
+  --sidebar: #0b1319;
+  --sidebar-foreground: #eef4f2;
+  --sidebar-muted: #a9bfc0;
+  --sidebar-accent: #1e3a52;
+  --sidebar-border: #1d2d36;
+  --shadow: none;
 }
 
-/* The page itself. Components carry their own styles. */
+@layer hq {
+/* The page itself. Everything from here is in one cascade layer, so a
+   component's or a page's own styles always win over these. */
 *, *::before, *::after { box-sizing: border-box; }
-html { background: var(--background); color: var(--foreground); }
-body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; }
+html { background: var(--canvas); color: var(--foreground); }
+body { margin: 0; font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 0.9375rem; line-height: 1.5; font-feature-settings: "tnum" 0; -webkit-font-smoothing: antialiased; }
 a { color: var(--primary); text-underline-offset: 3px; }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 1rem; }
-h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+h1 { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; margin: 0 0 1rem; }
+h2 { font-size: 1rem; font-weight: 650; margin: 0 0 0.75rem; }
+h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 
 .skip-link { position: absolute; left: 0.5rem; top: -4rem; padding: 0.5rem 0.75rem; background: var(--card); color: var(--foreground); border: 2px solid var(--ring); border-radius: var(--radius); z-index: 10; }
 .skip-link:focus { top: 0.5rem; }
 
 /* Pages the Potomac kit writes itself: the one-time link form and the change
    password form. They are plain HTML inside a narrow column. */
-.plain-page { max-width: 30rem; margin: 3rem auto; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+.plain-page { max-width: 30rem; margin: 3rem auto; padding: 1.75rem; box-shadow: var(--shadow); background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
 .plain-page label { display: block; margin: 0.9rem 0; font-weight: 600; }
 .plain-page input { display: block; width: 100%; margin-top: 0.3rem; padding: 0.55rem 0.65rem; font: inherit; color: inherit; background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
 .plain-page .hint { display: block; font-weight: 400; color: var(--muted-foreground); font-size: 0.9rem; }
@@ -91,20 +119,56 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
    its panel instead of widening the page. */
 .hq-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
 .hq-page > h1 { margin: 0; overflow-wrap: anywhere; }
-.hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+.hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .hq-panel > h2 { margin-top: 0; }
+/* The top of a page: where it sits, its name with its status beside it, and
+   what can be done from here on the right. */
+.hq-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.hq-head > div:first-child { min-width: 0; display: grid; gap: 0.4rem; }
+.hq-head h1 { margin: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.hq-head p { margin: 0; color: var(--muted-foreground); }
+.hq-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.hq-head-actions form { margin: 0; }
+/* Two columns on a wide screen: the work on the left, the facts on the right. */
+.hq-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.hq-split > * { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; min-width: 0; }
+@media (min-width: 72rem) { .hq-split { grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 1fr); } }
+/* In the rail, a small table reads as short blocks, as it does on a phone. */
+.hq-rail .hq-table.hq-stack, .hq-rail .hq-stack tbody, .hq-rail .hq-stack tr, .hq-rail .hq-stack td { display: block; }
+.hq-rail .hq-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hq-rail .hq-stack tr { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.hq-rail .hq-stack tbody tr:first-child { border-top: 0; }
+.hq-rail .hq-stack td { padding: 0.1rem 0; border: 0; overflow-wrap: anywhere; }
+.hq-rail .hq-stack td:empty { display: none; }
+.hq-rail .hq-facts { grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr); }
+/* On a record's page the facts come first, in a rail on the left, so they are also first on a phone. */
+@media (min-width: 72rem) { .hq-split.facts-first { grid-template-columns: minmax(19rem, 1fr) minmax(0, 1.9fr); } }
+/* A row of figures. */
+.hq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; }
+.hq-stats a { color: inherit; text-decoration: none; border-radius: var(--radius); }
+.hq-stats a:hover stat-card .stat { border-color: var(--primary); }
 .hq-notices { display: grid; gap: 0.75rem; }
 .hq-crumbs { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
 .hq-table { width: 100%; border-collapse: collapse; }
 .hq-table th, .hq-table td { padding: 0.55rem 0.5rem; text-align: left; border-top: 1px solid var(--border); vertical-align: top; }
-.hq-table thead th { border-top: 0; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; }
+.hq-table thead th { border-top: 0; color: var(--muted-foreground); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.hq-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.hq-table td { font-variant-numeric: tabular-nums; }
 .hq-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0; }
 .hq-nowrap { white-space: nowrap; }
+.hq-links { list-style: none; margin: 0; padding: 0; }
+.hq-links li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.35rem 1rem; padding: 0.55rem 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.hq-links li:first-child { border-top: 0; }
+.hq-links form { margin: 0; }
 .hq-facts dt { color: var(--muted-foreground); }
 .hq-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-/* On a phone, a table keeps its columns and scrolls sideways in its panel. */
+/* On a phone, a table keeps its columns and scrolls sideways inside its
+   panel. Each such table takes keyboard focus (tabindex="0"), so it can be
+   scrolled without a mouse. */
 @media (max-width: 40rem) {
   .hq-table { display: block; overflow-x: auto; }
+  .hq-table:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .hq-table .hq-number { white-space: nowrap; }
   /* A table of things that read without their headings, like contacts:
      each row becomes a short block instead. */
   .hq-table.hq-stack, .hq-stack tbody, .hq-stack tr, .hq-stack td { display: block; overflow: visible; }
@@ -120,12 +184,13 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-form-row { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
 .hq-field { display: grid; gap: 0.35rem; min-width: 0; }
 .hq-field label { font-weight: 600; font-size: 0.9rem; }
-.hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.5rem; padding: 0.45rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+.hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.25rem; padding: 0.4rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
 .hq-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
 .hq-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--primary); }
-.hq-button { display: inline-flex; align-items: center; height: 2.5rem; padding: 0 1rem; font: inherit; font-weight: 600; color: var(--primary-foreground); background: var(--primary); border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); cursor: pointer; text-decoration: none; }
+.hq-button { display: inline-flex; align-items: center; justify-content: center; height: 2.25rem; padding: 0 0.9rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--primary-foreground); background: var(--primary); border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); cursor: pointer; text-decoration: none; }
 .hq-button.secondary { color: var(--foreground); background: var(--card); border-color: var(--border); }
-.hq-button:hover { filter: brightness(1.08); }
+.hq-button:hover { background: color-mix(in oklab, var(--primary) 88%, var(--foreground)); }
+.hq-button.secondary:hover { background: var(--accent); color: var(--accent-foreground); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
 .hq-tag { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: var(--muted); color: var(--foreground); }
 .hq-steps { display: grid; gap: 0.5rem; margin: 0 0 1rem; padding-left: 1.25rem; }
 .hq-qr { display: block; width: 12.5rem; height: 12.5rem; margin: 0.5rem 0; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
@@ -202,16 +267,15 @@ hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal;
 hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }
 .portal-preview { display: block; max-width: 100%; height: auto; max-height: 28rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
 
-/*
- * HQ's top bar has more links than the copied nav-bar folds for: it folds
- * them behind "Menu" only below 40rem of its own width. Between that and a
- * wide screen the links wrap onto a second line instead of running off the
- * edge. To report upstream (zubra-ui, found-by: potomac): see
- * docs/upstream/zubra-ui-nav-bar-fold.md. Remove this once
- * nav-bar folds by what fits.
- */
-@media (min-width: 40.0625rem) and (max-width: 70rem) {
-  hq-app nav-bar .navbar { flex-wrap: wrap; row-gap: 0.35rem; }
-  hq-app nav-bar .navbar-links { flex-wrap: wrap; order: 3; flex-basis: 100%; margin: 0; gap: 0.1rem; }
-  hq-app nav-bar .navbar-links a { padding: 0.35rem 0.55rem; }
+/* Settings: the two ways to turn on two-factor sign-in, and a person's passkeys. */
+.hq-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 1rem; }
+.hq-choice { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+.hq-choice h3 { margin-top: 0; }
+.hq-passkeys li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.hq-passkeys form { margin: 0; }
 }
+
+/* Outside the layer, because these adjust copied components: stat cards in a
+   row are all as tall as the tallest. */
+.hq-stats a, .hq-stats stat-card { display: grid; }
+.hq-stats .stat { align-content: start; }

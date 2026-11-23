@@ -3,7 +3,9 @@
 -->
 <script>
   'use route /settings'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/passkey-button.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
@@ -49,22 +51,44 @@
       <h2 id="settings-two-factor">Two-factor sign-in</h2>
       <alert-banner zb-if={twoFactor.required} variant="warning" heading="Required for admins">HQ requires two-factor sign-in for admins. Turn it on to use the rest of HQ.</alert-banner>
       <div zb-if={twoFactor.on}>
-        <p><span class="hq-tag">On</span> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
-        <form method="post" action="/settings/two-factor/recovery-codes" class="hq-form-row">
+        <p><status-badge variant="success">On</status-badge> After your password, HQ asks for {twoFactor.how}. {twoFactor.recoveryText}</p>
+        <h3 id="settings-passkeys">Passkeys</h3>
+        <p class="hq-muted hq-small">A passkey is kept by your phone, your computer or a security key, and unlocked with your fingerprint, face or PIN. It can’t be typed into a fake sign-in page.</p>
+        <ul zb-if={twoFactor.hasPasskey} class="hq-list hq-passkeys" aria-labelledby="settings-passkeys">
+          <zb-each items={twoFactor.passkeys} as="passkey" key={passkey.id}>
+            <li>
+              <span><strong>{passkey.label}</strong> <span class="hq-muted hq-small">Added {passkey.added}. {passkey.used}.</span></span>
+              <form zb-if={passkey.removable} method="post" action={`/settings/passkeys/${passkey.id}/remove`}><button class="hq-button secondary small" type="submit" aria-label={`Remove passkey ${passkey.label}`}>Remove</button></form>
+            </li>
+          </zb-each>
+        </ul>
+        <form method="post" action="/settings/passkeys" class="hq-form-row">
           <div class="hq-field">
+            <label for="passkey-label">Name for a new passkey</label>
+            <input id="passkey-label" name="label" maxlength="60" placeholder="My laptop" autocomplete="off">
+          </div>
+          <passkey-button purpose="register" field="credential" label="Add a passkey" secondary={true}></passkey-button>
+        </form>
+        <h3>Recovery codes</h3>
+        <form method="post" action="/settings/two-factor/recovery-codes" class="hq-form-row">
+          <div zb-if={twoFactor.app} class="hq-field">
             <label for="two-factor-new-codes">Code from your app</label>
             <input id="two-factor-new-codes" name="code" autocomplete="one-time-code" inputmode="numeric" required>
           </div>
-          <button class="hq-button secondary" type="submit">Make new recovery codes</button>
+          <button zb-if={twoFactor.app} class="hq-button secondary" type="submit">Make new recovery codes</button>
+          <passkey-button zb-if={twoFactor.hasPasskey} purpose="verify" field="passkey" label={twoFactor.app ? 'Or make them with a passkey' : 'Make new recovery codes with your passkey'} secondary={true}></passkey-button>
         </form>
         <p class="hq-muted hq-small">New codes replace the old ones. Do it when you have used most of them, or think someone has seen them.</p>
-        <form method="post" action="/settings/two-factor/off" class="hq-form-row" data-spaced>
+        <h3>Turn it off</h3>
+        <form method="post" action="/settings/two-factor/off" class="hq-form-row">
           <div class="hq-field">
-            <label for="two-factor-off-code">Code from your app, or a recovery code</label>
+            <label for="two-factor-off-code">{twoFactor.app ? 'Code from your app, or a recovery code' : 'A recovery code'}</label>
             <input id="two-factor-off-code" name="code" autocomplete="one-time-code" required>
           </div>
           <button class="hq-button secondary" type="submit">Turn off two-factor sign-in</button>
+          <passkey-button zb-if={twoFactor.hasPasskey} purpose="verify" field="passkey" label="Or turn it off with a passkey" secondary={true}></passkey-button>
         </form>
+        <p zb-if={!twoFactor.app} class="hq-muted hq-small">To use an authenticator app as well, turn two-factor sign-in off, then turn it on with the app and add your passkey again.</p>
       </div>
       <div zb-else-if={twoFactor.setup}>
         <ol class="hq-steps">
@@ -87,8 +111,25 @@
         <form method="post" action="/settings/two-factor/off" class="hq-form-row" data-spaced><input type="hidden" name="code" value=""><button class="hq-button secondary" type="submit">Cancel</button></form>
       </div>
       <div zb-else>
-        <p>Off. Turn it on and HQ asks for a code from an app on your phone after your password, so a stolen password is not enough to get in.</p>
-        <form method="post" action="/settings/two-factor" class="hq-form-row"><button class="hq-button" type="submit">Turn on two-factor sign-in</button></form>
+        <p><status-badge variant="neutral">Off</status-badge> Turn it on and HQ asks for a second proof after your password, so a stolen password is not enough to get in. Choose either; you get recovery codes both ways.</p>
+        <div class="hq-choices">
+          <div class="hq-choice">
+            <h3>With a passkey</h3>
+            <p class="hq-muted hq-small">Your fingerprint, face or PIN on this device, or a security key. Nothing to type, and it can’t be given to a fake sign-in page.</p>
+            <form method="post" action="/settings/passkeys" class="hq-form-row">
+              <div class="hq-field">
+                <label for="passkey-label">Name for the passkey</label>
+                <input id="passkey-label" name="label" maxlength="60" placeholder="My laptop" autocomplete="off">
+              </div>
+              <passkey-button purpose="register" field="credential" label="Turn on with a passkey"></passkey-button>
+            </form>
+          </div>
+          <div class="hq-choice">
+            <h3>With an authenticator app</h3>
+            <p class="hq-muted hq-small">A 6-digit code from an app on your phone, such as 1Password or Google Authenticator. You can add passkeys afterwards.</p>
+            <form method="post" action="/settings/two-factor" class="hq-form-row"><button class="hq-button secondary" type="submit">Turn on with an app</button></form>
+          </div>
+        </div>
       </div>
     </section>
     <section class="hq-panel" aria-labelledby="settings-hq">

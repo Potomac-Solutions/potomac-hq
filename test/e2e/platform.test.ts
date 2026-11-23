@@ -33,7 +33,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
 
   // People: invite Sam as a manager, and Sam uses the link.
   await page.goto(`${t.origin}/settings`);
-  await page.getByRole("link", { name: "People" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "People" }).click();
   await page.waitForURL((url) => url.pathname === "/people");
   await assertAccessible(page, "People with one person");
   await page.getByText("Invite someone to HQ").click();

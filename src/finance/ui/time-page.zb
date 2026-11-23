@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /time'
+  import '../../shared/ui/zubra/select-field.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -38,12 +39,7 @@
       <h2 id="time-log">Log time</h2>
       <empty-state zb-if={view.targets.length === 0} heading="No active projects">Time is logged against a project.</empty-state>
       <form zb-else method="post" action="/time" class="hq-form">
-        <div class="hq-field">
-          <label for="time-target">Project or task</label>
-          <select id="time-target" name="target" required>
-            <zb-each items={view.targets} as="target" key={target.value}><option value={target.value}>{target.label}</option></zb-each>
-          </select>
-        </div>
+        <select-field label="Project or task" name="target" options={view.targets} required={true}></select-field>
         <text-field label="Day" name="on" type="date" value={view.today} required={true}></text-field>
         <text-field label="Hours" name="hours" inputmode="decimal" required={true} description="Like 1.5"></text-field>
         <text-field label="What you did" name="note"></text-field>
@@ -63,7 +59,7 @@
       </p>
       <p><strong>{view.total}</strong> logged, {view.billable} of it billable. {view.week.from} to {view.week.to}.</p>
       <empty-state zb-if={view.entries.length === 0} heading="Nothing logged this week">Move a task to “Working on”, or log time above.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Project</th><th scope="col">Task</th><th zb-if={view.everyone} scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>
           <zb-each items={view.entries} as="entry" key={entry.id}>

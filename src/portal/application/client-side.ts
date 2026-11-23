@@ -13,8 +13,8 @@ import { activate } from "../domain/client-user.ts";
 export type { ClientSession };
 import { daysUntil, dueText, friendlyDay, howSoon } from "../../shared/index.ts";
 import { CLIENT_UPLOAD, formatSize, MAX_FILE_BYTES, saveFileFromClient, type FileRecord } from "../../files/index.ts";
-import { documentForInvoice, invoiceLabel, type InvoiceDocument } from "../../finance/index.ts";
-import { decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
+import { changesForClient, decideChangeAsClient, documentForInvoice, invoiceLabel, type ChangeLine, type ChangeRequest, type InvoiceDocument } from "../../finance/index.ts";
+import { linkName, decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
 import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
@@ -136,6 +136,11 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
       if (deliverable.status !== "shared") continue;
       attention.push({ key: `d-${deliverable.id}`, text: `Look at “${deliverable.title}”`, detail: `${project.name}. Approve it, or say what should change.`, href: `/portal/projects/${project.id}#deliverables`, action: "Open it" });
     }
+    for (const change of deps.changes.listFor(project.id)) {
+      if (change.status !== "sent") continue;
+      const price = change.amount.minor === 0 ? "at no charge" : `for ${formatMoney(change.amount)}`;
+      attention.push({ key: `c-${change.id}`, text: `Answer change ${change.number}: “${change.title}”`, detail: `${project.name}. Extra work ${price}. Approve it, or decline it.`, href: `/portal/projects/${project.id}#changes`, action: "Read it" });
+    }
   }
   // Steps Potomac marked as the client's to do, the most overdue first.
   for (const project of open) {
@@ -222,6 +227,10 @@ export type PortalProjectView = {
   readonly fileRules: string;
   /** Hours logged as billable on the project (docs/workflow.md, B6). Empty when there are none. */
   readonly billableHours: string;
+  /** Changes beyond what was agreed: waiting for an answer, and answered. */
+  readonly changes: readonly ChangeLine[];
+  /** Where to see the work: the links Potomac shared. */
+  readonly links: readonly { readonly id: string; readonly name: string; readonly url: string; readonly host: string }[];
 };
 
 // Said the way a client would: the full list of endings is long and means little to them.
@@ -265,6 +274,8 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     files: sentFiles(deps, project.id),
     fileRules: FILE_RULES,
     billableHours: billableMinutes > 0 ? readableHours(billableMinutes) : "",
+    changes: changesForClient(deps, project.id),
+    links: deps.links.listFor(project.id).filter((one) => one.shared).map((one) => ({ id: one.id, name: linkName(one), url: one.url, host: new URL(one.url).host })),
   });
 }
 
@@ -307,6 +318,15 @@ export function decideOnDeliverable(deps: PortalDeps, session: ClientSession, de
     });
     return ok(decided.value);
   });
+}
+
+/** The client approves a change on one of their projects, or declines it. An approval raises the budget and drafts its invoice. */
+export function decideOnChange(deps: PortalDeps, session: ClientSession, changeId: Id, input: { readonly decision: string; readonly note?: string | null }): Result<ChangeRequest, "not-found" | "not-waiting" | "invalid-decision" | "note-too-long"> {
+  const change = deps.changes.get(changeId);
+  const project = change ? ownProject(deps, session, change.projectId) : null;
+  // A draft or a withdrawn change was never put to the client.
+  if (!change || !project || change.status === "draft" || change.status === "withdrawn") return err("not-found");
+  return decideChangeAsClient(deps, session.clientUserId, changeId, input);
 }
 
 /** A message from the client on one of their projects: a question, or a change they want. */

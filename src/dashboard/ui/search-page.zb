@@ -17,6 +17,7 @@
   .search-hits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
   .search-hits li:first-child { border-top: 0; }
   .search-hits .hq-muted { font-size: 0.9rem; }
+  .search-extra { padding: 0.05rem 0.45rem; font-size: 0.8125rem; background: var(--muted); border-radius: calc(var(--radius) - 2px); }
   .search-hits li > * { min-width: 0; overflow-wrap: anywhere; }
   .search-box { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
   .search-field { flex: 1 1 14rem; min-width: 0; }
@@ -42,7 +43,7 @@
         <h2 id="search-{group.kind}">{group.label}</h2>
         <ul class="search-hits">
           <zb-each items={group.hits} as="hit" key={hit.key}>
-            <li><a href={hit.href}>{hit.name}</a> <span zb-if={hit.context} class="hq-muted">{hit.context}</span> <span zb-if={hit.extra} class="hq-tag">{hit.extra}</span></li>
+            <li><a href={hit.href}>{hit.name}</a> <span zb-if={hit.context} class="hq-muted">{hit.context}</span> <span zb-if={hit.extra} class="search-extra">{hit.extra}</span></li>
           </zb-each>
         </ul>
         <p zb-if={group.more} class="hq-muted hq-small" data-spaced>Showing the first 8. Add a word to narrow it down.</p>

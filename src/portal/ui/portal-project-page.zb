@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /portal/projects/:id'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -16,7 +17,7 @@
   }
   const p = view.project
 </script>
-<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [] }} done="" problem="">
+<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [], links: [], changes: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{p.name}</h1>
@@ -27,7 +28,7 @@
 
     <section class="hq-panel" aria-labelledby="pp-progress">
       <h2 id="pp-progress">Where it stands</h2>
-      <p><span class="hq-tag" data-tone={p.tone}>{p.standing}</span><span zb-if={view.next}> Next: {view.next}</span></p>
+      <p><status-badge variant={p.tone === 'warn' ? 'warning' : p.tone === 'ok' ? 'success' : 'neutral'}>{p.standing}</status-badge><span zb-if={view.next}> Next: {view.next}</span></p>
       <p zb-if={p.target}>Planned finish: {p.target}</p>
       <p zb-if={p.description} class="hq-prose">{p.description}</p>
       <p zb-if={view.billableHours} class="hq-muted">Billable hours so far: {view.billableHours}</p>
@@ -36,12 +37,53 @@
         <zb-each items={view.steps} as="step" key={step.id}>
           <li data-done={step.done ? "yes" : "no"}>
             <span class="portal-mark" aria-hidden="true">{step.done ? "✓" : ""}</span>
-            <span><strong>{step.name}</strong> <span zb-if={step.yours} class="hq-tag" data-tone="warn">Yours to do</span><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
+            <span><strong>{step.name}</strong> <status-badge zb-if={step.yours} variant="warning">Yours to do</status-badge><span class="sr-only">{step.done ? " (done)" : " (not done yet)"}</span><br><span class={step.overdue ? "portal-late" : "hq-muted"}>{step.when}</span></span>
           </li>
         </zb-each>
       </ol>
     </section>
 
+    <section zb-if={view.links.length > 0} class="hq-panel" id="links" aria-labelledby="pp-links">
+      <h2 id="pp-links">Where to see the work</h2>
+      <ul class="hq-links">
+        <zb-each items={view.links} as="link" key={link.id}>
+          <li><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}</span></li>
+        </zb-each>
+      </ul>
+    </section>
+    <section zb-if={view.changes.length > 0} class="hq-panel" id="changes" aria-labelledby="pp-changes">
+      <h2 id="pp-changes">Changes to the work</h2>
+      <p class="hq-muted">Work beyond what we agreed. Nothing extra is done or charged until you approve it.</p>
+      <ul class="portal-cards">
+        <zb-each items={view.changes} as="change" key={change.id}>
+          <li class="portal-stack">
+            <div>
+              <p><strong>{change.label}: {change.title}</strong></p>
+              <p zb-if={change.description}>{change.description}</p>
+              <p><strong>{change.price}</strong><span zb-if={change.hours}>, about {change.hours} of work</span></p>
+              <p class="hq-muted">{change.statusLabel}<span zb-if={change.answered}> {change.answered}</span><span zb-if={change.note}>: “{change.note}”</span></p>
+            </div>
+            <div zb-if={change.status === 'sent'} class="portal-decide">
+              <form method="post" action="/portal/changes/{change.id}/decision">
+                <input type="hidden" name="projectId" value={p.id}>
+                <input type="hidden" name="decision" value="approve">
+                <p class="hq-muted">Go ahead with it?</p>
+                <button class="hq-button portal-big" type="submit" aria-label="Approve change: {change.title}">Approve</button>
+              </form>
+              <form method="post" action="/portal/changes/{change.id}/decision" class="hq-form">
+                <input type="hidden" name="projectId" value={p.id}>
+                <input type="hidden" name="decision" value="decline">
+                <div class="hq-field">
+                  <label for="decline-{change.id}">Or, why not? (optional)</label>
+                  <textarea id="decline-{change.id}" name="note" rows="2" maxlength="1000"></textarea>
+                </div>
+                <div><button class="hq-button secondary portal-big" type="submit" aria-label="Decline change: {change.title}">Decline</button></div>
+              </form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
     <section class="hq-panel" id="deliverables" aria-labelledby="pp-deliverables">
       <h2 id="pp-deliverables">For you to look at</h2>
       <empty-state zb-if={view.deliverables.length === 0} heading="Nothing yet">Designs and documents appear here when they are ready for you.</empty-state>

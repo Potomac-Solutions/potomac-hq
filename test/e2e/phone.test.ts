@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
+import { addProjectLink } from "../../src/projects/index.ts";
+import { addChangeRequest, sendChangeRequest } from "../../src/finance/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, wonProject, type TestApp } from "../support/harness.ts";
@@ -28,6 +30,7 @@ test("every staff page fits a phone, and contacts are a tap to call", async () =
   unwrap(crm.addContact(t.services.crm, me, client.id, { name: "Bob Miller", email: "bob.miller.longaddress@gormaniafeed.example", phone: "304-555-0100", isPrimary: true }));
   const opportunity = unwrap(crm.createOpportunity(t.services.crm, me, client.id, { title: "A new website with online ordering", leadSource: "referral" }));
   const { project } = await wonProject(t.services, me);
+  unwrap(addProjectLink(t.services.projects, me, project.id, { kind: "staging", url: "staging.a-very-long-client-name-for-testing.example.com/menu", shared: true }));
   const pages = ["/", "/today", "/todos", "/pipeline", "/clients", `/clients/${client.id}`, `/opportunities/${opportunity.id}`, "/projects", `/projects/${project.id}`, "/board", "/time", "/money", "/money/profit", "/proposals", "/calls", "/renewals", "/sites", "/reports", "/knowledge", "/search?q=bob", "/settings", "/people"];
   for (const path of pages) {
     const res = await page.goto(t.origin + path);
@@ -37,6 +40,13 @@ test("every staff page fits a phone, and contacts are a tap to call", async () =
   await page.goto(`${t.origin}/opportunities/${opportunity.id}`);
   assert.equal(await page.getByRole("link", { name: "304-555-0100" }).getAttribute("href"), "tel:304-555-0100", "the client's primary contact, a tap to call");
   await assertAccessible(page, "an opportunity on a phone");
+  await page.goto(`${t.origin}/projects/${project.id}`);
+  await assertAccessible(page, "a project with a link on a phone");
+  const change = unwrap(addChangeRequest(t.services.finance, me, project.id, { title: "Gift cards on the ordering page", description: "Sell and redeem gift cards at checkout.", amount: "400", hours: "8" }));
+  unwrap(sendChangeRequest(t.services.finance, me, change.id));
+  await page.goto(`${t.origin}/projects/${project.id}/money`);
+  assert.equal(await page.evaluate("document.documentElement.scrollWidth"), 320, "the money page with a change fits");
+  await assertAccessible(page, "a project's money with a change request on a phone");
   await page.goto(`${t.origin}/clients/${client.id}`);
   assert.equal(await page.getByRole("link", { name: "304-555-0100" }).getAttribute("href"), "tel:304-555-0100");
   await assertAccessible(page, "a client on a phone");

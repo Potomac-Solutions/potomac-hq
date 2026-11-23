@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import * as booking from "../../src/booking/index.ts";
 import * as crm from "../../src/crm/index.ts";
 import * as finance from "../../src/finance/index.ts";
 import * as portal from "../../src/portal/index.ts";
@@ -22,8 +23,10 @@ let mikey: Id;
 let ann: Client; // client A: Mt. Storm Bakery
 let bob: Client; // client B: Gormania Feed
 
-type World = { clientId: Id; projectId: Id; sharedDeliverable: Id; sharedFile: Id; draftDeliverable: Id; draftFile: Id; sharedProposal: Id; privateProposal: Id; sentInvoice: Id; draftInvoice: Id };
+type World = { clientId: Id; projectId: Id; sharedDeliverable: Id; sharedFile: Id; draftDeliverable: Id; draftFile: Id; sharedProposal: Id; privateProposal: Id; sentInvoice: Id; draftInvoice: Id; sentChange: Id; draftChange: Id };
 let a: World;
+let aInvite: Id;
+let bInvite: Id;
 let b: World;
 
 /** A client with a project, a shared and a draft deliverable, a shared and an unshared proposal, and a sent and a draft invoice. */
@@ -46,7 +49,10 @@ async function world(name: string, title: string): Promise<World> {
   unwrap(finance.sendInvoiceNow(s.finance, mikey, sent.id));
   const draftInvoice = unwrap(finance.createInvoice(s.finance, mikey, project.id, { kind: "balance", description: `${title} unsent balance`, amount: "1000" }));
   unwrap(portal.postProjectUpdate(s.portal, mikey, project.id, `${title}: the design is ready for you.`));
-  return { clientId: client.id, projectId: project.id, sharedDeliverable: shared.id, sharedFile: shared.fileId, draftDeliverable: draft.id, draftFile: draft.fileId, sharedProposal: proposal(true, "phase two"), privateProposal: proposal(false, "internal pricing"), sentInvoice: sent.id, draftInvoice: draftInvoice.id };
+  const sentChange = unwrap(finance.addChangeRequest(s.finance, mikey, project.id, { title: `${title} extra page`, amount: "300" }));
+  unwrap(finance.sendChangeRequest(s.finance, mikey, sentChange.id));
+  const draftChange = unwrap(finance.addChangeRequest(s.finance, mikey, project.id, { title: `${title} unsent change`, amount: "700" }));
+  return { sentChange: sentChange.id, draftChange: draftChange.id, clientId: client.id, projectId: project.id, sharedDeliverable: shared.id, sharedFile: shared.fileId, draftDeliverable: draft.id, draftFile: draft.fileId, sharedProposal: proposal(true, "phase two"), privateProposal: proposal(false, "internal pricing"), sentInvoice: sent.id, draftInvoice: draftInvoice.id };
 }
 
 before(async () => {
@@ -58,6 +64,11 @@ before(async () => {
   b = await world("Gormania Feed", "Feed store site");
   ann = await clientSignedIn(t, admin, a.clientId, "Ann Baker", "ann@bakery.example");
   bob = await clientSignedIn(t, admin, b.clientId, "Bob Miller", "bob@feed.example");
+  // An invite to pick times for each client.
+  const day = Temporal.Now.plainDateISO("America/New_York").add({ days: 2 }).toString();
+  const inviteFor = (email: string, title: string) => unwrap(booking.createInvite(t.services.invites, mikey, t.db.prepare("select id from client_user where email = ?").get(email)?.["id"] as Id, { title, minutes: "30", firstDay: day, lastDay: day })).id;
+  aInvite = inviteFor("ann@bakery.example", "Bakery kickoff");
+  bInvite = inviteFor("bob@feed.example", "Feed store kickoff");
 });
 after(() => t.stop());
 
@@ -77,6 +88,8 @@ test("client A sees their own records, and not one word of client B's", async ()
   assert.match(project, /Bakery website design/);
   assert.match(project, /the design is ready for you/);
   assert.doesNotMatch(project, /secret draft/, "a draft deliverable is never mentioned");
+  assert.doesNotMatch(project, /unsent change/, "a draft change is never mentioned");
+  assert.match(project, /extra page/, "a sent change is");
   assert.doesNotMatch(project, B_WORDS);
 
   assert.equal((await ann.get(`/portal/files/${a.sharedFile}`)).status, 200);
@@ -92,6 +105,7 @@ test("client A cannot read anything of client B's: every portal page and downloa
     `/portal/proposals/${b.sharedProposal}/pdf`,
     `/portal/invoices/${b.sentInvoice}/pdf`,
     `/portal/files/${b.sharedFile}`,
+    `/portal/invites/${bInvite}`,
   ];
   // Their own records that were never shared with them are just as absent.
   const unshared = [`/portal/files/${a.draftFile}`, `/portal/proposals/${a.privateProposal}`, `/portal/proposals/${a.privateProposal}/pdf`, `/portal/invoices/${a.draftInvoice}/pdf`];
@@ -103,6 +117,7 @@ test("client A cannot read anything of client B's: every portal page and downloa
   }
   // The same addresses work for the client they belong to, so the 404s above are isolation, not broken routes.
   for (const path of theirs) assert.equal((await bob.get(path)).status, 200, `${path} for its own client`);
+  assert.equal((await ann.get(`/portal/invites/${aInvite}`)).status, 200, "and Ann opens her own invite");
 });
 
 test("client A cannot change anything of client B's: every portal form is refused and writes nothing", async () => {
@@ -111,6 +126,9 @@ test("client A cannot change anything of client B's: every portal form is refuse
     [`/portal/projects/${b.projectId}/messages`, { body: "Hello from the wrong client" }],
     [`/portal/deliverables/${b.sharedDeliverable}/decision`, { decision: "approved", projectId: b.projectId }],
     [`/portal/deliverables/${a.draftDeliverable}/decision`, { decision: "approved", projectId: a.projectId }],
+    [`/portal/changes/${b.sentChange}/decision`, { decision: "approve", projectId: b.projectId }],
+    [`/portal/invites/${bInvite}`, { "c-2099-01-01-540": "1" }],
+    [`/portal/changes/${a.draftChange}/decision`, { decision: "approve", projectId: a.projectId }],
     [`/portal/proposals/${b.sharedProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     [`/portal/proposals/${a.privateProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     ["/portal/messages", { projectId: b.projectId, body: "Hello from the home page of the wrong client" }],
@@ -201,7 +219,10 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact");
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options");
+  // The one internal post a page's script makes: it answers in JSON, and refuses the same.
+  assert.equal((await ann.post("/passkeys/options", { purpose: "register" })).status, 403);
+  assert.equal((await ann.post("/passkeys/options", { purpose: "verify" })).status, 403);
   assert.ok(internal.length >= 40, `found ${internal.length} internal forms`);
   const tables = ["activity_event", "client_organization", "opportunity", "project", "task", "note", "proposal", "time_entry", "expense", "invoice", "payment", "client_user", "project_update", "file"];
   const before = tables.map((table) => count(t.db, table));

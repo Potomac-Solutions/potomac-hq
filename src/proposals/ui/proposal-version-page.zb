@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /proposals/:id/versions/:n'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   export async function load({ context, params }) {
@@ -26,7 +27,7 @@
 </style>
 <hq-proposal-version doc={{ sections: [], lines: [], summary: {} }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs no-print"><a href="/proposals">Proposals</a> / <a href="/proposals/{doc.proposalId}">{doc.title}</a></p>
+    <breadcrumb-trail class="no-print" items={[{ label: 'Proposals', href: '/proposals' }, { label: doc.title, href: `/proposals/${doc.proposalId}` }, { label: doc.title, href: '' }]}></breadcrumb-trail>
     <div zb-if={done || problem} class="hq-notices no-print">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -48,7 +49,7 @@
       </zb-each>
       <section>
         <h2 id="version-estimate">Estimate</h2>
-        <table class="hq-table" aria-labelledby="version-estimate">
+        <table tabindex="0" class="hq-table" aria-labelledby="version-estimate">
           <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
           <tbody>
             <zb-each items={doc.lines} as="line" key={line.key}>

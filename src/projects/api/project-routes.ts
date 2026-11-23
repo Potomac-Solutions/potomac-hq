@@ -35,6 +35,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     estimate: f["estimate"] ?? null,
   });
 
+  post("/projects/:id/links", (actor, f, id) => projects.addProjectLink(deps.projects, actor, id as Id, { kind: f["kind"] ?? "", label: f["label"] ?? null, url: f["url"] ?? "", shared: f["shared"] === "1" }), {
+    done: (_, id) => `${project(id)}#links`,
+    back: (id) => `${project(id)}#links`,
+    message: "Link added.",
+  });
+  post("/project-links/:id/remove", (actor, _f, id) => projects.removeProjectLink(deps.projects, actor, id as Id), { done: (link) => `${project(link.projectId)}#links`, back: () => "/projects", message: "Link removed." });
   post(
     "/projects/:id",
     (actor, f, id) => projects.editProjectDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", description: f["description"] ?? null, health: f["health"] ?? "", startOn: f["startOn"] ?? null, targetOn: f["targetOn"] ?? null }),

@@ -21,6 +21,61 @@ How Potomac HQ is deployed, watched, backed up and restored.
 Until the Railway secrets below exist, the Deploy job says "Skipped" and
 passes.
 
+### What the first real deploys found (2026-11-22)
+
+Releases 0.9.0, 0.10.0 and 0.11.0 never stayed up on Railway. None of them
+reached the health check: HQ stopped while it started, before it listened.
+
+- **The cause was Railway's settings, not the image.**
+  - In **test**, `HQ_DATABASE_PATH` was a relative path (`data/...`), and
+    `RAILWAY_RUN_UID` was not set. HQ ran as `node` in `/app`, which is
+    read-only to it, so the start stopped with
+    `EACCES: permission denied, mkdir 'data'`.
+  - **production** had no volume and none of the variables below, so it
+    stopped with `Set HQ_DATABASE_PATH to the SQLite file.`
+  - Railway restarted it until it gave up, then marked it Crashed.
+- **CI did not catch it,** because CI starts the image with the right
+  settings. CI proves the image works. It cannot prove Railway is set up.
+- **Both fixes are needed.** A relative path fails as above. `/data/hq.db`
+  without `RAILWAY_RUN_UID=0` fails with "unable to open database file".
+- **Then a second fault: the port.** With the database fixed, test started
+  and passed its health check, but every request to its domain got a 502.
+  Railway sets `PORT=8080`, so HQ listened on 8080. The domain sent traffic
+  to 3000, the port the `Dockerfile` exposes. The health check uses `PORT`,
+  so it passed while the site was down. Setting `PORT=3000` fixed it.
+- **How it deploys today:** the Deploy job's secrets are not set, so it is
+  skipped. Railway's own GitHub integration deploys `main` to **both**
+  environments. Until that changes, test runs what production runs.
+
+### Railway settings that work
+
+Set these for each environment, then check them in the service's Settings
+and Variables tabs:
+
+| Setting | Value |
+| --- | --- |
+| Volume | Attached to the service, mounted at `/data` |
+| `HQ_DATABASE_PATH` | `/data/hq.db`. It must start with `/data/`: a relative path is inside the read-only app folder |
+| `RAILWAY_RUN_UID` | `0` |
+| `PORT` | `3000`, the same as the domain's target port. Without it Railway uses 8080 and the domain answers 502 |
+| Replicas | 1 |
+| Start command | Empty. The `Dockerfile` runs `bin/start.sh` |
+| Health check | `/healthz`, 60 seconds (from `railway.json`) |
+| Restart policy | On failure (from `railway.json`) |
+| Domain | test: Railway's domain. production: `hq.potomac.solutions` |
+
+### Checking a deploy is healthy
+
+1. The deploy log shows the migrations (`Applied ...` or
+   `Nothing to apply`), the lines about backups, alerts and email, and then
+   `Potomac HQ is listening on port ...`. No `EACCES`, no
+   `unable to open database file`, no `Set HQ_...`.
+2. The deployment is **Active**, not Crashed, and it stays Active for ten
+   minutes, past the first site check.
+3. `curl https://<domain>/healthz` answers `{"ok":true}`.
+4. Redeploy once. The second start says `Nothing to apply`, which shows the
+   database is on the volume and survived.
+
 ## First deploy checklist
 
 Do it for the test environment first, then again for production.
@@ -60,7 +115,8 @@ Do it for the test environment first, then again for production.
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
-`PORT` is set by Railway. `HQ_CACHE_DIR` is set by the container.
+Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
+set by the container.
 
 A setting that is half filled in stops HQ from starting and says which one,
 so a missing backup or a dead alert is never silent.
@@ -261,6 +317,9 @@ together.
 | --- | --- |
 | The site does not answer | Railway: is the service running, and what does the end of its log say? A failed migration stops the start and names the migration |
 | The log says "unable to open database file" or "permission denied" | `RAILWAY_RUN_UID=0` is not set, or the volume is not mounted at `/data` |
+| The log says `EACCES: permission denied, mkdir 'data'` | `HQ_DATABASE_PATH` is a relative path. Set it to `/data/hq.db` |
+| The deploy is Active but the domain answers 502 "Application failed to respond" | The log's "listening on port" is not the domain's target port. Set `PORT=3000` |
+| The log says `Set HQ_DATABASE_PATH` and the deploy is Crashed | The environment's variables are not set. See "Railway settings that work" |
 | "Something went wrong" on a page | The log line with `"level":"error"` at that time. It has the address and the stack |
 | Nobody can sign in | Is `HQ_SECURE=true` and the address https? Is `HQ_PROXIES=1`? |
 | You are locked out | In Railway's shell: `npm run reset-link -- you@example.com` prints a one-time link |

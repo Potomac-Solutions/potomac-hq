@@ -3,6 +3,10 @@
   newest first, and the form that logs one. On an opportunity, logging one
   can set the next follow-up. `touches` is what `context.crm.touches…` returns.
 -->
+<script>
+  import '../zubra/select-field.zb'
+  import '../zubra/status-badge.zb'
+</script>
 <style>
   .touches { list-style: none; margin: 0; padding: 0; }
   .touches > li { padding: 0.6rem 0; border-top: 1px solid var(--border); }
@@ -15,23 +19,13 @@
   <section class="hq-panel" id="touches" aria-labelledby="touches-heading">
     <h2 id="touches-heading">Calls and messages</h2>
     <p class="hq-muted hq-small">{touches.last}</p>
-    <p zb-if={touches.cold} class="hq-cold"><span class="hq-tag due">Going cold</span> {touches.cold}</p>
+    <p zb-if={touches.cold} class="hq-cold"><status-badge variant="danger">Going cold</status-badge> {touches.cold}</p>
     <details zb-if={touches.canLog} class="hq-more" open={touches.items.length === 0}>
       <summary>Log a call, email, text or meeting</summary>
       <form method="post" action={action} class="hq-form">
         <div class="touch-form">
-          <div class="hq-field">
-            <label for="touch-kind">What</label>
-            <select id="touch-kind" name="kind" required>
-              <zb-each items={touches.kinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
-            </select>
-          </div>
-          <div class="hq-field">
-            <label for="touch-outcome">If a call, how it went</label>
-            <select id="touch-outcome" name="outcome">
-              <zb-each items={touches.outcomes} as="outcome" key={outcome.value}><option value={outcome.value}>{outcome.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="What" name="kind" options={touches.kinds} required={true}></select-field>
+          <select-field label="If a call, how it went" name="outcome" options={touches.outcomes}></select-field>
           <div zb-if={touches.contacts.length > 0} class="hq-field">
             <label for="touch-contact">With</label>
             <select id="touch-contact" name="contactId">

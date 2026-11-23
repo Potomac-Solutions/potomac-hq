@@ -3,7 +3,10 @@ import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
 export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
-  const get = db.prepare("select user_id, secret, confirmed_at, last_step from user_two_factor where user_id = ?");
+  const get = db.prepare("select user_id, secret, confirmed_at, last_step, app from user_two_factor where user_id = ?");
+  const clearPasskeys = db.prepare("delete from passkey where user_id = ?");
+  const clearChallenges = db.prepare("delete from passkey_challenge where user_id = ?");
+  const withoutApp = db.prepare("insert into user_two_factor (user_id, secret, confirmed_at, last_step, app, created_at, updated_at) values (?, ?, ?, 0, 0, ?, ?)");
   const clearRecovery = db.prepare("delete from two_factor_recovery where user_id = ?");
   const clearSessions = db.prepare("delete from two_factor_session where user_id = ?");
   const clearRecord = db.prepare("delete from user_two_factor where user_id = ?");
@@ -21,12 +24,14 @@ export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
   const wipe = (userId: Id) => {
     clearRecovery.run(userId);
     clearSessions.run(userId);
+    clearPasskeys.run(userId);
+    clearChallenges.run(userId);
     clearRecord.run(userId);
   };
   return {
     get(userId) {
       const row = get.get(userId);
-      return row ? { userId: row["user_id"] as Id, secret: String(row["secret"]), confirmed: row["confirmed_at"] !== null, lastStep: Number(row["last_step"]) } : null;
+      return row ? { userId: row["user_id"] as Id, secret: String(row["secret"]), confirmed: row["confirmed_at"] !== null, lastStep: Number(row["last_step"]), app: row["app"] === 1 } : null;
     },
     begin(userId, secret, at) {
       wipe(userId);
@@ -35,6 +40,14 @@ export function sqliteTwoFactorStore(db: Database): TwoFactorStore {
     confirm(userId, step, hashes, at) {
       confirm.run(at, step, at, userId);
       clearRecovery.run(userId);
+      for (const hash of hashes) addRecovery.run(userId, hash);
+    },
+    confirmWithoutApp(userId, secret, hashes, at) {
+      // Any half-finished app setup goes; passkeys are added by the caller after this.
+      clearRecovery.run(userId);
+      clearSessions.run(userId);
+      clearRecord.run(userId);
+      withoutApp.run(userId, secret, at, at, at);
       for (const hash of hashes) addRecovery.run(userId, hash);
     },
     setLastStep(userId, step, at) {

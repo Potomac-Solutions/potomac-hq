@@ -1,74 +1,147 @@
 <!--
-  The shell around every page: a skip link, the top bar with the Potomac mark,
-  the main links and the signed-in person's account actions, then the page.
-  Signed out, the bar shows the mark alone.
+  The shell around every page. Signed in: a sidebar with the Potomac mark and
+  HQ's sections in groups, a top bar with search and the signed-in person's
+  account, then the page. On a narrow screen the sidebar folds behind a Menu
+  button. Signed out, a bar with the mark alone.
 -->
 <script>
   'use layout /'
-  // The shell imports no component that a page also uses. One imported by
-  // both is rendered twice on the server, nested inside itself (found in
+  // The shell imports only components no page imports. One imported by both
+  // was rendered twice on the server, nested inside itself (found in
   // @zubra/router 5.17.0: https://github.com/journey-to-code-org/zubra/issues/300).
-  // Until that is fixed, the account
-  // actions below are a plain link and a plain button, not action-button.
-  import './shared/ui/zubra/nav-bar.zb'
+  // user-avatar is the shell's alone; the account actions are a plain link
+  // and a plain button, not action-button.
+  import './shared/ui/zubra/user-avatar.zb'
 
-  export async function load({ context }) {
+  export async function load({ context, url }) {
+    const can = context.can
+    const path = url.pathname
+    const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
+    // Sections in the order of a job: find the work, do the work, get paid, run the company.
+    const groups = [
+      { label: '', links: [
+        { label: 'Today', href: '/today', current: at('/today', '/todos') },
+        { label: 'Dashboard', href: '/', current: at('/') },
+      ] },
+      { label: 'Sales', links: [
+        { label: 'Pipeline', href: '/pipeline', current: at('/pipeline', '/opportunities') },
+        { label: 'Clients', href: '/clients', current: at('/clients') },
+        ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: at('/proposals') }] : []),
+        ...(can.calls ? [{ label: 'Calls', href: '/calls', current: at('/calls') }] : []),
+      ] },
+      { label: 'Delivery', links: [
+        { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
+        { label: 'Board', href: '/board', current: at('/board') },
+        ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
+        { label: 'Sites', href: '/sites', current: at('/sites') },
+      ] },
+      { label: 'Finance', links: [
+        ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),
+        { label: 'Renewals', href: '/renewals', current: at('/renewals') },
+        ...(can.reports ? [{ label: 'Reports', href: '/reports', current: at('/reports') }] : []),
+      ] },
+      { label: 'Company', links: [
+        { label: 'Knowledge', href: '/knowledge', current: at('/knowledge') },
+        ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
+        ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
+      ] },
+    ]
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', can: context.can }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search' }
   }
 
-  const links = [
-    { label: 'Dashboard', href: '/', current: route.path === '/' },
-    { label: 'Today', href: '/today', current: route.path === '/today' || route.path === '/todos' },
-    { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
-    { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
-    ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') }] : []),
-    // The board is part of Projects: it is linked from the Projects page and the dashboard.
-    { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') || route.path === '/board' },
-    ...(can.time ? [{ label: 'Time', href: '/time', current: route.path === '/time' }] : []),
-    ...(can.money ? [{ label: 'Money', href: '/money', current: route.path === '/money' }] : []),
-    ...(can.reports ? [{ label: 'Reports', href: '/reports', current: route.path === '/reports' }] : []),
-    { label: 'Knowledge', href: '/knowledge', current: route.path.startsWith('/knowledge') },
-  ]
+  let menu = false
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
-  .hq-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--foreground); text-decoration: none; white-space: nowrap; }
+  .hq-brand { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; color: inherit; text-decoration: none; white-space: nowrap; }
   .hq-brand img { width: 1.75rem; height: 1.75rem; }
-  .hq-signed-out { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
-  .hq-account { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.35rem; white-space: nowrap; }
-  .hq-find { margin: 0; }
-  .hq-find input { width: 9.5rem; min-height: 2.25rem; padding: 0 0.6rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
-  .hq-find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-  .hq-who { color: var(--muted-foreground); font-size: 0.9rem; }
-  /* The name is on the Settings page too. Where the bar is tight, it gives way to the links. */
-  @media (max-width: 90rem) { .hq-who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+  .hq-signed-out { padding: 0.8rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--card); color: var(--foreground); }
+
+  .hq-shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 100vh; }
+  .hq-side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem 0.75rem 1.25rem; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
+  .hq-side-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0.5rem; }
+  .hq-menu { display: none; height: 2.25rem; padding: 0 0.8rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--sidebar-foreground); background: transparent; border: 1px solid var(--sidebar-border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .hq-nav { display: grid; gap: 1.1rem; }
+  .hq-nav h2 { margin: 0 0 0.3rem; padding: 0 0.6rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; color: var(--sidebar-muted); }
+  .hq-nav ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+  .hq-nav a { display: block; padding: 0.4rem 0.6rem; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); font-size: 0.9rem; font-weight: 500; text-decoration: none; border-left: 3px solid transparent; }
+  .hq-nav a:hover { background: color-mix(in srgb, var(--sidebar-accent) 60%, transparent); }
+  .hq-nav a[aria-current=page] { background: var(--sidebar-accent); font-weight: 650; border-left-color: #6cc0f5; }
+  .hq-side a:focus-visible, .hq-menu:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 1px; }
+
+  .hq-body { display: flex; flex-direction: column; min-width: 0; }
+  .hq-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.75rem; background: var(--card); border-bottom: 1px solid var(--border); }
+  .hq-find { flex: 1 1 auto; max-width: 28rem; margin: 0; }
+  .hq-find input { width: 100%; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--canvas); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .hq-find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; background: var(--background); }
+  .hq-account { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; white-space: nowrap; }
+  .hq-who { font-size: 0.875rem; font-weight: 600; margin-right: 0.35rem; }
   .hq-account form { display: inline; margin: 0; }
-  .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.75rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
+  .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
-  .hq-main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 3rem; }
   .hq-main:focus { outline: none; }
+  .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
+
+  @media (max-width: 60rem) {
+    .hq-shell { display: block; }
+    .hq-side { position: static; height: auto; gap: 0.75rem; padding: 0.6rem 0.75rem; }
+    .hq-menu { display: inline-flex; align-items: center; }
+    .hq-nav { display: none; padding-bottom: 0.5rem; }
+    .hq-side.open .hq-nav { display: grid; }
+    .hq-top { position: static; padding: 0.6rem 1rem; flex-wrap: wrap; }
+    .hq-who, .hq-account user-avatar { display: none; }
+    .hq-main { padding: 1.25rem 1rem 3rem; }
+  }
 </style>
-<hq-app who="" route={{}} can={{}}>
+<hq-app who="" groups={[]} searching={false}>
   <a class="skip-link" href="#main">Skip to content</a>
-  <nav-bar zb-if={who} href="/" links={links} label="Main">
-    <a slot="brand" class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
-    <div slot="actions" class="hq-account">
-      <form zb-if={route.path !== '/search'} method="get" action="/search" role="search" class="hq-find">
-        <label class="sr-only" for="hq-find-q">Search HQ</label>
-        <input id="hq-find-q" name="q" type="search" placeholder="Search" autocomplete="off" maxlength="100">
-      </form>
-      <span class="hq-who">{who}</span>
-      <a class="hq-account-action" href="/settings">Settings</a>
-      <form method="post" action="/staff/sign-out">
-        <button class="hq-account-action" type="submit">Sign out</button>
-      </form>
+  <div zb-if={who} class="hq-shell">
+    <aside class="hq-side" class:open={menu}>
+      <div class="hq-side-top">
+        <a class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+        <button type="button" class="hq-menu" aria-expanded={menu ? 'true' : 'false'} aria-controls="hq-nav" onclick={() => (menu = !menu)}>Menu</button>
+      </div>
+      <nav class="hq-nav" id="hq-nav" aria-label="Main">
+        <zb-each items={groups} as="group" key={group.label || 'top'}>
+          <div>
+            <h2 zb-if={group.label}>{group.label}</h2>
+            <ul>
+              <zb-each items={group.links} as="link" key={link.href}>
+                <li><a href={link.href} aria-current={link.current ? 'page' : null}>{link.label}</a></li>
+              </zb-each>
+            </ul>
+          </div>
+        </zb-each>
+      </nav>
+    </aside>
+    <div class="hq-body">
+      <header class="hq-top">
+        <form zb-if={!searching} method="get" action="/search" role="search" class="hq-find">
+          <label class="sr-only" for="hq-find-q">Search HQ</label>
+          <input id="hq-find-q" name="q" type="search" placeholder="Search clients, projects, invoices…" autocomplete="off" maxlength="100">
+        </form>
+        <div class="hq-account">
+          <user-avatar name={who} size="sm"></user-avatar>
+          <span class="hq-who">{who}</span>
+          <a class="hq-account-action" href="/settings">Settings</a>
+          <form method="post" action="/staff/sign-out">
+            <button class="hq-account-action" type="submit">Sign out</button>
+          </form>
+        </div>
+      </header>
+      <main id="main" class="hq-main" tabindex="-1">
+        <zb-slot></zb-slot>
+      </main>
     </div>
-  </nav-bar>
-  <header zb-else class="hq-signed-out">
-    <a class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
-  </header>
-  <main id="main" class="hq-main" tabindex="-1">
-    <zb-slot></zb-slot>
-  </main>
+  </div>
+  <div zb-else>
+    <header class="hq-signed-out">
+      <a class="hq-brand" href="/"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac HQ</a>
+    </header>
+    <main id="main" class="hq-main narrow" tabindex="-1">
+      <zb-slot></zb-slot>
+    </main>
+  </div>
 </hq-app>

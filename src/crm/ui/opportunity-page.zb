@@ -5,6 +5,8 @@
 -->
 <script>
   'use route /opportunities/:id'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -25,20 +27,24 @@
 </script>
 <hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/clients">Clients</a> / <a href="/clients/{view.client.id}">{view.client.name}</a></p>
-    <h1>{o.title}</h1>
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: o.title, href: '' }]}></breadcrumb-trail>
+    <div class="hq-head">
+      <div><h1>{o.title}</h1><p><a href="/clients/{view.client.id}">{view.client.name}</a></p></div>
+      <div class="hq-head-actions"><status-badge variant={o.won ? 'success' : o.open ? 'primary' : 'neutral'}>{o.stageLabel}</status-badge><status-badge zb-if={o.followUpDue} variant="danger">Follow-up due</status-badge></div>
+    </div>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-
+    <div class="hq-split facts-first">
+    <div class="hq-rail">
     <section class="hq-panel" aria-labelledby="opportunity-details">
       <h2 id="opportunity-details">Where it stands</h2>
       <dl class="hq-facts">
         <dt>Stage</dt><dd><strong>{o.stageLabel}</strong></dd>
         <dt>Service</dt><dd>{o.serviceLabel}</dd>
         <dt zb-if={view.can.viewValue}>Price</dt><dd zb-if={view.can.viewValue}>{o.price || "Not set"}</dd>
-        <dt>Follow-up</dt><dd>{o.followUpOn || "None"} <span zb-if={o.followUpDue} class="hq-tag due">Due</span></dd>
+        <dt>Follow-up</dt><dd><time zb-if={o.followUpOn} datetime={o.followUpOn}>{o.followUpText}</time><span zb-else>None</span> <status-badge zb-if={o.followUpDue} variant="danger">Due</status-badge></dd>
         <dt>Found you by</dt><dd>{o.leadSourceLabel}</dd>
         <dt>Contact</dt><dd>{view.contactName || "None"}<span zb-if={view.contactIsPrimary} class="hq-muted"> (primary at the client)</span><span zb-if={view.contactPhone}> · <a href="tel:{view.contactPhone}" class="hq-nowrap">{view.contactPhone}</a></span><span zb-if={view.contactEmail}> · <a href="mailto:{view.contactEmail}">{view.contactEmail}</a></span></dd>
         <dt>Owner</dt><dd>{view.ownerName}</dd>
@@ -46,9 +52,6 @@
         <dt zb-if={o.summary}>Notes</dt><dd zb-if={o.summary}>{o.summary}</dd>
       </dl>
     </section>
-
-    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
-    <todos-panel zb-if={todos} todos={todos} where="opportunity" id={o.id}></todos-panel>
     <section zb-if={canMove} class="hq-panel" aria-labelledby="opportunity-stage">
       <h2 id="opportunity-stage">Move it on</h2>
       <div class="hq-actions">
@@ -67,7 +70,6 @@
         <div><button class="hq-button secondary" type="submit">Mark lost</button></div>
       </form>
     </section>
-
     <section zb-if={view.can.setValue && o.open} class="hq-panel" aria-labelledby="opportunity-price">
       <h2 id="opportunity-price">Price</h2>
       <form method="post" action="/opportunities/{o.id}/value" class="hq-form">
@@ -81,7 +83,6 @@
         <div><button class="hq-button" type="submit">Save price</button></div>
       </form>
     </section>
-
     <section zb-if={view.can.setFollowUp && o.open} class="hq-panel" aria-labelledby="opportunity-follow-up">
       <h2 id="opportunity-follow-up">Follow-up</h2>
       <div class="hq-actions">
@@ -95,11 +96,14 @@
         </form>
       </div>
     </section>
-
+    </div>
+    <div>
+    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
+    <todos-panel zb-if={todos} todos={todos} where="opportunity" id={o.id}></todos-panel>
     <section zb-if={proposals.canView} class="hq-panel" aria-labelledby="opportunity-proposals">
       <h2 id="opportunity-proposals">Proposals</h2>
       <p zb-if={proposals.items.length === 0} class="hq-muted">None yet.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Proposal</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
         <tbody>
           <zb-each items={proposals.items} as="proposal" key={proposal.id}>
@@ -126,5 +130,7 @@
       <p zb-else class="hq-muted">Not started yet.</p>
     </section>
     <notes-panel notes={notes}></notes-panel>
+    </div>
+    </div>
   </div>
 </hq-opportunity>

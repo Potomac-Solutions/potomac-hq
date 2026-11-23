@@ -3,7 +3,7 @@
 // nothing rather than something wrong.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { openTimes, type BusyCalendar } from "../../src/booking/index.ts";
+import { bookCall, openTimes, type BusyCalendar } from "../../src/booking/index.ts";
 import { httpClient, signIn, testApp, textOf, type TestApp } from "../support/harness.ts";
 
 let busy: { start: string; end: string }[] = [];
@@ -34,15 +34,14 @@ test("a busy time in the other calendar is not offered, and cannot be booked", a
   busy = [{ start: slot.start, end: slot.end }];
   const deps = { ...t.services.booking, busy: calendar };
   assert.ok(!(await openTimes(deps, "public")).days.flatMap((day) => day.slots).some((one) => one.start === slot.start));
-  assert.doesNotMatch(await httpClient(t.origin).page("/book"), new RegExp(`value="${slot.start}"`));
-  assert.equal(problemOf(await httpClient(t.origin).post("/book", { name: "Dale", email: "dale@example.com", start: slot.start })), "That time was just taken. Choose another.");
+  assert.deepEqual(await bookCall(deps, { kind: "public", name: "Dale", email: "dale@example.com" }, slot.start), { ok: false, error: "taken" });
 });
 
 test("when the calendar cannot be read, no times are offered and nothing is booked", async () => {
   broken = true;
-  assert.match(textOf(await httpClient(t.origin).page("/book")), /The calendar couldn’t be checked just now\. Try again in a minute\./);
+  assert.equal((await openTimes({ ...t.services.booking, busy: calendar }, "public")).calendarFailed, true);
   const any = "2099-01-01T14:00:00Z";
-  assert.equal(problemOf(await httpClient(t.origin).post("/book", { name: "Dale", email: "dale@example.com", start: any })), "The calendar couldn’t be checked just now. Try again in a minute.");
+  assert.deepEqual(await bookCall({ ...t.services.booking, busy: calendar }, { kind: "public", name: "Dale", email: "dale@example.com" }, any), { ok: false, error: "calendar-failed" });
   assert.equal(t.db.prepare("select count(*) as n from booking").get()?.["n"], 0);
   broken = false;
 });

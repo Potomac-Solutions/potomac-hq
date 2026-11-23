@@ -3,6 +3,7 @@
 -->
 <script>
   'use route /knowledge/:slug/revisions/:n'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import './article-body.zb'
@@ -16,7 +17,7 @@
 </script>
 <hq-article-revision view={{ tags: [], blocks: [] }}>
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/knowledge">Knowledge base</a> / <a href="/knowledge/{view.slug}">{view.currentTitle}</a></p>
+    <breadcrumb-trail items={[{ label: 'Knowledge base', href: '/knowledge' }, { label: view.currentTitle, href: `/knowledge/${view.slug}` }, { label: view.title, href: '' }]}></breadcrumb-trail>
     <h1>{view.title}</h1>
     <p class="hq-muted">Revision {view.revision} · {view.category} · Saved by {view.who}, {view.when}</p>
     <alert-banner zb-if={!view.current} variant="warning">This is an older revision. The current one may say something else.</alert-banner>

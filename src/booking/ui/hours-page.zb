@@ -1,33 +1,31 @@
 <!--
-  When calls can be booked: up to two stretches a weekday, the call length,
-  the gap after each call, how much notice, how far ahead, days off, and
-  whether clients and the public can book. For managers and admins.
+  When calls can be booked: the usual week, painted on the availability
+  grid; the call length, the gap after each call, how much notice, how far
+  ahead, days off, and whether clients and the public can book. Specific
+  weeks are painted on /calls/availability. For managers and admins.
 -->
 <script>
   'use route /calls/hours'
   import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/availability-grid.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.booking.setup()
     if (!view.ok) return context.forbidden()
-    return { title: 'Hours for calls', view: view.value, lengths: [15, 20, 30, 45, 60, 90], done: context.notice.done, problem: context.notice.problem }
+    const weekly = context.booking.weekly()
+    return { title: 'Hours for calls', view: view.value, weekly: weekly.ok ? weekly.value : { rows: [], columns: [] }, lengths: [15, 20, 30, 45, 60, 90], done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
-  .hours-table { width: 100%; border-collapse: collapse; }
-  .hours-table th, .hours-table td { padding: 0.45rem 0.4rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  .hours-table input { width: 9.5rem; min-height: 2.5rem; padding: 0.35rem 0.5rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
-  .hours-pair { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
   .hours-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin: 1rem 0; }
   .hours-check { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.5rem 0; }
   .hours-check input { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; }
   .days-off { list-style: none; margin: 0 0 1rem; padding: 0; }
   .days-off li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; padding: 0.4rem 0; border-top: 1px solid var(--border); }
   .days-off form { margin: 0; }
-  @media (max-width: 40rem) { .hours-table thead { display: none; } .hours-table tr { display: grid; } .hours-table td, .hours-table th { border: 0; padding: 0.25rem 0; } .hours-table tr { border-bottom: 1px solid var(--border); padding: 0.5rem 0; } }
 </style>
-<hq-booking-hours view={{ days: [], closed: [] }} lengths={[]} done="" problem="">
+<hq-booking-hours view={{ days: [], closed: [] }} weekly={{ rows: [], columns: [] }} lengths={[]} done="" problem="">
   <div class="hq-page">
     <h1>Hours for calls</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -37,22 +35,15 @@
     <p class="hq-muted">Times are in Eastern time. Calls go on {view.hostName}’s calendar: whoever saves this page. <a href="/calls">Back to Calls</a></p>
     <p class="hq-muted">{view.calendar === 'none' ? 'Open times avoid calls already booked in HQ. To avoid everything else in your Google Calendar too, see “Booked calls” in the operations guide.' : 'Open times also avoid busy times in ' + view.calendar + '.'}</p>
 
-    <form method="post" action="/calls/hours" class="hq-panel" aria-labelledby="hours-week">
-      <h2 id="hours-week">Each week</h2>
-      <p class="hq-muted">Up to two stretches a day, like 09:00 to 12:00 and 13:00 to 17:00. Leave a day empty for no calls.</p>
-      <table class="hours-table">
-        <thead><tr><th scope="col">Day</th><th scope="col">First stretch</th><th scope="col">Second stretch</th></tr></thead>
-        <tbody>
-          <zb-each items={view.days} as="day" key={day.weekday}>
-            <tr>
-              <th scope="row">{day.name}</th>
-              <td><span class="hours-pair"><input type="time" step="900" name="start-{day.weekday}-0" value={day.ranges[0].start} aria-label="{day.name}, first stretch starts"> to <input type="time" step="900" name="end-{day.weekday}-0" value={day.ranges[0].end} aria-label="{day.name}, first stretch ends"></span></td>
-              <td><span class="hours-pair"><input type="time" step="900" name="start-{day.weekday}-1" value={day.ranges[1].start} aria-label="{day.name}, second stretch starts"> to <input type="time" step="900" name="end-{day.weekday}-1" value={day.ranges[1].end} aria-label="{day.name}, second stretch ends"></span></td>
-            </tr>
-          </zb-each>
-        </tbody>
-      </table>
+    <form method="post" action="/calls/hours/week" class="hq-panel" id="usual-week" aria-labelledby="hours-week">
+      <h2 id="hours-week">Your usual week</h2>
+      <p class="hq-muted">Paint the half hours you’re free for calls. With a mouse, press and drag across the grid; on a phone, tap each half hour. To change one week only, like a holiday week, <a href="/calls/availability">paint that week</a>.</p>
+      <availability-grid grid={weekly} caption="Your usual week: each half hour you’re free for calls"></availability-grid>
+      <p><button class="hq-button" type="submit">Save my usual week</button></p>
+    </form>
 
+    <form method="post" action="/calls/hours" class="hq-panel" aria-labelledby="hours-settings">
+      <h2 id="hours-settings">Calls</h2>
       <div class="hours-grid">
         <div class="hq-field">
           <label for="call-minutes">Each call</label>
@@ -77,7 +68,7 @@
       </div>
 
       <label class="hours-check"><input type="checkbox" name="portal-open" value="1" checked={view.portalOpen}> <span>Clients can book a call in the portal. Off: they ask for a call, and you answer.</span></label>
-      <label class="hours-check"><input type="checkbox" name="public-open" value="1" checked={view.publicOpen}> <span>Anyone can book a call at <strong>/book</strong>, such as a prospect from the website.</span></label>
+      <label class="hours-check"><input type="checkbox" name="public-open" value="1" checked={view.publicOpen}> <span>Anyone can sign up at <strong>/book</strong> and book a call, such as a prospect from the website. They confirm their email and choose a password first, and become a prospect in the CRM. Needs email set up. Once they have an account, they book in the portal like a client.</span></label>
       <p><button class="hq-button" type="submit">Save</button></p>
     </form>
 

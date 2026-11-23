@@ -56,6 +56,13 @@ function describe(deps: PortalDeps, event: LoggedEvent): Described | null {
       const opportunity = deps.opportunities.get(proposal.opportunityId);
       return { who, organization, did: `${event.action === "proposal.accepted-in-portal" ? "accepted" : "declined"} the proposal “${opportunity?.title ?? "untitled"}”`, path: `/proposals/${proposal.id}`, ownerId: opportunity?.ownerId ?? null };
     }
+    case "change-request.approved":
+    case "change-request.declined":
+      return onProject(idIn(event, "projectId"), (name) => `${event.action === "change-request.approved" ? "approved" : "declined"} a change on ${name}`, "changes");
+    case "schedule-invite.answered": {
+      const id = asId(event.recordId);
+      return id ? { who, organization, did: "picked times for a call", path: `/calls/invites/${id}`, ownerId: null } : null;
+    }
     case "call.requested":
       return { who, organization, did: "asked for a call", path: `/clients/${user.organizationId}#portal`, ownerId: null };
     default:
@@ -83,6 +90,7 @@ export function clientActivity(deps: PortalDeps, actorId: Id | null): ClientActi
 function organizationOf(deps: PortalDeps, event: LoggedEvent): Id | null {
   switch (event.action) {
     case "deliverable.shared":
+    case "change-request.sent":
     case "invoice.sent":
     case "milestone.given-to-client": {
       const projectId = idIn(event, "projectId");

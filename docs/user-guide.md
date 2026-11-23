@@ -17,6 +17,12 @@ at least 10 characters. The link works once.
   phone. Used most of them? Settings makes ten new ones, with a code from
   the app, and the old ones stop working. With neither phone nor codes, an
   admin can reset it from the People page.
+- **Passkeys.** Instead of an app, or beside one, use a passkey: your
+  fingerprint, face or PIN on your phone or computer, or a security key.
+  In Settings, choose "Turn on with a passkey", or "Add a passkey" once
+  two-factor sign-in is on. After your password, choose "Continue with a
+  passkey". Add one for each device you sign in from. A passkey can't be
+  typed into a fake sign-in page, so it is the safer of the two.
 - **Requiring it of admins.** On People, under Sign-in rules, an admin who
   has it on can require it of every admin. An admin without it can then
   open only Settings until it is on.
@@ -126,6 +132,26 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **Finding a time together.** On a client's page, under Client portal,
+  "Ask someone to pick times for a call". They mark every half hour they
+  could do on a grid of your free time; you pick one that suits both and
+  it's booked. Like a Timeful poll, inside HQ.
+- **New people booking a call.** Turn on "Anyone can sign up at /book" on
+  the Hours page (it needs email set up), and link your website to /book.
+  People sign up, confirm their email, and book in their own portal. Each
+  one shows up in the pipeline as "Signed up to book a call".
+- **Your availability.** Under Calls → Usual week, paint the half hours
+  you're free for calls: press and drag across the grid. For one week that's
+  different, Calls → Availability this week: paint over it. Busy times from
+  your calendar and calls already booked show underneath.
+- **Change requests.** When a client asks for something that wasn't in the
+  agreement, don't just do it. On the project's money page, draft a change
+  with its price and hours and send it. They approve it in the portal (or
+  tell you by phone, and you record it). Approving raises the budget and
+  drafts the invoice.
+- **Project links.** On a project, add where the work lives: the staging
+  site, the designs, the code. Tick "Show it to the client" and it appears in
+  their portal, so they always know where to look.
 - **On your phone.** HQ works on a phone. From Today, tap "Log a call" on a
   follow-up; the opportunity page has the contact's number as a tap to call,
   and the call log right below it.

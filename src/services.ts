@@ -6,10 +6,10 @@ import { sqliteClientStore, sqliteContactStore, sqliteOpportunityStore, sqliteTo
 import type { CrmDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
 import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
-import type { BookingDeps, BusyCalendar } from "./booking/index.ts";
+import type { BookingDeps, InviteDeps, BusyCalendar } from "./booking/index.ts";
 import type { RenewalsDeps } from "./renewals/index.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
@@ -18,8 +18,8 @@ import type { TodosDeps } from "./todos/index.ts";
 import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
-import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
-import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
+import { manageTokens, noBusyCalendar, sqliteBookingStore, sqliteScheduleInviteStore } from "./booking/adapters.ts";
+import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqlitePasskeyStore, passkeyCrypto, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
@@ -29,7 +29,7 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
 import type { ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock } from "./shared/index.ts";
@@ -61,6 +61,8 @@ export type Services = {
   readonly todos: TodosDeps;
   /** The day's list, across HQ. */
   readonly day: TodayDeps;
+  /** Scheduling invites: someone paints the times they could do, and a call is confirmed. */
+  readonly invites: InviteDeps;
   /** The morning email of that list. */
   readonly morning: MorningDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
@@ -86,7 +88,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
   const users = sqliteUserStore(db);
-  const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
+  const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, passkeys: sqlitePasskeyStore(db), webauthn: passkeyCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);
@@ -111,6 +113,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     milestones: sqliteMilestoneStore(db),
     tasks: sqliteTaskStore(db),
     deliverables: sqliteDeliverableStore(db),
+    links: sqliteProjectLinkStore(db),
     baselines: sqliteBaselineStore(db),
     history: sqliteProjectHistory(db),
     today,
@@ -118,7 +121,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {
@@ -178,7 +181,18 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     formatWhen,
   };
+  const clientUsers = sqliteClientUserStore(db);
+  const invites: InviteDeps = {
+    ...booking,
+    invites: sqliteScheduleInviteStore(db),
+    people: {
+      get: (id) => {
+        const found = clientUsers.get(id);
+        return found ? { organizationId: found.organizationId, name: found.name, email: found.email, active: found.status !== "disabled" } : null;
+      },
+    },
+  };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { booking, invoiceReminders, renewals, monitor, touches, todos, day, morning, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { booking, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

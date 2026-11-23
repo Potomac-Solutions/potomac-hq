@@ -4,6 +4,7 @@
   small form on each card. `board` is what `context.projects.board` returns.
 -->
 <script>
+  import '../../shared/ui/zubra/status-badge.zb'
   let over = ''
   let dragged = ''
 
@@ -45,7 +46,7 @@
   <div class="board">
     <zb-each items={board.columns} as="column" key={column.status}>
       <section class="board-column" class:board-over={over === column.status} aria-labelledby="column-{column.status}" ondragover={(event) => { event.preventDefault(); over = column.status }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.status)}>
-        <h2 id="column-{column.status}"><span>{column.label}</span> <span class="hq-tag">{column.cards.length}</span></h2>
+        <h2 id="column-{column.status}"><span>{column.label}</span> <status-badge>{column.cards.length}</status-badge></h2>
         <p zb-if={column.cards.length === 0} class="board-empty">Nothing here.</p>
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
@@ -54,9 +55,9 @@
               <p zb-if={!board.project} class="board-meta">{card.projectName}</p>
               <p class="board-meta">{card.assigneeName || "Nobody yet"}<span zb-if={card.estimate}> · {card.estimate} h</span></p>
               <p zb-if={card.pressing || card.dueOn}>
-                <span zb-if={card.pressing} class="hq-tag">{card.priorityLabel}</span>
+                <status-badge zb-if={card.pressing}>{card.priorityLabel}</status-badge>
                 <span zb-if={card.dueOn}>Due <time datetime={card.dueOn}>{card.dueText}</time></span>
-                <span zb-if={card.overdue} class="hq-tag due">Overdue</span>
+                <status-badge zb-if={card.overdue} variant="danger">Overdue</status-badge>
               </p>
               <form zb-if={board.canMove} id="move-{card.id}" method="post" action="/tasks/{card.id}/status" class="board-move">
                 <input type="hidden" name="returnTo" value={board.returnTo}>

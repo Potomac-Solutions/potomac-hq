@@ -1,0 +1,82 @@
+<!--
+  A button that makes or uses a passkey, then sends its form.
+
+  It asks HQ for a challenge (POST /passkeys/options), hands it to the
+  browser (navigator.credentials), puts what the passkey answers in a hidden
+  field of the form it sits in, and submits that form. `purpose` is
+  "register" (a new passkey; field `credential`) or "verify" (use one; field
+  `passkey`). Nothing here is secret: the private key never leaves the
+  person's device.
+-->
+<script>
+  let problem = ''
+  let busy = false
+
+  function bytes(text) {
+    const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4)
+    const raw = atob(padded)
+    const out = new Uint8Array(raw.length)
+    for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i)
+    return out
+  }
+  function text(buffer) {
+    let raw = ''
+    for (const byte of new Uint8Array(buffer)) raw += String.fromCharCode(byte)
+    return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }
+  const ids = (list) => (list || []).map((one) => ({ type: one.type, id: bytes(one.id) }))
+
+  async function go(event) {
+    const button = event.currentTarget
+    const form = button.closest('form')
+    const field = button.parentElement.querySelector('input[type=hidden]')
+    const registering = button.dataset.purpose === 'register'
+    if (!form || !field || busy) return
+    if (!window.PublicKeyCredential || !navigator.credentials) {
+      problem = 'This browser can’t use passkeys. Try a newer browser, or another device.'
+      return
+    }
+    // The other fields of the form (a name for the passkey) must be right first.
+    if (registering && !form.reportValidity()) return
+    busy = true
+    problem = ''
+    try {
+      const response = await fetch('/passkeys/options', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'purpose=' + (registering ? 'register' : 'verify'), credentials: 'same-origin' })
+      const options = await response.json()
+      if (!response.ok) throw new Error(options.problem || 'HQ couldn’t start that. Reload the page and try again.')
+      let answer
+      if (registering) {
+        const made = await navigator.credentials.create({ publicKey: { ...options, challenge: bytes(options.challenge), user: { ...options.user, id: bytes(options.user.id) }, excludeCredentials: ids(options.excludeCredentials) } })
+        answer = { id: made.id, clientDataJSON: text(made.response.clientDataJSON), attestationObject: text(made.response.attestationObject) }
+      } else {
+        const used = await navigator.credentials.get({ publicKey: { ...options, challenge: bytes(options.challenge), allowCredentials: ids(options.allowCredentials) } })
+        answer = { id: used.id, clientDataJSON: text(used.response.clientDataJSON), authenticatorData: text(used.response.authenticatorData), signature: text(used.response.signature) }
+      }
+      field.value = JSON.stringify(answer)
+      // A code typed beside the button is not what is being sent.
+      for (const other of form.querySelectorAll('[required]')) if (!registering) other.required = false
+      form.submit()
+    } catch (error) {
+      busy = false
+      const name = error && error.name
+      problem = name === 'NotAllowedError' ? 'The passkey wasn’t used. Try again when you’re ready.' : name === 'InvalidStateError' ? 'That passkey is already added.' : name === 'SecurityError' ? 'Passkeys need HQ’s usual address, over https.' : (error && error.message) || 'That didn’t work. Try again.'
+    }
+  }
+</script>
+<style>
+  :host { display: inline-grid; gap: 0.4rem; justify-items: start; }
+  button { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.9rem; font: inherit; font-size: 0.875rem; font-weight: 600; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--primary); background: var(--primary); color: var(--primary-foreground); cursor: pointer; }
+  button.secondary { background: var(--background); color: var(--foreground); border-color: var(--border); }
+  button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  button[aria-busy='true'] { opacity: 0.7; cursor: progress; }
+  svg { width: 1rem; height: 1rem; flex: none; }
+  .problem { margin: 0; font-size: 0.875rem; color: var(--destructive); }
+</style>
+<passkey-button purpose="verify" field="passkey" label="Use a passkey" secondary={false}>
+  <input type="hidden" name={field} value="">
+  <button type="button" class={secondary ? 'secondary' : ''} data-purpose={purpose} aria-busy={busy ? 'true' : 'false'} onclick={go}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.8 12.2 20 3"></path><path d="m16 7 3 3"></path></svg>
+    {label}
+  </button>
+  <p class="problem" role="alert" zb-if={problem}>{problem}</p>
+</passkey-button>

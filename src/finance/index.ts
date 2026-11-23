@@ -8,3 +8,6 @@ export type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, 
 export * from "./application/commands.ts";
 export * from "./application/queries.ts";
 export * from "./application/reminders.ts";
+export * from "./application/change-requests.ts";
+export { CHANGE_STATUS_LABELS, type ChangeRequest, type ChangeStatus } from "./domain/change-request.ts";
+export type { ChangeRequestStore } from "./application/ports.ts";

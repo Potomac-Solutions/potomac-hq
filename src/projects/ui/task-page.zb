@@ -3,6 +3,8 @@
 -->
 <script>
   'use route /tasks/:id'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -17,7 +19,7 @@
 </script>
 <hq-task view={{ task: {}, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{t.projectId}">{t.projectName}</a> / <a href="/projects/{t.projectId}/tasks">Tasks</a></p>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -29,7 +31,7 @@
         <dt>Status</dt><dd><strong>{t.statusLabel}</strong><span zb-if={t.doneWhen}>, {t.doneWhen}</span></dd>
         <dt>Who</dt><dd>{t.assigneeName || "Nobody yet"}</dd>
         <dt>Priority</dt><dd>{t.priorityLabel}</dd>
-        <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <span zb-if={t.overdue} class="hq-tag due">Overdue</span></dd>
+        <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <status-badge zb-if={t.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
         <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
         <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>

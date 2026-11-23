@@ -84,7 +84,7 @@ test("a Host header with a path in it changes nothing (5.17 and 5.18 routed by i
 test("every page is refused to a signed-out visitor, whatever its layout", async () => {
   const stranger = httpClient(t.origin);
   // Open to anyone: asking for a reset, the portal's sign-in and invite pages, and booking a call.
-  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/accept", "/book", "/book/manage", "/contact", "/contact/thanks"]);
+  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/sign-up", "/portal/accept", "/book", "/book/manage", "/contact", "/contact/thanks"]);
   assert.ok(routes.length >= 28, `found ${routes.length} pages`);
   for (const pattern of routes) {
     if (open.has(pattern)) continue;
@@ -121,7 +121,7 @@ test("a layout is rendered once around a page, and a page's title replaces the l
   const html = await admin.page("/clients");
   assert.equal((html.match(/<main\b/g) ?? []).length, 1);
   assert.equal((html.match(/<hq-app\b/g) ?? []).length, 1);
-  assert.equal((html.match(/<nav-bar\b/g) ?? []).length, 1, "issue 300: a component imported by a layout and a page was nested in itself");
+  assert.equal((html.match(/<user-avatar\b/g) ?? []).length, 1, "issue 300: a component imported by a layout and a page was nested in itself");
   assert.match(html, /<title>Clients[^<]*<\/title>/);
   const portal = await httpClient(t.origin).get("/portal");
   assert.doesNotMatch(await portal.text(), /<hq-app\b/, "the portal's root layout does not sit inside HQ's");

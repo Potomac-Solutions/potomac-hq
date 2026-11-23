@@ -8,13 +8,13 @@
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context, url }) {
     const link = context.portal.link(url.searchParams.get('token') ?? '')
-    return { title: 'Choose your password', link, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Choose your password', link, next: url.searchParams.get('next') === 'book' ? 'book' : '', done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   :host { display: block; max-width: 26rem; }
 </style>
-<hq-portal-accept link={{ valid: false }} done="" problem="">
+<hq-portal-accept link={{ valid: false }} next="" done="" problem="">
   <div class="hq-page">
     <h1>{link.valid && link.invite ? "Welcome to your client portal" : "Choose a new password"}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -24,6 +24,7 @@
     <alert-banner zb-if={!link.valid} variant="danger" heading="This link can’t be used">It has expired or been used already. Ask Potomac Solutions for a new one.</alert-banner>
     <form zb-else method="post" action="/portal/accept" class="hq-form hq-panel">
       <input type="hidden" name="token" value={link.token}>
+      <input zb-if={next} type="hidden" name="next" value={next}>
       <p>For <strong>{link.email}</strong>.</p>
       <text-field zb-if={link.invite} label="Your name" name="name" value={link.name} autocomplete="name" required={true}></text-field>
       <text-field label="Choose a password" name="password" type="password" autocomplete="new-password" minlength={10} required={true} description="At least 10 characters."></text-field>

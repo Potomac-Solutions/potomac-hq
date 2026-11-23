@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /money'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context }) {
@@ -35,7 +36,7 @@
     <section zb-if={recurring} class="hq-panel" id="recurring" aria-labelledby="money-recurring">
       <h2 id="money-recurring">Recurring: {recurring.monthly} a month, {recurring.yearly} a year</h2>
       <p zb-if={recurring.items.length === 0} class="hq-muted">Nothing recurs yet. Set up hosting, maintenance or a retainer on a project’s Money page.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">For</th><th scope="col">Project</th><th scope="col">How often</th><th scope="col">Next</th><th scope="col" class="hq-number">Each time</th><th scope="col" class="hq-number">A month</th></tr></thead>
         <tbody>
           <zb-each items={recurring.items} as="plan" key={plan.id}>
@@ -63,12 +64,12 @@
     <section class="hq-panel" aria-labelledby="money-projects">
       <h2 id="money-projects">By project</h2>
       <empty-state zb-if={view.rows.length === 0} heading="No projects yet">A project starts when a won opportunity is turned into one.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Cost</th><th scope="col" class="hq-number">Margin</th><th scope="col">Payment</th></tr></thead>
         <tbody>
           <zb-each items={view.rows} as="row" key={row.id}>
             <tr>
-              <td><a href="/projects/{row.id}/money">{row.name}</a> <span zb-if={row.over} class="hq-tag due">Over budget</span><span zb-if={!row.active} class="hq-muted"> (closed)</span></td>
+              <td><a href="/projects/{row.id}/money">{row.name}</a> <status-badge zb-if={row.over} variant="danger">Over budget</status-badge><status-badge zb-if={row.watch}>Watch</status-badge><span zb-if={!row.active} class="hq-muted"> (closed)</span></td>
               <td>{row.clientName}</td>
               <td class="hq-number">{row.hours.actual}<span zb-if={row.hours.budget}> of {row.hours.budget}</span></td>
               <td class="hq-number">{row.cost.actual}<span zb-if={row.cost.budget}> of {row.cost.budget}</span></td>

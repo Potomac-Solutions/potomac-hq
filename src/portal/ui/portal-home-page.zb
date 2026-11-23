@@ -5,13 +5,16 @@
 -->
 <script>
   'use route /portal'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    return { title: 'Your portal', view: context.portal.home(), booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    const home = context.portal.home()
+    const picks = context.booking.invitesForMe().map((invite) => ({ key: 'i-' + invite.id, text: 'Pick times for a call: ' + invite.title, detail: invite.length + ', ' + invite.days + (invite.answered ? '. You picked times; Potomac Solutions will confirm one.' : '. Mark every time you could do.'), href: '/portal/invites/' + invite.id, action: invite.answered ? 'Change times' : 'Pick times' }))
+    return { title: 'Your portal', view: { ...home, attention: [...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
@@ -42,7 +45,7 @@
         <zb-each items={view.projects} as="project" key={project.id}>
           <li>
             <div>
-              <p><a class="portal-title" href="/portal/projects/{project.id}">{project.name}</a> <span class="hq-tag" data-tone={project.tone}>{project.standing}</span></p>
+              <p><a class="portal-title" href="/portal/projects/{project.id}">{project.name}</a> <status-badge variant={project.tone === 'warn' ? 'warning' : project.tone === 'ok' ? 'success' : 'neutral'}>{project.standing}</status-badge></p>
               <p zb-if={project.next}>Next: {project.next}</p>
               <p zb-if={project.total > 0} class="portal-progress"><progress max={project.total} value={project.done} aria-label="Steps done on {project.name}"></progress> <span class="hq-muted">{project.steps}</span></p>
             </div>

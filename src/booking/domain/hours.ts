@@ -19,14 +19,23 @@ export type BookingRules = {
   readonly hours: readonly HoursRange[];
   /** Days with no calls, like "2026-12-25". */
   readonly closedDays: readonly string[];
+  /**
+   * Days painted differently from the usual week: the stretches that day
+   * instead of its weekday's. An empty list is a day with no calls.
+   */
+  readonly dates?: Readonly<Record<string, readonly DayRange[]>>;
 };
+
+/** A stretch of one day, in minutes after midnight. */
+export type DayRange = { readonly start: number; readonly end: number };
 
 /** A time that is already taken: a booked call, or busy in a calendar. */
 export type Busy = { readonly start: string; readonly end: string };
 
 export const CALL_LENGTHS = [15, 20, 30, 45, 60, 90] as const;
 export const WEEKDAY_NAMES: Readonly<Record<Weekday, string>> = { 1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday", 5: "Friday", 6: "Saturday", 7: "Sunday" };
-const MAX_RANGES_PER_DAY = 3;
+/** A painted day can have many short stretches: one every other half hour. */
+const MAX_RANGES_PER_DAY = 24;
 
 export const DEFAULT_RULES: BookingRules = {
   callMinutes: 30,
@@ -47,7 +56,8 @@ export function checkRules(rules: BookingRules): Result<BookingRules, RulesError
   if (!Number.isInteger(rules.daysAhead) || rules.daysAhead < 1 || rules.daysAhead > 90) return err("days-ahead");
   for (const range of rules.hours) {
     const whole = Number.isInteger(range.start) && Number.isInteger(range.end) && range.weekday >= 1 && range.weekday <= 7;
-    if (!whole || range.start < 0 || range.end > 24 * 60 || range.end - range.start < rules.callMinutes) return err("hours-invalid");
+    // A stretch shorter than a call is allowed: it just has no open time.
+    if (!whole || range.start < 0 || range.end > 24 * 60 || range.end <= range.start) return err("hours-invalid");
   }
   for (let day = 1; day <= 7; day++) {
     const ranges = rules.hours.filter((range) => range.weekday === day).toSorted((a, b) => a.start - b.start);
@@ -99,7 +109,8 @@ export function openSlots(rules: BookingRules, busy: readonly Busy[], now: strin
     const day = date.toString();
     if (closed.has(day)) continue;
     const slots: { start: string; end: string; label: string }[] = [];
-    for (const range of rules.hours.filter((one) => one.weekday === date.dayOfWeek).toSorted((a, b) => a.start - b.start)) {
+    const ranges: readonly DayRange[] = rules.dates?.[day] ?? rules.hours.filter((one) => one.weekday === date.dayOfWeek);
+    for (const range of ranges.toSorted((a, b) => a.start - b.start)) {
       for (let at = range.start; at + rules.callMinutes <= range.end; at += rules.callMinutes + rules.gapMinutes) {
         const wall = date.toPlainDateTime({ hour: Math.floor(at / 60), minute: at % 60 });
         const zoned = wall.toZonedDateTime(timeZone, { disambiguation: "earlier" });

@@ -110,12 +110,12 @@ test("run a project from its pages and the board", async () => {
   await page.getByText("Task saved.").waitFor();
 
   // The board: drag one card, move the other with its form.
-  // The board is reached from Projects, which stays the current tab there.
+  // The board is reached from Projects too, and has its own place in the sidebar.
   const main = page.getByRole("navigation", { name: "Main" });
   await main.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByRole("link", { name: "Open the board" }).click();
   await page.waitForURL((url) => url.pathname === "/board");
-  assert.equal(await main.getByRole("link", { name: "Projects", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await main.getByRole("link", { name: "Board", exact: true }).getAttribute("aria-current"), "page");
   await assertAccessible(page, "the board");
   const column = (name: string) => page.locator("section.board-column", { has: page.getByRole("heading", { name: new RegExp(`^${name}`) }) });
   assert.equal(await column("To do").locator(".board-card").count(), 2);
@@ -154,7 +154,7 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await page.getByLabel("Colours").selectOption("system");
   await page.getByRole("button", { name: "Save theme" }).click();
   await page.getByText("Theme saved.").waitFor();
-  assert.equal(await page.evaluate(BACKGROUND), "#eaede8");
+  assert.equal(await page.evaluate(BACKGROUND), "#ffffff");
   await page.close();
 
   // "Match my device" follows a device set to dark.

@@ -14,7 +14,7 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { financeOverview, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
@@ -24,7 +24,7 @@ import { staffRoutes } from "./identity/api/staff-routes.ts";
 import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
-import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
@@ -37,6 +37,7 @@ import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
+import { inviteRoutes } from "./booking/api/invite-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
@@ -48,7 +49,7 @@ import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -128,7 +129,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-frame-options": "DENY",
   "referrer-policy": "same-origin",
   "content-security-policy":
-    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 type Answer = ReturnType<typeof show>;
@@ -145,6 +146,8 @@ export type PageContext = {
   readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: string;
+  /** Today as a person reads it: "Monday, November 23". */
+  readonly todayLabel: string;
   /** The sign-in or no-access page when there is no active HQ user, otherwise null. Every page calls it first. */
   guard(): Answer | null;
   /** The no-access page, for a read that was refused. */
@@ -163,6 +166,7 @@ export type PageContext = {
   readonly projects: {
     list(status?: string): ReturnType<typeof listProjects>;
     overview(id: string): ReturnType<typeof projectOverview>;
+    links(id: string): ProjectLinksView | null;
     tasks(id: string): ReturnType<typeof projectTasks>;
     /** One project's board, or every active project's when `projectId` is "". */
     board(projectId: string, mine: boolean): ReturnType<typeof board>;
@@ -190,11 +194,12 @@ export type PageContext = {
     profit(year: string | null): ReturnType<typeof profitAndLoss>;
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
+    changes(id: string): ReturnType<typeof projectChanges>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly calls: boolean; readonly people: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -216,6 +221,8 @@ export type PageContext = {
     home(): ReturnType<typeof portalHome>;
     project(id: string): ReturnType<typeof portalProject>;
     proposal(id: string): ReturnType<typeof portalProposal>;
+    /** Whether someone new can sign up to book a call. */
+    readonly signUpOpen: boolean;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
@@ -245,6 +252,14 @@ export type PageContext = {
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
     setup(): ReturnType<typeof bookingSetup>;
+    weekly(): ReturnType<typeof weeklyGrid>;
+    invites(): ReturnType<typeof openInvites>;
+    invite(id: string): ReturnType<typeof staffInvite> | Promise<null>;
+    clientInvites(organizationId: string): ReturnType<typeof clientInvites>;
+    /** The signed-in client's open invites to pick times. */
+    invitesForMe(): ReturnType<typeof invitesWaitingOn>;
+    guestInvite(id: string): ReturnType<typeof guestInvite> | Promise<null>;
+    week(week: string | null): ReturnType<typeof weekGrid>;
     next(): ReturnType<typeof nextCalls>;
     /** For the signed-in client: whether they can book, and their calls from now. */
     portal(): { readonly open: boolean; readonly calls: readonly CallLine[] };
@@ -330,11 +345,29 @@ export async function createApp(config: AppConfig): Promise<App> {
   const secondStepLimit = sqliteRateLimit(db, { name: "second-step", max: 5, windowMs: 60_000 });
   const secondStepDue = (userId: Id, cookieHeader: string) => needsSecondStep(twoFactorDeps, userId, sessionHashOf(cookieHeader));
 
+  // Passkeys are bound to the address the browser says it is on (already
+  // checked against the Host header for every post). When HQ's public
+  // address is configured, that must be the one: a passkey made at any other
+  // address would stop working at the real one.
+  const passkeySite = (origin: string | undefined) => {
+    try {
+      const url = new URL(origin ?? "");
+      if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+      const home = config.publicUrl ? new URL(config.publicUrl) : null;
+      const pinned = home !== null && home.hostname !== "localhost" && home.hostname !== "127.0.0.1";
+      return pinned && home.origin !== url.origin ? null : { rpId: url.hostname, origins: [url.origin] };
+    } catch {
+      return null;
+    }
+  };
+
   const twoFactorView = (actor: Id | null) => {
-    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0 };
+    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0, app: false, passkeys: [] };
     const left = status.recoveryLeft;
     const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left. Make new ones below." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
-    return { on: status.on, setup: status.setup, recoveryText };
+    const passkeys = status.passkeys.map((one) => ({ id: one.id, label: one.label, added: services.formatWhen(one.createdAt), used: one.lastUsedAt ? `Last used ${services.formatWhen(one.lastUsedAt)}` : "Not used yet", removable: status.app || status.passkeys.length > 1 }));
+    const how = status.app && passkeys.length > 0 ? "a code from your authenticator app, or a passkey" : status.app ? "a code from your authenticator app" : "your passkey";
+    return { on: status.on, setup: status.setup, recoveryText, app: status.app, passkeys, how, hasPasskey: passkeys.length > 0 };
   };
 
   const refusedDeps = services.refused;
@@ -414,6 +447,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return client && parsed.ok ? portalProposal(portalDeps, client, parsed.value) : missing();
           },
+          signUpOpen: signUpOpen(),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
             const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
@@ -425,13 +459,14 @@ export async function createApp(config: AppConfig): Promise<App> {
         notice,
         signIn,
         today: date,
+        todayLabel: Temporal.PlainDate.from(date).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
         guard: () =>
           who === null
             ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 })
             : user === null
               ? forbidden()
               : pending
-                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
+                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Confirm it’s you", app: twoFactorView(user.id).app, passkey: twoFactorView(user.id).hasPasskey }, { status: 401 })
                 : enrolling && new URL(request.url).pathname !== "/settings"
                   ? show("identity/ui/two-factor-required-page", { title: "Turn on two-factor sign-in" }, { status: 403 })
                   : null,
@@ -458,6 +493,11 @@ export async function createApp(config: AppConfig): Promise<App> {
         projects: {
           list: (status) => listProjects(projectsDeps, actor, { status: status ?? "" }),
           overview: (id) => withId(id, (projectId) => projectOverview(projectsDeps, actor, projectId)),
+          links: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? projectLinks(projectsDeps, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
           tasks: (id) => withId(id, (projectId) => projectTasks(projectsDeps, actor, projectId)),
           board: (id, mine) => (id === "" ? board(projectsDeps, actor, { mine }) : withId(id, (projectId) => board(projectsDeps, actor, { projectId, mine }))),
           task: (id) => withId(id, (taskId) => taskDetail(projectsDeps, actor, taskId)),
@@ -494,10 +534,11 @@ export async function createApp(config: AppConfig): Promise<App> {
           profit: (year) => profitAndLoss(financeDeps, actor, year),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
+          changes: (id) => withId(id, (projectId) => projectChanges(financeDeps, actor, projectId)),
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
           projects: () => projectHealthReport(projectsDeps, actor),
@@ -539,6 +580,22 @@ export async function createApp(config: AppConfig): Promise<App> {
         booking: {
           calls: () => callsView(services.booking, actor),
           setup: () => bookingSetup(services.booking, actor),
+          weekly: () => weeklyGrid(services.booking, actor),
+          invites: () => openInvites(services.invites, actor),
+          invite: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? staffInvite(services.invites, actor, parsed.value) : Promise.resolve(null);
+          },
+          clientInvites: (organizationId) => {
+            const parsed = parseId(organizationId);
+            return parsed.ok ? clientInvites(services.invites, actor, parsed.value) : [];
+          },
+          invitesForMe: () => (client ? invitesWaitingOn(services.invites, client.organizationId) : []),
+          guestInvite: (id) => {
+            const parsed = parseId(id);
+            return client && parsed.ok ? guestInvite(services.invites, client, parsed.value) : Promise.resolve(null);
+          },
+          week: (week) => weekGrid(services.booking, actor, week),
           next: () => nextCalls(services.booking, actor),
           // Each of these reads only the signed-in client's organization.
           portal: () => ({ open: client !== null && bookingOpen(services.booking, "portal"), calls: client ? callsForClient(services.booking, client.organizationId) : [] }),
@@ -641,6 +698,14 @@ export async function createApp(config: AppConfig): Promise<App> {
     return session && user ? { organizationId: session.organizationId, clientUserId: session.clientUserId, name: user.name, email: user.email } : null;
   };
   const publicUrl = (config.publicUrl ?? "").replace(/\/$/, "");
+  /** Who a lead from the website belongs to: whoever takes calls, or else an admin. */
+  const leadOwner = (): Id | null => {
+    const host = services.booking.bookings.settings()?.hostId;
+    if (host && users.get(host)?.status === "active") return host;
+    return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
+  };
+  /** Anyone can sign up to book when booking for new people is on and HQ can email the confirm link. */
+  const signUpOpen = (): boolean => inviteMail !== null && services.booking.bookings.settings()?.publicOpen === true && (services.booking.bookings.settings()?.hours.length ?? 0) > 0;
   const inviteMail = email
     ? createNotify({
         send: email.send,
@@ -652,6 +717,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           "hq-reset": ({ name, link }: { name: string; link: string }) => ({
             subject: "Set a new password for Potomac HQ",
             body: `Hi ${name},\n\nAn administrator made you a link to set a new password for Potomac HQ. It works once, for a week:\n\n${link}\n\nPotomac Solutions`,
+          }),
+          "sign-up": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Confirm your email to book a call with Potomac Solutions",
+            body: `Hi ${name},\n\nThanks for signing up. Open this link to confirm your email and choose a password. It works once, for a week:\n\n${link}\n\nThen choose a time for your call. You can move or cancel it in your client portal.\n\nIf you didn't sign up, ignore this email and nothing happens.\n\nPotomac Solutions`,
+          }),
+          "sign-up-again": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Your Potomac Solutions client portal",
+            body: `Hi ${name},\n\nSomeone, probably you, tried to sign up with this email. You already have a client portal account. Sign in as usual, or open this link to choose a new password. It works once, for a week:\n\n${link}\n\nIf it wasn't you, ignore this email and nothing changes.\n\nPotomac Solutions`,
           }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
@@ -680,6 +753,18 @@ export async function createApp(config: AppConfig): Promise<App> {
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
+      ...(inviteMail
+        ? {
+            signUp: {
+              open: signUpOpen,
+              ownerFor: leadOwner,
+              publicUrl,
+              mail: async (to, link, kind) => "ok" in (await inviteMail.notify({ email: to.email }, kind === "reset" ? "sign-up-again" : "sign-up", { name: to.name, link })),
+              allowPerAddress: sqliteRateLimit(db, { name: "sign-up-address", max: 5, windowMs: 60 * 60_000 }),
+              allowPerEmail: sqliteRateLimit(db, { name: "sign-up-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+            },
+          }
+        : {}),
     }),
   );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -708,10 +793,11 @@ export async function createApp(config: AppConfig): Promise<App> {
         return user && sessionHash && secondStepDue(user.id, cookieHeader) ? { userId: user.id, sessionHash } : null;
       },
       sessionOf: sessionHashOf,
+      siteOf: passkeySite,
       allowAttempt: secondStepLimit,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       sign: (location) => notices.sign(location),
-      codesPage: (codes, fresh) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh)),
+      codesPage: (codes, fresh, withPasskey) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh, withPasskey)),
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );
@@ -729,11 +815,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     "/",
     inquiryRoutes({
       crm: services.crm,
-      ownerFor: () => {
-        const host = services.booking.bookings.settings()?.hostId;
-        if (host && users.get(host)?.status === "active") return host;
-        return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
-      },
+      ownerFor: leadOwner,
       sign: (location) => notices.sign(location),
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
@@ -752,9 +834,6 @@ export async function createApp(config: AppConfig): Promise<App> {
     booking: services.booking,
     emails: bookingEmails,
     sign: (location) => notices.sign(location),
-    addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-    allowPerAddress: sqliteRateLimit(db, { name: "booking-address", max: 5, windowMs: 60 * 60_000 }),
-    allowPerEmail: sqliteRateLimit(db, { name: "booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
@@ -762,6 +841,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(

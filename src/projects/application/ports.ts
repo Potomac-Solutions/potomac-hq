@@ -1,3 +1,4 @@
+import type { ProjectLink } from "../domain/link.ts";
 import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -54,6 +55,14 @@ export type DeliverableStore = {
   listFor(projectId: Id): DeliverableRow[];
   /** Notes which client user made the decision on a deliverable. */
   recordDecider(id: Id, clientUserId: Id): void;
+};
+
+export type ProjectLinkStore = {
+  insert(link: ProjectLink, at: string): void;
+  get(id: Id): ProjectLink | null;
+  remove(id: Id): void;
+  /** A project's links, in the order they were added. */
+  listFor(projectId: Id): ProjectLink[];
 };
 
 export type HistoryRow = { readonly id: string; readonly occurredAt: string; readonly action: string; readonly actorName: string | null };

@@ -10,6 +10,7 @@ export type Asset = { readonly body: Uint8Array<ArrayBuffer>; readonly type: str
 const FILES: Readonly<Record<string, string>> = {
   "theme.css": "text/css; charset=utf-8",
   "potomac-mark.webp": "image/webp",
+  "plex-sans.woff2": "font/woff2",
 };
 
 export function loadAssets(): ReadonlyMap<string, Asset> {

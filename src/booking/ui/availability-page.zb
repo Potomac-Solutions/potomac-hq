@@ -1,0 +1,42 @@
+<!--
+  One week of dates on the availability grid: paint over your usual week for
+  a holiday, an early finish or an extra evening. Busy times in your calendar
+  and calls already booked show underneath. For managers and admins.
+-->
+<script>
+  'use route /calls/availability'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/availability-grid.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = await context.booking.week(url.searchParams.get('week'))
+    if (!view.ok) return context.forbidden()
+    return { title: 'Availability: ' + view.value.label, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .week-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin: 0; }
+</style>
+<hq-availability view={{ rows: [], columns: [], week: '', label: '', previous: '', next: '', thisWeek: '', calendarFailed: false, calendar: 'none' }} done="" problem="">
+  <div class="hq-page">
+    <h1>Availability</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+      <alert-banner zb-if={view.calendarFailed} variant="warning">Your calendar couldn’t be read just now, so its busy times aren’t shown.</alert-banner>
+    </div>
+    <p class="hq-muted">Paint over your <a href="/calls/hours#usual-week">usual week</a> for just this week. A day painted the same as usual goes back to usual. Times are Eastern.<span zb-if={view.calendar === 'none'}> Busy times from Google Calendar show here once it’s connected.</span></p>
+    <nav class="week-nav" aria-label="Weeks">
+      <a href="/calls/availability?week={view.previous}">← Previous week</a>
+      <a href="/calls/availability?week={view.thisWeek}">This week</a>
+      <a href="/calls/availability?week={view.next}">Next week →</a>
+    </nav>
+    <form method="post" action="/calls/availability" class="hq-panel" aria-labelledby="week-heading">
+      <input type="hidden" name="week" value={view.week}>
+      <h2 id="week-heading">{view.label}</h2>
+      <availability-grid grid={view} legend="hours" caption={'Free for calls, ' + view.label}></availability-grid>
+      <p><button class="hq-button" type="submit">Save this week</button></p>
+    </form>
+  </div>
+</hq-availability>

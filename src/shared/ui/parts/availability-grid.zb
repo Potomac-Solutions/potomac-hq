@@ -1,0 +1,147 @@
+<!--
+  The availability grid: half-hour cells down, days across. Each cell is a
+  checkbox, so the grid works with a keyboard, a screen reader, a tap on a
+  phone, and with scripts off. With a mouse or a pen, press on a cell and
+  drag: the rectangle from there to the pointer is painted the same way.
+
+  `grid` is a GridView (src/booking/application/booking.ts): day columns,
+  and rows of cells, each with its field name, label, classes and state.
+  Fields are named c-<column key>-<minutes>, value 1. `legend` adds a key:
+  "hours", "invite" (Potomac’s view of an invite) or "guest" (the invitee’s).
+-->
+<script>
+  // Press on a cell and drag: every cell in the rectangle from there to the
+  // pointer takes the first cell's new state, like Timeful. Moving back
+  // shrinks the rectangle and puts the cells outside it back as they were.
+  let painting = false
+  let mode = true
+  let started = false
+  let from = null
+  let before = null
+
+  function cellOf(target) {
+    return target && target.classList && target.classList.contains('cell') && !target.disabled ? target : null
+  }
+  function cellsIn(root) {
+    return Array.from(root.querySelectorAll('input.cell'))
+  }
+  function down(event) {
+    if (event.pointerType === 'touch' || event.button !== 0) return
+    const cell = cellOf(event.target)
+    if (!cell) return
+    const all = cellsIn(event.currentTarget)
+    before = new Map(all.map((one) => [one, one.checked]))
+    from = { col: Number(cell.dataset.col), row: Number(cell.dataset.row) }
+    mode = !cell.checked
+    cell.checked = mode
+    painting = true
+    started = true
+  }
+  function over(event) {
+    if (!painting || !from) return
+    const cell = cellOf(event.target)
+    if (!cell) return
+    const to = { col: Number(cell.dataset.col), row: Number(cell.dataset.row) }
+    const left = Math.min(from.col, to.col)
+    const right = Math.max(from.col, to.col)
+    const top = Math.min(from.row, to.row)
+    const bottom = Math.max(from.row, to.row)
+    for (const one of cellsIn(event.currentTarget)) {
+      if (one.disabled) continue
+      const col = Number(one.dataset.col)
+      const row = Number(one.dataset.row)
+      const inside = col >= left && col <= right && row >= top && row <= bottom
+      one.checked = inside ? mode : before.get(one)
+    }
+  }
+  function up() {
+    painting = false
+    from = null
+  }
+  function click(event) {
+    // The press already set the cell; the click that follows would flip it back.
+    if (started && cellOf(event.target)) event.preventDefault()
+    started = false
+  }
+</script>
+<style>
+  :host { display: block; }
+  .grid-wrap { overflow-x: auto; margin: 0.75rem 0; }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 26rem; table-layout: fixed; user-select: none; -webkit-user-select: none; }
+  th { font-size: 0.8rem; font-weight: 600; color: var(--muted-foreground); padding: 0.25rem 0.2rem; text-align: center; }
+  thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+  thead th span { display: block; font-weight: 400; }
+  thead th.painted { color: var(--foreground); }
+  thead th.painted span::after { content: " · changed"; }
+  thead th.closed span::after { content: " · day off"; }
+  tbody th { width: 3.75rem; text-align: right; vertical-align: top; padding: 0 0.4rem 0 0; font-weight: 400; white-space: nowrap; line-height: 1; }
+  tbody th.half { color: transparent; }
+  td { padding: 0; border-left: 1px solid var(--border); }
+  thead td { border: 0; }
+  tr.hour td { border-top: 1px solid var(--border); }
+  tbody tr:not(.hour) td { border-top: 1px dashed color-mix(in srgb, var(--border) 60%, transparent); }
+  tbody tr:last-child td { border-bottom: 1px solid var(--border); }
+  td:last-child { border-right: 1px solid var(--border); }
+  .cell { appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 1.35rem; margin: 0; border: 0; border-radius: 0; background: var(--background); cursor: pointer; }
+  .cell.busy { background: repeating-linear-gradient(135deg, var(--muted) 0 4px, var(--background) 4px 8px); }
+  .cell.booked { background: repeating-linear-gradient(135deg, var(--accent) 0 4px, var(--muted) 4px 8px); }
+  .cell:checked { background: var(--primary); }
+  .cell:checked.busy, .cell:checked.booked { background: repeating-linear-gradient(135deg, var(--primary) 0 4px, color-mix(in srgb, var(--primary) 70%, var(--background)) 4px 8px); }
+  .cell:disabled { cursor: not-allowed; opacity: 0.45; }
+  /* On an invite: free for both, only them, only you, and not open to pick. */
+  .cell.match, .cell.guest, .cell.host { opacity: 1; cursor: default; }
+  .cell.match { background: var(--primary); }
+  .cell.guest { background: repeating-linear-gradient(135deg, var(--primary) 0 3px, var(--background) 3px 7px); }
+  .cell.host { background: color-mix(in srgb, var(--primary) 18%, var(--background)); }
+  .cell.unavailable { background: var(--muted); opacity: 1; }
+  .cell.unavailable:checked { background: var(--muted); }
+  .cell:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; position: relative; z-index: 2; }
+  .key { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0; padding: 0; list-style: none; font-size: 0.85rem; color: var(--muted-foreground); }
+  .key li { display: flex; align-items: center; gap: 0.35rem; }
+  .swatch { display: inline-block; width: 1rem; height: 0.8rem; border: 1px solid var(--border); }
+  .swatch.on { background: var(--primary); }
+  .swatch.busy { background: repeating-linear-gradient(135deg, var(--muted) 0 3px, var(--background) 3px 6px); }
+  .swatch.booked { background: repeating-linear-gradient(135deg, var(--accent) 0 3px, var(--muted) 3px 6px); }
+  .swatch.guest { background: repeating-linear-gradient(135deg, var(--primary) 0 3px, var(--background) 3px 6px); }
+  .swatch.host { background: color-mix(in srgb, var(--primary) 18%, var(--background)); }
+  .swatch.unavailable { background: var(--muted); }
+</style>
+<availability-grid grid={{ rows: [], columns: [] }} legend="" caption="">
+  <ul zb-if={legend === 'hours'} class="key" aria-label="Key">
+    <li><span class="swatch on"></span> Free for calls</li>
+    <li><span class="swatch busy"></span> Busy in your calendar</li>
+    <li><span class="swatch booked"></span> A call already booked</li>
+  </ul>
+  <ul zb-if={legend === 'invite'} class="key" aria-label="Key">
+    <li><span class="swatch on"></span> Free for both</li>
+    <li><span class="swatch guest"></span> They can, you aren’t free</li>
+    <li><span class="swatch host"></span> You’re free</li>
+  </ul>
+  <ul zb-if={legend === 'guest'} class="key" aria-label="Key">
+    <li><span class="swatch on"></span> You could do it</li>
+    <li><span class="swatch unavailable"></span> Not open</li>
+  </ul>
+  <div class="grid-wrap" onpointerdown={down} onpointerover={over} onpointerup={up} onpointerleave={up} onclick={click}>
+    <table>
+      <caption class="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <td></td>
+          <zb-each items={grid.columns} as="column" key={column.key}>
+            <th scope="col" class={column.painted ? 'painted' : column.closed ? 'closed' : ''} abbr={column.name}>{column.short}<span zb-if={column.sub}>{column.sub}</span></th>
+          </zb-each>
+        </tr>
+      </thead>
+      <tbody>
+        <zb-each items={grid.rows} as="row" key={row.at}>
+          <tr class={row.hour ? 'hour' : ''}>
+            <th scope="row" class={row.hour ? '' : 'half'}>{row.label}</th>
+            <zb-each items={row.cells} as="cell" key={cell.name}>
+              <td><input type="checkbox" class={cell.className} name={cell.name} value="1" checked={cell.on} disabled={cell.disabled} aria-label={cell.label} data-col={cell.col} data-row={cell.row}></td>
+            </zb-each>
+          </tr>
+        </zb-each>
+      </tbody>
+    </table>
+  </div>
+</availability-grid>

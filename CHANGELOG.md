@@ -9,8 +9,97 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-23
+
+- Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on
+  with a passkey (your fingerprint, face or PIN, or a security key) instead
+  of an authenticator app, or add passkeys beside the app. After the
+  password, HQ asks for the passkey; a recovery code still works when it is
+  lost. A passkey also proves it is you for new recovery codes and turning
+  two-factor off. HQ checks each use itself, with no new dependency, and
+  refuses a passkey from another address, a replayed answer and a copied
+  key. Migration 0030.
+
+- The page pass. The dashboard opens with a row of figures (clients
+  waiting, due follow-ups, open opportunities, active projects, budgets at
+  risk, your hours), each a link, then two columns: what needs someone
+  beside what is coming. A client, an opportunity and a project each have a
+  header with their status, a rail of facts on the left and the work on the
+  right. The pipeline's stages are lanes. Follow-up dates read "Sat, Nov 21,
+  2 days ago" on the pipeline and the opportunity. The sign-in page is a
+  proper front door.
+- Zubra UI in the pages: every status label is a status badge (green, amber
+  and red for project health), breadcrumbs are the breadcrumb trail and end
+  with the page you are on, figures are stat cards, and the simple dropdowns
+  are select fields.
+
+- A new look and frame for HQ. A sidebar groups every section (Today and
+  Dashboard; Sales; Delivery; Finance; Company), so Calls, Board, Sites,
+  Renewals, People and Audit history are one click away instead of hidden
+  behind other pages. A top bar holds a wider search and your account. Pages
+  use the full width of the screen. The typeface is IBM Plex Sans, served by
+  HQ itself. Cards and inputs are white on a pale page, in light and dark.
+  On a phone the sidebar folds behind a Menu button.
+- Zubra UI is updated to commit 0f852ba, with ten more components copied in
+  for the pages to use: status badge, breadcrumb trail, stat card, avatar,
+  progress bar, code input, select field, check box, date field and step
+  indicator. The top nav bar component is no longer used.
+
+- Scheduling invites, like a Timeful poll: from a client's page, ask
+  someone in their portal to pick times for a call (what it's for, how long,
+  up to two weeks of days, a note). They're emailed a link, and it's first on
+  their portal's "waiting on you" list. On a grid of your free time over those
+  days they tap or drag every half hour they could do. You see your free time
+  and theirs, and every start free for both for the call's length; pick one
+  and it's booked as their call, with emails to both. Withdraw an invite any
+  time. Open invites are listed on Calls. Migration 0029.
+
+- Sign up to book: booking a call now needs a free account. /book explains
+  the three steps and sends people to sign up (name, business, email,
+  phone) or sign in. HQ emails a link to confirm the address and choose a
+  password, then they choose a time in the portal and can move or cancel it
+  there. Signing up makes them a prospect in the CRM, with their contact and
+  a "Signed up to book a call" opportunity in the pipeline. Nothing on the
+  page says whether an email was already known; someone with an account is
+  emailed a link to sign in instead. Needs email set up, and "Anyone can
+  sign up at /book" on Hours. Calls booked from the old form keep their
+  private link.
+
+- The availability grid: paint when you're free for calls, half hour by half
+  hour, like Timeful. Press and drag to paint a rectangle (drag from a
+  painted cell to rub out); on a phone, tap; with a keyboard, Space. Your
+  usual week is painted on Hours; any one week can be painted differently on
+  the new Availability page (a holiday, an early finish, an extra evening),
+  with busy times from your calendar and calls already booked shown
+  underneath. Open times for booking follow the painted days. Migration 0028.
+
 ## [0.11.0] - 2026-11-22
 
+- Fixed: on a phone, a table that scrolls sideways can now be scrolled from
+  the keyboard (it takes focus), which the phone pass in 0.11.0 missed.
+- Change requests: for work beyond what was agreed. On a project's money
+  page, draft one with what it is, its price (or no charge) and its extra
+  hours, and send it. The client sees it in the portal, on their "waiting on
+  you" list and in their email notice, and approves or declines it, saying
+  why if they like; or record an answer they gave by phone. Approving raises
+  the project's budget by the change's price and hours and drafts its
+  invoice, in one step. Potomac hears about the answer like any other client
+  action. Migration 0027.
+- Early budget warnings: a project that has used three quarters of its hours
+  or money while less of its milestones are done is marked "Watch", before
+  it goes over. The dashboard panel is now "Budgets to watch" (over first,
+  then watch, each saying how much is used and how many milestones are
+  done), Money tags it, and the project's money page says it is time to talk
+  to the client about scope.
+- Project links: on each project, where its work lives: the staging and live
+  sites, the designs, documents, the code. Shared ones show in the client's
+  portal under "Where to see the work"; the rest, like the repository, stay
+  with Potomac. Addresses typed without https:// get it. Migration 0026.
+- Operations: why no Railway deploy stayed up. HQ stopped at start because
+  test's database path was relative and `RAILWAY_RUN_UID` was not set, and
+  production had no volume or variables. Then the domain answered 502
+  because HQ listened on Railway's port 8080, not 3000. The guide now lists the Railway
+  settings that work and how to check that a deploy is healthy.
 - Search fits a phone: long results wrap and the box shrinks. The phone
   check now runs at 320px, the narrowest common phone.
 - On a phone: every staff page now fits a 360px screen. Wide tables scroll

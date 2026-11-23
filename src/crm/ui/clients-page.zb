@@ -37,7 +37,7 @@
       </form>
       <empty-state zb-if={view.clients.length === 0 && !view.status} heading="No clients yet">Add the first one below.</empty-state>
       <p zb-else-if={view.clients.length === 0} class="hq-muted">No clients have that status.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Size</th><th scope="col">Open opportunities</th></tr></thead>
         <tbody>
           <zb-each items={view.clients} as="client" key={client.id}>

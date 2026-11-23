@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /knowledge'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -66,7 +67,7 @@
       <ul zb-else class="kb-list">
         <zb-each items={view.items} as="item" key={item.slug}>
           <li>
-            <a href="/knowledge/{item.slug}"><strong>{item.title}</strong></a> <span zb-if={item.isDecision} class="hq-tag">Decision</span> <span zb-if={item.archived} class="hq-tag">Archived</span>
+            <a href="/knowledge/{item.slug}"><strong>{item.title}</strong></a> <status-badge zb-if={item.isDecision}>Decision</status-badge> <status-badge zb-if={item.archived}>Archived</status-badge>
             <p zb-if={item.excerpt}>{item.excerpt}</p>
             <p class="kb-meta">{item.category}<span zb-if={item.decidedOn}> · Decided {item.decidedOn}</span> · Updated {item.updated}<zb-each items={item.tags} as="tag" key={tag}> · <a href="/knowledge?tag={tag}">{tag}</a></zb-each></p>
           </li>

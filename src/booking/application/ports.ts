@@ -1,5 +1,6 @@
 import type { Booking } from "../domain/booking.ts";
-import type { Busy, HoursRange } from "../domain/hours.ts";
+import type { ScheduleInvite } from "../domain/invite.ts";
+import type { Busy, DayRange, HoursRange } from "../domain/hours.ts";
 import type { Id } from "../../shared/index.ts";
 
 export type BookingSettings = {
@@ -21,6 +22,12 @@ export type BookingStore = {
   settings(): BookingSettings | null;
   saveSettings(settings: BookingSettings, at: string): void;
   closedDays(fromDay: string): readonly ClosedDay[];
+  /** Replaces the usual week's stretches, keeping the other settings. */
+  saveWeek(hours: readonly HoursRange[], at: string): void;
+  /** Days from this one painted differently from the usual week, with their stretches. */
+  paintedDates(fromDay: string): Readonly<Record<string, readonly DayRange[]>>;
+  /** Paints a day differently; null puts it back to the usual week. */
+  paintDate(day: string, ranges: readonly DayRange[] | null, at: string): void;
   closeDay(day: ClosedDay): void;
   openDay(day: string): boolean;
   /** Booked calls that overlap from..to, earliest first. */
@@ -50,3 +57,21 @@ export type BusyCalendar = {
 
 /** The private link for a booking made from the booking page. */
 export type ManageTokens = { newToken(): string; hash(token: string): string };
+
+export type ScheduleInviteStore = {
+  insert(invite: ScheduleInvite, at: string): void;
+  update(invite: ScheduleInvite, at: string): void;
+  get(id: Id): ScheduleInvite | null;
+  /** Open invites, oldest first. */
+  listOpen(): readonly ScheduleInvite[];
+  /** A client's invites, newest first. */
+  listFor(organizationId: Id): readonly ScheduleInvite[];
+  /** The half hours the invitee said they could do, replacing any before. */
+  setCells(inviteId: Id, starts: readonly string[]): void;
+  cells(inviteId: Id): ReadonlySet<string>;
+};
+
+/** People in the client portal, as booking needs them: who an invite is for. */
+export type ClientPeople = {
+  get(clientUserId: Id): { readonly organizationId: Id; readonly name: string; readonly email: string; readonly active: boolean } | null;
+};

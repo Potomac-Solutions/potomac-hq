@@ -11,7 +11,7 @@ import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
-import type { ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
   Pick<CrmDeps, "opportunities"> & {
@@ -21,6 +21,7 @@ export type FinanceDeps = ProjectsDeps &
     readonly invoices: InvoiceStore;
     readonly recurring: RecurringStore;
     readonly phaseEstimates: PhaseEstimates;
+    readonly changes: ChangeRequestStore;
   };
 
 export type Refused = "forbidden" | "not-found";

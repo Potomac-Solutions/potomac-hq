@@ -1,7 +1,7 @@
 // HQ's side of booking: the hours, days off, cancelling a call, and a call's
 // calendar file.
 import { Hono } from "hono";
-import { addBookingToCrm, calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, type BookingDeps } from "../application/booking.ts";
+import { addBookingToCrm, calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, saveWeekGrid, saveWeeklyGrid, type BookingDeps } from "../application/booking.ts";
 import type { CrmDeps } from "../../crm/index.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 import { tell, type BookingEmails } from "./notify.ts";
@@ -15,9 +15,10 @@ export const BOOKING_MESSAGES: Readonly<Record<string, string>> = {
   gap: "The gap between calls is 0 to 60 minutes.",
   notice: "The notice is 0 to 168 hours (a week).",
   "days-ahead": "People can book 1 to 90 days ahead.",
-  "hours-invalid": "Each stretch of hours ends after it starts, and is at least one call long.",
+  "hours-invalid": "Each stretch of hours ends after it starts.",
   "hours-overlap": "Two stretches on the same day overlap.",
-  "hours-too-many": "Up to two stretches a day.",
+  "hours-too-many": "That’s too many separate stretches in one day. Join some up.",
+  "no-hours-yet": "Paint your usual week first, on the Hours page.",
   "time-invalid": "Enter times like 09:00 or 17:30.",
   "number-invalid": "Enter whole numbers.",
   "day-invalid": "Enter a day like 2026-12-24.",
@@ -45,6 +46,14 @@ export function bookingStaffRoutes(deps: BookingStaffDeps): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/calls" });
   post("/calls/hours", (actor, form) => saveBookingSetup(deps.booking, actor, form), { done: () => "/calls/hours", back: () => "/calls/hours", message: "Saved. The open times have changed." });
+  post("/calls/hours/week", (actor, form) => saveWeeklyGrid(deps.booking, actor, form), { done: () => "/calls/hours#usual-week", back: () => "/calls/hours#usual-week", message: "Your usual week is saved. The open times have changed." });
+  // The week comes from the form; the service checks it is a day.
+  const weekPage = (form: Readonly<Record<string, string>>) => (/^\d{4}-\d{2}-\d{2}$/.test(form["week"] ?? "") ? `/calls/availability?week=${form["week"]}` : "/calls/availability");
+  post("/calls/availability", (actor, form) => saveWeekGrid(deps.booking, actor, form["week"] ?? "", form), {
+    done: (_value, _id, form) => weekPage(form),
+    back: (_id, form) => weekPage(form),
+    message: "Saved. Days painted differently from your usual week are marked “changed”.",
+  });
   post("/calls/days-off", (actor, form) => closeBookingDay(deps.booking, actor, form["day"] ?? "", form["note"] ?? ""), { done: () => "/calls/hours#days-off", back: () => "/calls/hours#days-off", message: "That day is closed to calls." });
   post("/calls/days-off/open", (actor, form) => reopenBookingDay(deps.booking, actor, form["day"] ?? ""), { done: () => "/calls/hours#days-off", back: () => "/calls/hours#days-off", message: "That day is open again." });
   post("/calls/:id/cancel", async (actor, form, id) => {

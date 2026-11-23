@@ -142,3 +142,20 @@ test("an invoice is drafted, sent, and paid by what is received against it", asy
   assert.equal(paymentStatusAfter({ ...balance, status: "paid" }, [rest.value.invoice, { ...balance, status: "paid" }]), "paid");
   assert.equal(paymentStatusAfter(voided.value, [voided.value]), null);
 });
+
+test("a budget is worth watching at three quarters used, unless the work has kept up", async () => {
+  const { budgetWarning, standing: stand } = await import("./budget.ts");
+  const usd = (minor: number) => ({ minor, currency: "USD" as const });
+  const budget = { amount: usd(400000), minutes: 40 * 60 };
+  const rate = usd(5000);
+  const at = (minutes: number) => ({ minutes, s: stand(budget, { minutes, billableMinutes: 0, expenses: usd(0) }, rate) });
+  const early = at(20 * 60);
+  assert.equal(budgetWarning(budget, early, early.s, { done: 1, total: 6 }), null, "half used is fine");
+  const late = at(31 * 60);
+  assert.deepEqual(budgetWarning(budget, late, late.s, { done: 2, total: 6 }), { level: "watch", text: "78% of hours used, 2 of 6 milestones done" });
+  assert.equal(budgetWarning(budget, late, late.s, { done: 5, total: 6 }), null, "the work has kept up");
+  assert.deepEqual(budgetWarning(budget, late, late.s, null), { level: "watch", text: "78% of hours used" });
+  const over = at(41 * 60);
+  assert.equal(budgetWarning(budget, over, over.s, { done: 6, total: 6 })?.level, "over");
+  assert.equal(budgetWarning({ amount: null, minutes: null }, over, over.s, null), null, "no budget, nothing to watch");
+});

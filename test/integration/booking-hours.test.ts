@@ -26,7 +26,7 @@ before(async () => {
 after(() => t.stop());
 
 test("until hours are set nobody can book, and the hours page says so", async () => {
-  assert.match(textOf(await admin.page("/calls")), /No hours are set, so nobody can book a call yet\. Hours and days off/);
+  assert.match(textOf(await admin.page("/calls")), /No hours are set, so nobody can book a call yet\. Availability this week Usual week, hours and days off/);
   const view = await openTimes(createServices(t.db).booking, "public");
   assert.equal(view.open, false);
   assert.equal((await member.get("/calls/hours")).status, 403, "a member sees calls, not the hours");
@@ -49,7 +49,7 @@ test("hours are checked, saved, and make open times", async () => {
   assert.equal(view.open, true);
   assert.equal(view.callMinutes, 60);
   assert.ok(view.days.length >= 14, "two weeks of days");
-  assert.equal((await openTimes(services, "portal")).open, false, "the portal is still off");
+  assert.equal((await openTimes(services, "portal")).open, true, "sign-up to book is on, so anyone with an account can book in the portal");
 });
 
 test("a day off takes its times away, and can be opened again", async () => {

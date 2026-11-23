@@ -54,7 +54,7 @@
         </section>
       </zb-each>
       <h2 id="pprop-estimate">Estimate</h2>
-      <table class="hq-table" aria-labelledby="pprop-estimate">
+      <table tabindex="0" class="hq-table" aria-labelledby="pprop-estimate">
         <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Amount</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
         <tbody>
           <zb-each items={doc.lines} as="line" key={line.key}><tr><td>{line.item}</td><td class="hq-number">{line.quantityLabel}</td><td class="hq-number">{line.rate}</td><td class="hq-number">{line.total}</td></tr></zb-each>

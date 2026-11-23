@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /projects'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context, url }) {
@@ -35,7 +36,7 @@
     <section class="hq-panel" aria-labelledby="projects-list">
       <h2 id="projects-list" class="sr-only">Projects</h2>
       <empty-state zb-if={view.projects.length === 0} heading={view.status ? "No projects with that status" : "No projects yet"}>A project starts when a won opportunity is turned into one.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Owner</th><th scope="col">Status</th><th scope="col">Going</th><th scope="col">Next milestone</th><th scope="col">Open tasks</th></tr></thead>
         <tbody>
           <zb-each items={view.projects} as="project" key={project.id}>
@@ -44,8 +45,8 @@
               <td>{project.clientName}</td>
               <td>{project.ownerName}</td>
               <td>{project.statusLabel}</td>
-              <td><span class="hq-tag" data-health={project.health}>{project.healthLabel}</span></td>
-              <td>{project.next || "None set"} <span zb-if={project.nextOverdue} class="hq-tag due">Overdue</span></td>
+              <td><status-badge variant={project.health === 'on-track' ? 'success' : project.health === 'at-risk' ? 'warning' : project.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{project.healthLabel}</status-badge></td>
+              <td>{project.next || "None set"} <status-badge zb-if={project.nextOverdue} variant="danger">Overdue</status-badge></td>
               <td>{project.openTasks}</td>
             </tr>
           </zb-each>
