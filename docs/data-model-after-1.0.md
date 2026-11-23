@@ -231,6 +231,39 @@ calendar. Needs his approval.
 when. The only rule is `two-factor-for-admins`. Turning it on or off writes
 `sign-in-rule.two-factor-required` or `sign-in-rule.two-factor-optional`.
 
+## Passkeys
+
+Decided 2026-11-23 while Mikey was away. Needs his approval.
+
+A passkey (WebAuthn) is a second way to pass the second step at sign-in,
+beside the code from an authenticator app. It never replaces the password.
+
+| Table | What it holds |
+| --- | --- |
+| `passkey` | One per passkey: its owner, the credential id, the public key (JWK) and its algorithm (ES256, RS256 or EdDSA), the authenticator's counter, a name, and when it was added and last used |
+| `passkey_challenge` | The challenge a session was last given, for one use within five minutes |
+| `user_two_factor.app` | 0 when two-factor sign-in was turned on with a passkey alone |
+
+- Two-factor sign-in can be turned on with a passkey and no app. The record
+  is confirmed at once with a secret nobody was shown, and no 6-digit code is
+  accepted. Recovery codes are made the same way and shown once.
+- With an app set up, passkeys can be added beside it, up to ten. Adding an
+  app to a passkey-only account is not built: turn two-factor off and on.
+- The last way past the second step can't be removed; turning two-factor
+  off removes every passkey, and so does an admin's reset.
+- A passkey also proves it is you for new recovery codes and turning it off.
+- Adding a passkey takes a fully signed-in session and no further proof.
+- Passkeys are bound to the host the browser is on. When `HQ_PUBLIC_URL`
+  is set, that is the only address they can be made or used at. Changing
+  HQ's address means adding passkeys again; recovery codes get people in.
+- Checked on every use: the challenge, the address the browser reports, the
+  site hash, that someone was present, the signature, and that the counter
+  went up (one that went back is refused as a copy). Only "none"
+  attestation is asked for, so any authenticator is accepted.
+- Events: `user.passkey-added`, `user.passkey-removed`; `user.two-factor-on`
+  and `user.two-factor-passed` carry `with: "passkey"`. None carries a key,
+  a credential id, a challenge or a signature.
+
 ## Refused attempts
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.

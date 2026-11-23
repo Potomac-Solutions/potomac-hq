@@ -1,18 +1,23 @@
 // Two-factor sign-in for HQ accounts: after the password, a code from an
-// authenticator app. Optional for each person. Each change checks its
+// authenticator app, or a passkey (see passkeys.ts). Optional for each person. Each change checks its
 // permission and writes an activity event. Neither a code, a secret nor a
 // recovery code is ever written to the activity log.
 import { appLink, cleanCode, cleanRecoveryCode, groupSecret, RECOVERY_CODE_COUNT, showRecoveryCode } from "../domain/two-factor.ts";
 import { err, ok, qrCode, qrSvg, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import { authorize } from "./authorize.ts";
-import type { TwoFactorCrypto, TwoFactorStore, UserStore } from "./ports.ts";
+import type { PasskeyCrypto, PasskeyStore, TwoFactorCrypto, TwoFactorStore, UserStore } from "./ports.ts";
 
 export type TwoFactorDeps = ActivityDeps & {
   readonly users: UserStore;
   readonly twoFactor: TwoFactorStore;
   readonly totp: TwoFactorCrypto;
+  readonly passkeys: PasskeyStore;
+  readonly webauthn: PasskeyCrypto;
   readonly transact: Transact;
 };
+
+/** Proof that it is really them, from a passkey: checked by `provePasskey` in passkeys.ts. */
+export type ProveByPasskey = (userId: Id) => boolean;
 
 const nowMs = (deps: TwoFactorDeps) => Temporal.Instant.from(deps.clock()).epochMilliseconds;
 
@@ -22,18 +27,22 @@ export type TwoFactorStatus = {
   /** `scannable` is false only for an email so long the link will not fit a QR code. */
   readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null;
   readonly recoveryLeft: number;
+  /** Whether an authenticator app is set up. False when it was turned on with a passkey alone. */
+  readonly app: boolean;
+  readonly passkeys: readonly { readonly id: string; readonly label: string; readonly createdAt: string; readonly lastUsedAt: string | null }[];
 };
 
 /** Where the signed-in person stands. Their own, so no permission beyond being signed in. */
 export function twoFactorStatus(deps: TwoFactorDeps, userId: Id): TwoFactorStatus {
   const record = deps.twoFactor.get(userId);
   const user = deps.users.get(userId);
-  if (!record || !user) return { on: false, setup: null, recoveryLeft: 0 };
+  if (!record || !user) return { on: false, setup: null, recoveryLeft: 0, app: false, passkeys: [] };
   if (!record.confirmed) {
     const link = appLink(record.secret, user.email);
-    return { on: false, setup: { key: groupSecret(record.secret), link, scannable: qrCode(link) !== null }, recoveryLeft: 0 };
+    return { on: false, setup: { key: groupSecret(record.secret), link, scannable: qrCode(link) !== null }, recoveryLeft: 0, app: false, passkeys: [] };
   }
-  return { on: true, setup: null, recoveryLeft: deps.twoFactor.recoveryLeft(userId) };
+  const passkeys = deps.passkeys.listFor(userId).map((one) => ({ id: one.id, label: one.label, createdAt: one.createdAt, lastUsedAt: one.lastUsedAt }));
+  return { on: true, setup: null, recoveryLeft: deps.twoFactor.recoveryLeft(userId), app: record.app, passkeys };
 }
 
 /** The QR code an app scans while turning it on, as SVG. Null when it is not being turned on. */
@@ -133,7 +142,8 @@ export function passSecondStep(deps: TwoFactorDeps, userId: Id, sessionHash: str
     if (!record?.confirmed) return err("not-on");
     const code = cleanCode(typed);
     if (code) {
-      const step = deps.totp.verify(record.secret, code, nowMs(deps));
+      // Turned on with a passkey alone: there is no app, so no code is right.
+      const step = record.app ? deps.totp.verify(record.secret, code, nowMs(deps)) : null;
       if (step === null) return err("code-wrong");
       // A code seen once is never accepted again, even within its 30 seconds.
       if (step <= record.lastStep) return err("code-used");
@@ -154,29 +164,33 @@ export function passSecondStep(deps: TwoFactorDeps, userId: Id, sessionHash: str
 
 /**
  * New recovery codes, for someone who used or lost theirs. It takes a code
- * from the app, so a borrowed session cannot. The old codes stop working.
- * Answers the new ones, shown once.
+ * from the app or a passkey, so a borrowed session cannot. The old codes
+ * stop working. Answers the new ones, shown once.
  */
-export function newRecoveryCodes(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<{ readonly recoveryCodes: readonly string[] }, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "code-used"> {
+export function newRecoveryCodes(deps: TwoFactorDeps, userId: Id | null, typed: string, byPasskey?: ProveByPasskey): Result<{ readonly recoveryCodes: readonly string[] }, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "code-used"> {
   if (userId === null || !deps.users.get(userId)) return err("forbidden");
   const code = cleanCode(typed);
-  if (!code) return err("code-invalid");
+  if (!code && !byPasskey) return err("code-invalid");
   return deps.transact(() => {
     const record = deps.twoFactor.get(userId);
     if (!record?.confirmed) return err("not-on");
-    const step = deps.totp.verify(record.secret, code, nowMs(deps));
-    if (step === null) return err("code-wrong");
-    if (step <= record.lastStep) return err("code-used");
+    if (code) {
+      const step = record.app ? deps.totp.verify(record.secret, code, nowMs(deps)) : null;
+      if (step === null) return err("code-wrong");
+      if (step <= record.lastStep) return err("code-used");
+      deps.twoFactor.setLastStep(userId, step, deps.clock());
+    } else if (!byPasskey?.(userId)) {
+      return err("code-wrong");
+    }
     const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => deps.totp.newRecoveryCode());
-    deps.twoFactor.setLastStep(userId, step, deps.clock());
     deps.twoFactor.replaceRecovery(userId, codes.map((one) => deps.totp.hash(one)));
     recordActivity(deps, { actorId: userId, action: "user.two-factor-new-codes", recordType: "user", recordId: userId });
     return ok({ recoveryCodes: codes.map(showRecoveryCode) });
   });
 }
 
-/** Turns it off for oneself. It takes a current code, so a borrowed session cannot do it. */
-export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: string): Result<true, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "required"> {
+/** Turns it off for oneself. It takes a current code, a recovery code or a passkey, so a borrowed session cannot do it. */
+export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: string, byPasskey?: ProveByPasskey): Result<true, "forbidden" | "not-on" | "code-invalid" | "code-wrong" | "required"> {
   if (userId === null || !deps.users.get(userId)) return err("forbidden");
   return deps.transact(() => {
     const record = deps.twoFactor.get(userId);
@@ -189,8 +203,12 @@ export function turnOffTwoFactor(deps: TwoFactorDeps, userId: Id | null, typed: 
     if (deps.twoFactor.requiredForAdmins() && deps.users.rolesOf(userId).includes("admin")) return err("required");
     const code = cleanCode(typed);
     const recovery = code ? null : cleanRecoveryCode(typed);
-    if (!code && !recovery) return err("code-invalid");
-    const right = code ? deps.totp.verify(record.secret, code, nowMs(deps)) !== null : deps.twoFactor.useRecovery(userId, deps.totp.hash(recovery as string), deps.clock());
+    if (!code && !recovery && !byPasskey) return err("code-invalid");
+    const right = code
+      ? record.app && deps.totp.verify(record.secret, code, nowMs(deps)) !== null
+      : recovery
+        ? deps.twoFactor.useRecovery(userId, deps.totp.hash(recovery), deps.clock())
+        : byPasskey?.(userId) === true;
     if (!right) return err("code-wrong");
     deps.twoFactor.remove(userId);
     recordActivity(deps, { actorId: userId, action: "user.two-factor-off", recordType: "user", recordId: userId });

@@ -25,7 +25,7 @@ test("turn it on in Settings, then sign in with the password and a code", async 
   const page = await (await browser.newContext()).newPage();
   await setUpAdmin(t, page);
   await page.goto(`${t.origin}/settings`);
-  await page.getByRole("button", { name: "Turn on two-factor sign-in" }).click();
+  await page.getByRole("button", { name: "Turn on with an app" }).click();
   await page.getByLabel("Code from your app", { exact: true }).waitFor();
   await assertAccessible(page, "Settings, adding HQ to an app");
   await page.getByLabel("Code from your app", { exact: true }).fill(codeAt(secret(), stepOf(Date.now())));
@@ -41,7 +41,7 @@ test("turn it on in Settings, then sign in with the password and a code", async 
   await fresh.getByLabel("Email").fill("mikey@example.com");
   await fresh.getByLabel("Password").fill(PASSWORD);
   await fresh.getByRole("button", { name: "Sign in" }).click();
-  await fresh.getByRole("heading", { name: "Enter your code" }).waitFor();
+  await fresh.getByRole("heading", { name: "Confirm it’s you" }).waitFor();
   await assertAccessible(fresh, "the second step at sign-in");
   await fresh.getByLabel("Code").fill(codeAt(secret(), stepOf(Date.now()) + 1));
   await fresh.getByRole("button", { name: "Continue" }).click();

@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on
+  with a passkey (your fingerprint, face or PIN, or a security key) instead
+  of an authenticator app, or add passkeys beside the app. After the
+  password, HQ asks for the passkey; a recovery code still works when it is
+  lost. A passkey also proves it is you for new recovery codes and turning
+  two-factor off. HQ checks each use itself, with no new dependency, and
+  refuses a passkey from another address, a replayed answer and a copied
+  key. Migration 0030.
+
 - The page pass. The dashboard opens with a row of figures (clients
   waiting, due follow-ups, open opportunities, active projects, budgets at
   risk, your hours), each a link, then two columns: what needs someone

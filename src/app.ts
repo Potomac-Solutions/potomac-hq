@@ -345,11 +345,29 @@ export async function createApp(config: AppConfig): Promise<App> {
   const secondStepLimit = sqliteRateLimit(db, { name: "second-step", max: 5, windowMs: 60_000 });
   const secondStepDue = (userId: Id, cookieHeader: string) => needsSecondStep(twoFactorDeps, userId, sessionHashOf(cookieHeader));
 
+  // Passkeys are bound to the address the browser says it is on (already
+  // checked against the Host header for every post). When HQ's public
+  // address is configured, that must be the one: a passkey made at any other
+  // address would stop working at the real one.
+  const passkeySite = (origin: string | undefined) => {
+    try {
+      const url = new URL(origin ?? "");
+      if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+      const home = config.publicUrl ? new URL(config.publicUrl) : null;
+      const pinned = home !== null && home.hostname !== "localhost" && home.hostname !== "127.0.0.1";
+      return pinned && home.origin !== url.origin ? null : { rpId: url.hostname, origins: [url.origin] };
+    } catch {
+      return null;
+    }
+  };
+
   const twoFactorView = (actor: Id | null) => {
-    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0 };
+    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0, app: false, passkeys: [] };
     const left = status.recoveryLeft;
     const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left. Make new ones below." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
-    return { on: status.on, setup: status.setup, recoveryText };
+    const passkeys = status.passkeys.map((one) => ({ id: one.id, label: one.label, added: services.formatWhen(one.createdAt), used: one.lastUsedAt ? `Last used ${services.formatWhen(one.lastUsedAt)}` : "Not used yet", removable: status.app || status.passkeys.length > 1 }));
+    const how = status.app && passkeys.length > 0 ? "a code from your authenticator app, or a passkey" : status.app ? "a code from your authenticator app" : "your passkey";
+    return { on: status.on, setup: status.setup, recoveryText, app: status.app, passkeys, how, hasPasskey: passkeys.length > 0 };
   };
 
   const refusedDeps = services.refused;
@@ -448,7 +466,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             : user === null
               ? forbidden()
               : pending
-                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
+                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Confirm it’s you", app: twoFactorView(user.id).app, passkey: twoFactorView(user.id).hasPasskey }, { status: 401 })
                 : enrolling && new URL(request.url).pathname !== "/settings"
                   ? show("identity/ui/two-factor-required-page", { title: "Turn on two-factor sign-in" }, { status: 403 })
                   : null,
@@ -775,10 +793,11 @@ export async function createApp(config: AppConfig): Promise<App> {
         return user && sessionHash && secondStepDue(user.id, cookieHeader) ? { userId: user.id, sessionHash } : null;
       },
       sessionOf: sessionHashOf,
+      siteOf: passkeySite,
       allowAttempt: secondStepLimit,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       sign: (location) => notices.sign(location),
-      codesPage: (codes, fresh) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh)),
+      codesPage: (codes, fresh, withPasskey) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh, withPasskey)),
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
   );

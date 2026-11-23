@@ -36,7 +36,7 @@ after(() => t.stop());
 test("turning it on takes a code from the app, and shows the recovery codes once", async () => {
   assert.match(textOf(await mikey.page("/")), /Turn on two-factor sign-in You're an admin/, "an admin without it is reminded");
   const off = await mikey.page("/settings");
-  assert.match(textOf(off), /Two-factor sign-in Off\./);
+  assert.match(textOf(off), /Two-factor sign-in Off Turn it on/);
 
   const began = await mikey.post("/settings/two-factor", {});
   assert.equal(doneOf(began), "Add HQ to your authenticator app, then enter the code it shows.");
@@ -89,7 +89,7 @@ test("after the password, nothing in HQ opens until the code is given", async ()
   const home = await b.get("/");
   assert.equal(home.status, 401);
   const text = textOf(await home.text());
-  assert.match(text, /Enter your code/);
+  assert.match(text, /Confirm it’s you/);
   assert.doesNotMatch(text, /Mikey Nichols/, "the top bar does not show them signed in");
 
   for (const path of ["/clients", "/settings", "/search?q=a", "/people"]) assert.equal((await b.get(path)).status, 401, path);
