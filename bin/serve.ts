@@ -20,10 +20,15 @@ import { join } from "node:path";
 import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
-import { syncFinanceSheet } from "../src/finance/index.ts";
+import { runRecurringInvoices, sendInvoiceReminders, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
+import { sendBookingReminders } from "../src/booking/index.ts";
+import { sendMorningEmails } from "../src/today/index.ts";
+import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
+import { checkSites } from "../src/monitor/index.ts";
+import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -68,8 +73,30 @@ if (clientNotices && !email) {
 }
 
 const db = openDatabase(databasePath);
+// Busy times for booked calls, from Google Calendar, if it is set up.
+const calendarConfig = calendarConfigFrom(process.env);
+const busyCalendar = calendarConfig ? googleBusyCalendar(calendarConfig) : null;
+console.log(busyCalendar ? `Booked calls avoid busy times in ${busyCalendar.name}.` : "Booked calls avoid HQ's own calls only: Google Calendar is not set up.");
+
+// The inquiry form: which other sites may post it, and where it is emailed.
+const formOrigins = (process.env["HQ_FORM_ORIGINS"] ?? "")
+  .split(",")
+  .map((one) => one.trim())
+  .filter(Boolean)
+  .map((one) => {
+    try {
+      return new URL(one).origin;
+    } catch {
+      throw new Error(`HQ_FORM_ORIGINS must be site addresses, like https://potomac.solutions. "${one}" is not.`);
+    }
+  });
+const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo || "";
+
 const app = await createApp({
   db,
+  formOrigins,
+  ...(inquiryEmail ? { inquiryEmail } : {}),
+  ...(busyCalendar ? { busyCalendar } : {}),
   log,
   secure: process.env["HQ_SECURE"] === "true",
   proxies: Number(process.env["HQ_PROXIES"] ?? 0),
@@ -112,6 +139,15 @@ console.log(sheetTarget ? `Finance records are copied each night to ${sheetTarge
 
 console.log(alertTo ? `Errors are emailed to ${alertTo}.` : "Error alerts are not set up. Errors are in the log only.");
 
+// Recurring invoices: every morning at 06:13 business time, and once now in
+// case the server was down at that hour. Each period's invoice is made once.
+const runRecurring = async () => {
+  const result = runRecurringInvoices(createServices(db).finance);
+  if (result.made > 0) console.log(`Recurring invoices: made ${result.made}, sent ${result.sent}.`);
+};
+void runRecurring().catch((error: unknown) => log("Recurring invoices: the run failed", error));
+const stopRecurring = scheduleDaily(runRecurring, { zone: BUSINESS_TIME_ZONE, hour: 6, minute: 13, clock: systemClock, log, name: "recurring invoices" });
+
 // Retention: every night at 04:07 business time (docs/retention-policy.md).
 const stopRetention = scheduleDaily(
   async () => {
@@ -145,6 +181,64 @@ if (email) {
   console.log("Notices are off: email is not set up.");
 }
 
+// Invoice reminders to clients, when turned on: every morning at 09:07.
+const stopInvoiceReminders = email
+  ? scheduleDaily(
+      async () => {
+        const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, { publicUrl, phone: contact.phone, address: contact.address });
+        if (result.sent + result.failed + result.skipped > 0) console.log(`Invoice reminders: sent ${result.sent}, failed ${result.failed}, no one to send to ${result.skipped}.`);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 9, minute: 7, clock: systemClock, log, name: "invoice reminders" },
+    )
+  : null;
+
+// The morning email: each person's Today list at 07:03 business time, and
+// once now if the server starts after that. Each person gets it once a day.
+const sendMorning = async () => {
+  if (!email) return;
+  const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+  const result = await sendMorningEmails(createServices(db).morning, mail, { publicUrl });
+  if (result.sent + result.failed > 0) console.log(`Morning email: sent ${result.sent}, failed ${result.failed}, nothing due for ${result.nothingDue}.`);
+};
+const stopMorning = email ? scheduleDaily(sendMorning, { zone: BUSINESS_TIME_ZONE, hour: 7, minute: 3, clock: systemClock, log, name: "morning email" }) : null;
+if (email && Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).hour >= 7) void sendMorning().catch((error: unknown) => log("Morning email: the run failed", error));
+console.log(email ? "Morning email: each person's Today list at 7, unless they turned it off." : "The morning email is off: email is not set up.");
+
+// Client websites: checked every five minutes. Changes are emailed to the
+// alert address when email and HQ_ALERT_EMAIL are set.
+const siteChecker = httpSiteChecker();
+const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...message })) : null;
+let checkingSites = false;
+const siteTimer = setInterval(() => {
+  if (checkingSites) return;
+  checkingSites = true;
+  checkSites(createServices(db).monitor, siteChecker, siteAlert)
+    .catch((error: unknown) => log("Site checks: the run failed", error))
+    .finally(() => (checkingSites = false));
+}, 5 * 60_000);
+siteTimer.unref();
+
+// Booked calls: the day-before reminder, checked every ten minutes.
+let stopReminders: (() => void) | null = null;
+if (email) {
+  const bookingDeps = createServices(db).booking;
+  const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+  let busy = false;
+  const timer = setInterval(() => {
+    if (busy) return;
+    busy = true;
+    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone })
+      .then((sent) => {
+        if (sent.failed > 0) log(`Booking reminders: ${sent.failed} could not be emailed`);
+      })
+      .catch((error: unknown) => log("Booking reminders: the run failed", error))
+      .finally(() => (busy = false));
+  }, 10 * 60_000);
+  timer.unref();
+  stopReminders = () => clearInterval(timer);
+}
+
 // The knowledge base gets HQ's own documents, once each. An article someone
 // edited is never overwritten.
 try {
@@ -176,7 +270,12 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopBackups?.();
     stopSheet?.();
     stopRetention();
+    stopRecurring();
+    clearInterval(siteTimer);
+    stopInvoiceReminders?.();
+    stopMorning?.();
     stopNotices?.();
+    stopReminders?.();
     server.close(() => {
       db.close();
       process.exit(0);

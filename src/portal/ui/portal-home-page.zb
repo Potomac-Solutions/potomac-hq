@@ -11,10 +11,10 @@
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    return { title: 'Your portal', view: context.portal.home(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', view: context.portal.home(), booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -113,7 +113,29 @@
     </section>
 
     <section class="hq-panel" id="calls" aria-labelledby="portal-calls">
-      <h2 id="portal-calls">Ask for a call</h2>
+      <h2 id="portal-calls">{booking.open ? 'Calls' : 'Ask for a call'}</h2>
+      <ul zb-if={booking.calls.length > 0} class="portal-cards" data-gap>
+        <zb-each items={booking.calls} as="call" key={call.id}>
+          <li>
+            <div>
+              <p><strong><time datetime={call.whenIso}>{call.when}</time></strong><span zb-if={call.cancelled}>: cancelled</span></p>
+              <p zb-if={call.topic}>{call.topic}</p>
+              <p zb-if={call.cancelled} class="hq-muted">{call.cancelText}</p>
+              <p zb-if={!call.cancelled}><a href="/portal/calls/{call.id}.ics">Add to your calendar</a><span zb-if={call.changeable}> · <a href="/portal/book?move={call.id}">Move it</a></span></p>
+              <details zb-if={call.changeable}>
+                <summary>Cancel this call</summary>
+                <form method="post" action="/portal/calls/{call.id}/cancel" class="hq-form">
+                  <text-field label="Why?" name="reason"></text-field>
+                  <div><button class="hq-button secondary" type="submit">Cancel the call</button></div>
+                </form>
+              </details>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+      <p zb-if={booking.open}><a class="hq-button portal-big" href="/portal/book">Book a call</a></p>
+      <h3 zb-if={booking.open}>Or ask for a call</h3>
+      <p zb-if={booking.open} class="hq-muted">If none of the times suit you, say when does, and Potomac Solutions will confirm a time.</p>
       <ul zb-if={view.calls.length > 0} class="portal-cards" data-gap>
         <zb-each items={view.calls} as="call" key={call.id}>
           <li>

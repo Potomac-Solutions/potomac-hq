@@ -9,8 +9,8 @@
   import '../../shared/ui/zubra/empty-state.zb'
 
   export async function load({ context }) {
-    if (!context.signedIn) return show('identity/ui/sign-in-page', { ...context.signIn, title: 'Sign in' }, { status: 401 })
-    if (!context.user) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
+    const stop = context.guard()
+    if (stop) return stop
     const feed = context.dashboard.recentActivity()
     if (!feed.ok) return show('identity/ui/no-access', { title: 'No access' }, { status: 403 })
     const due = context.crm.followUpsDue()
@@ -34,11 +34,15 @@
       followUps: due.ok ? due.value.items : [],
       fromClients: fromClients.items,
       waiting: waiting.items,
+      calls: context.booking.next(),
+      renewals: context.renewals.comingUp(),
+      sites: context.monitor.attention(),
       showFollowUps: due.ok,
       items: feed.value.items,
       everything: feed.value.everything,
       done: context.notice.done,
       problem: context.notice.problem,
+      remindTwoFactor: context.settings.remindTwoFactor,
     }
   }
 
@@ -61,9 +65,10 @@
   .hq-waiting { border-left: 0.3rem solid var(--primary); }
   .hq-waiting .hq-scope { margin: 0; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} done="" problem="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false}>
   <h1>Dashboard</h1>
-  <div zb-if={done || problem} class="hq-notices">
+  <div zb-if={done || problem || remindTwoFactor} class="hq-notices">
+    <alert-banner zb-if={remindTwoFactor} variant="warning" heading="Turn on two-factor sign-in">You're an admin, so your password alone opens everything in HQ, including who can sign in. <a href="/settings#two-factor">Turn it on</a> in Settings. It takes a minute and an app on your phone.</alert-banner>
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
     <alert-banner zb-if={done} variant="success">{done}</alert-banner>
   </div>
@@ -75,6 +80,33 @@
         <li><span><strong>{item.text}</strong><br><span class="hq-scope">{item.detail}</span></span> <a class="hq-button secondary small" href={item.href}>{item.action}<span class="sr-only">: {item.text}</span></a></li>
       </zb-each>
     </ul>
+  </section>
+  <section zb-if={calls} class="hq-panel" aria-labelledby="next-calls">
+    <h2 id="next-calls">{calls.length === 0 ? "No calls booked in the next two weeks" : "Next calls"}</h2>
+    <ul zb-if={calls.length > 0} class="hq-activity">
+      <zb-each items={calls} as="call" key={call.id}>
+        <li><span><strong><time datetime={call.whenIso}>{call.when}</time></strong><br><span class="hq-scope">{call.who}<span zb-if={call.topic}> · {call.topic}</span></span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/calls">All calls</a></p>
+  </section>
+  <section zb-if={sites.length > 0} class="hq-panel hq-waiting" aria-labelledby="sites-attention">
+    <h2 id="sites-attention">Sites that need you</h2>
+    <ul class="hq-activity">
+      <zb-each items={sites} as="site" key={site.id}>
+        <li><span><strong>{site.host}</strong> · {site.clientName}<br><span class="hq-scope">{site.state === 'down' ? 'Down ' + site.since + ': ' + site.lastResult : site.cert}</span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/sites">All sites</a></p>
+  </section>
+  <section zb-if={renewals.length > 0} class="hq-panel" aria-labelledby="renewals-coming-up">
+    <h2 id="renewals-coming-up">Renewals in the next 30 days</h2>
+    <ul class="hq-activity">
+      <zb-each items={renewals} as="one" key={one.id}>
+        <li><span><strong>{one.name}</strong> · {one.kindLabel}<br><span class="hq-scope">{one.clientName}<span zb-if={one.autoRenews}> · renews by itself</span></span></span> <span><time datetime={one.renewsOn}>{one.when}</time> <span zb-if={one.state === 'overdue'} class="hq-tag due">Overdue</span></span></li>
+      </zb-each>
+    </ul>
+    <p><a href="/renewals">All renewals</a></p>
   </section>
   <section zb-if={showFollowUps} class="hq-panel" aria-labelledby="follow-ups-due">
     <h2 id="follow-ups-due">Follow-ups due</h2>

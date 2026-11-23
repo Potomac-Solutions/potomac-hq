@@ -126,6 +126,38 @@
       </details>
     </section>
 
+    <section zb-if={view.can.viewInvoices} class="hq-panel" id="recurring" aria-labelledby="money-recurring">
+      <h2 id="money-recurring">Recurring invoices</h2>
+      <p zb-if={view.recurring.length === 0} class="hq-muted">For a charge that repeats: hosting, maintenance, a retainer. HQ makes the invoice on its day, as a draft to check or sent straight away.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={view.recurring} as="plan" key={plan.id}>
+          <li>
+            <p><strong>{plan.description}</strong>: {plan.amount}, {plan.everyLabel.toLowerCase()} <span zb-if={!plan.active} class="hq-tag">Paused</span></p>
+            <p class="hq-small">{plan.active ? "Next: " + plan.next : "Was next: " + plan.next}<span zb-if={plan.endsText}>, {plan.endsText}</span> · {plan.autoSend ? "Sent on its day" : "Drafted on its day, for you to send"}</p>
+            <form zb-if={view.can.editInvoices} method="post" action={"/recurring/" + plan.id + (plan.active ? "/pause" : "/resume")}><button class="hq-button secondary" type="submit">{plan.active ? "Pause" : "Start again"}<span class="sr-only">: {plan.description}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={view.can.editInvoices} class="hq-more">
+        <summary>Set up a recurring invoice</summary>
+        <form method="post" action="/projects/{id}/recurring" class="hq-form">
+          <text-field label="What each invoice is for" name="description" required={true} description="Followed by its month on the invoice. Like: Website hosting and care"></text-field>
+          <text-field label="Amount in dollars, each time" name="amount" inputmode="decimal" required={true}></text-field>
+          <div class="hq-field">
+            <label for="recurring-every">How often</label>
+            <select id="recurring-every" name="every" required>
+              <zb-each items={view.everyOptions} as="option" key={option.value}><option value={option.value}>{option.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="First invoice on" name="firstOn" type="date" required={true} description="Later ones fall on the same day of the month, or the month’s last day"></text-field>
+          <text-field label="Last invoice by" name="endsOn" type="date" description="Leave empty to keep going until it is paused"></text-field>
+          <text-field label="Due, in days after it is sent" name="dueDays" inputmode="numeric" value="15"></text-field>
+          <label class="hq-check"><input type="checkbox" name="autoSend" value="1"> Send each one on its day. Otherwise it waits as a draft for you to check and send.</label>
+          <div><button class="hq-button" type="submit">Set it up</button></div>
+        </form>
+      </details>
+    </section>
+
     <section class="hq-panel" id="expenses" aria-labelledby="money-expenses">
       <h2 id="money-expenses">Expenses</h2>
       <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">Record what this job costs beyond time: hosting, software, a contractor.</empty-state>

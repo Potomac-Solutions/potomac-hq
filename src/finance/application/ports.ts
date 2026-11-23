@@ -1,6 +1,8 @@
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
 import type { Invoice, Payment } from "../domain/invoice.ts";
+import type { RecurringInvoice } from "../domain/recurring.ts";
+import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -66,3 +68,30 @@ export type InvoiceStore = {
   /** Every payment with its invoice's number and names, oldest first. */
   allPayments(): (Payment & { readonly number: number; readonly projectName: string; readonly clientName: string })[];
 };
+
+export type RecurringStore = {
+  insert(recurring: RecurringInvoice, at: string): void;
+  update(recurring: RecurringInvoice, at: string): void;
+  get(id: Id): RecurringInvoice | null;
+  /** A project's, active first, then by next day. */
+  listForProject(projectId: Id): RecurringInvoice[];
+  /** Every active one, by next day. */
+  listActive(): RecurringInvoice[];
+  /** Active ones whose next day has come. */
+  due(today: string): RecurringInvoice[];
+  /** Marks an invoice as made by a recurring invoice. */
+  markInvoice(invoiceId: Id, recurringId: Id): void;
+};
+
+export type ReminderStore = {
+  /** Whether clients are emailed about invoices coming due and overdue. */
+  on(): boolean;
+  setOn(on: boolean, by: Id, at: string): void;
+  sent(invoiceId: Id): { readonly kind: ReminderKind; readonly sentAt: string; readonly sentTo: string }[];
+  record(invoiceId: Id, kind: ReminderKind, at: string, to: string): void;
+  isOff(invoiceId: Id): boolean;
+  setOff(invoiceId: Id, off: boolean, by: Id, at: string): void;
+};
+
+/** Who at a client gets their invoices: the primary contact with an email, or else their portal users. */
+export type ClientEmails = (organizationId: Id) => readonly { readonly name: string; readonly email: string; readonly portal: boolean }[];

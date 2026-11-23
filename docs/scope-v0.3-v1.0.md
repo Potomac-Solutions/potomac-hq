@@ -239,7 +239,7 @@ still open.
 
 | Cut | Why | Lands |
 | --- | --- | --- |
-| Two-factor sign-in | Not in the roadmap. Listed as a gap in the security review | Before a second admin |
+| Two-factor sign-in | Not in the roadmap. Listed as a gap in the security review | After 0.10.0 (see below) |
 | Rich text in articles | Plain text is safe and enough to start | When it gets in the way |
 | Custom roles and per-person permissions | Three fixed roles cover one to a few people | When they do not |
 | Charts in reports | Tables say the same with less to maintain | When someone asks |
@@ -401,3 +401,28 @@ passes. Needs his approval like the rest.
 - **Changes asked for count as handled** when the deliverable is shared
   again.
 
+## After 0.10.0: two-factor sign-in
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+- **Optional until an admin requires it of admins.** Each person turns it
+  on in Settings, and an admin without it is reminded on the dashboard.
+  People → Sign-in rules requires it of every admin. It ships off. The admin
+  who turns the rule on must have it on already; an admin without it can
+  then open only Settings until it is on, and an admin cannot turn theirs
+  off while the rule is on. Members and managers are never required.
+- **An authenticator app, not texts or email.** Codes by text cost money
+  and can be stolen with the phone number. Any app works: 1Password, Google
+  Authenticator, Microsoft Authenticator.
+- **A QR code, made by HQ.** About 250 lines in `src/shared/domain/qr.ts`
+  rather than a package: byte mode, level M, versions 1 to 10. Checked with
+  OpenCV's QR reader at every version, and from a screenshot of Settings.
+  The link and the typed key are still there for a phone that is doing the
+  setting up itself.
+- **Ten recovery codes, shown once.** Settings makes ten new ones, with a
+  code from the app (not a recovery code), and the old ones stop working.
+- **An admin can reset it** for someone with neither phone nor codes, with
+  the same permission as making them a new password link. Nobody resets
+  their own that way: turning your own off takes a code.
+- **Five tries a minute** at the second step, for each person and each
+  address. A six-digit code is a small space.

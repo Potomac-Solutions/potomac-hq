@@ -10,7 +10,16 @@ at least 10 characters. The link works once.
 - **Forgot your password?** Use "Forgot your password?" on the sign-in page
   if email is set up. If not, ask an admin for a new link.
 - **Settings**, top right, has the theme (light, dark, or follow your
-  device), your password, and the People list.
+  device), your password, two-factor sign-in, and the People list.
+- **Two-factor sign-in.** Turn it on in Settings and HQ asks for a code from
+  an authenticator app on your phone after your password. Keep the recovery
+  codes it shows you somewhere safe: each signs you in once if you lose the
+  phone. Used most of them? Settings makes ten new ones, with a code from
+  the app, and the old ones stop working. With neither phone nor codes, an
+  admin can reset it from the People page.
+- **Requiring it of admins.** On People, under Sign-in rules, an admin who
+  has it on can require it of every admin. An admin without it can then
+  open only Settings until it is on.
 
 ## What you can do depends on your role
 
@@ -88,6 +97,55 @@ one only if you were expecting it.
 
 ## Knowing what is going on
 
+- **Calls.** Managers and admins set the hours for booked calls under
+  Calls → Hours and days off. Everyone sees the calls booked, can add one to
+  their calendar, and can cancel one with a reason the other side sees.
+  With "Clients can book" on, clients choose a time in the portal, and can
+  move or cancel their own calls. With "Anyone can book" on, the page at
+  `/book` takes bookings from anyone: link to it from the website. A call
+  from that page has "Add to the CRM", before or after the call: it makes
+  the client, contact and opportunity in one step.
+- **Recurring invoices.** On a project's Money page, set up hosting,
+  maintenance or a retainer: an amount every month, three months or year.
+  HQ makes each invoice in the morning on its day, as a draft or sent. The
+  Money page shows what recurs a month and a year.
+- **Invoice reminders.** Turn them on under Money, and clients are emailed
+  about a sent invoice three days before it is due and when it is late, up
+  to two weeks. An invoice's page shows what went, and can leave it out.
+- **Sites.** On a client's page, add their website. HQ checks it every five
+  minutes, shows it on the dashboard when it's down or its certificate is
+  running out, and emails the alert address. Sites lists them all.
+- **Renewals.** On a client's page, add their domain, hosting, certificate
+  or licenses, with when each renews. Each shows on the dashboard 30 days
+  ahead. Press "Renewed" when it is done, and its date moves on.
+- **Today.** Start the day here. It's one list, in order: booked calls, what
+  clients are waiting on, down sites, anything overdue, then today's
+  follow-ups, to-dos and deadlines, and renewals this week. Work down it.
+  For a follow-up, "Log a call" opens the opportunity where you log it and
+  set the next one.
+- **Going cold.** An open opportunity with no follow-up and no contact for
+  two weeks shows on Today as going cold. Call them, or set a follow-up if
+  you're waiting on them for a reason.
+- **On your phone.** HQ works on a phone. From Today, tap "Log a call" on a
+  follow-up; the opportunity page has the contact's number as a tap to call,
+  and the call log right below it.
+- **The morning email.** The same list arrives at 7 each morning, so the day
+  starts with it. Turn it off in Settings if you'd rather not.
+- **To-dos.** Anything you need to remember to do: "renew the business
+  license", "send Rita the quote". Give it a day or leave it for whenever,
+  give it to someone else, and add it from a client or an opportunity to tie
+  it there. Tick it off when it's done.
+- **Calls and messages.** On a client or an opportunity, log each call,
+  email, text or meeting. For a call, say how it went. On an opportunity,
+  set the next follow-up in the same step: "left a voicemail, try Thursday".
+- **Inquiries.** The form at `/contact` (or on the website) puts each
+  inquiry in the pipeline as a new opportunity from the website, and emails
+  Potomac.
+- **Profit and loss.** Money → Profit and loss by month: money received
+  against money spent, a year at a time, with a CSV.
+- **Search**, in the top bar: type a name, an email, a phone number, an
+  invoice number or a few words from a task, and press Enter.
+
 - **Waiting on you**, at the top of the Dashboard: what clients are waiting
   for. Clear it first each day.
 
@@ -97,7 +155,9 @@ one only if you were expecting it.
   and budget against actual.
 - **Knowledge**: how things are done here, and the decision log. Search it
   first. If the answer is not there, write it down once you know it.
-- **Audit history** (admins): everything anyone did, with filters.
+- **Audit history** (admins): everything anyone did, with filters. Its
+  **Refused attempts** page lists wrong passwords, wrong two-factor codes
+  and forms someone tried without permission, for the last 30 days.
 
 ## Habits that keep HQ worth using
 

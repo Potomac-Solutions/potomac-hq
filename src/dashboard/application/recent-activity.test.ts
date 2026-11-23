@@ -18,6 +18,8 @@ function deps(access: Access | null): RecentActivityDeps & { asked: { scope: str
     list: () => [],
     themeOf: () => "system",
     setTheme: () => {},
+    morningEmailOf: () => true,
+    setMorningEmail: () => {},
     findByEmail: () => null,
     rolesOf: () => [],
     setRoles: () => {},

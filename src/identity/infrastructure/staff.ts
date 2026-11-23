@@ -7,6 +7,7 @@ import { clientAddress, staffPages, type StaffPages } from "@potomac-solutions/k
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AccountAdmin } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
+import type { KitStore } from "@potomac-solutions/kit/store";
 import { sqliteKitStore } from "./kit-store.ts";
 
 export type { Staff, StaffPages };
@@ -59,7 +60,7 @@ export function createHqStaffPages(options: {
  * so the kit's "the last owner stays" rule and HQ's "the last admin stays"
  * rule are the same rule.
  */
-export function accountAdmin(staff: Staff): AccountAdmin {
+export function accountAdmin(staff: Staff, store: KitStore): AccountAdmin {
   const owner = () => staff.list().find((person) => person.roles.includes("owner") && !person.disabled) ?? null;
   return {
     async invite(email, name) {
@@ -83,6 +84,14 @@ export function accountAdmin(staff: Staff): AccountAdmin {
       const by = owner();
       if (!by) return false;
       return Boolean((await staff.setRoles({ account: by.account }, staffAccount, admin ? ["owner", "staff"] : ["staff"])).ok);
+    },
+    // The kit has no way to take back a link, so this marks it used, as the
+    // kit does when a link is accepted. The kit refuses a used link.
+    spendInviteLinks(email) {
+      const wanted = email.trim().toLowerCase();
+      const open = store.under("staff-tokens").filter((one) => one["kind"] === "invite" && one["used"] === false && String(one["email"] ?? "").toLowerCase() === wanted);
+      for (const one of open) void store.write("staff-tokens", String(one["key"]), { used: true, usedAt: Date.now(), withdrawn: true });
+      return open.length;
     },
   };
 }

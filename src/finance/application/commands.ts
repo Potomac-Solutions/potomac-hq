@@ -5,12 +5,13 @@ import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInp
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
 import { addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
+import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
 import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
-import type { ExpenseStore, FinanceStore, InvoiceStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
   Pick<CrmDeps, "opportunities"> & {
@@ -18,6 +19,7 @@ export type FinanceDeps = ProjectsDeps &
     readonly expenses: ExpenseStore;
     readonly finance: FinanceStore;
     readonly invoices: InvoiceStore;
+    readonly recurring: RecurringStore;
     readonly phaseEstimates: PhaseEstimates;
   };
 
@@ -228,7 +230,7 @@ export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepte
 }
 
 /** Moves the project's payment status on when one of its invoices changes, and records it. Inside a transaction. */
-function followInvoice(deps: FinanceDeps, actorId: Id, changed: Invoice): void {
+function followInvoice(deps: FinanceDeps, actorId: Id | null, changed: Invoice): void {
   const to = paymentStatusAfter(changed, deps.invoices.listForProject(changed.projectId));
   const before = deps.finance.get(changed.projectId) ?? defaultFinance(changed.projectId);
   if (to === null || to === before.paymentStatus) return;
@@ -286,4 +288,80 @@ export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: 
     followInvoice(deps, actorId, received.value.invoice);
     return ok(received.value);
   });
+}
+
+// ── Recurring invoices ────────────────────────────────────────────────────
+
+/** Sets up a charge that repeats on a project. Permission: `invoice.edit`. */
+export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(projectId)) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), projectId, createdBy: actorId }, input);
+    if (!made.ok) return made;
+    deps.recurring.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { projectId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
+    return ok(made.value);
+  });
+}
+
+/** Pauses one, or starts it again. A paused one makes nothing; started again, it picks up from its next day, or today. */
+export function setRecurringActive(deps: FinanceDeps, actorId: Id | null, id: Id, active: boolean): Result<RecurringInvoice, Refused> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const found = deps.recurring.get(id);
+    if (!found) return err("not-found");
+    // Started again after a long pause: no back-billing for the paused months.
+    let nextOn = found.nextOn;
+    while (active && !found.active && nextOn < deps.today()) nextOn = nextAfter(nextOn, found.every, found.anchorDay);
+    const changed = { ...found, active, nextOn };
+    deps.recurring.update(changed, deps.clock());
+    recordActivity(deps, { actorId, action: active ? "recurring-invoice.resumed" : "recurring-invoice.paused", recordType: "recurring-invoice", recordId: id, context: { projectId: found.projectId } });
+    return ok(changed);
+  });
+}
+
+/**
+ * Makes every invoice whose day has come: one per period, up to a year of
+ * missed ones, each a draft or sent as the recurring invoice says. Run by
+ * HQ itself each morning, so the actor is HQ (null). Safe to run twice: each
+ * invoice moves its recurring invoice on in the same transaction.
+ */
+export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number; readonly sent: number } {
+  let made = 0;
+  let sent = 0;
+  const today = deps.today();
+  for (const first of deps.recurring.due(today)) {
+    for (let n = 0; n < 12; n++) {
+      const done = deps.transact(() => {
+        const recurring = deps.recurring.get(first.id);
+        if (!recurring || !isDue(recurring, today) || !deps.projects.get(recurring.projectId)) return null;
+        const dueOn = recurring.autoSend ? Temporal.PlainDate.from(today).add({ days: recurring.dueDays }).toString() : null;
+        const invoice = newInvoice(
+          { id: deps.newId(), projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
+          { kind: "other", description: periodLine(recurring, recurring.nextOn), amount: (recurring.amount.minor / 100).toFixed(2), dueOn, note: "Made by HQ from a recurring invoice." },
+        );
+        if (!invoice.ok) throw new Error(`Could not make a recurring invoice: ${invoice.error}`);
+        deps.invoices.insert(invoice.value, deps.clock());
+        deps.recurring.markInvoice(invoice.value.id, recurring.id);
+        recordActivity(deps, { actorId: null, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { projectId: recurring.projectId, number: invoice.value.number, kind: "other", minor: invoice.value.total.minor, recurringId: recurring.id } });
+        let wasSent = false;
+        if (recurring.autoSend) {
+          const out = sendInvoice(invoice.value, today);
+          if (out.ok) {
+            deps.invoices.update(out.value, deps.clock());
+            recordActivity(deps, { actorId: null, action: "invoice.sent", recordType: "invoice", recordId: out.value.id, context: { projectId: recurring.projectId, number: out.value.number, minor: out.value.total.minor } });
+            followInvoice(deps, null, out.value);
+            wasSent = true;
+          }
+        }
+        deps.recurring.update({ ...recurring, nextOn: nextAfter(recurring.nextOn, recurring.every, recurring.anchorDay) }, deps.clock());
+        return { wasSent };
+      });
+      if (!done) break;
+      made++;
+      if (done.wasSent) sent++;
+    }
+  }
+  return { made, sent };
 }

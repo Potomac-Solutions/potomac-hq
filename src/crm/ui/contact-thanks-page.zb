@@ -1,0 +1,13 @@
+<!-- After the inquiry form. -->
+<script>
+  'use route /contact/thanks'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    return { title: 'Thanks', done: context.notice.done, booking: context.booking.publicOpen() }
+  }
+</script>
+<hq-contact-thanks done="" booking={false}>
+  <h1>Thanks</h1>
+  <alert-banner variant="success">{done || 'Thanks. We’ll be in touch within two business days.'}</alert-banner>
+  <p zb-if={booking}>Want to talk sooner? <a href="/book">Book a call</a>.</p>
+</hq-contact-thanks>

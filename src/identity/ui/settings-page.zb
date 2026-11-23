@@ -1,5 +1,5 @@
 <!--
-  A person's own settings: the theme, and the way to change their password.
+  A person's own settings: the theme, their password and two-factor sign-in.
 -->
 <script>
   'use route /settings'
@@ -7,10 +7,10 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Settings', theme: context.settings.theme, themes: context.settings.themes, audit: context.can.audit, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Settings', twoFactor: context.settings.twoFactor, theme: context.settings.theme, morning: context.settings.morningEmail, themes: context.settings.themes, audit: context.can.audit, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-settings theme="system" themes={[]} audit={false} done="" problem="">
+<hq-settings two-factor={{}} morning={{ on: false, emailSetUp: false, address: "" }} theme="system" themes={[]} audit={false} done="" problem="">
   <div class="hq-page">
     <h1>Settings</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -29,9 +29,67 @@
         <button class="hq-button" type="submit">Save theme</button>
       </form>
     </section>
+    <section class="hq-panel" id="morning-email" aria-labelledby="settings-morning">
+      <h2 id="settings-morning">Morning email</h2>
+      <p>At 7 each morning, HQ emails you <a href="/today">Today</a>’s list: calls, follow-ups, to-dos and anything a client is waiting on. Nothing is sent on a day with nothing due.</p>
+      <p zb-if={!morning.emailSetUp} class="hq-muted hq-small">HQ can’t send email yet, so this waits until email is set up.</p>
+      <form method="post" action="/settings/morning-email" class="hq-form-row">
+        <div class="hq-check">
+          <input id="morning-email-on" name="morningEmail" type="checkbox" value="1" checked={morning.on}>
+          <label for="morning-email-on">Email me Today’s list<span zb-if={morning.address}> at {morning.address}</span></label>
+        </div>
+        <button class="hq-button" type="submit">Save</button>
+      </form>
+    </section>
     <section class="hq-panel" aria-labelledby="settings-password">
       <h2 id="settings-password">Password</h2>
       <p><a href="/staff/password">Change your password</a></p>
+    </section>
+    <section class="hq-panel" id="two-factor" aria-labelledby="settings-two-factor">
+      <h2 id="settings-two-factor">Two-factor sign-in</h2>
+      <alert-banner zb-if={twoFactor.required} variant="warning" heading="Required for admins">HQ requires two-factor sign-in for admins. Turn it on to use the rest of HQ.</alert-banner>
+      <div zb-if={twoFactor.on}>
+        <p><span class="hq-tag">On</span> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
+        <form method="post" action="/settings/two-factor/recovery-codes" class="hq-form-row">
+          <div class="hq-field">
+            <label for="two-factor-new-codes">Code from your app</label>
+            <input id="two-factor-new-codes" name="code" autocomplete="one-time-code" inputmode="numeric" required>
+          </div>
+          <button class="hq-button secondary" type="submit">Make new recovery codes</button>
+        </form>
+        <p class="hq-muted hq-small">New codes replace the old ones. Do it when you have used most of them, or think someone has seen them.</p>
+        <form method="post" action="/settings/two-factor/off" class="hq-form-row" data-spaced>
+          <div class="hq-field">
+            <label for="two-factor-off-code">Code from your app, or a recovery code</label>
+            <input id="two-factor-off-code" name="code" autocomplete="one-time-code" required>
+          </div>
+          <button class="hq-button secondary" type="submit">Turn off two-factor sign-in</button>
+        </form>
+      </div>
+      <div zb-else-if={twoFactor.setup}>
+        <ol class="hq-steps">
+          <li>Open an authenticator app on your phone, such as 1Password, Google Authenticator or Microsoft Authenticator, and add an account.</li>
+          <li zb-if={twoFactor.setup.scannable}>
+            Scan this code with the app.
+            <img class="hq-qr" src="/settings/two-factor/qr.svg" width="200" height="200" alt="QR code to add Potomac HQ to your authenticator app">
+            On this phone instead? <a href={twoFactor.setup.link}>Open HQ in your app</a>. Or choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code>
+          </li>
+          <li zb-else>On this phone, <a href={twoFactor.setup.link}>open HQ in your app</a>. Otherwise choose to enter a key, and type this one: <code class="hq-key">{twoFactor.setup.key}</code></li>
+          <li>Enter the 6-digit code the app shows for Potomac HQ.</li>
+        </ol>
+        <form method="post" action="/settings/two-factor/confirm" class="hq-form-row">
+          <div class="hq-field">
+            <label for="two-factor-code">Code from your app</label>
+            <input id="two-factor-code" name="code" autocomplete="one-time-code" inputmode="numeric" required>
+          </div>
+          <button class="hq-button" type="submit">Turn it on</button>
+        </form>
+        <form method="post" action="/settings/two-factor/off" class="hq-form-row" data-spaced><input type="hidden" name="code" value=""><button class="hq-button secondary" type="submit">Cancel</button></form>
+      </div>
+      <div zb-else>
+        <p>Off. Turn it on and HQ asks for a code from an app on your phone after your password, so a stolen password is not enough to get in.</p>
+        <form method="post" action="/settings/two-factor" class="hq-form-row"><button class="hq-button" type="submit">Turn on two-factor sign-in</button></form>
+      </div>
     </section>
     <section class="hq-panel" aria-labelledby="settings-hq">
       <h2 id="settings-hq">Potomac HQ</h2>

@@ -58,6 +58,7 @@ Do it for the test environment first, then again for production.
 | `HQ_BACKUP_PUBLIC_KEY` | The public key from `npm run backup:keygen` | For backups |
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
+| `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 `PORT` is set by Railway. `HQ_CACHE_DIR` is set by the container.
 
@@ -182,6 +183,77 @@ Zubra packages are pinned to one exact version.
    `found-by: potomac`, and stay on the working version.
 5. Never edit a file under `src/shared/ui/zubra`. Fix it upstream and copy
    it again.
+
+## Booked calls
+
+Email about booked calls goes through the same Brevo setup as everything
+else. With no email set up, people book as usual and are told to bookmark
+their call's page. The day-before reminder runs every ten minutes from
+`bin/serve.ts`, and sends each one once.
+
+Link the website to `HQ_PUBLIC_URL/book` once "Anyone can book a call at
+/book" is on under Calls → Hours.
+
+**Avoiding your Google Calendar.** Without it, open times avoid only calls
+already booked in HQ. To avoid everything in your calendar:
+
+1. Use the finance sheet's service account, or make one in Google Cloud
+   (IAM → Service accounts → Keys → Add key → JSON). Turn on the Google
+   Calendar API for its project.
+2. In Google Calendar, open your calendar's settings → Share with specific
+   people → add the service account's address (it ends
+   `.iam.gserviceaccount.com`) with "See only free/busy (hide details)".
+3. Set `HQ_GOOGLE_CALENDAR_ID` to the calendar's id (for your main calendar,
+   your Google email), and `HQ_GOOGLE_SERVICE_ACCOUNT` to the key file's JSON
+   if it is not the sheet's.
+4. Restart. The log says "Booked calls avoid busy times in Google Calendar
+   …", and Calls → Hours says so too.
+
+HQ only ever asks Google whether a time is busy: it never sees what an event
+is. If Google can't be reached, the booking pages offer no times and say to
+try again in a minute, rather than offer a time that might be taken.
+
+## The inquiry form
+
+`HQ_PUBLIC_URL/contact` takes inquiries from anyone, into the CRM as new
+opportunities from the website. Each is emailed to `HQ_INQUIRY_EMAIL`, or
+`HQ_CONTACT_EMAIL`, or `HQ_ALERT_EMAIL`.
+
+To put the form on potomac.solutions itself, list the site in
+`HQ_FORM_ORIGINS` (like `https://potomac.solutions`) and post a plain form:
+
+```html
+<form method="post" action="https://HQ_PUBLIC_URL/contact">
+  <input name="name" required> <input name="email" type="email" required>
+  <input name="phone" type="tel"> <input name="business">
+  <textarea name="message" required></textarea>
+  <input name="return_to" type="hidden" value="https://potomac.solutions/thanks">
+  <!-- For bots: hide it with CSS, never fill it in. -->
+  <input name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-10000px">
+  <button>Send</button>
+</form>
+```
+
+`return_to` must be on a listed site; HQ sends people back there with
+`?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
+posts from those sites. Five an hour from one address, three a day for one
+email.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:
+npm packages every Monday, GitHub Actions and the Node image once a month.
+The four `@zubra/*` packages come as one pull request, so they move
+together.
+
+- Treat a Zubra bump like "Upgrading Zubra" above: read the release notes,
+  and run `npm run test:zubra` and `npm run test:e2e` on the branch.
+- Merge when CI is green. The changelog gate lets Dependabot's pull
+  requests through, so when preparing a release, add a line for each bump
+  merged since the last one (`git log --author=dependabot`).
+- **Security alerts are a setting, not a file.** Once, in the repository:
+  Settings → Code security → turn on Dependabot alerts and Dependabot
+  security updates.
 
 ## When something is wrong
 

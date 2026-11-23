@@ -9,20 +9,35 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, recentActivity } from "./dashboard/index.ts";
+import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { financeOverview, hoursThisWeek, invoiceDetail, projectMoney, projectsOverBudget, taskTime, timeSheet } from "./finance/index.ts";
+import { financeOverview, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { createHqStaffPages, memoryRateLimit } from "./identity/adapters.ts";
+import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, requestPasswordReset, THEME_LABELS, type SignedInAccount, type Theme } from "./identity/index.ts";
-import { problemPage, userLinkPage } from "./identity/ui/views.ts";
+import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { sessionKeyOf } from "./identity/adapters.ts";
+import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
+import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
+import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
+import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
+import { todoRoutes } from "./todos/api/todo-routes.ts";
+import { todayFor, type TodayView } from "./today/index.ts";
+import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
+import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
+import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
+import { touchRoutes } from "./crm/api/touch-routes.ts";
+import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
+import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
+import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
@@ -53,6 +68,12 @@ export type AppConfig = {
   /** Signs the one-line messages shown after a redirect. */
   readonly noticeSecret: string;
   readonly log?: (message: string, error?: unknown) => void;
+  /** Other sites whose forms may post to /contact, like https://potomac.solutions. */
+  readonly formOrigins?: readonly string[];
+  /** Where a new inquiry is emailed. */
+  readonly inquiryEmail?: string;
+  /** Times already taken in another calendar, such as Google Calendar. */
+  readonly busyCalendar?: BusyCalendar;
   /** Sign-in attempts allowed per address per minute. */
   readonly attemptsPerMinute?: number;
   /**
@@ -128,8 +149,11 @@ export type PageContext = {
   guard(): Answer | null;
   /** The no-access page, for a read that was refused. */
   forbidden(): Answer;
-  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory> };
+  readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
+    clientTouches(id: string): TouchesView | null;
+    opportunityTouches(id: string): TouchesView | null;
+    inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string): ReturnType<typeof listClients>;
     pipeline(): ReturnType<typeof pipeline>;
     clientDetail(id: string): ReturnType<typeof clientDetail>;
@@ -159,13 +183,18 @@ export type PageContext = {
     thisWeek(): ReturnType<typeof hoursThisWeek>;
   };
   readonly money: {
+    /** Whether clients are emailed about invoices coming due and overdue, and whether this person may change it. */
+    reminders(): { readonly on: boolean; readonly canEdit: boolean; readonly email: boolean };
+    invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
+    recurring(): ReturnType<typeof recurringOverview>;
+    profit(year: string | null): ReturnType<typeof profitAndLoss>;
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -195,14 +224,59 @@ export type PageContext = {
     projects(): ReturnType<typeof projectHealthReport>;
     budget(): ReturnType<typeof financeOverview>;
   };
-  readonly people: { list(): ReturnType<typeof listPeople> };
+  readonly monitor: {
+    all(): ReturnType<typeof allSites>;
+    forClient(id: string): SitesView | null;
+    attention(): ReturnType<typeof sitesNeedingAttention>;
+  };
+  agenda(): TodayView;
+  readonly todos: {
+    list(everyone: boolean): Result<TodosView, "forbidden">;
+    atClient(id: string): TodosPanel | null;
+    onOpportunity(id: string): TodosPanel | null;
+    due(): ReturnType<typeof todosDueFor>;
+  };
+  readonly renewals: {
+    all(): ReturnType<typeof allRenewals>;
+    /** A client's, or null when this person may not see them. */
+    forClient(id: string): ClientRenewalsView | null;
+    comingUp(): ReturnType<typeof renewalsComingUp>;
+  };
+  readonly booking: {
+    calls(): ReturnType<typeof callsView>;
+    setup(): ReturnType<typeof bookingSetup>;
+    next(): ReturnType<typeof nextCalls>;
+    /** For the signed-in client: whether they can book, and their calls from now. */
+    portal(): { readonly open: boolean; readonly calls: readonly CallLine[] };
+    portalTimes(): Promise<OpenTimesView>;
+    portalCalls(): readonly CallLine[];
+    publicTimes(): Promise<OpenTimesView>;
+    publicOpen(): boolean;
+    /** Whether email is set up, so the person who books is emailed. */
+    readonly emails: boolean;
+    /** A call booked from the public page, by its private link. */
+    byLink(token: string): CallLine | null;
+  };
+  readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
+  readonly search: (q: string) => ReturnType<typeof search>;
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
     article(slug: string): ReturnType<typeof articleDetail>;
     revision(slug: string, number: string): ReturnType<typeof articleRevision>;
   };
-  readonly settings: { readonly theme: Theme; readonly themes: readonly { value: string; label: string }[] };
+  readonly settings: {
+    readonly theme: Theme;
+    readonly themes: readonly { value: string; label: string }[];
+    /** The Today list by email each morning, and whether HQ can send email at all. */
+    readonly morningEmail: { readonly on: boolean; readonly emailSetUp: boolean; readonly address: string };
+    /** An admin without two-factor sign-in, reminded on the dashboard. */
+    readonly remindTwoFactor: boolean;
+    readonly twoFactor: { readonly required: boolean; readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
+  };
 };
+
+/** What every module answers a form someone may not use with. */
+const NOT_ALLOWED = "You don’t have permission to do that.";
 
 /** An id from an address. Anything that is not one is simply not found. */
 function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-found">): Result<T, "forbidden" | "not-found"> {
@@ -223,7 +297,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}) });
+  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -248,11 +322,29 @@ export async function createApp(config: AppConfig): Promise<App> {
     return who ? { account: who.account, name: who.name, email: who.email, isOwner: who.roles.includes("owner") } : null;
   };
 
+  // Two-factor sign-in. Someone who has passed the password but not the
+  // second step is signed in to the kit, and to nothing in HQ.
+  const twoFactorDeps = services.twoFactor;
+  const sessionHashOf = (cookieHeader: string) => sessionKeyOf(cookieHeader, staff.cookieName);
+  // Five tries a minute: a six-digit code is a small space.
+  const secondStepLimit = sqliteRateLimit(db, { name: "second-step", max: 5, windowMs: 60_000 });
+  const secondStepDue = (userId: Id, cookieHeader: string) => needsSecondStep(twoFactorDeps, userId, sessionHashOf(cookieHeader));
+
+  const twoFactorView = (actor: Id | null) => {
+    const status = actor ? twoFactorStatus(twoFactorDeps, actor) : { on: false, setup: null, recoveryLeft: 0 };
+    const left = status.recoveryLeft;
+    const recoveryText = !status.on ? "" : left === 0 ? "You have no recovery codes left. Make new ones below." : `${left} recovery ${left === 1 ? "code is" : "codes are"} left.`;
+    return { on: status.on, setup: status.setup, recoveryText };
+  };
+
+  const refusedDeps = services.refused;
+
   const handleStaff = staffRoutes({
+    refused: (draft) => recordRefusal(refusedDeps, draft),
     handle: (req, res, url, form) => pages.handle(req, res, url, form),
     session: account,
     clientOf: clientAddressOf,
-    allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+    allowAttempt: sqliteRateLimit(db, { name: "staff-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
     sessionDeps,
     problem: (res, status, title, message) => sendHtml(res, status, title, problemPage({ title, message })),
     log,
@@ -278,11 +370,16 @@ export async function createApp(config: AppConfig): Promise<App> {
       const who = account(request.headers.get("cookie") ?? "");
       const user = who ? establishUser(sessionDeps, who) : null;
       const notice = readNotice(new URL(request.url));
-      const actor = user?.id ?? null;
       const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
       const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
+      const pending = user !== null && secondStepDue(user.id, request.headers.get("cookie") ?? "");
+      // Past the password and any code, but an admin who must turn on two-factor
+      // sign-in first: Settings only, to do that.
+      const setupActor = pending ? null : (user?.id ?? null);
+      const enrolling = mustTurnOnTwoFactor(twoFactorDeps, setupActor);
+      const actor = enrolling ? null : setupActor;
       const missing = <T,>(): Result<T, "not-found"> => err("not-found");
       return {
         portalAdmin: {
@@ -323,15 +420,35 @@ export async function createApp(config: AppConfig): Promise<App> {
             return found && user && user.status !== "disabled" ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
           },
         },
-        signedIn: who !== null,
-        user: user ? { id: user.id, name: user.name } : null,
+        signedIn: who !== null && !pending,
+        user: user && !pending ? { id: user.id, name: user.name } : null,
         notice,
         signIn,
         today: date,
-        guard: () => (who === null ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 }) : user === null ? forbidden() : null),
+        guard: () =>
+          who === null
+            ? show("identity/ui/sign-in-page", { ...signIn, title: "Sign in" }, { status: 401 })
+            : user === null
+              ? forbidden()
+              : pending
+                ? show("identity/ui/two-factor-page", { problem: notice.problem, title: "Enter your code" }, { status: 401 })
+                : enrolling && new URL(request.url).pathname !== "/settings"
+                  ? show("identity/ui/two-factor-required-page", { title: "Turn on two-factor sign-in" }, { status: 403 })
+                  : null,
         forbidden,
-        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query) },
+        dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query), refused: () => refusedAttempts(refusedDeps, actor) },
         crm: {
+          clientTouches: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientTouches(services.touches, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          opportunityTouches: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? opportunityTouches(services.touches, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
           pipeline: () => pipeline(crmDeps, actor, date),
           clientDetail: (id) => withId(id, (clientId) => clientDetail(crmDeps, actor, clientId)),
@@ -371,24 +488,81 @@ export async function createApp(config: AppConfig): Promise<App> {
           thisWeek: () => hoursThisWeek(financeDeps, actor),
         },
         money: {
+          reminders: () => ({ on: services.invoiceReminders.reminders.on(), canEdit: actor !== null && authorize(sessionDeps, actor, "finance.edit").ok, email: Boolean(config.email) }),
+          invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
+          recurring: () => recurringOverview(financeDeps, actor),
+          profit: (year) => profitAndLoss(financeDeps, actor, year),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
           projects: () => projectHealthReport(projectsDeps, actor),
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
-        people: { list: () => listPeople(sessionDeps, actor) },
+        monitor: {
+          all: () => allSites(services.monitor, actor),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientSites(services.monitor, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          attention: () => sitesNeedingAttention(services.monitor, actor),
+        },
+        agenda: () => todayFor(services.day, actor),
+        todos: {
+          list: (everyone) => listTodos(services.todos, actor, { everyone }),
+          atClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? todosAt(services.todos, actor, { clientId: parsed.value }) : null;
+            return view?.ok ? view.value : null;
+          },
+          onOpportunity: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? todosAt(services.todos, actor, { opportunityId: parsed.value }) : null;
+            return view?.ok ? view.value : null;
+          },
+          due: () => todosDueFor(services.todos, actor),
+        },
+        renewals: {
+          all: () => allRenewals(services.renewals, actor),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientRenewals(services.renewals, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          comingUp: () => renewalsComingUp(services.renewals, actor),
+        },
+        booking: {
+          calls: () => callsView(services.booking, actor),
+          setup: () => bookingSetup(services.booking, actor),
+          next: () => nextCalls(services.booking, actor),
+          // Each of these reads only the signed-in client's organization.
+          portal: () => ({ open: client !== null && bookingOpen(services.booking, "portal"), calls: client ? callsForClient(services.booking, client.organizationId) : [] }),
+          portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
+          portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
+          publicTimes: () => openTimes(services.booking, "public"),
+          publicOpen: () => bookingOpen(services.booking, "public"),
+          emails: Boolean(config.email),
+          byLink: (token) => {
+            const found = bookingByLink(services.booking, token);
+            return found ? callLine(services.booking, found) : null;
+          },
+        },
+        people: {
+          list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
+          twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
+        },
+        search: (q) => search(services.search, actor, q),
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
-        settings: { theme: user ? users.themeOf(user.id) : "system", themes },
+        settings: { theme: actor ? users.themeOf(actor) : "system", themes, morningEmail: { on: actor ? users.morningEmailOf(actor) : false, emailSetUp: Boolean(config.email), address: user?.email ?? "" }, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
   });
@@ -398,7 +572,13 @@ export async function createApp(config: AppConfig): Promise<App> {
   const actorOf = (cookieHeader: string): Id | null => {
     const who = account(cookieHeader);
     const user = who ? establishUser(sessionDeps, who) : null;
-    return user?.id ?? null;
+    return user && !secondStepDue(user.id, cookieHeader) && !mustTurnOnTwoFactor(twoFactorDeps, user.id) ? user.id : null;
+  };
+  // The same, but also an admin who must turn on two-factor sign-in: for the forms that do that.
+  const setupActorOf = (cookieHeader: string): Id | null => {
+    const who = account(cookieHeader);
+    const user = who ? establishUser(sessionDeps, who) : null;
+    return user && !secondStepDue(user.id, cookieHeader) ? user.id : null;
   };
   // "Forgot your password?" by email, when email is set up.
   const email = config.email ?? null;
@@ -438,12 +618,28 @@ export async function createApp(config: AppConfig): Promise<App> {
         )
     : null;
 
-  const forms = new Hono();
+  const forms = new Hono<{ Bindings: { incoming: IncomingMessage } }>();
+  // A form someone signed in was not allowed to use is written down (security
+  // review, gap 4). Every module refuses with the same words, so this one
+  // check covers every form, however its handler is written.
+  forms.use("*", async (c, next) => {
+    await next();
+    if (c.req.method !== "POST" || c.res.status !== 303) return;
+    const location = c.res.headers.get("location") ?? "";
+    if (new URL(location, "http://hq.invalid").searchParams.get("problem") !== NOT_ALLOWED) return;
+    const actor = actorOf(c.req.header("cookie") ?? "");
+    if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
+  });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", financeRoutes({ finance: financeDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  const bookerOf = (cookieHeader: string): PortalBooker | null => {
+    const session = clientOf(cookieHeader);
+    const user = session ? portalDeps.clientUsers.get(session.clientUserId) : null;
+    return session && user ? { organizationId: session.organizationId, clientUserId: session.clientUserId, name: user.name, email: user.email } : null;
+  };
   const publicUrl = (config.publicUrl ?? "").replace(/\/$/, "");
   const inviteMail = email
     ? createNotify({
@@ -482,7 +678,8 @@ export async function createApp(config: AppConfig): Promise<App> {
       clientOf,
       sign: (location) => notices.sign(location),
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-      allowAttempt: memoryRateLimit({ max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+      allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
+      refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
     }),
   );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -498,14 +695,82 @@ export async function createApp(config: AppConfig): Promise<App> {
     }),
   );
   forms.route("/", knowledgeRoutes({ knowledge: services.knowledge, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route(
+    "/",
+    twoFactorRoutes({
+      twoFactor: twoFactorDeps,
+      actorOf,
+      setupActorOf,
+      pendingOf: (cookieHeader) => {
+        const who = account(cookieHeader);
+        const user = who ? establishUser(sessionDeps, who) : null;
+        const sessionHash = sessionHashOf(cookieHeader);
+        return user && sessionHash && secondStepDue(user.id, cookieHeader) ? { userId: user.id, sessionHash } : null;
+      },
+      sessionOf: sessionHashOf,
+      allowAttempt: secondStepLimit,
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      sign: (location) => notices.sign(location),
+      codesPage: (codes, fresh) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh)),
+      refused: (draft) => recordRefusal(refusedDeps, draft),
+    }),
+  );
+  // Emails about booked calls, when email is set up.
+  const bookingEmails = email
+    ? {
+        mail: async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })),
+        options: { publicUrl: (config.publicUrl ?? email.publicUrl ?? "").replace(/\/$/, ""), phone: contact.phone },
+        log,
+      }
+    : null;
+  // The inquiry form, from /contact or Potomac's website.
+  const formOrigins = (config.formOrigins ?? []).map((one) => new URL(one).origin);
+  forms.route(
+    "/",
+    inquiryRoutes({
+      crm: services.crm,
+      ownerFor: () => {
+        const host = services.booking.bookings.settings()?.hostId;
+        if (host && users.get(host)?.status === "active") return host;
+        return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
+      },
+      sign: (location) => notices.sign(location),
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+      returnOrigins: formOrigins,
+      notify: async (inquiry) => {
+        const to = config.inquiryEmail;
+        if (!email || !to) return;
+        const lines = [`${inquiry.name}${inquiry.business ? ` (${inquiry.business})` : ""} sent an inquiry${inquiry.known ? ". They're already in the CRM" : ""}.`, "", `${inquiry.email}${inquiry.phone ? ` · ${inquiry.phone}` : ""}`, "", inquiry.message, "", `In HQ: ${(config.publicUrl ?? email.publicUrl ?? "").replace(/\/$/, "")}/opportunities/${inquiry.opportunityId}`];
+        const sent = await email.send({ channel: "email", to, subject: `Inquiry from ${inquiry.business || inquiry.name}`, body: lines.join("\n") });
+        if (!("ok" in sent)) log("Inquiry: the email to Potomac could not be sent");
+      },
+    }),
+  );
+  const publicBooking = bookingPublicRoutes({
+    booking: services.booking,
+    emails: bookingEmails,
+    sign: (location) => notices.sign(location),
+    addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+    allowPerAddress: sqliteRateLimit(db, { name: "booking-address", max: 5, windowMs: 60 * 60_000 }),
+    allowPerEmail: sqliteRateLimit(db, { name: "booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+  });
+  forms.route("/", publicBooking);
+  forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",
     forgotRoutes({
       request: requestReset,
       clientOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-      allowPerAddress: memoryRateLimit({ max: 5, windowMs: 60 * 60_000 }),
-      allowPerEmail: memoryRateLimit({ max: 3, windowMs: 60 * 60_000 }),
+      allowPerAddress: sqliteRateLimit(db, { name: "forgot-address", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "forgot-email", max: 3, windowMs: 60 * 60_000 }),
       sign: (location) => notices.sign(location),
     }),
   );
@@ -520,6 +785,8 @@ export async function createApp(config: AppConfig): Promise<App> {
     const origin = req.headers.origin;
     if (!origin || origin === "null") return false;
     try {
+      // The inquiry form may also be posted from Potomac's own website.
+      if (formOrigins.includes(new URL(origin).origin) && new URL(req.url ?? "/", "http://hq.invalid").pathname === "/contact") return true;
       return new URL(origin).host === req.headers.host;
     } catch {
       return false;
@@ -533,6 +800,10 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", publicBooking);
+  downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
+  downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: (location) => notices.sign(location), canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
+  downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -566,7 +837,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

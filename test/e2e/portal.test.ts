@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
+import { saveBookingSetup } from "../../src/booking/index.ts";
 import * as crm from "../../src/crm/index.ts";
 import * as finance from "../../src/finance/index.ts";
 import * as projects from "../../src/projects/index.ts";
@@ -97,6 +98,19 @@ test("a client, from the invite to an accepted proposal", async () => {
   await ann.getByText("Your answer is recorded.").waitFor();
   await assertAccessible(ann, "an answered proposal in the portal");
 
+  // Book a call: Potomac opens Mondays to Fridays, 9 to 5.
+  const weekdays = Object.fromEntries([1, 2, 3, 4, 5].flatMap((day) => [[`start-${day}-0`, "09:00"], [`end-${day}-0`, "17:00"]]));
+  unwrap(saveBookingSetup(s.booking, mikey, { ...weekdays, "call-minutes": "30", "gap-minutes": "15", "notice-hours": "24", "days-ahead": "21", "portal-open": "1" }));
+  await ann.goto(`${t.origin}/portal`);
+  await ann.getByRole("link", { name: "Book a call" }).click();
+  await ann.getByRole("heading", { name: "Book a call" }).waitFor();
+  await assertAccessible(ann, "booking a call in the portal");
+  await ann.getByLabel("What would you like to talk about?").fill("The holiday menu");
+  await ann.getByRole("button", { name: /, 10:30 AM$/ }).first().click();
+  await ann.getByText("Your call is booked.").waitFor();
+  assert.match(await text(ann), /The holiday menu Add to your calendar · Move it/);
+  await assertAccessible(ann, "the portal's home with a call booked");
+
   // Ask for a call. In dark, too.
   await ann.goto(`${t.origin}/portal`);
     await ann.getByLabel("When is a good time to call you?").fill("Thursday afternoon");
@@ -112,11 +126,11 @@ test("a client, from the invite to an accepted proposal", async () => {
 
   // On a phone: nothing runs off the side of the screen, and every button is big enough to hit.
   await ann.setViewportSize({ width: 360, height: 740 });
-  for (const [path, screen] of [["/portal", "the portal's home"], [`/portal/projects/${project.id}`, "a project"], [`/portal/proposals/${proposal.id}`, "a proposal"]] as const) {
+  for (const [path, screen] of [["/portal", "the portal's home"], ["/portal/book", "booking a call"], [`/portal/projects/${project.id}`, "a project"], [`/portal/proposals/${proposal.id}`, "a proposal"]] as const) {
     await ann.goto(t.origin + path);
     const size = (await ann.evaluate("({ page: document.documentElement.scrollWidth, screen: window.innerWidth })")) as { page: number; screen: number };
     assert.ok(size.page <= size.screen, `${screen} is ${size.page}px wide on a ${size.screen}px phone`);
-    const small = (await ann.evaluate(`[...document.querySelectorAll("main button, main a.hq-button")].filter((el) => el.getBoundingClientRect().height < 44).map((el) => (el.textContent ?? "").trim())`)) as string[];
+    const small = (await ann.evaluate(`[...document.querySelectorAll("main button, main a.hq-button")].filter((el) => el.checkVisibility() && el.getBoundingClientRect().height < 44).map((el) => (el.textContent ?? "").trim())`)) as string[];
     assert.deepEqual(small, [], `${screen} has buttons under 44px tall`);
     await assertAccessible(ann, `${screen} on a phone`);
   }

@@ -1,0 +1,19 @@
+<!--
+  For an admin without two-factor sign-in, once HQ requires it of admins.
+  Everything but Settings shows this until it is on.
+-->
+<script>
+  import '../../shared/ui/zubra/alert-banner.zb'
+</script>
+<style>
+  :host { display: block; max-width: 32rem; margin: 2rem auto; }
+  .hq-required { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-required h1, .hq-required p { margin: 0; }
+</style>
+<hq-two-factor-required>
+  <div class="hq-required">
+    <h1>Turn on two-factor sign-in</h1>
+    <p>HQ requires two-factor sign-in for admins. Turn it on, and everything in HQ opens again. It takes a minute and an app on your phone.</p>
+    <p><a class="hq-button" href="/settings#two-factor">Turn it on in Settings</a></p>
+  </div>
+</hq-two-factor-required>

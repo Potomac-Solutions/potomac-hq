@@ -42,8 +42,10 @@ so that someone can see deal values without being an administrator.
 | View the list of users | `user.view` | Yes | Yes | Yes | No |
 | Invite a user | `user.invite` | Yes | No | No | No |
 | Disable or re-enable a user | `user.set-status` | Yes | No | No | No |
-| Change a user's roles | `user.set-roles` | Yes | No | No | No |
-| Send a user a password reset link | `user.reset` | Yes | No | No | No |
+| Change a user's roles, or require two-factor sign-in of admins | `user.set-roles` | Yes | No | No | No |
+| Send a user a password reset link, or reset their two-factor sign-in | `user.reset` | Yes | No | No | No |
+| Turn own two-factor sign-in on or off | none | Yes | Yes | Yes | No |
+| Turn own morning email on or off | none | Yes | Yes | Yes | No |
 
 ### Dashboard and audit (v0.1)
 
@@ -51,7 +53,7 @@ so that someone can see deal values without being an administrator.
 | --- | --- | --- | --- | --- | --- |
 | View the dashboard | `dashboard.view` | Yes | Yes | Yes | No |
 | View recent activity on client records | `activity.view` | Yes | Yes | Yes | No |
-| View the full audit history, including sign-ins and user changes | `activity.view-all` | Yes | No | No | No |
+| View the full audit history, including sign-ins and user changes, and refused attempts | `activity.view-all` | Yes | No | No | No |
 
 Nobody can edit or delete an activity event. There is no permission for it.
 
@@ -160,7 +162,8 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | See who at a client has portal access, and what clients wrote | `portal.view` | Yes | Yes | Yes | No |
 | Invite a client user, make them a new link, turn their access off or on | `portal.manage` | Yes | Yes | No | No |
 | Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
-| Confirm or decline a call a client asked for | `call.respond` | Yes | Yes | Yes | No |
+| Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
+| Set the hours for booked calls, days off, and who can book | `booking.manage` | Yes | Yes | No | No |
 
 ### Platform (v1.0)
 
@@ -181,6 +184,12 @@ sit on top of them:
 - Nobody turns off their own account.
 - An invited person gets their roles when they first use their link. Until
   then they are an invite, not a user, and an admin can withdraw it.
+
+Search has no permission of its own. It looks only in the kinds of record
+the person may already see: clients and contacts with `client.view`,
+opportunities with `opportunity.view`, projects with `project.view`, tasks
+with `task.view`, proposals with `proposal.view`, invoices with
+`invoice.view`, and articles with `knowledge.view`.
 
 The audit history page and its CSV need `activity.view-all`. The pipeline
 report also needs `opportunity.view-value`, and the budget report

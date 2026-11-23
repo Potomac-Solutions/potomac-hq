@@ -32,7 +32,7 @@ after(() => t.stop());
 
 test("with nothing waiting, the dashboard says so in one line", async () => {
   const page = textOf(await admin.page("/"));
-  assert.match(page, /Dashboard No client is waiting on you Unanswered messages, changes asked for, calls to return and invoices to send or chase show here first\./);
+  assert.match(page, /No client is waiting on you Unanswered messages, changes asked for, calls to return and invoices to send or chase show here first\./);
   assert.match(page, /Follow-ups due Nothing due today\./);
 });
 

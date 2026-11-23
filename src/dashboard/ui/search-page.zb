@@ -1,0 +1,52 @@
+<!--
+  Search: one box for clients, contacts, opportunities, projects, tasks,
+  proposals, invoices and articles. The same box is in the top bar.
+-->
+<script>
+  'use route /search'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.search(url.searchParams.get('q') || '')
+    return { title: view.q ? `Search: ${view.q}` : 'Search', view }
+  }
+</script>
+<style>
+  .search-hits { list-style: none; margin: 0; padding: 0; }
+  .search-hits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+  .search-hits li:first-child { border-top: 0; }
+  .search-hits .hq-muted { font-size: 0.9rem; }
+  .search-hits li > * { min-width: 0; overflow-wrap: anywhere; }
+  .search-box { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+  .search-field { flex: 1 1 14rem; min-width: 0; }
+</style>
+<hq-search view={{ groups: [], tips: [] }}>
+  <div class="hq-page">
+    <h1>Search</h1>
+    <form method="get" action="/search" role="search" class="search-box">
+      <div class="hq-field search-field">
+        <label for="search-q">Find a client, contact, project, task, proposal, invoice or article</label>
+        <input id="search-q" name="q" type="search" value={view.q} autocomplete="off" maxlength="100">
+      </div>
+      <button class="hq-button" type="submit">Search</button>
+    </form>
+
+    <p zb-if={view.searched} class="hq-muted" role="status" data-spaced>{view.total === 0 ? "Nothing matches “" + view.q + "”." : view.total === 1 ? "1 match." : view.total + " matches."}</p>
+    <ul zb-if={view.tips.length > 0} class="hq-muted">
+      <zb-each items={view.tips} as="tip" key={tip}><li>{tip}</li></zb-each>
+    </ul>
+
+    <zb-each items={view.groups} as="group" key={group.kind}>
+      <section class="hq-panel" aria-labelledby="search-{group.kind}">
+        <h2 id="search-{group.kind}">{group.label}</h2>
+        <ul class="search-hits">
+          <zb-each items={group.hits} as="hit" key={hit.key}>
+            <li><a href={hit.href}>{hit.name}</a> <span zb-if={hit.context} class="hq-muted">{hit.context}</span> <span zb-if={hit.extra} class="hq-tag">{hit.extra}</span></li>
+          </zb-each>
+        </ul>
+        <p zb-if={group.more} class="hq-muted hq-small" data-spaced>Showing the first 8. Add a word to narrow it down.</p>
+      </section>
+    </zb-each>
+  </div>
+</hq-search>

@@ -38,7 +38,8 @@ Each line says what was checked and what checks it on every merge.
 | Posts are size limited before they are read, and must be forms | `src/app.ts` | `crm-pages.test.ts`, `proposal-pages.test.ts` |
 | Text from a record is escaped wherever it is shown | Zubra escapes every binding. No page prints raw HTML | `test/zubra/regression.test.ts` |
 | Nothing inline runs | Content policy: scripts and styles from this origin only | `sign-in.test.ts`, `test/zubra/regression.test.ts` |
-| No SQL is built from typed text | Every statement is prepared with parameters. Search escapes `%` and `_` | `knowledge.test.ts`, `audit.test.ts` |
+| No SQL is built from typed text | Every statement is prepared with parameters. Search escapes `%` and `_` | `knowledge.test.ts`, `audit.test.ts`, `search.test.ts` |
+| Search shows only what the person may already see | Each kind of record is searched only with its own view permission | `search.test.ts` |
 | Uploads are checked by content, size limited, and served as downloads | The file service | `project-pages.test.ts` |
 | A file a client sends gets the same checks, is theirs alone, and is capped at 20 a day for a project | `saveFileFromClient` | `portal-client-pass.test.ts`, `portal-isolation.test.ts` |
 | A message shown after a redirect is one the server signed | The kit's notices | `sign-in.test.ts` |
@@ -57,21 +58,39 @@ Each line says what was checked and what checks it on every merge.
 | The export leaves out password hashes, sessions and links | `exportAll` | `ops-commands.test.ts` |
 | The server runs as an unprivileged user with its code read-only, on Railway too, where the container has to start as root to reach the volume | `Dockerfile`, `bin/start.sh` | CI's container job, both ways |
 
+| After the password, someone with two-factor sign-in on reaches nothing in HQ, pages or forms, until a code is given | `src/app.ts` (`secondStepDue`), `src/identity/application/two-factor.ts` | `two-factor.test.ts` |
+| A code is accepted once only, and the second step allows five tries a minute for each person and each address | `passSecondStep`, `two-factor-routes.ts` | `two-factor.test.ts` |
+| The shared secret stays in the database. Recovery codes are kept only as hashes, and are shown once on a page that is never stored | `two-factor-store.ts`, `recoveryCodesPage` | `two-factor.test.ts` |
+| Turning it off takes a current code, so a borrowed session cannot | `turnOffTwoFactor` | `two-factor.test.ts` |
+| Codes match the RFC 6238 test vectors | `src/identity/infrastructure/totp.ts` | `totp.test.ts` |
+
+| Refused sign-ins, codes and forms are written down without the password or code typed, and kept apart from the activity log for 90 days | `src/identity/application/refused.ts`, the forms middleware in `src/app.ts` | `refused-attempts.test.ts` |
+
+| Only `/contact` accepts posts from another site, and only from `HQ_FORM_ORIGINS`; its return address must be on one of them | the same-site check in `src/app.ts`, `inquiry-routes.ts` | `inquiry-form.test.ts` |
+
 ## Known gaps
 
 1. **No independent review**, as said above.
-2. **No second factor.** A password alone opens HQ. Use a long one, and a
-   password manager. Worth adding before a second person has admin.
-3. **Rate limits are kept in memory.** They reset when HQ restarts, and
-   would not be shared between two replicas. HQ runs one.
-4. **Refused attempts are not written to the audit log**, only successful
-   changes. A run of refusals shows in nothing but the request log.
-5. **Dependencies are pinned but not watched.** Nothing tells Mikey when
-   Hono, Zubra or the kit publishes a security fix. Turn on Dependabot
-   alerts for the repository.
-6. **A withdrawn invite's link still makes a sign-in account**, though one
-   with no HQ user, so it opens nothing. That email cannot be invited again
-   until the account is cleared by hand.
+2. **The second factor is optional until an admin requires it.** People →
+   Sign-in rules requires it of every admin; it is off until Mikey turns
+   it on. Members and managers are never required to use it.
+3. ~~Rate limits are kept in memory.~~ Fixed after 0.11.0: HQ's own limits
+   (both sign-ins, the two-factor step, "Forgot your password?") are in the
+   database, by hashed key, so a restart does not reset them. The kit's
+   15-minute lockout after wrong passwords is still in memory; that is the
+   kit's to change.
+4. ~~Refused attempts are not written down.~~ Fixed after 0.11.0: wrong
+   passwords at both sign-ins, wrong two-factor codes and forbidden forms go
+   to their own log, shown on Audit history → Refused attempts and kept 90
+   days. Tries past a rate limit are still not written one by one, and a
+   page someone may not open is not written down: it changes nothing.
+5. **Dependency updates need a person.** Dependabot opens pull requests for
+   new versions (`.github/dependabot.yml`), but security alerts are a
+   repository setting Mikey turns on (docs/operations.md), and every bump
+   is read and merged by hand.
+6. ~~A withdrawn invite's link still makes a sign-in account.~~ Fixed after
+   0.10.0: withdrawing an invite spends its link, and the email can be
+   invited again.
 7. **A typed name as a signature** has not been checked by a lawyer.
 8. **Files are not scanned for viruses.** A client can send a PDF, an
    Office file or a zip that is exactly what its name says and still

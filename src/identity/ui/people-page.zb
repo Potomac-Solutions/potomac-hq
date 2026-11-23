@@ -11,10 +11,10 @@
     if (stop) return stop
     const view = context.people.list()
     if (!view.ok) return context.forbidden()
-    return { title: 'People', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'People', view: view.value, rule: context.people.twoFactorRule(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-people view={{ people: [], invites: [], roles: [], can: {} }} done="" problem="">
+<hq-people view={{ people: [], invites: [], roles: [], can: {} }} rule={{}} done="" problem="">
   <div class="hq-page">
     <h1>People</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -28,7 +28,7 @@
         <zb-each items={view.people} as="person" key={person.id}>
           <li>
             <p><strong>{person.name}</strong> <span zb-if={person.you} class="hq-tag">You</span> <span class="hq-muted">{person.email}</span></p>
-            <p class="hq-small">{person.roleLabels} · {person.statusLabel}</p>
+            <p class="hq-small">{person.roleLabels} · {person.statusLabel}<span zb-if={person.twoFactor}> · Two-factor on</span></p>
             <details zb-if={view.can.setRoles || view.can.setStatus || view.can.reset} class="hq-more">
               <summary>Change {person.name}</summary>
               <form zb-if={view.can.setRoles} method="post" action="/people/{person.id}/roles" class="hq-form">
@@ -42,6 +42,10 @@
               </form>
               <form zb-if={view.can.reset && person.active} method="post" action="/people/{person.id}/link" class="hq-form-row" data-spaced>
                 <button class="hq-button secondary" type="submit" aria-label="Make a new password link for {person.name}">New password link</button>
+              </form>
+              <form zb-if={view.can.reset && person.twoFactor && !person.you} method="post" action="/people/{person.id}/two-factor-reset" class="hq-form-row" data-spaced>
+                <button class="hq-button secondary" type="submit" aria-label="Reset two-factor sign-in for {person.name}">Reset two-factor sign-in</button>
+                <span class="hq-muted hq-small">For a lost phone. Check it is really them first.</span>
               </form>
               <form zb-if={view.can.setStatus && !person.you} method="post" action="/people/{person.id}/status" class="hq-form-row" data-spaced>
                 <input type="hidden" name="on" value={person.active ? "0" : "1"}>
@@ -82,6 +86,17 @@
           <div><button class="hq-button" type="submit">Invite</button></div>
         </form>
       </details>
+    </section>
+
+    <section zb-if={rule.canSet} class="hq-panel" id="sign-in-rules" aria-labelledby="people-rules">
+      <h2 id="people-rules">Sign-in rules</h2>
+      <p zb-if={rule.on}><span class="hq-tag">On</span> Every admin must use two-factor sign-in. An admin without it can open only Settings until it is on, and nobody who is an admin can turn theirs off.</p>
+      <p zb-else>Two-factor sign-in is optional for everyone. Admins without it are reminded on the dashboard.</p>
+      <form zb-if={rule.on || rule.yoursOn} method="post" action="/people/two-factor-rule" class="hq-form-row">
+        <input type="hidden" name="on" value={rule.on ? "0" : "1"}>
+        <button class="hq-button secondary" type="submit">{rule.on ? "Make it optional again" : "Require two-factor sign-in for admins"}</button>
+      </form>
+      <p zb-if={!rule.on && !rule.yoursOn} class="hq-muted">To require it of admins, <a href="/settings#two-factor">turn on yours</a> first.</p>
     </section>
   </div>
 </hq-people>

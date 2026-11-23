@@ -1,0 +1,82 @@
+<!--
+  Today: one list of what wants doing today, across HQ, in the order to work
+  it. Tick off to-dos right here; everything else links to where it's done.
+  Add a to-do for today without leaving the page.
+-->
+<script>
+  'use route /today'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    return { title: 'Today', view: context.agenda(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .agenda { list-style: none; margin: 0; padding: 0; }
+  .agenda > li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.7rem 0; border-top: 1px solid var(--border); }
+  .agenda > li:first-child { border-top: 0; }
+  .agenda form { margin: 0; flex: none; }
+  .agenda p { margin: 0; overflow-wrap: anywhere; }
+  .agenda .agenda-body { flex: 1; min-width: 0; }
+  .agenda .agenda-go { flex: none; }
+  .agenda-kind { display: inline-block; min-width: 1.6rem; margin-right: 0.35rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted-foreground); }
+  .agenda-overdue .agenda-kind { color: var(--destructive); }
+  .agenda-mark { flex: none; width: 1.6rem; height: 1.6rem; }
+  .todo-tick { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; padding: 0; font: inherit; color: var(--foreground); background: var(--background); border: 2px solid var(--border); border-radius: 0.35rem; cursor: pointer; }
+  .todo-tick:hover, .todo-tick:focus-visible { border-color: var(--ring); }
+  .today-add { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+  .today-add .hq-field { flex: 1 1 16rem; margin: 0; }
+  .today-done { list-style: none; margin: 0; padding: 0; }
+  .today-done li { padding: 0.3rem 0; color: var(--muted-foreground); text-decoration: line-through; }
+</style>
+<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} can-add={false} done="" problem="">
+  <div class="hq-page">
+    <h1>Today <span class="hq-muted hq-small">{view.dayLabel}</span></h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-lead">{view.headline}</p>
+    <section class="hq-panel" aria-labelledby="today-list">
+      <h2 id="today-list">{view.items.length === 0 ? 'All clear' : 'In order'}</h2>
+      <empty-state zb-if={view.items.length === 0} heading="Nothing due">Follow-ups, to-dos, booked calls and anything a client is waiting on show here on their day. <a href="/pipeline">Check the pipeline</a> for someone to call.</empty-state>
+      <ol zb-else class="agenda">
+        <zb-each items={view.items} as="item" key={item.key}>
+          <li class={item.overdue ? 'agenda-overdue' : ''}>
+            <form zb-if={item.todoId && canAdd} method="post" action="/todos/{item.todoId}/done">
+              <input type="hidden" name="back" value="today">
+              <button class="todo-tick" type="submit"><span class="sr-only">Done: {item.text}</span></button>
+            </form>
+            <span zb-else class="agenda-mark" aria-hidden="true"></span>
+            <div class="agenda-body">
+              <p><span class="agenda-kind">{item.overdue ? 'Overdue ' + item.label.toLowerCase() : item.label}</span> <strong>{item.text}</strong></p>
+              <p zb-if={item.detail} class="hq-small hq-muted">{item.detail}</p>
+            </div>
+            <a class="hq-button secondary small agenda-go" href={item.href}>{item.action}<span class="sr-only">: {item.text}</span></a>
+          </li>
+        </zb-each>
+      </ol>
+    </section>
+    <section zb-if={canAdd} class="hq-panel" aria-labelledby="today-add">
+      <h2 id="today-add">Add a to-do for today</h2>
+      <form method="post" action="/todos" class="hq-form today-add">
+        <input type="hidden" name="back" value="today">
+        <input type="hidden" name="dueOn" value={view.day}>
+        <div class="hq-field">
+          <label for="today-title">What needs doing</label>
+          <input id="today-title" name="title" type="text" maxlength="200" required>
+        </div>
+        <button class="hq-button" type="submit">Add it</button>
+      </form>
+      <p class="hq-small"><a href="/todos">All to-dos</a>, with a day, someone else or a client.</p>
+    </section>
+    <section zb-if={view.done.length > 0} class="hq-panel" aria-labelledby="today-done">
+      <h2 id="today-done">Done today: {view.done.length}</h2>
+      <ul class="today-done">
+        <zb-each items={view.done} as="todo" key={todo.id}><li>{todo.title}</li></zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-today>

@@ -20,3 +20,19 @@ export function userLinkPage(view: { name: string; email: string; link: string }
 <span class="hint">It works once, for a week. It lets them choose a password, so send it only to them. This page will not show it again.</span></label>
 <p><a class="button light" href="/people">Back to People</a></p>`;
 }
+
+/** The recovery codes, shown once, when two-factor sign-in has just been turned on. */
+export function recoveryCodesPage(codes: readonly string[], fresh = false): string {
+  const top = fresh
+    ? `<h1>New recovery codes</h1>
+<p class="notice good" role="status">Your old recovery codes no longer work. Throw them away.</p>`
+    : `<h1>Two-factor sign-in is on</h1>
+<p class="notice good" role="status">From now on, HQ asks for a code from your app after your password.</p>`;
+  return `${top}
+<h2>Your recovery codes</h2>
+<p>If you lose your phone, each of these lets you sign in once instead of a code. Keep them somewhere safe, like a password manager. This page will not show them again.</p>
+<ul class="codes" aria-label="Recovery codes">
+${codes.map((code) => `<li><code>${escapeHtml(code)}</code></li>`).join("\n")}
+</ul>
+<p><a class="button" href="/settings#two-factor">I’ve saved them</a></p>`;
+}

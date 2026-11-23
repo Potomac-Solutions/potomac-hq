@@ -1,0 +1,76 @@
+<!--
+  A call booked from the public page, reached by its private link: see it,
+  add it to a calendar, move it or cancel it. The link is the only key, so
+  the page asks for it to be kept.
+-->
+<script>
+  'use route /book/manage'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, url }) {
+    const token = url.searchParams.get('token') ?? ''
+    const call = context.booking.byLink(token)
+    const moving = Boolean(call && call.changeable && url.searchParams.get('move') === '1')
+    return { title: call ? 'Your call with Potomac Solutions' : 'Link not found', call, token, moving, emailed: context.booking.emails, times: moving ? await context.booking.publicTimes() : null, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .book-days { display: grid; gap: 1rem; }
+  .book-day h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .book-times { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .book-times button { min-width: 6.5rem; min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-weight: 600; color: var(--primary); background: var(--background); border: 1px solid var(--primary); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
+  .manage-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 0; }
+</style>
+<hq-public-manage call={null} token="" moving={false} emailed={false} times={null} done="" problem="">
+  <div zb-if={!call}>
+    <h1>Link not found</h1>
+    <p>This link doesn’t match a booking. Check it was copied whole, or <a href="/book">book a call</a>.</p>
+  </div>
+  <div zb-else>
+    <h1>{call.cancelled ? 'Your call is cancelled' : 'Your call with Potomac Solutions'}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel">
+      <p><strong><time datetime={call.whenIso}>{call.when}</time></strong>, Eastern time</p>
+      <p>{call.who} · {call.email}<span zb-if={call.phone}> · {call.phone}</span></p>
+      <p zb-if={call.topic}>{call.topic}</p>
+      <p zb-if={call.cancelled} class="hq-muted">{call.cancelText}</p>
+      <p zb-if={!call.cancelled} class="hq-muted">Keep this page’s address, by bookmarking it or saving the link: it’s the way to change your booking.<span zb-if={emailed}> It was also emailed to you.</span></p>
+      <div zb-if={call.changeable && !moving} class="manage-actions">
+        <a class="hq-button" href="/book/manage/call.ics?token={token}">Add to your calendar</a>
+        <a class="hq-button secondary" href="/book/manage?token={token}&move=1">Move it</a>
+      </div>
+    </section>
+
+    <form zb-if={moving} method="post" action="/book/manage/move" class="hq-panel">
+      <input type="hidden" name="token" value={token}>
+      <h2>Choose a new time</h2>
+      <p><a href="/book/manage?token={token}">Keep the time you have</a></p>
+      <div class="book-days">
+        <zb-each items={times.days} as="day" key={day.day}>
+          <section class="book-day" aria-labelledby="day-{day.day}">
+            <h3 id="day-{day.day}">{day.label}</h3>
+            <ul class="book-times">
+              <zb-each items={day.slots} as="slot" key={slot.start}>
+                <li><button type="submit" name="start" value={slot.start} aria-label="Move to {day.label}, {slot.label}">{slot.label}</button></li>
+              </zb-each>
+            </ul>
+          </section>
+        </zb-each>
+      </div>
+    </form>
+
+    <section zb-if={call.changeable && !moving} class="hq-panel" aria-labelledby="cancel-call">
+      <h2 id="cancel-call">Cancel the call</h2>
+      <form method="post" action="/book/manage/cancel" class="hq-form">
+        <input type="hidden" name="token" value={token}>
+        <text-field label="Why?" name="reason"></text-field>
+        <div><button class="hq-button secondary" type="submit">Cancel the call</button></div>
+      </form>
+    </section>
+    <p zb-if={call.cancelled}><a href="/book">Book another time</a></p>
+  </div>
+</hq-public-manage>

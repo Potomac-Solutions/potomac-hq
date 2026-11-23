@@ -9,6 +9,160 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
+- Search fits a phone: long results wrap and the box shrinks. The phone
+  check now runs at 320px, the narrowest common phone.
+- On a phone: every staff page now fits a 360px screen. Wide tables scroll
+  inside their panel instead of widening the page, long names and email
+  addresses wrap, and a client's contacts stack instead of squeezing into
+  columns. Phone numbers on clients and opportunities are a tap to call.
+  An opportunity shows its contact (the client's primary contact when none
+  was chosen) with phone and email, and its call log and to-dos come right
+  after "Where it stands", so logging a call is near the top.
+- Going cold: an open opportunity with no follow-up set and no contact with
+  its client for 14 days shows on Today, quietest first, with a button to log
+  a call, and is flagged on its own page. Any call, email, text or meeting
+  with the client, or a change to the opportunity, warms it; so does setting
+  a follow-up.
+- The morning email: at 7 each morning, everyone gets their Today list by
+  email, numbered in order with a link to each thing. A day with nothing due
+  sends nothing, and it goes once a day even if HQ restarts. Turn it off in
+  Settings. Needs email set up. Migration 0025.
+- Today: one list of what wants doing today, in the order to work it. Calls
+  booked for today first, then what clients are waiting on, sites that are
+  down, anything overdue, then today's follow-ups, to-dos and project
+  deadlines, and renewals in the next week. Tick off to-dos in place, add one
+  for today, and see what you've done. Today is in the top bar; To-dos is
+  reached from it.
+- To-dos: add one for yourself or anyone, due on a day or whenever, about a
+  client or one of its opportunities. A To-dos page lists yours (or
+  everyone's) as overdue, today, coming up and whenever, with what you ticked
+  off this week. Clients and opportunities show their open to-dos and add
+  them in place. Migration 0024.
+- Calls and messages: log a call (talked, left a voicemail, no answer), an
+  email, a text or a meeting on a client or an opportunity, with who it was
+  with and a word about it. On an opportunity, the next follow-up is set in
+  the same step. Each client and opportunity shows its timeline and when it
+  was last touched. Migration 0023.
+- Profit and loss, under Money: each month of a year, what was invoiced,
+  received and spent, and received less spent, with the year's totals and
+  what the money went on. Earlier years too, and a CSV of every month,
+  which the finance sheet copy also gets. A management view on a cash
+  basis, not the books.
+
+- An inquiry form at /contact, and for a form on Potomac's website (sites
+  listed in HQ_FORM_ORIGINS may post to it and be sent back). Each inquiry
+  becomes a new opportunity from the website, at a new client with its
+  contact, or at the client of someone already in the CRM, and is emailed
+  to HQ_INQUIRY_EMAIL (or the contact or alert address). Limited by address
+  and email, with a field that turns bots away.
+
+- Site monitoring: add a client's website on their page, and HQ checks it
+  every five minutes. Two failed checks in a row mean it's down: the
+  dashboard says so and the alert address gets one email, and another when
+  it's back. Certificates are flagged two weeks before they run out. Sites
+  lists every one with its uptime over 30 days and recent outages. Only
+  public addresses are checked. Migration 0022.
+
+- Renewals: each client's domains, hosting, SSL certificates, email and
+  licenses, with who they're bought from, when they renew and how often,
+  what they cost and what is billed, and whether they renew by themselves.
+  Overdue and next-30-days ones are on the dashboard; Renewals lists all
+  with a year's cost and billing. "Renewed" moves a date on a term.
+  Migration 0021.
+
+- Invoice reminders emailed to clients, off until turned on under Money:
+  three days before a sent invoice is due, the day after, a week late and
+  two weeks late, then no more. Each goes once, to the client's primary
+  contact or else their portal users, with what is owed and how to pay. An
+  invoice can be left out on its own page, which lists what was sent.
+  Migration 0020.
+
+- Recurring invoices, for hosting, maintenance or a retainer: on a
+  project's Money page, an amount every month, three months or year, from a
+  first day, until a last day or until paused. Each morning HQ makes the
+  invoices whose day has come, as drafts or sent, naming their period
+  ("Hosting, January 2027"), and catches up on missed days once each. Money
+  shows what recurs in a month and a year. Migration 0019.
+
+- Someone who booked from the public page goes into the CRM in one step,
+  from Calls: a client named for their business, them as its contact, and
+  an opportunity from the website at "Consult booked", with what they wrote
+  as its summary. The call then links to it. Migration 0018.
+
+- Booked calls can avoid busy times in a Google Calendar, once
+  `HQ_GOOGLE_CALENDAR_ID` and a service account are set and the calendar is
+  shared with it as "See only free/busy". HQ asks only whether a time is
+  busy. If Google can't be reached, no times are offered rather than wrong
+  ones.
+
+- Emails about booked calls, once email is set up. The person who booked
+  hears about each change: booked, moved, cancelled. Someone from the
+  booking page gets their private link to keep. The host hears about the
+  changes they did not make. A reminder goes the day before, once, for calls
+  booked at least 20 hours ahead. A failed email never undoes a booking.
+  Migration 0017.
+
+- A public booking page at /book, for anyone, such as a prospect from the
+  website, once it is switched on under Calls → Hours. They give a name,
+  email, an optional phone and what it is about, and choose a time. Their
+  call's own page, at a private link, adds it to a calendar, moves it or
+  cancels it. Five bookings an hour from one address, three a day for one
+  email, and a hidden field turns bots away.
+
+- Clients book calls in the portal, once it is switched on under Calls →
+  Hours: they choose an open time, say what it is about, and can move or
+  cancel it and add it to their calendar. "Ask for a call" stays, for when
+  no time suits. HQ sees each call with the client's name and email.
+
+- Booking, first part: the hours Potomac takes calls (up to two stretches a
+  weekday, call length, a gap after each call, notice, how far ahead), days
+  off, and a Calls page with every booked call, its calendar file, and a way
+  to cancel it. The next calls are on the dashboard. Clients and the public
+  can book in the next releases. Migration 0016, permission `booking.manage`.
+
+- New recovery codes from Settings, without turning two-factor sign-in off
+  and on: it takes a code from the app, shows ten new codes once, and the
+  old ones stop working.
+- Rate limits on both sign-ins, the two-factor step and "Forgot your
+  password?" are kept in the database, so restarting HQ no longer resets
+  them. Keys are stored only as hashes. Migration 0015.
+- Two-factor sign-in can be required of every admin, under People →
+  Sign-in rules. It ships off. An admin without it can then open only
+  Settings until it is on, and no admin can turn theirs off while it is
+  required. Members and managers are not affected. Migration 0014.
+- Refused attempts are written down: wrong passwords at HQ and portal
+  sign-in, wrong two-factor codes, and forms someone signed in was not
+  allowed to use. Admins see the last 30 days on Audit history → Refused
+  attempts. Kept 90 days, apart from the activity log, and never with the
+  password or code typed. Migration 0013.
+
+- An admin without two-factor sign-in is reminded at the top of the
+  dashboard, with a link to turn it on. It stays optional.
+- Two-factor setup shows a QR code to scan with the authenticator app. It
+  is served only to its owner while they turn it on, and never kept. The
+  link the app reads is shorter: it leaves out settings every app assumes.
+- Fixed: a withdrawn invite's link still made a sign-in account, which
+  opened nothing in HQ but kept that email from being invited again.
+  Withdrawing an invite now spends its link.
+- Dependabot watches npm packages weekly, and GitHub Actions and the Node
+  image monthly, and opens pull requests into staging. Security alerts are
+  turned on in the repository's settings (docs/operations.md).
+- Two-factor sign-in for HQ accounts, with an authenticator app. Turn it on
+  in Settings: add HQ to the app by its link or key, enter a code, and get
+  ten recovery codes, shown once. After that, HQ asks for a code after the
+  password, and nothing in HQ opens until it is given. A code works once,
+  the second step allows five tries a minute, and only hashes of recovery
+  codes are kept. An admin can reset it on the People page for someone who
+  lost their phone. Migration 0012.
+- Search from the top bar, and a search page. One box finds clients,
+  contacts (by name, email or phone), opportunities, projects, tasks (by
+  title or description), proposals, invoices (by number, written any way:
+  "INV-0003", "inv 3", "#3") and knowledge base articles. Every word typed
+  must match. The best matches come first, up to eight of each kind. Each
+  kind is searched only for someone who may see it.
+
 ## [0.10.0] - 2026-11-22
 
 - Zubra packages upgraded from 5.19.0 to 6.0.3. All four move together and

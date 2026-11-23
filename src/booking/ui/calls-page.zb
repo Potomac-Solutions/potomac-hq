@@ -1,0 +1,115 @@
+<!--
+  Booked calls: what is coming up, and the last two weeks. Each call says who,
+  when, how to reach them and what it is about, with its calendar file. A call
+  that has not started can be cancelled.
+-->
+<script>
+  'use route /calls'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.booking.calls()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Calls', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .calls { list-style: none; margin: 0; padding: 0; }
+  .calls > li { display: grid; gap: 0.3rem; padding: 0.85rem 0; border-top: 1px solid var(--border); }
+  .calls > li:first-child { border-top: 0; }
+  .calls p { margin: 0; overflow-wrap: anywhere; }
+  .call-head { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; }
+  .call-cancelled { color: var(--muted-foreground); }
+  .call-cancelled strong { text-decoration: line-through; }
+  details summary { cursor: pointer; }
+</style>
+<hq-calls view={{ upcoming: [], past: [], canManage: false, canAddToCrm: false, services: [], setUp: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Calls</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">
+      <span zb-if={view.setUp}>Clients can book in the portal: {view.portalOpen ? 'on' : 'off'}. Anyone can book at /book: {view.publicOpen ? 'on' : 'off'}.</span>
+      <span zb-else>No hours are set, so nobody can book a call yet.</span>
+      <a zb-if={view.canManage} href="/calls/hours">Hours and days off</a>
+    </p>
+
+    <section class="hq-panel" aria-labelledby="calls-upcoming">
+      <h2 id="calls-upcoming">Coming up</h2>
+      <empty-state zb-if={view.upcoming.length === 0} heading="No calls booked">When someone books a time, it shows here.</empty-state>
+      <ul zb-else class="calls">
+        <zb-each items={view.upcoming} as="call" key={call.id}>
+          <li class={call.cancelled ? 'call-cancelled' : ''}>
+            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <span class="hq-tag">{call.kindLabel}</span></p>
+            <p class="hq-small"><a href="mailto:{call.email}">{call.email}</a><span zb-if={call.phone}> · <a href="tel:{call.phone}">{call.phone}</a></span> · <a href="/calls/{call.id}.ics">Add to calendar</a><span zb-if={call.organizationId}> · <a href="/clients/{call.organizationId}">Client</a></span></p>
+            <p zb-if={call.topic}>{call.topic}</p>
+            <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
+            <p zb-if={call.crmHref} class="hq-small"><a href={call.crmHref}>In the CRM</a></p>
+            <details zb-if={view.canAddToCrm && call.canAddToCrm && !call.cancelled}>
+              <summary>Add to the CRM</summary>
+              <form method="post" action="/calls/{call.id}/crm" class="hq-form-row">
+                <div class="hq-field">
+                  <label for="business-{call.id}">Business name</label>
+                  <input id="business-{call.id}" name="business" value={call.who} maxlength="120" required>
+                </div>
+                <div class="hq-field">
+                  <label for="service-{call.id}">Service, if you know</label>
+                  <select id="service-{call.id}" name="service">
+                    <option value="">Not sure yet</option>
+                    <zb-each items={view.services} as="service" key={service.value}><option value={service.value}>{service.label}</option></zb-each>
+                  </select>
+                </div>
+                <button class="hq-button secondary" type="submit">Add a client and an opportunity</button>
+              </form>
+            </details>
+            <details zb-if={call.changeable}>
+              <summary>Cancel this call</summary>
+              <form method="post" action="/calls/{call.id}/cancel" class="hq-form-row">
+                <div class="hq-field">
+                  <label for="reason-{call.id}">Reason, shown to them (optional)</label>
+                  <input id="reason-{call.id}" name="reason" maxlength="500">
+                </div>
+                <button class="hq-button secondary" type="submit">Cancel the call</button>
+              </form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={view.past.length > 0} class="hq-panel" aria-labelledby="calls-past">
+      <h2 id="calls-past">The last two weeks</h2>
+      <ul class="calls">
+        <zb-each items={view.past} as="call" key={call.id}>
+          <li class={call.cancelled ? 'call-cancelled' : ''}>
+            <p class="call-head"><strong><time datetime={call.whenIso}>{call.when}</time></strong> <span>{call.who}</span> <span class="hq-tag">{call.kindLabel}</span></p>
+            <p zb-if={call.topic} class="hq-small">{call.topic}</p>
+            <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
+            <p zb-if={call.crmHref} class="hq-small"><a href={call.crmHref}>In the CRM</a></p>
+            <details zb-if={view.canAddToCrm && call.canAddToCrm && !call.cancelled}>
+              <summary>Add to the CRM</summary>
+              <form method="post" action="/calls/{call.id}/crm" class="hq-form-row">
+                <div class="hq-field">
+                  <label for="business-{call.id}">Business name</label>
+                  <input id="business-{call.id}" name="business" value={call.who} maxlength="120" required>
+                </div>
+                <div class="hq-field">
+                  <label for="service-{call.id}">Service, if you know</label>
+                  <select id="service-{call.id}" name="service">
+                    <option value="">Not sure yet</option>
+                    <zb-each items={view.services} as="service" key={service.value}><option value={service.value}>{service.label}</option></zb-each>
+                  </select>
+                </div>
+                <button class="hq-button secondary" type="submit">Add a client and an opportunity</button>
+              </form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-calls>

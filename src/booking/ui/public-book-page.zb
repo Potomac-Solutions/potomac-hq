@@ -1,0 +1,58 @@
+<!--
+  The public booking page, for anyone: often a prospect from the website.
+  Name, email, an optional phone and what it is about, then a time. Choosing
+  a time books it. Works with no scripts.
+-->
+<script>
+  'use route /book'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    return { title: 'Book a call with Potomac Solutions', times: await context.booking.publicTimes(), emailHint: context.booking.emails ? 'Your booking and a link to change it are sent here' : 'So we can reach you about the call', problem: context.notice.problem }
+  }
+</script>
+<style>
+  .book-days { display: grid; gap: 1rem; }
+  .book-day h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .book-times { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+  .book-times button { min-width: 6.5rem; min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-weight: 600; color: var(--primary); background: var(--background); border: 1px solid var(--primary); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
+  .book-fields { display: grid; gap: 1rem; margin-bottom: 1.25rem; }
+  /* For bots only: people never see or fill it. */
+  .book-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+<hq-public-book times={{ open: false, days: [] }} email-hint="" problem="">
+  <h1>Book a call with Potomac Solutions</h1>
+  <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+  <div zb-if={!times.open} class="hq-panel">
+    <p>Booking online isn’t open right now. Call or write, below, and we’ll find a time.</p>
+  </div>
+  <div zb-else-if={times.calendarFailed} class="hq-panel">
+    <p>The calendar couldn’t be checked just now. Try again in a minute.</p>
+  </div>
+  <form zb-else method="post" action="/book" class="hq-panel">
+    <p>A {times.callMinutes}-minute call, free, about your business and what would help. Times are Eastern.</p>
+    <div class="book-fields">
+      <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
+      <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description={emailHint}></text-field>
+      <text-field label="A phone number" name="phone" type="tel" autocomplete="tel" description="If you’d like us to call you"></text-field>
+      <text-field label="What would you like to talk about?" name="topic" rows={3} description="Your business, and what you have in mind"></text-field>
+      <div class="book-trap" aria-hidden="true"><label for="book-website">Leave this empty</label><input id="book-website" name="website" tabindex="-1" autocomplete="off"></div>
+    </div>
+    <h2>Choose a time</h2>
+    <empty-state zb-if={times.days.length === 0} heading="No open times">Every time is taken for now. Call or write, below, and we’ll find one.</empty-state>
+    <div zb-else class="book-days">
+      <zb-each items={times.days} as="day" key={day.day}>
+        <section class="book-day" aria-labelledby="day-{day.day}">
+          <h3 id="day-{day.day}">{day.label}</h3>
+          <ul class="book-times">
+            <zb-each items={day.slots} as="slot" key={slot.start}>
+              <li><button type="submit" name="start" value={slot.start} aria-label="Book {day.label}, {slot.label}">{slot.label}</button></li>
+            </zb-each>
+          </ul>
+        </section>
+      </zb-each>
+    </div>
+  </form>
+</hq-public-book>

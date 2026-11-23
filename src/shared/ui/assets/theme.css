@@ -77,6 +77,9 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .plain-page .button.light { color: var(--foreground); background: var(--card); border-color: var(--border); }
 .plain-page .notice { margin: 0 0 1rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: calc(var(--radius) - 2px); background: var(--background); }
 .plain-page .notice.bad { border-left-color: var(--destructive); }
+.plain-page .notice.good { border-left-color: var(--success, var(--primary)); }
+.plain-page .codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.4rem; padding: 0; list-style: none; }
+.plain-page .codes code { display: block; padding: 0.4rem 0.6rem; font-size: 1rem; letter-spacing: 0.05em; background: var(--muted); border-radius: calc(var(--radius) - 2px); }
 .plain-page form.inline { display: inline; }
 .plain-page .staff-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .plain-page .brand { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 1.25rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
@@ -84,8 +87,10 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 
 /* Pages: panels, tables, forms and small labels. Components carry their own
    styles; these are for plain markup inside pages. */
-.hq-page { display: grid; gap: 1.25rem; }
-.hq-page > h1 { margin: 0; }
+/* One column that never grows past the screen: a wide table scrolls inside
+   its panel instead of widening the page. */
+.hq-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.hq-page > h1 { margin: 0; overflow-wrap: anywhere; }
 .hq-panel { padding: 1.25rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
 .hq-panel > h2 { margin-top: 0; }
 .hq-notices { display: grid; gap: 0.75rem; }
@@ -94,11 +99,26 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-table th, .hq-table td { padding: 0.55rem 0.5rem; text-align: left; border-top: 1px solid var(--border); vertical-align: top; }
 .hq-table thead th { border-top: 0; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; }
 .hq-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0; }
+.hq-nowrap { white-space: nowrap; }
 .hq-facts dt { color: var(--muted-foreground); }
-.hq-facts dd { margin: 0; }
+.hq-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* On a phone, a table keeps its columns and scrolls sideways in its panel. */
+@media (max-width: 40rem) {
+  .hq-table { display: block; overflow-x: auto; }
+  /* A table of things that read without their headings, like contacts:
+     each row becomes a short block instead. */
+  .hq-table.hq-stack, .hq-stack tbody, .hq-stack tr, .hq-stack td { display: block; overflow: visible; }
+  .hq-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .hq-stack tr { padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .hq-stack tbody tr:first-child { border-top: 0; }
+  .hq-stack td { padding: 0.1rem 0; border: 0; overflow-wrap: anywhere; }
+  .hq-stack td:empty { display: none; }
+  .hq-stack td a { display: inline-block; padding: 0.3rem 0; }
+  .hq-panel { padding: 1rem; }
+}
 .hq-form { display: grid; gap: 1rem; max-width: 34rem; }
 .hq-form-row { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
-.hq-field { display: grid; gap: 0.35rem; }
+.hq-field { display: grid; gap: 0.35rem; min-width: 0; }
 .hq-field label { font-weight: 600; font-size: 0.9rem; }
 .hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.5rem; padding: 0.45rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
 .hq-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
@@ -107,6 +127,9 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-button.secondary { color: var(--foreground); background: var(--card); border-color: var(--border); }
 .hq-button:hover { filter: brightness(1.08); }
 .hq-tag { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: var(--muted); color: var(--foreground); }
+.hq-steps { display: grid; gap: 0.5rem; margin: 0 0 1rem; padding-left: 1.25rem; }
+.hq-qr { display: block; width: 12.5rem; height: 12.5rem; margin: 0.5rem 0; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+.hq-key { display: inline-block; padding: 0.1rem 0.4rem; font-size: 0.95rem; letter-spacing: 0.04em; word-break: break-all; background: var(--muted); border-radius: calc(var(--radius) - 2px); }
 .hq-tag.due { border-color: var(--destructive); color: var(--destructive); background: var(--card); }
 .hq-muted { color: var(--muted-foreground); }
 .hq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }

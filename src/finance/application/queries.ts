@@ -5,9 +5,11 @@ import { budgetPeriod, defaultFinance, standing, type Budget, type Standing } fr
 import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
+import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
+import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
 import type { Project } from "../../projects/index.ts";
-import { err, formatHours, formatMoney, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
+import { err, formatHours, formatMoney, friendlyDay, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
 import type { InvoiceRow, TimeRow } from "./ports.ts";
 
@@ -174,6 +176,8 @@ export type ProjectMoneyView = {
   /** Amounts to offer in the new-invoice form, worked out from the budget and what is already invoiced. */
   readonly invoiceForm: { readonly deposit: string; readonly balance: string; readonly full: string };
   readonly invoiceKinds: readonly Option[];
+  readonly recurring: readonly RecurringLine[];
+  readonly everyOptions: readonly Option[];
   readonly can: { readonly edit: boolean; readonly addExpense: boolean; readonly export: boolean; readonly download: boolean; readonly removeTime: boolean; readonly viewInvoices: boolean; readonly editInvoices: boolean };
   readonly categories: readonly Option[];
   readonly paymentStatuses: readonly Option[];
@@ -220,6 +224,8 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
     invoices: may(deps, actorId, "invoice.view") ? deps.invoices.listForProject(projectId).map((invoice) => invoiceRowView(invoice, today)) : [],
     invoiceForm: invoiceSuggestions(m.budget.amount, deps.invoices.listForProject(projectId)),
     invoiceKinds: options(INVOICE_KIND_LABELS),
+    recurring: may(deps, actorId, "invoice.view") ? deps.recurring.listForProject(projectId).map((one) => recurringLine(one, project.name, "", today)) : [],
+    everyOptions: options(EVERY_LABELS),
     can: {
       viewInvoices: may(deps, actorId, "invoice.view"),
       editInvoices: may(deps, actorId, "invoice.edit"),
@@ -350,6 +356,56 @@ export function invoiceDocument(deps: FinanceDeps, actorId: Id | null, invoiceId
   return ok(documentForInvoice(invoice));
 }
 
+export type RecurringLine = {
+  readonly id: string;
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly clientName: string;
+  readonly description: string;
+  readonly amount: string;
+  readonly everyLabel: string;
+  readonly next: string;
+  readonly nextOn: string;
+  readonly endsText: string;
+  readonly autoSend: boolean;
+  readonly active: boolean;
+  readonly monthly: string;
+};
+
+function recurringLine(one: RecurringInvoice, projectName: string, clientName: string, today: string): RecurringLine {
+  return {
+    id: one.id,
+    projectId: one.projectId,
+    projectName,
+    clientName,
+    description: one.description,
+    amount: formatMoney(one.amount),
+    everyLabel: EVERY_LABELS[one.every],
+    next: friendlyDay(one.nextOn, today),
+    nextOn: one.nextOn,
+    endsText: one.endsOn ? `until ${friendlyDay(one.endsOn, today)}` : "",
+    autoSend: one.autoSend,
+    active: one.active,
+    monthly: formatMoney(usd(monthlyMinor(one))),
+  };
+}
+
+export type RecurringOverviewView = { readonly items: readonly RecurringLine[]; readonly monthly: string; readonly yearly: string };
+
+/** Every active recurring invoice, and what they bring in a month and a year. Permission: `invoice.view`. */
+export function recurringOverview(deps: FinanceDeps, actorId: Id | null): Result<RecurringOverviewView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const projects = new Map(deps.projects.list().map((project) => [project.id, project]));
+  const active = deps.recurring.listActive();
+  const today = deps.today();
+  const monthly = active.reduce((sum, one) => sum + monthlyMinor(one), 0);
+  return ok({
+    items: active.map((one) => recurringLine(one, projects.get(one.projectId)?.name ?? "A removed project", projects.get(one.projectId)?.clientName ?? "", today)),
+    monthly: formatMoney(usd(monthly)),
+    yearly: formatMoney(usd(monthly * 12)),
+  });
+}
+
 export type FinanceOverviewView = {
   readonly rows: readonly {
     readonly id: string;
@@ -421,10 +477,54 @@ export function projectsOverBudget(deps: FinanceDeps, actorId: Id | null): Resul
 
 export type CsvFile = { readonly fileName: string; readonly csv: string };
 export type FinanceTable = { readonly header: readonly string[]; readonly rows: readonly (readonly Cell[])[] };
-export const FINANCE_TABLES = ["time", "expenses", "projects", "invoices", "payments"] as const;
+export const FINANCE_TABLES = ["time", "expenses", "projects", "invoices", "payments", "profit"] as const;
 const ALL_TIME = { from: "0000-01-01", to: "9999-12-31" };
 
 /** One of the three finance tables, as the CSV exports and the Google Sheet both show it. Null for an unknown name. */
+function profitSources(deps: FinanceDeps): { invoiced: Dated[]; received: Dated[]; spent: Spent[] } {
+  return {
+    invoiced: deps.invoices
+      .list()
+      .filter((one) => (one.status === "sent" || one.status === "paid") && one.issuedOn)
+      .map((one) => ({ on: one.issuedOn as string, minor: one.total.minor })),
+    received: deps.invoices.allPayments().map((one) => ({ on: one.receivedOn, minor: one.amount.minor })),
+    spent: deps.expenses.list(ALL_TIME).map((one) => ({ on: one.spentOn, minor: one.amount.minor, category: one.category })),
+  };
+}
+
+export type ProfitView = {
+  readonly year: number;
+  readonly years: readonly number[];
+  readonly months: readonly { readonly month: string; readonly label: string; readonly invoiced: string; readonly received: string; readonly spent: string; readonly net: string; readonly negative: boolean }[];
+  readonly totals: { readonly invoiced: string; readonly received: string; readonly spent: string; readonly net: string; readonly negative: boolean };
+  readonly byCategory: readonly { readonly label: string; readonly amount: string; readonly share: string }[];
+  readonly canExport: boolean;
+};
+
+/**
+ * Money in and out by month for a year, on a cash basis: payments received
+ * against expenses, with what was invoiced alongside. Up to this month for
+ * the current year. Permission: `finance.view`.
+ */
+export function profitAndLoss(deps: FinanceDeps, actorId: Id | null, wanted?: string | null): Result<ProfitView, "forbidden"> {
+  if (!may(deps, actorId, "finance.view")) return err("forbidden");
+  const today = deps.today();
+  const thisYear = Number(today.slice(0, 4));
+  const sources = profitSources(deps);
+  const firstYear = Math.min(thisYear, ...[...sources.invoiced, ...sources.received, ...sources.spent].map((row) => Number(row.on.slice(0, 4))));
+  const year = /^\d{4}$/.test(wanted ?? "") && Number(wanted) >= firstYear && Number(wanted) <= thisYear ? Number(wanted) : thisYear;
+  const table = profitByMonth(sources, `${year}-01`, year === thisYear ? today.slice(0, 7) : `${year}-12`);
+  const money = (minor: number) => formatMoney(usd(minor));
+  return ok({
+    year,
+    years: Array.from({ length: thisYear - firstYear + 1 }, (_, n) => thisYear - n),
+    months: table.months.map((row) => ({ month: row.month, label: Temporal.PlainYearMonth.from(row.month).toPlainDate({ day: 1 }).toLocaleString("en-US", { month: "long" }), invoiced: money(row.invoiced), received: money(row.received), spent: money(row.spent), net: money(row.net), negative: row.net < 0 })),
+    totals: { invoiced: money(table.totals.invoiced), received: money(table.totals.received), spent: money(table.totals.spent), net: money(table.totals.net), negative: table.totals.net < 0 },
+    byCategory: table.byCategory.map((one) => ({ label: CATEGORY_LABELS[one.category] ?? one.category, amount: money(one.minor), share: table.totals.spent > 0 ? `${Math.round((one.minor / table.totals.spent) * 100)}%` : "" })),
+    canExport: may(deps, actorId, "finance.export"),
+  });
+}
+
 export function financeTable(deps: FinanceDeps, what: string, today: string): FinanceTable | null {
   if (what === "time") {
     return {
@@ -471,6 +571,15 @@ export function financeTable(deps: FinanceDeps, what: string, today: string): Fi
       rows: deps.invoices
         .list()
         .map((i) => [invoiceLabel(i.number), i.clientName, i.projectName, INVOICE_KIND_LABELS[i.kind] ?? i.kind, i.status, i.issuedOn ?? "", i.dueOn ?? "", i.total.minor / 100, i.paidMinor / 100, i.status === "void" ? 0 : (i.total.minor - i.paidMinor) / 100]),
+    };
+  }
+  if (what === "profit") {
+    const sources = profitSources(deps);
+    const first = [...sources.invoiced, ...sources.received, ...sources.spent].map((row) => row.on.slice(0, 7)).toSorted()[0] ?? today.slice(0, 7);
+    const table = profitByMonth(sources, first, today.slice(0, 7));
+    return {
+      header: ["Month", "Invoiced", "Received", "Spent", "Received less spent"],
+      rows: table.months.map((row) => [row.month, row.invoiced / 100, row.received / 100, row.spent / 100, row.net / 100]),
     };
   }
   if (what === "payments") {

@@ -42,6 +42,11 @@ export function sqliteUserStore(db: Database): UserStore {
     `insert into user_preference (user_id, theme, updated_at) values (?, ?, ?)
      on conflict (user_id) do update set theme = excluded.theme, updated_at = excluded.updated_at`,
   );
+  const morningOf = db.prepare("select morning_email from user_preference where user_id = ?");
+  const setMorning = db.prepare(
+    `insert into user_preference (user_id, theme, morning_email, updated_at) values (?, 'system', ?, ?)
+     on conflict (user_id) do update set morning_email = excluded.morning_email, updated_at = excluded.updated_at`,
+  );
   const byEmail = db.prepare(`select ${columns} from user where email = ?`);
   const rolesOf = db.prepare("select r.key from user_role ur join role r on r.id = ur.role_id where ur.user_id = ?");
   const clearRoles = db.prepare("delete from user_role where user_id = ?");
@@ -86,6 +91,12 @@ export function sqliteUserStore(db: Database): UserStore {
     },
     setTheme(userId, theme, at) {
       setTheme.run(userId, theme, at);
+    },
+    morningEmailOf(userId) {
+      return (morningOf.get(userId) as { morning_email: number } | undefined)?.morning_email !== 0;
+    },
+    setMorningEmail(userId, on, at) {
+      setMorning.run(userId, on ? 1 : 0, at);
     },
     count() {
       return countUsers.get()?.["n"] as number;

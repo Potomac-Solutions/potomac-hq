@@ -2,6 +2,9 @@
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",
+  "invalid-every": "Choose how often from the list.",
+  "ends-before-start": "It can’t end before its first invoice.",
+  "invalid-due-days": "Due in 0 to 90 days.",
   "task-not-in-project": "Choose a project or one of its tasks from the list.",
   "invalid-date": "Enter a date.",
   "date-in-future": "That day hasn’t happened yet.",

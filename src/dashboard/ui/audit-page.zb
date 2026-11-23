@@ -26,7 +26,7 @@
 <hq-audit view={{ items: [], filter: {}, people: [], recordTypes: [] }}>
   <div class="hq-page">
     <h1>Audit history</h1>
-    <p class="hq-muted">Every change made in HQ is written here when it happens. Nothing here can be edited or removed.</p>
+    <p class="hq-muted">Every change made in HQ is written here when it happens. Nothing here can be edited or removed. Wrong passwords, wrong codes and refused actions are under <a href="/activity/refused">Refused attempts</a>.</p>
 
     <section class="hq-panel" aria-labelledby="audit-filters">
       <h2 id="audit-filters">Narrow it down</h2>

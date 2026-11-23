@@ -1,3 +1,4 @@
+import type { Touch } from "../domain/touch.ts";
 import type { Client } from "../domain/client.ts";
 import type { Contact } from "../domain/contact.ts";
 import type { Opportunity } from "../domain/opportunity.ts";
@@ -17,6 +18,8 @@ export type ContactStore = {
   clearPrimary(organizationId: Id, at: string): void;
   get(id: Id): Contact | null;
   listFor(organizationId: Id): Contact[];
+  /** A contact with this email, at any client, matched without regard to case. */
+  byEmail(email: string): Contact | null;
 };
 
 export type OpportunityStore = {
@@ -31,4 +34,15 @@ export type OpportunityStore = {
   dueBy(date: string): (Opportunity & { readonly clientName: string })[];
   /** Every opportunity, open or closed, oldest first. For reports. */
   listAll(): Opportunity[];
+};
+
+export type TouchStore = {
+  insert(touch: Touch, at: string): void;
+  /** A client's touches, newest first. */
+  listForClient(organizationId: Id, limit: number): Touch[];
+  listForOpportunity(opportunityId: Id, limit: number): Touch[];
+  /** The newest touch at each client, for showing how long since. */
+  lastByClient(): ReadonlyMap<Id, string>;
+  /** Each open opportunity's last sign of life: the latest touch with its client, or its own last change, whichever is later. An instant. */
+  lastActiveByOpportunity(): ReadonlyMap<Id, string>;
 };
