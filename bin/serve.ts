@@ -25,6 +25,7 @@ import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
+import { sendMorningEmails } from "../src/today/index.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
@@ -192,6 +193,18 @@ const stopInvoiceReminders = email
     )
   : null;
 
+// The morning email: each person's Today list at 07:03 business time, and
+// once now if the server starts after that. Each person gets it once a day.
+const sendMorning = async () => {
+  if (!email) return;
+  const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+  const result = await sendMorningEmails(createServices(db).morning, mail, { publicUrl });
+  if (result.sent + result.failed > 0) console.log(`Morning email: sent ${result.sent}, failed ${result.failed}, nothing due for ${result.nothingDue}.`);
+};
+const stopMorning = email ? scheduleDaily(sendMorning, { zone: BUSINESS_TIME_ZONE, hour: 7, minute: 3, clock: systemClock, log, name: "morning email" }) : null;
+if (email && Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).hour >= 7) void sendMorning().catch((error: unknown) => log("Morning email: the run failed", error));
+console.log(email ? "Morning email: each person's Today list at 7, unless they turned it off." : "The morning email is off: email is not set up.");
+
 // Client websites: checked every five minutes. Changes are emailed to the
 // alert address when email and HQ_ALERT_EMAIL are set.
 const siteChecker = httpSiteChecker();
@@ -260,6 +273,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopRecurring();
     clearInterval(siteTimer);
     stopInvoiceReminders?.();
+    stopMorning?.();
     stopNotices?.();
     stopReminders?.();
     server.close(() => {

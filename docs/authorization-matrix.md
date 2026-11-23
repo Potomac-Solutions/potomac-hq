@@ -45,6 +45,7 @@ so that someone can see deal values without being an administrator.
 | Change a user's roles, or require two-factor sign-in of admins | `user.set-roles` | Yes | No | No | No |
 | Send a user a password reset link, or reset their two-factor sign-in | `user.reset` | Yes | No | No | No |
 | Turn own two-factor sign-in on or off | none | Yes | Yes | Yes | No |
+| Turn own morning email on or off | none | Yes | Yes | Yes | No |
 
 ### Dashboard and audit (v0.1)
 

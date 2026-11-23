@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The morning email: at 7 each morning, everyone gets their Today list by
+  email, numbered in order with a link to each thing. A day with nothing due
+  sends nothing, and it goes once a day even if HQ restarts. Turn it off in
+  Settings. Needs email set up. Migration 0025.
+
 - Today: one list of what wants doing today, in the order to work it. Calls
   booked for today first, then what clients are waiting on, sites that are
   down, anything overdue, then today's follow-ups, to-dos and project
