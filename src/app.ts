@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -31,6 +31,7 @@ import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
+import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -147,6 +148,8 @@ export type PageContext = {
   forbidden(): Answer;
   readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
+    clientTouches(id: string): TouchesView | null;
+    opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string): ReturnType<typeof listClients>;
     pipeline(): ReturnType<typeof pipeline>;
@@ -423,6 +426,16 @@ export async function createApp(config: AppConfig): Promise<App> {
         forbidden,
         dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query), refused: () => refusedAttempts(refusedDeps, actor) },
         crm: {
+          clientTouches: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientTouches(services.touches, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          opportunityTouches: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? opportunityTouches(services.touches, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
           inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
           pipeline: () => pipeline(crmDeps, actor, date),
@@ -718,6 +731,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));

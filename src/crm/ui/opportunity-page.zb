@@ -9,19 +9,20 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   import '../../shared/ui/parts/notes-panel.zb'
+  import '../../shared/ui/parts/touches-panel.zb'
 
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.crm.opportunityDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), proposals: context.proposals.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), proposals: context.proposals.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 
   const o = view.opportunity
   const canMove = view.can.setStage && o.open
 </script>
-<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} done="" problem="">
+<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/clients">Clients</a> / <a href="/clients/{view.client.id}">{view.client.name}</a></p>
     <h1>{o.title}</h1>
@@ -121,6 +122,7 @@
       </form>
       <p zb-else class="hq-muted">Not started yet.</p>
     </section>
+    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
     <notes-panel notes={notes}></notes-panel>
   </div>
 </hq-opportunity>

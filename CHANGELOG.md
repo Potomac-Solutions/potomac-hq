@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Calls and messages: log a call (talked, left a voicemail, no answer), an
+  email, a text or a meeting on a client or an opportunity, with who it was
+  with and a word about it. On an opportunity, the next follow-up is set in
+  the same step. Each client and opportunity shows its timeline and when it
+  was last touched. Migration 0023.
+
 ## [0.11.0] - 2026-11-22
 
 - Profit and loss, under Money: each month of a year, what was invoiced,
