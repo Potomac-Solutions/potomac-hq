@@ -5,6 +5,8 @@
 -->
 <script>
   'use route /calls/invites/:id'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -24,14 +26,14 @@
 </style>
 <hq-invite view={{ invite: {}, grid: { rows: [], columns: [] }, starts: [], calendarFailed: false, canManage: false }} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/calls">Calls</a> / <a href="/clients/{view.invite.organizationId}#portal">Client</a></p>
+    <breadcrumb-trail items={[{ label: 'Calls', href: '/calls' }, { label: 'Client', href: `/clients/${view.invite.organizationId}#portal` }, { label: view.invite.title, href: '' }]}></breadcrumb-trail>
     <h1>{view.invite.title}</h1>
     <div zb-if={done || problem || view.calendarFailed} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
       <alert-banner zb-if={view.calendarFailed} variant="warning">Your calendar couldn’t be read just now, so your free time may be wrong. Try again in a minute.</alert-banner>
     </div>
-    <p>{view.invite.who} · {view.invite.length} · {view.invite.days} · <span class={view.invite.status === 'open' ? 'hq-tag due' : 'hq-tag'}>{view.invite.statusLabel}</span></p>
+    <p>{view.invite.who} · {view.invite.length} · {view.invite.days} · <status-badge variant={view.invite.status === 'open' ? 'danger' : 'neutral'}>{view.invite.statusLabel}</status-badge></p>
     <p zb-if={view.invite.note} class="hq-muted">“{view.invite.note}”</p>
 
     <section zb-if={view.invite.status === 'open'} class="hq-panel" aria-labelledby="invite-starts">
@@ -42,7 +44,7 @@
         <zb-each items={view.starts} as="slot" key={slot.start}>
           <li>
             <form zb-if={view.canManage} method="post" action="/invites/{view.invite.id}/confirm"><input type="hidden" name="start" value={slot.start}><button class="hq-button secondary" type="submit" aria-label="Book {slot.label}">{slot.label}</button></form>
-            <span zb-else class="hq-tag">{slot.label}</span>
+            <status-badge zb-else>{slot.label}</status-badge>
           </li>
         </zb-each>
       </ul>

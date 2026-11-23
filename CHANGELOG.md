@@ -9,6 +9,19 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The page pass. The dashboard opens with a row of figures (clients
+  waiting, due follow-ups, open opportunities, active projects, budgets at
+  risk, your hours), each a link, then two columns: what needs someone
+  beside what is coming. A client, an opportunity and a project each have a
+  header with their status, a rail of facts on the left and the work on the
+  right. The pipeline's stages are lanes. Follow-up dates read "Sat, Nov 21,
+  2 days ago" on the pipeline and the opportunity. The sign-in page is a
+  proper front door.
+- Zubra UI in the pages: every status label is a status badge (green, amber
+  and red for project health), breadcrumbs are the breadcrumb trail and end
+  with the page you are on, figures are stat cards, and the simple dropdowns
+  are select fields.
+
 - A new look and frame for HQ. A sidebar groups every section (Today and
   Dashboard; Sales; Delivery; Finance; Company), so Calls, Board, Sites,
   Renewals, People and Audit history are one click away instead of hidden

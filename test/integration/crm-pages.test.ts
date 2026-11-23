@@ -110,7 +110,7 @@ test("an admin runs the slice through the pages", async () => {
   assert.match(created.html, /https:\/\/mtstormbakery\.com\//);
 
   const contact = await admin.submit(`${clientPath}/contacts`, { name: "Ann Baker", email: "ann@example.com", phone: "", title: "Owner", isPrimary: "on" });
-  assert.match(contact.html, /Ann Baker <span class="hq-tag">Primary<\/span>/);
+  assert.match(contact.html, /Ann Baker <status-badge[^>]*>\s*<span[^>]*>Primary<\/span>/);
   const contactId = /<option value="([0-9a-f-]{36})">Ann Baker<\/option>/.exec(contact.html)?.[1];
   assert.ok(contactId, "the contact is offered when opening an opportunity");
 
@@ -121,7 +121,7 @@ test("an admin runs the slice through the pages", async () => {
   assert.match(opened.html, /Move to Consult booked/);
 
   const followed = await admin.submit(`${opportunityPath}/follow-up`, { on: today });
-  assert.match(followed.html, /class="hq-tag due">Due</);
+  assert.match(followed.html, /<status-badge variant="danger"[^>]*>\s*<span[^>]*>Due</);
   assert.match(visible(await (await admin.get("/")).text()), new RegExp(`Bakery website</a> · Mt\\. Storm Bakery`), "the dashboard lists the follow-up on its day");
 
   await admin.submit(`${opportunityPath}/stage`, { to: "consult-booked" });

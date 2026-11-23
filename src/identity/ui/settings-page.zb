@@ -3,6 +3,7 @@
 -->
 <script>
   'use route /settings'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   export async function load({ context }) {
     const stop = context.guard()
@@ -49,7 +50,7 @@
       <h2 id="settings-two-factor">Two-factor sign-in</h2>
       <alert-banner zb-if={twoFactor.required} variant="warning" heading="Required for admins">HQ requires two-factor sign-in for admins. Turn it on to use the rest of HQ.</alert-banner>
       <div zb-if={twoFactor.on}>
-        <p><span class="hq-tag">On</span> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
+        <p><status-badge>On</status-badge> After your password, HQ asks for a code from your authenticator app. {twoFactor.recoveryText}</p>
         <form method="post" action="/settings/two-factor/recovery-codes" class="hq-form-row">
           <div class="hq-field">
             <label for="two-factor-new-codes">Code from your app</label>

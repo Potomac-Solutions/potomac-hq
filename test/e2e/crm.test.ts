@@ -74,7 +74,7 @@ test("prospect to project, through the pages", async () => {
   await page.getByRole("heading", { name: "Follow-ups due" }).waitFor();
 
   // Clients, from the shell's navigation.
-  await page.getByRole("link", { name: "Clients" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Clients" }).click();
   await page.waitForURL((url) => url.pathname === "/clients");
   assert.match(await text(page), /No clients yet/);
   await assertAccessible(page, "the clients page");

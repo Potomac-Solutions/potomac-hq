@@ -4,6 +4,8 @@
 -->
 <script>
   'use route /projects/:id/tasks'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -18,7 +20,7 @@
 </script>
 <hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a></p>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Tasks', href: '' }]}></breadcrumb-trail>
     <h1>Tasks</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -42,7 +44,7 @@
               <td>{task.statusLabel}</td>
               <td>{task.assigneeName || "Nobody yet"}</td>
               <td>{task.priorityLabel}</td>
-              <td><time zb-if={task.dueOn} datetime={task.dueOn}>{task.dueText}</time> <span zb-if={task.overdue} class="hq-tag due">Overdue</span></td>
+              <td><time zb-if={task.dueOn} datetime={task.dueOn}>{task.dueText}</time> <status-badge zb-if={task.overdue} variant="danger">Overdue</status-badge></td>
               <td>{task.estimate ? task.estimate + " h" : ""}</td>
             </tr>
           </zb-each>

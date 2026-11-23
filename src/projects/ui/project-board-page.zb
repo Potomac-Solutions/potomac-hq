@@ -3,6 +3,7 @@
 -->
 <script>
   'use route /projects/:id/board'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import './task-board.zb'
@@ -16,7 +17,7 @@
 </script>
 <hq-project-board view={{ project: {}, columns: [], statuses: [] }} money={false} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a></p>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Board', href: '' }]}></breadcrumb-trail>
     <h1>Board</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>

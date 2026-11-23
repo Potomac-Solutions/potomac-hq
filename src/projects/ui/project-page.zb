@@ -5,6 +5,9 @@
 -->
 <script>
   'use route /projects/:id'
+  import '../../shared/ui/zubra/select-field.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -21,8 +24,11 @@
 </script>
 <hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} money={false} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
-    <h1>{p.name}</h1>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
+    <div class="hq-head">
+      <div><h1>{p.name}</h1><p><a href="/clients/{view.clientId}">{view.clientName}</a></p></div>
+      <div class="hq-head-actions"><status-badge variant="outline">{p.statusLabel}</status-badge><status-badge variant={p.health === 'on-track' ? 'success' : p.health === 'at-risk' ? 'warning' : p.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{p.healthLabel}</status-badge></div>
+    </div>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -33,15 +39,16 @@
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/board">Board</a>
       <a zb-if={money} href="/projects/{p.id}/money">Money</a>
     </nav>
-
+    <div class="hq-split facts-first">
+    <div class="hq-rail">
     <section class="hq-panel" aria-labelledby="project-details">
       <h2 id="project-details">Details</h2>
       <dl class="hq-facts">
         <dt>Status</dt><dd>{p.statusLabel}</dd>
-        <dt>How it is going</dt><dd><span class="hq-tag" data-health={p.health}>{p.healthLabel}</span></dd>
+        <dt>How it is going</dt><dd><status-badge variant={p.health === 'on-track' ? 'success' : p.health === 'at-risk' ? 'warning' : p.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{p.healthLabel}</status-badge></dd>
         <dt>Next milestone</dt>
         <dd>
-          <span zb-if={view.next}>{view.next.name}<span zb-if={view.next.dueOn}>, due <time datetime={view.next.dueOn}>{view.next.dueText}</time></span> <span zb-if={view.next.overdue} class="hq-tag due">Overdue</span></span>
+          <span zb-if={view.next}>{view.next.name}<span zb-if={view.next.dueOn}>, due <time datetime={view.next.dueOn}>{view.next.dueText}</time></span> <status-badge zb-if={view.next.overdue} variant="danger">Overdue</status-badge></span>
           <span zb-else class="hq-muted">None set</span>
         </dd>
         <dt>Owner</dt><dd>{p.ownerName}</dd>
@@ -86,7 +93,6 @@
         </form>
       </div>
     </section>
-
     <section zb-if={view.baseline} class="hq-panel" aria-labelledby="project-baseline">
       <h2 id="project-baseline">What was agreed</h2>
       <p>{view.baseline.amount}<span zb-if={view.baseline.hours}>, {view.baseline.hours} hours</span>. From <a href="/proposals/{view.baseline.proposalId}/versions/{view.baseline.version}">the accepted proposal, version {view.baseline.version}</a>.</p>
@@ -97,20 +103,58 @@
         </tbody>
       </table>
     </section>
-
+    <section zb-if={links} class="hq-panel" id="links" aria-labelledby="project-links">
+      <h2 id="project-links">Links</h2>
+      <p zb-if={links.items.length === 0} class="hq-muted">Where the work lives: the staging and live sites, the designs, the code. Shared ones show in the client’s portal.</p>
+      <ul zb-else class="hq-links">
+        <zb-each items={links.items} as="link" key={link.id}>
+          <li>
+            <span><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}<span zb-if={link.name !== link.kindLabel}> · {link.kindLabel}</span> · {link.shared ? 'In the portal' : 'Potomac only'}</span></span>
+            <form zb-if={links.canEdit} method="post" action="/project-links/{link.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {link.name}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={links.canEdit} class="hq-more">
+        <summary>Add a link</summary>
+        <form method="post" action="/projects/{view.project.id}/links" class="hq-form">
+          <select-field label="What it is" name="kind" options={links.kinds}></select-field>
+          <div class="hq-field">
+            <label for="link-url">Web address</label>
+            <input id="link-url" name="url" type="text" inputmode="url" maxlength="500" required placeholder="staging.example.com">
+          </div>
+          <div class="hq-field">
+            <label for="link-label">Its own name (optional)</label>
+            <input id="link-label" name="label" type="text" maxlength="80" placeholder="Menu mock-ups">
+          </div>
+          <div class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
+          <div><button class="hq-button" type="submit">Add link</button></div>
+        </form>
+      </details>
+    </section>
+    <section class="hq-panel" aria-labelledby="project-history">
+      <h2 id="project-history">History</h2>
+      <empty-state zb-if={view.history.length === 0} heading="Nothing yet">Changes to this project are listed here.</empty-state>
+      <ol zb-else class="hq-log">
+        <zb-each items={view.history} as="event" key={event.id}>
+          <li><span>{event.text}</span> <time datetime={event.whenIso}>{event.when}</time></li>
+        </zb-each>
+      </ol>
+    </section>
+    </div>
+    <div>
     <section class="hq-panel" id="plan" aria-labelledby="project-plan">
       <h2 id="project-plan">Plan</h2>
       <p zb-if={view.progress.total > 0} class="hq-muted">{view.progress.done} of {view.progress.total} milestones done.</p>
-      <p zb-if={view.phases.length > 0}>Phases: <zb-each items={view.phases} as="phase" key={phase.id}><span class="hq-tag">{phase.name}</span> </zb-each></p>
+      <p zb-if={view.phases.length > 0}>Phases: <zb-each items={view.phases} as="phase" key={phase.id}><status-badge>{phase.name}</status-badge> </zb-each></p>
       <empty-state zb-if={view.milestones.length === 0} heading="No milestones yet">Add the points you and the client will check the work against.</empty-state>
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Milestone</th><th scope="col">Phase</th><th scope="col">Due</th><th scope="col">Done</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
           <zb-each items={view.milestones} as="milestone" key={milestone.id}>
             <tr>
-              <td>{milestone.name} <span zb-if={milestone.forClient} class="hq-tag">Client’s to do</span></td>
+              <td>{milestone.name} <status-badge zb-if={milestone.forClient}>Client’s to do</status-badge></td>
               <td>{milestone.phaseName}</td>
-              <td><time zb-if={milestone.dueOn} datetime={milestone.dueOn}>{milestone.dueText}</time> <span zb-if={milestone.overdue} class="hq-tag due">Overdue</span></td>
+              <td><time zb-if={milestone.dueOn} datetime={milestone.dueOn}>{milestone.dueText}</time> <status-badge zb-if={milestone.overdue} variant="danger">Overdue</status-badge></td>
               <td><time zb-if={milestone.doneOn} datetime={milestone.doneOn}>{milestone.doneText}</time></td>
               <td>
                 <form zb-if={view.can.plan} method="post" action="/milestones/{milestone.id}/done" class="hq-inline">
@@ -152,47 +196,12 @@
         </form>
       </details>
     </section>
-
     <section zb-if={view.can.viewTasks} class="hq-panel" aria-labelledby="project-tasks">
       <h2 id="project-tasks">Tasks</h2>
       <ul class="hq-counts">
         <zb-each items={view.taskCounts} as="count" key={count.status}><li><span>{count.label}</span> <strong>{count.count}</strong></li></zb-each>
       </ul>
       <p><a href="/projects/{p.id}/tasks">See the list</a> · <a href="/projects/{p.id}/board">See the board</a></p>
-    </section>
-
-    <section zb-if={links} class="hq-panel" id="links" aria-labelledby="project-links">
-      <h2 id="project-links">Links</h2>
-      <p zb-if={links.items.length === 0} class="hq-muted">Where the work lives: the staging and live sites, the designs, the code. Shared ones show in the client’s portal.</p>
-      <ul zb-else class="hq-links">
-        <zb-each items={links.items} as="link" key={link.id}>
-          <li>
-            <span><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}<span zb-if={link.name !== link.kindLabel}> · {link.kindLabel}</span> · {link.shared ? 'In the portal' : 'Potomac only'}</span></span>
-            <form zb-if={links.canEdit} method="post" action="/project-links/{link.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {link.name}</span></button></form>
-          </li>
-        </zb-each>
-      </ul>
-      <details zb-if={links.canEdit} class="hq-more">
-        <summary>Add a link</summary>
-        <form method="post" action="/projects/{view.project.id}/links" class="hq-form">
-          <div class="hq-field">
-            <label for="link-kind">What it is</label>
-            <select id="link-kind" name="kind">
-              <zb-each items={links.kinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
-            </select>
-          </div>
-          <div class="hq-field">
-            <label for="link-url">Web address</label>
-            <input id="link-url" name="url" type="text" inputmode="url" maxlength="500" required placeholder="staging.example.com">
-          </div>
-          <div class="hq-field">
-            <label for="link-label">Its own name (optional)</label>
-            <input id="link-label" name="label" type="text" maxlength="80" placeholder="Menu mock-ups">
-          </div>
-          <div class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
-          <div><button class="hq-button" type="submit">Add link</button></div>
-        </form>
-      </details>
     </section>
     <section class="hq-panel" id="deliverables" aria-labelledby="project-deliverables">
       <h2 id="project-deliverables">Deliverables</h2>
@@ -234,7 +243,6 @@
         </form>
       </details>
     </section>
-
     <section zb-if={updates.canView} class="hq-panel" id="updates" aria-labelledby="project-updates">
       <h2 id="project-updates">Updates for the client</h2>
       <p class="hq-muted hq-small">What you post here, the client reads in the portal. Their messages come back here. Notes, below, stay inside HQ.</p>
@@ -243,7 +251,7 @@
         <zb-each items={updates.items} as="update" key={update.id}>
           <li>
             <p class="hq-prose">{update.body}</p>
-            <p class="hq-muted hq-small"><span zb-if={update.fromClient} class="hq-tag">From the client</span> {update.authorName}, <time datetime={update.whenIso}>{update.when}</time></p>
+            <p class="hq-muted hq-small"><status-badge zb-if={update.fromClient}>From the client</status-badge> {update.authorName}, <time datetime={update.whenIso}>{update.when}</time></p>
           </li>
         </zb-each>
       </ol>
@@ -255,7 +263,6 @@
         <div><button class="hq-button" type="submit">Post update</button></div>
       </form>
     </section>
-
     <section zb-if={sent.canView && sent.items.length > 0} class="hq-panel" id="client-files" aria-labelledby="project-client-files">
       <h2 id="project-client-files">Files from the client</h2>
       <p class="hq-muted hq-small">Sent in through the portal. Each was checked for its type and size like any upload. Open one only if you were expecting it.</p>
@@ -265,17 +272,8 @@
         </zb-each>
       </ul>
     </section>
-
     <notes-panel notes={notes}></notes-panel>
-
-    <section class="hq-panel" aria-labelledby="project-history">
-      <h2 id="project-history">History</h2>
-      <empty-state zb-if={view.history.length === 0} heading="Nothing yet">Changes to this project are listed here.</empty-state>
-      <ol zb-else class="hq-log">
-        <zb-each items={view.history} as="event" key={event.id}>
-          <li><span>{event.text}</span> <time datetime={event.whenIso}>{event.when}</time></li>
-        </zb-each>
-      </ol>
-    </section>
+    </div>
+    </div>
   </div>
 </hq-project>

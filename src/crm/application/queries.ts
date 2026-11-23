@@ -65,6 +65,8 @@ export type OpportunityDetailView = {
     readonly serviceLabel: string;
     readonly leadSourceLabel: string;
     readonly followUpOn: string;
+    /** The follow-up as a person reads it: "Sat, Nov 21, 2 days ago". */
+    readonly followUpText: string;
     readonly followUpDue: boolean;
     readonly summary: string;
     readonly lostReason: string;
@@ -198,6 +200,7 @@ export function opportunityDetail(deps: CrmDeps, actorId: Id | null, opportunity
       serviceLabel: opportunity.service ? (SERVICE_LABELS[opportunity.service] ?? opportunity.service) : "Not chosen yet",
       leadSourceLabel: LEAD_SOURCE_LABELS[opportunity.leadSource] ?? opportunity.leadSource,
       followUpOn: opportunity.followUpOn ?? "",
+      followUpText: opportunity.followUpOn ? dueText(opportunity.followUpOn, today) : "",
       followUpDue: isFollowUpDue(opportunity, today),
       summary: opportunity.summary,
       lostReason: opportunity.lostReason ?? "",
@@ -255,6 +258,7 @@ export type PipelineView = {
       readonly clientName: string;
       readonly serviceLabel: string;
       readonly followUpOn: string;
+      readonly followUpText: string;
       readonly followUpDue: boolean;
       /** Empty for anyone who may not see deal values. */
       readonly price: string;
@@ -284,6 +288,7 @@ export function pipeline(deps: CrmDeps, actorId: Id | null, today: string): Resu
           clientName: o.clientName,
           serviceLabel: o.service ? (SERVICE_LABELS[o.service] ?? o.service) : "Not chosen yet",
           followUpOn: o.followUpOn ?? "",
+          followUpText: o.followUpOn ? dueText(o.followUpOn, today) : "",
           followUpDue: isFollowUpDue(o, today),
           price: showValue ? (priceLabel(o.pricing, o.value) ?? "") : "",
         })),

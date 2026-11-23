@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /money'
+  import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   export async function load({ context }) {
@@ -68,7 +69,7 @@
         <tbody>
           <zb-each items={view.rows} as="row" key={row.id}>
             <tr>
-              <td><a href="/projects/{row.id}/money">{row.name}</a> <span zb-if={row.over} class="hq-tag due">Over budget</span><span zb-if={row.watch} class="hq-tag">Watch</span><span zb-if={!row.active} class="hq-muted"> (closed)</span></td>
+              <td><a href="/projects/{row.id}/money">{row.name}</a> <status-badge zb-if={row.over} variant="danger">Over budget</status-badge><status-badge zb-if={row.watch}>Watch</status-badge><span zb-if={!row.active} class="hq-muted"> (closed)</span></td>
               <td>{row.clientName}</td>
               <td class="hq-number">{row.hours.actual}<span zb-if={row.hours.budget}> of {row.hours.budget}</span></td>
               <td class="hq-number">{row.cost.actual}<span zb-if={row.cost.budget}> of {row.cost.budget}</span></td>

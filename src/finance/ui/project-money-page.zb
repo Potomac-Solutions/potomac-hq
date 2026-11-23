@@ -5,6 +5,9 @@
 -->
 <script>
   'use route /projects/:id/money'
+  import '../../shared/ui/zubra/select-field.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -22,7 +25,7 @@
 </script>
 <hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{id}">{view.project.name}</a></p>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${id}` }, { label: 'Money', href: '' }]}></breadcrumb-trail>
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -42,15 +45,15 @@
       <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Measure</th><th scope="col" class="hq-number">Budget</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Hours</th><td class="hq-number">{s.hours.budget || "None set"}</td><td class="hq-number">{s.hours.actual}</td><td><span zb-if={s.hours.over} class="hq-tag due">Over</span><span zb-else-if={s.hours.budget}>Within</span></td></tr>
-          <tr><th scope="row">Cost</th><td class="hq-number">{s.cost.budget || "None set"}</td><td class="hq-number">{s.cost.actual}</td><td><span zb-if={s.cost.over} class="hq-tag due">Over</span><span zb-else-if={s.cost.budget}>Within</span></td></tr>
+          <tr><th scope="row">Hours</th><td class="hq-number">{s.hours.budget || "None set"}</td><td class="hq-number">{s.hours.actual}</td><td><status-badge zb-if={s.hours.over} variant="danger">Over</status-badge><span zb-else-if={s.hours.budget}>Within</span></td></tr>
+          <tr><th scope="row">Cost</th><td class="hq-number">{s.cost.budget || "None set"}</td><td class="hq-number">{s.cost.actual}</td><td><status-badge zb-if={s.cost.over} variant="danger">Over</status-badge><span zb-else-if={s.cost.budget}>Within</span></td></tr>
         </tbody>
       </table>
       <dl class="hq-facts" data-spaced>
         <dt>Time, at the hourly rate</dt><dd>{s.timeCost}</dd>
         <dt>Expenses</dt><dd>{s.expenses}</dd>
         <dt>Billable hours</dt><dd>{s.billableHours}</dd>
-        <dt zb-if={s.margin}>Margin</dt><dd zb-if={s.margin}>{s.margin}<span zb-if={s.marginPercent}> ({s.marginPercent})</span> <span zb-if={s.marginNegative} class="hq-tag due">Losing money</span></dd>
+        <dt zb-if={s.margin}>Margin</dt><dd zb-if={s.margin}>{s.margin}<span zb-if={s.marginPercent}> ({s.marginPercent})</span> <status-badge zb-if={s.marginNegative} variant="danger">Losing money</status-badge></dd>
       </dl>
       <p class="hq-muted hq-small" data-spaced>An operational estimate: the budget less time at the hourly rate and expenses. It is not the books.<span zb-if={view.fromProposal}> The budget is the accepted proposal’s.</span></p>
       <details zb-if={view.can.edit} class="hq-more">
@@ -70,7 +73,7 @@
         <thead><tr><th scope="col">Phase</th><th scope="col" class="hq-number">Estimated</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
         <tbody>
           <zb-each items={view.phases} as="phase" key={phase.key}>
-            <tr><th scope="row">{phase.name}</th><td class="hq-number">{phase.estimate || "None"}</td><td class="hq-number">{phase.actual}</td><td><span zb-if={phase.over} class="hq-tag due">Over</span></td></tr>
+            <tr><th scope="row">{phase.name}</th><td class="hq-number">{phase.estimate || "None"}</td><td class="hq-number">{phase.actual}</td><td><status-badge zb-if={phase.over} variant="danger">Over</status-badge></td></tr>
           </zb-each>
         </tbody>
       </table>
@@ -101,7 +104,7 @@
             <div>
               <p><strong>{change.label}: {change.title}</strong> · {change.price}<span zb-if={change.hours}> · {change.hours}</span></p>
               <p zb-if={change.description} class="hq-small">{change.description}</p>
-              <p class="hq-small"><span class={change.status === 'sent' ? 'hq-tag due' : 'hq-tag'}>{change.statusLabel}</span> <span zb-if={change.answered} class="hq-muted">{change.answered}</span><span zb-if={change.note}> · “{change.note}”</span><span zb-if={change.invoiceId}> · <a href="/invoices/{change.invoiceId}">{change.invoiceLabel}</a> drafted</span></p>
+              <p class="hq-small"><status-badge variant={change.status === 'sent' ? 'danger' : 'neutral'}>{change.statusLabel}</status-badge> <span zb-if={change.answered} class="hq-muted">{change.answered}</span><span zb-if={change.note}> · “{change.note}”</span><span zb-if={change.invoiceId}> · <a href="/invoices/{change.invoiceId}">{change.invoiceLabel}</a> drafted</span></p>
             </div>
             <div zb-if={changes.canEdit && (change.status === 'draft' || change.status === 'sent')} class="hq-form-row">
               <form zb-if={change.status === 'draft'} method="post" action="/changes/{change.id}/send"><button class="hq-button small" type="submit">Send to the client<span class="sr-only">: {change.title}</span></button></form>
@@ -147,7 +150,7 @@
             <tr>
               <td><a href="/invoices/{invoice.id}">{invoice.label}</a></td>
               <td>{invoice.kindLabel}</td>
-              <td>{invoice.statusLabel} <span zb-if={invoice.overdue} class="hq-tag due">Overdue</span></td>
+              <td>{invoice.statusLabel} <status-badge zb-if={invoice.overdue} variant="danger">Overdue</status-badge></td>
               <td>{invoice.issuedOn}</td>
               <td>{invoice.dueOn}</td>
               <td class="hq-number">{invoice.total}</td>
@@ -159,12 +162,7 @@
       <details zb-if={view.can.editInvoices} class="hq-more">
         <summary>Draft an invoice</summary>
         <form method="post" action="/projects/{id}/invoices" class="hq-form">
-          <div class="hq-field">
-            <label for="invoice-kind">What it is for</label>
-            <select id="invoice-kind" name="kind" required>
-              <zb-each items={view.invoiceKinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="What it is for" name="kind" options={view.invoiceKinds} required={true}></select-field>
           <text-field label="Description" name="description" required={true} description="What the client reads. Like: Deposit, one third of the quote"></text-field>
           <text-field label="Invoice amount in dollars" name="amount" inputmode="decimal" required={true} description={view.invoiceForm.full ? "From the budget: a deposit would be " + view.invoiceForm.deposit + ", the balance not yet invoiced is " + (view.invoiceForm.balance || "0.00") + ", the full amount is " + view.invoiceForm.full + "." : "No budget is set, so there is nothing to suggest."}></text-field>
           <text-field label="Due" name="dueOn" type="date"></text-field>
@@ -180,7 +178,7 @@
       <ul zb-else class="hq-list">
         <zb-each items={view.recurring} as="plan" key={plan.id}>
           <li>
-            <p><strong>{plan.description}</strong>: {plan.amount}, {plan.everyLabel.toLowerCase()} <span zb-if={!plan.active} class="hq-tag">Paused</span></p>
+            <p><strong>{plan.description}</strong>: {plan.amount}, {plan.everyLabel.toLowerCase()} <status-badge zb-if={!plan.active}>Paused</status-badge></p>
             <p class="hq-small">{plan.active ? "Next: " + plan.next : "Was next: " + plan.next}<span zb-if={plan.endsText}>, {plan.endsText}</span> · {plan.autoSend ? "Sent on its day" : "Drafted on its day, for you to send"}</p>
             <form zb-if={view.can.editInvoices} method="post" action={"/recurring/" + plan.id + (plan.active ? "/pause" : "/resume")}><button class="hq-button secondary" type="submit">{plan.active ? "Pause" : "Start again"}<span class="sr-only">: {plan.description}</span></button></form>
           </li>
@@ -191,12 +189,7 @@
         <form method="post" action="/projects/{id}/recurring" class="hq-form">
           <text-field label="What each invoice is for" name="description" required={true} description="Followed by its month on the invoice. Like: Website hosting and care"></text-field>
           <text-field label="Amount in dollars, each time" name="amount" inputmode="decimal" required={true}></text-field>
-          <div class="hq-field">
-            <label for="recurring-every">How often</label>
-            <select id="recurring-every" name="every" required>
-              <zb-each items={view.everyOptions} as="option" key={option.value}><option value={option.value}>{option.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="How often" name="every" options={view.everyOptions} required={true}></select-field>
           <text-field label="First invoice on" name="firstOn" type="date" required={true} description="Later ones fall on the same day of the month, or the month’s last day"></text-field>
           <text-field label="Last invoice by" name="endsOn" type="date" description="Leave empty to keep going until it is paused"></text-field>
           <text-field label="Due, in days after it is sent" name="dueDays" inputmode="numeric" value="15"></text-field>
@@ -232,12 +225,7 @@
       <details zb-if={view.can.addExpense} class="hq-more">
         <summary>Record an expense</summary>
         <form method="post" action="/projects/{id}/expenses" enctype="multipart/form-data" class="hq-form">
-          <div class="hq-field">
-            <label for="expense-category">Category</label>
-            <select id="expense-category" name="category" required>
-              <zb-each items={view.categories} as="category" key={category.value}><option value={category.value}>{category.label}</option></zb-each>
-            </select>
-          </div>
+          <select-field label="Category" name="category" options={view.categories} required={true}></select-field>
           <text-field label="Expense amount in dollars" name="amount" inputmode="decimal" required={true}></text-field>
           <text-field label="Day" name="on" type="date" value={view.today} required={true}></text-field>
           <text-field label="What it was for" name="note"></text-field>

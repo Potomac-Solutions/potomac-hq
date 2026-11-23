@@ -4,6 +4,9 @@
 -->
 <script>
   'use route /invoices/:id'
+  import '../../shared/ui/zubra/select-field.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -19,7 +22,7 @@
 </script>
 <hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} done="" problem="">
   <div class="hq-page">
-    <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/projects/{view.project.id}">{view.project.name}</a> / <a href="/projects/{view.project.id}/money">Money</a></p>
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -29,7 +32,7 @@
     <section class="hq-panel" aria-labelledby="invoice-details">
       <h2 id="invoice-details">Where it stands</h2>
       <dl class="hq-facts">
-        <dt>Status</dt><dd><strong>{i.statusLabel}</strong> <span zb-if={i.overdue} class="hq-tag due">Overdue</span></dd>
+        <dt>Status</dt><dd><strong>{i.statusLabel}</strong> <status-badge zb-if={i.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Billed to</dt><dd>{view.clientName}</dd>
         <dt>For</dt><dd>{i.kindLabel}</dd>
         <dt>Issued</dt><dd>{i.issuedOn || "Not sent yet"}</dd>
@@ -79,12 +82,7 @@
       <form zb-if={view.can.pay} method="post" action="/invoices/{i.id}/payments" class="hq-form" data-spaced>
         <h3>Record a payment</h3>
         <text-field label="Amount received, in dollars" name="amount" inputmode="decimal" value={view.owedPlain} required={true}></text-field>
-        <div class="hq-field">
-          <label for="payment-method">How it was paid</label>
-          <select id="payment-method" name="method" required>
-            <zb-each items={view.methods} as="method" key={method.value}><option value={method.value}>{method.label}</option></zb-each>
-          </select>
-        </div>
+        <select-field label="How it was paid" name="method" options={view.methods} required={true}></select-field>
         <text-field label="Received on" name="on" type="date" value={view.today} required={true}></text-field>
         <text-field label="Reference" name="reference" description="A check number, or the gateway’s reference. Never a card number."></text-field>
         <div><button class="hq-button" type="submit">Record payment</button></div>
