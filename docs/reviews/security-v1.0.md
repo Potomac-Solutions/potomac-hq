@@ -66,6 +66,8 @@ Each line says what was checked and what checks it on every merge.
 
 | Refused sign-ins, codes and forms are written down without the password or code typed, and kept apart from the activity log for 90 days | `src/identity/application/refused.ts`, the forms middleware in `src/app.ts` | `refused-attempts.test.ts` |
 
+| Only `/contact` accepts posts from another site, and only from `HQ_FORM_ORIGINS`; its return address must be on one of them | the same-site check in `src/app.ts`, `inquiry-routes.ts` | `inquiry-form.test.ts` |
+
 ## Known gaps
 
 1. **No independent review**, as said above.

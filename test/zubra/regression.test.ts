@@ -84,7 +84,7 @@ test("a Host header with a path in it changes nothing (5.17 and 5.18 routed by i
 test("every page is refused to a signed-out visitor, whatever its layout", async () => {
   const stranger = httpClient(t.origin);
   // Open to anyone: asking for a reset, the portal's sign-in and invite pages, and booking a call.
-  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/accept", "/book", "/book/manage"]);
+  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/accept", "/book", "/book/manage", "/contact", "/contact/thanks"]);
   assert.ok(routes.length >= 28, `found ${routes.length} pages`);
   for (const pattern of routes) {
     if (open.has(pattern)) continue;

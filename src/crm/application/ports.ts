@@ -17,6 +17,8 @@ export type ContactStore = {
   clearPrimary(organizationId: Id, at: string): void;
   get(id: Id): Contact | null;
   listFor(organizationId: Id): Contact[];
+  /** A contact with this email, at any client, matched without regard to case. */
+  byEmail(email: string): Contact | null;
 };
 
 export type OpportunityStore = {

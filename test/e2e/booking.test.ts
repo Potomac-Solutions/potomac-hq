@@ -58,3 +58,18 @@ test("a prospect books from the public page on a phone, then sees their call's p
   await page.emulateMedia({ colorScheme: "dark" });
   await assertAccessible(page, "a booked call's own page in dark");
 });
+
+test("the inquiry form on a phone: fits, is accessible, and thanks the sender", async () => {
+  const page = await (await browser.newContext({ viewport: { width: 360, height: 740 } })).newPage();
+  await page.goto(`${t.origin}/contact`);
+  await page.getByRole("heading", { name: "Tell us what you need" }).waitFor();
+  const size = (await page.evaluate("({ page: document.documentElement.scrollWidth, screen: window.innerWidth })")) as { page: number; screen: number };
+  assert.ok(size.page <= size.screen, `the inquiry form is ${size.page}px wide on a ${size.screen}px phone`);
+  await assertAccessible(page, "the inquiry form on a phone");
+  await page.getByLabel("Your name").fill("Rita Okafor");
+  await page.getByLabel("Your email").fill("rita@example.com");
+  await page.getByLabel("Your message").fill("Online orders for the diner.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("heading", { name: "Thanks" }).waitFor();
+  await assertAccessible(page, "thanks after the inquiry form");
+});

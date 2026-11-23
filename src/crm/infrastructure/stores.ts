@@ -61,9 +61,14 @@ export function sqliteContactStore(db: Database): ContactStore {
   const clear = db.prepare("update contact set is_primary = 0, updated_at = ? where organization_id = ? and is_primary = 1");
   const get = db.prepare(`select ${cols} from contact where id = ?`);
   const listFor = db.prepare(`select ${cols} from contact where organization_id = ? order by is_primary desc, name collate nocase`);
+  const byEmail = db.prepare(`select ${cols} from contact where lower(email) = lower(?) order by created_at limit 1`);
   return {
     insert(c, at) {
       insert.run(c.id, c.organizationId, c.name, c.email, c.phone, c.title, c.isPrimary ? 1 : 0, at, at);
+    },
+    byEmail(email) {
+      const row = byEmail.get(email);
+      return row ? toContact(row as ContactRow) : null;
     },
     clearPrimary(organizationId, at) {
       clear.run(at, organizationId);
