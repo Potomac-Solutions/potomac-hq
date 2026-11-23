@@ -1,0 +1,39 @@
+// Signing up: someone new makes a portal account to book a call. Anyone on
+// the internet can try, so nothing here says whether an email is known: the
+// answer is always "check your email", and only the inbox's owner can go on.
+// A new person becomes a prospect in the CRM, with an opportunity, and an
+// invited portal user; the emailed link confirms the address and sets the
+// password, like an invite from Potomac. Someone who already has an account
+// is sent a link to set a new password instead.
+import { newClientUser } from "../domain/client-user.ts";
+import { recordSignUp, type SignUpError, type SignUpInput } from "../../crm/index.ts";
+import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import type { PortalDeps } from "./staff-side.ts";
+
+/** The link to email, and to whom; null when nothing should be sent (access turned off). */
+export type SignUpLink = { readonly email: string; readonly name: string; readonly path: string; readonly kind: "new" | "invite-again" | "reset" } | null;
+
+export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: SignUpInput): Promise<Result<SignUpLink, SignUpError>> {
+  const email = input.email.trim().toLowerCase();
+  const existing = deps.clientUsers.byEmail(email);
+  if (existing) {
+    if (existing.status === "disabled") return ok(null);
+    const token = existing.portalAccount === null ? await deps.auth.invite(existing.email, existing.name) : await deps.auth.resetLink(existing.portalAccount);
+    if (token === null) return ok(null);
+    deps.transact(() => recordActivity(deps, { actorId: null, action: "client-user.sign-up-again", recordType: "client-user", recordId: existing.id, context: { organizationId: existing.organizationId } }));
+    return ok({ email: existing.email, name: existing.name, path: `/portal/accept?token=${token}&next=book`, kind: existing.portalAccount === null ? "invite-again" : "reset" });
+  }
+  // Check the fields first, so nothing is made for a sign-up that will be refused.
+  const draft = newClientUser({ id: deps.newId(), organizationId: deps.newId(), invitedBy: ownerId }, { name: input.name, email });
+  if (!draft.ok) return err(draft.error === "invalid-email" ? "email-invalid" : draft.error === "name-too-long" ? "name-too-long" : "name-missing");
+  const token = await deps.auth.invite(email, draft.value.name);
+  if (token === null) return ok(null);
+  const prospect = recordSignUp(deps, ownerId, { ...input, email });
+  if (!prospect.ok) return prospect;
+  const user = { ...draft.value, organizationId: prospect.value.clientId };
+  deps.transact(() => {
+    deps.clientUsers.insert(user, deps.clock());
+    recordActivity(deps, { actorId: null, action: "client-user.signed-up", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId, known: prospect.value.known } });
+  });
+  return ok({ email, name: user.name, path: `/portal/accept?token=${token}&next=book`, kind: "new" });
+}

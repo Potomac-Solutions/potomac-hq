@@ -68,7 +68,7 @@
       </div>
 
       <label class="hours-check"><input type="checkbox" name="portal-open" value="1" checked={view.portalOpen}> <span>Clients can book a call in the portal. Off: they ask for a call, and you answer.</span></label>
-      <label class="hours-check"><input type="checkbox" name="public-open" value="1" checked={view.publicOpen}> <span>Anyone can book a call at <strong>/book</strong>, such as a prospect from the website.</span></label>
+      <label class="hours-check"><input type="checkbox" name="public-open" value="1" checked={view.publicOpen}> <span>Anyone can sign up at <strong>/book</strong> and book a call, such as a prospect from the website. They confirm their email and choose a password first, and become a prospect in the CRM. Needs email set up. Once they have an account, they book in the portal like a client.</span></label>
       <p><button class="hq-button" type="submit">Save</button></p>
     </form>
 

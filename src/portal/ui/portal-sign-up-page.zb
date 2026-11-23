@@ -1,0 +1,43 @@
+<!--
+  Signing up to book a call: name, business, email and an optional phone.
+  HQ emails a link to confirm the address and choose a password; then they
+  book in the portal. Shown only while sign-up is open: booking for new
+  people is on and email is set up.
+-->
+<script>
+  'use route /portal/sign-up'
+  import { redirect } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    if (context.portal.session) return redirect('/portal/book')
+    return { title: 'Sign up to book a call', open: context.portal.signUpOpen, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  :host { display: block; max-width: 30rem; }
+  /* For bots only: people never see or fill it. */
+  .sign-up-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+<hq-portal-sign-up open={false} done="" problem="">
+  <div class="hq-page">
+    <h1>Sign up to book a call</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success" heading="Almost there">{done}</alert-banner>
+    </div>
+    <div zb-if={!open && !done} class="hq-panel">
+      <p>Signing up online isn’t open right now. Call or write, below, and we’ll find a time.</p>
+    </div>
+    <form zb-else-if={!done} method="post" action="/portal/sign-up" class="hq-form hq-panel">
+      <p>A free account with Potomac Solutions. You’ll book your call, and can move or cancel it, in your own client portal.</p>
+      <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
+      <text-field label="Your business" name="business" autocomplete="organization" description="Leave it empty if there isn’t one yet"></text-field>
+      <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description="We’ll send a link here to confirm it"></text-field>
+      <text-field label="A phone number" name="phone" type="tel" autocomplete="tel" description="If you’d like us to call you"></text-field>
+      <div class="sign-up-trap" aria-hidden="true"><label for="sign-up-website">Leave this empty</label><input id="sign-up-website" name="website" tabindex="-1" autocomplete="off"></div>
+      <div><button class="hq-button portal-big" type="submit">Sign up</button></div>
+    </form>
+    <p class="hq-muted">Already have an account? <a href="/portal/sign-in">Sign in</a>.</p>
+  </div>
+</hq-portal-sign-up>

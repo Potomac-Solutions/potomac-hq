@@ -7,7 +7,7 @@ import { openTimes, sendBookingReminders } from "../../src/booking/index.ts";
 import * as crm from "../../src/crm/index.ts";
 import { createServices } from "../../src/services.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { httpClient, PASSWORD, signIn, TEST_PASSWORD_COST, testApp, unwrap, type Client, type TestApp } from "../support/harness.ts";
+import { actions, httpClient, PASSWORD, signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, type Client, type TestApp } from "../support/harness.ts";
 
 type Sent = { to: string; subject: string; body: string };
 let sent: Sent[] = [];
@@ -40,32 +40,44 @@ before(async () => {
 });
 after(() => t.stop());
 
-test("booking from the page: the person gets their private link, and the host is told", async () => {
+test("someone new signs up, confirms by email, books, and is a prospect in the CRM", async () => {
   const visitor = httpClient(t.origin);
-  assert.match(await visitor.page("/book"), /Your booking and a link to change it are sent here/);
+  assert.match(textOf(await visitor.page("/book")), /To book, make a free account: it takes a minute\. .* Sign up to book I have an account/);
+  assert.match(textOf(await visitor.page("/portal/sign-in")), /New here\? Sign up to book a call ?\./);
+  const asked = await visitor.post("/portal/sign-up", { name: "Dale Pruitt", business: "Pruitt Farm Stand", email: "Dale@Example.com", phone: "304-555-0134" });
+  assert.match(new URL(t.origin + (asked.headers.get("location") ?? "")).searchParams.get("done") ?? "", /^Check your email at dale@example\.com\./);
+  const [mail] = to("dale@example.com");
+  assert.equal(mail?.subject, "Confirm your email to book a call with Potomac Solutions");
+  const link = /https:\/\/hq\.example(\/portal\/accept\?token=[A-Za-z0-9_-]{43}&next=book)/.exec(mail?.body ?? "")?.[1];
+  assert.ok(link, "the confirm link, whole");
+  // In the CRM already: a prospect, its primary contact and an opportunity.
+  const client = t.db.prepare("select id, status from client_organization where name = 'Pruitt Farm Stand'").get();
+  assert.equal(client?.["status"], "prospective");
+  assert.equal(t.db.prepare("select count(*) as n from opportunity where organization_id = ? and title = 'Signed up to book a call'").get(String(client?.["id"]))?.["n"], 1);
+  // The link: choose a password, then straight to booking.
+  assert.match(textOf(await visitor.page(link)), /Welcome to your client portal For dale@example\.com ?\./);
+  const accepted = await visitor.post("/portal/accept", { token: link.split("token=")[1]?.split("&")[0] ?? "", name: "Dale Pruitt", password: PASSWORD, next: "book" });
+  assert.match(accepted.headers.get("location") ?? "", /^\/portal\/book\?done=/);
+  sent = [];
   const slot = (await slots())[3];
-  const made = await visitor.post("/book", { name: "Dale Pruitt", email: "dale@example.com", topic: "Farm stand website", start: slot?.start ?? "" });
-  const link = (made.headers.get("location") ?? "").replace(/&done=.*$/, "");
-  const [mine] = to("dale@example.com");
-  assert.ok(mine);
-  assert.match(mine.subject, /^Your call with Potomac Solutions: /);
-  assert.ok(mine.body.includes(`https://hq.example${link}`), "the private link, whole");
-  assert.match(mine.body, /Need us sooner\? Call 304-555-0142\./);
-  const [host] = to("mikey@example.com");
-  assert.match(host?.subject ?? "", /^Call booked: Dale Pruitt, /);
-  assert.match(host?.body ?? "", /All calls: https:\/\/hq\.example\/calls/);
-  assert.match(await visitor.page(link), /It was also emailed to you\./);
+  await visitor.post("/portal/book", { start: slot?.start ?? "", topic: "Farm stand website" });
+  assert.match(to("dale@example.com")[0]?.subject ?? "", /^Your call with Potomac Solutions: /);
+  assert.match(to("mikey@example.com")[0]?.subject ?? "", /^Call booked: Dale Pruitt, /);
+  assert.ok(actions(t.db).includes("client-user.signed-up"));
+});
 
-  // Moving and cancelling it with the link: both hear each time.
+test("signing up again says the same, and sends only what the inbox's owner can use", async () => {
   sent = [];
-  const token = link.split("token=")[1] as string;
-  await visitor.post("/book/manage/move", { token, start: (await slots()).at(-1)?.start ?? "" });
-  assert.match(to("dale@example.com")[0]?.subject ?? "", /^Your call is moved: /);
-  assert.match(to("mikey@example.com")[0]?.body ?? "", /moved their call from /);
+  const again = await httpClient(t.origin).post("/portal/sign-up", { name: "Someone Else", email: "dale@example.com" });
+  assert.match(new URL(t.origin + (again.headers.get("location") ?? "")).searchParams.get("done") ?? "", /^Check your email at dale@example\.com\./, "nothing says the email is known");
+  assert.equal(to("dale@example.com")[0]?.subject, "Your Potomac Solutions client portal");
+  assert.match(to("dale@example.com")[0]?.body ?? "", /You already have a client portal account\./);
+  assert.equal(t.db.prepare("select count(*) as n from client_organization where name in ('Pruitt Farm Stand', 'Someone Else')").get()?.["n"], 1, "no second client");
+  // A bot that fills the hidden field makes nothing.
   sent = [];
-  await visitor.post("/book/manage/cancel", { token, reason: "Hired someone local" });
-  assert.match(to("dale@example.com")[0]?.body ?? "", /is cancelled, as you asked\..*Book another time here:\nhttps:\/\/hq\.example\/book/s);
-  assert.match(to("mikey@example.com")[0]?.body ?? "", /Why: Hired someone local/);
+  const bot = await httpClient(t.origin).post("/portal/sign-up", { name: "Bot", email: "bot@example.com", website: "http://spam.example" });
+  assert.equal(bot.headers.get("location"), "/portal/sign-up");
+  assert.equal(sent.length, 0);
 });
 
 test("a client's booking points them to the portal; a cancel by Potomac tells only the client", async () => {

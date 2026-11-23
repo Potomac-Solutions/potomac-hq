@@ -32,6 +32,26 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+## Sign up to book
+
+Decided 2026-11-23 at Mikey's request. Needs his approval.
+
+No new tables. Signing up (`/portal/sign-up`, anyone, rate-limited, a field
+only bots fill) makes, in the CRM, a prospective client named for the
+business (or the person), its primary contact, and an opportunity "Signed up
+to book a call" from the website, owned by whoever takes calls; then an
+invited client user, with an emailed one-time link (`next=book`) to confirm
+the email and choose a password. An email already in the CRM is left as it
+is. An email that already has a portal user is sent a fresh invite or a
+password link instead, and the page says the same either way.
+
+Open only while "Anyone can sign up" (`booking_setting.public_open`) is on,
+the hours are set, and email is set up. With it on, anyone with a portal
+account can book there, even if portal booking for clients is off. The
+account-free form at `/book` is gone; calls booked from it before keep
+their private link. Events: `client-user.signed-up`,
+`client-user.sign-up-again`, `opportunity.signed-up`.
+
 ## Availability grid
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.

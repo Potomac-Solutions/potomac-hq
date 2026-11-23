@@ -14,7 +14,7 @@
     const move = url.searchParams.get('move') ?? ''
     const times = await context.booking.portalTimes()
     const moving = move ? context.booking.portalCalls().find((call) => call.id === move && call.changeable) ?? null : null
-    return { title: moving ? 'Move your call' : 'Book a call', times, moving, problem: context.notice.problem }
+    return { title: moving ? 'Move your call' : 'Book a call', times, moving, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -25,10 +25,11 @@
   .book-times button:hover, .book-times button:focus-visible { color: var(--primary-foreground); background: var(--primary); }
   .book-fields { display: grid; gap: 1rem; margin-bottom: 1.25rem; }
 </style>
-<hq-portal-book times={{ open: false, days: [] }} moving={null} problem="">
+<hq-portal-book times={{ open: false, days: [] }} moving={null} done="" problem="">
   <div class="hq-page">
     <h1>{moving ? 'Move your call' : 'Book a call'}</h1>
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     <p><a href="/portal#calls">Back to your portal</a></p>
 
     <div zb-if={!times.open} class="hq-panel">

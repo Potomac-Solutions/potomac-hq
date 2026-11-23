@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Sign up to book: booking a call now needs a free account. /book explains
+  the three steps and sends people to sign up (name, business, email,
+  phone) or sign in. HQ emails a link to confirm the address and choose a
+  password, then they choose a time in the portal and can move or cancel it
+  there. Signing up makes them a prospect in the CRM, with their contact and
+  a "Signed up to book a call" opportunity in the pipeline. Nothing on the
+  page says whether an email was already known; someone with an account is
+  emailed a link to sign in instead. Needs email set up, and "Anyone can
+  sign up at /book" on Hours. Calls booked from the old form keep their
+  private link.
+
 - The availability grid: paint when you're free for calls, half hour by half
   hour, like Timeful. Press and drag to paint a rectangle (drag from a
   painted cell to rub out); on a phone, tap; with a keyboard, Space. Your

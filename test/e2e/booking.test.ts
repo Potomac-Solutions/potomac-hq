@@ -8,10 +8,13 @@ import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 
+/** The links in emails point here; the test opens them on its own origin. */
+const t0 = "https://hq.example";
 let t: TestApp;
 let browser: Browser;
+const sent: { to: string; body: string }[] = [];
 before(async () => {
-  t = await testApp({ passwordCost: TEST_PASSWORD_COST });
+  t = await testApp({ passwordCost: TEST_PASSWORD_COST, publicUrl: t0, email: { publicUrl: t0, send: async (message) => (sent.push({ to: message.to, body: message.body }), { ok: true }) } });
   browser = await chromium.launch();
 });
 after(async () => {
@@ -38,26 +41,44 @@ test("set the hours, then see them on Calls", async () => {
   }
 });
 
-test("a prospect books from the public page on a phone, then sees their call's page", async () => {
+test("a prospect signs up on a phone, confirms by email, and books in the portal", async () => {
   const page = await (await browser.newContext({ viewport: { width: 360, height: 740 } })).newPage();
-  // Open to the public: weekdays, 9 to 12.
+  // Open to new people: weekdays, 9 to 12.
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   const weekdays = Object.fromEntries([1, 2, 3, 4, 5].flatMap((day) => [[`start-${day}-0`, "09:00"], [`end-${day}-0`, "12:00"]]));
   unwrap(saveBookingSetup(t.services.booking, mikey, { ...weekdays, "call-minutes": "30", "gap-minutes": "15", "notice-hours": "24", "days-ahead": "21", "public-open": "1" }));
+  const fits = async (what: string) => {
+    const size = (await page.evaluate("({ page: document.documentElement.scrollWidth, screen: window.innerWidth })")) as { page: number; screen: number };
+    assert.ok(size.page <= size.screen, `${what} is ${size.page}px wide on a ${size.screen}px phone`);
+    await assertAccessible(page, `${what} on a phone`);
+  };
 
   await page.goto(`${t.origin}/book`);
   await page.getByRole("heading", { name: "Book a call with Potomac Solutions" }).waitFor();
-  const size = (await page.evaluate("({ page: document.documentElement.scrollWidth, screen: window.innerWidth })")) as { page: number; screen: number };
-  assert.ok(size.page <= size.screen, `the booking page is ${size.page}px wide on a ${size.screen}px phone`);
-  await assertAccessible(page, "the public booking page on a phone");
+  await fits("the booking page");
+  await page.getByRole("link", { name: "Sign up to book" }).click();
+  await page.getByRole("heading", { name: "Sign up to book a call" }).waitFor();
+  await fits("the sign-up page");
   await page.getByLabel("Your name").fill("Dale Pruitt");
+  await page.getByLabel("Your business").fill("Pruitt Farm Stand");
   await page.getByLabel("Your email").fill("dale@example.com");
-  await page.getByLabel("What would you like to talk about?").fill("A website for the farm stand");
-  await page.getByRole("button", { name: /^Book .*, 9:00 AM$/ }).first().click();
-  await page.getByText("You’re booked. We’ll talk then.").waitFor();
-  await assertAccessible(page, "a booked call's own page");
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await page.getByText("Check your email at dale@example.com.").waitFor();
+  await fits("the sign-up page after signing up");
+  const link = /https:\/\/hq\.example(\/portal\/accept\?\S+)/.exec(sent.find((one) => one.to === "dale@example.com")?.body ?? "")?.[1];
+  assert.ok(link);
+  await page.goto(t.origin + link);
+  await fits("choosing a password after signing up");
+  await page.getByLabel("Choose a password").fill((await import("../support/harness.ts")).PASSWORD);
+  await page.getByRole("button", { name: "Save and sign in" }).click();
+  await page.waitForURL((url) => url.pathname === "/portal/book");
+  await page.getByText("You’re signed in. Choose a time for your call.").waitFor();
+  await fits("booking in the portal after signing up");
+  await page.getByRole("button", { name: /9:00 AM$/ }).first().click();
+  await page.waitForURL((url) => url.pathname.startsWith("/portal"));
+  assert.equal(t.db.prepare("select count(*) as n from booking where name = 'Dale Pruitt' and status = 'booked'").get()?.["n"], 1);
   await page.emulateMedia({ colorScheme: "dark" });
-  await assertAccessible(page, "a booked call's own page in dark");
+  await assertAccessible(page, "the portal after booking, in dark");
 });
 
 test("the inquiry form on a phone: fits, is accessible, and thanks the sender", async () => {

@@ -218,6 +218,8 @@ export type PageContext = {
     home(): ReturnType<typeof portalHome>;
     project(id: string): ReturnType<typeof portalProject>;
     proposal(id: string): ReturnType<typeof portalProposal>;
+    /** Whether someone new can sign up to book a call. */
+    readonly signUpOpen: boolean;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
@@ -418,6 +420,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return client && parsed.ok ? portalProposal(portalDeps, client, parsed.value) : missing();
           },
+          signUpOpen: signUpOpen(),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
             const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
@@ -653,6 +656,14 @@ export async function createApp(config: AppConfig): Promise<App> {
     return session && user ? { organizationId: session.organizationId, clientUserId: session.clientUserId, name: user.name, email: user.email } : null;
   };
   const publicUrl = (config.publicUrl ?? "").replace(/\/$/, "");
+  /** Who a lead from the website belongs to: whoever takes calls, or else an admin. */
+  const leadOwner = (): Id | null => {
+    const host = services.booking.bookings.settings()?.hostId;
+    if (host && users.get(host)?.status === "active") return host;
+    return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
+  };
+  /** Anyone can sign up to book when booking for new people is on and HQ can email the confirm link. */
+  const signUpOpen = (): boolean => inviteMail !== null && services.booking.bookings.settings()?.publicOpen === true && (services.booking.bookings.settings()?.hours.length ?? 0) > 0;
   const inviteMail = email
     ? createNotify({
         send: email.send,
@@ -664,6 +675,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           "hq-reset": ({ name, link }: { name: string; link: string }) => ({
             subject: "Set a new password for Potomac HQ",
             body: `Hi ${name},\n\nAn administrator made you a link to set a new password for Potomac HQ. It works once, for a week:\n\n${link}\n\nPotomac Solutions`,
+          }),
+          "sign-up": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Confirm your email to book a call with Potomac Solutions",
+            body: `Hi ${name},\n\nThanks for signing up. Open this link to confirm your email and choose a password. It works once, for a week:\n\n${link}\n\nThen choose a time for your call. You can move or cancel it in your client portal.\n\nIf you didn't sign up, ignore this email and nothing happens.\n\nPotomac Solutions`,
+          }),
+          "sign-up-again": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Your Potomac Solutions client portal",
+            body: `Hi ${name},\n\nSomeone, probably you, tried to sign up with this email. You already have a client portal account. Sign in as usual, or open this link to choose a new password. It works once, for a week:\n\n${link}\n\nIf it wasn't you, ignore this email and nothing changes.\n\nPotomac Solutions`,
           }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
@@ -692,6 +711,18 @@ export async function createApp(config: AppConfig): Promise<App> {
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
+      ...(inviteMail
+        ? {
+            signUp: {
+              open: signUpOpen,
+              ownerFor: leadOwner,
+              publicUrl,
+              mail: async (to, link, kind) => "ok" in (await inviteMail.notify({ email: to.email }, kind === "reset" ? "sign-up-again" : "sign-up", { name: to.name, link })),
+              allowPerAddress: sqliteRateLimit(db, { name: "sign-up-address", max: 5, windowMs: 60 * 60_000 }),
+              allowPerEmail: sqliteRateLimit(db, { name: "sign-up-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+            },
+          }
+        : {}),
     }),
   );
   forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
@@ -741,11 +772,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     "/",
     inquiryRoutes({
       crm: services.crm,
-      ownerFor: () => {
-        const host = services.booking.bookings.settings()?.hostId;
-        if (host && users.get(host)?.status === "active") return host;
-        return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
-      },
+      ownerFor: leadOwner,
       sign: (location) => notices.sign(location),
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
@@ -764,9 +791,6 @@ export async function createApp(config: AppConfig): Promise<App> {
     booking: services.booking,
     emails: bookingEmails,
     sign: (location) => notices.sign(location),
-    addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-    allowPerAddress: sqliteRateLimit(db, { name: "booking-address", max: 5, windowMs: 60 * 60_000 }),
-    allowPerEmail: sqliteRateLimit(db, { name: "booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));

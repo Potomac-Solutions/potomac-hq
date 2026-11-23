@@ -126,6 +126,10 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **New people booking a call.** Turn on "Anyone can sign up at /book" on
+  the Hours page (it needs email set up), and link your website to /book.
+  People sign up, confirm their email, and book in their own portal. Each
+  one shows up in the pipeline as "Signed up to book a call".
 - **Your availability.** Under Calls → Usual week, paint the half hours
   you're free for calls: press and drag across the grid. For one week that's
   different, Calls → Availability this week: paint over it. Busy times from

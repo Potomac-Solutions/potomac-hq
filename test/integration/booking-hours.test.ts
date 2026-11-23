@@ -49,7 +49,7 @@ test("hours are checked, saved, and make open times", async () => {
   assert.equal(view.open, true);
   assert.equal(view.callMinutes, 60);
   assert.ok(view.days.length >= 14, "two weeks of days");
-  assert.equal((await openTimes(services, "portal")).open, false, "the portal is still off");
+  assert.equal((await openTimes(services, "portal")).open, true, "sign-up to book is on, so anyone with an account can book in the portal");
 });
 
 test("a day off takes its times away, and can be opened again", async () => {
