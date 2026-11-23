@@ -126,6 +126,9 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **On your phone.** HQ works on a phone. From Today, tap "Log a call" on a
+  follow-up; the opportunity page has the contact's number as a tap to call,
+  and the call log right below it.
 - **The morning email.** The same list arrives at 7 each morning, so the day
   starts with it. Turn it off in Settings if you'd rather not.
 - **To-dos.** Anything you need to remember to do: "renew the business

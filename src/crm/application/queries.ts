@@ -76,6 +76,10 @@ export type OpportunityDetailView = {
   };
   readonly client: { readonly id: string; readonly name: string };
   readonly contactName: string;
+  /** Whether the contact is the client's primary one, shown because none was chosen. */
+  readonly contactIsPrimary: boolean;
+  readonly contactPhone: string;
+  readonly contactEmail: string;
   readonly ownerName: string;
   readonly nextStage: string;
   readonly nextStageLabel: string;
@@ -179,7 +183,8 @@ export function opportunityDetail(deps: CrmDeps, actorId: Id | null, opportunity
   const opportunity = deps.opportunities.get(opportunityId);
   if (!opportunity) return err("not-found");
   const client = deps.clients.get(opportunity.organizationId);
-  const contact = opportunity.contactId ? deps.contacts.get(opportunity.contactId) : null;
+  // With no contact chosen, the client's primary contact is who to call.
+  const contact = opportunity.contactId ? deps.contacts.get(opportunity.contactId) : (deps.contacts.listFor(opportunity.organizationId).find((one) => one.isPrimary) ?? null);
   const owner = deps.users.accessFor(opportunity.ownerId);
   const project = deps.projects.byOpportunity(opportunityId);
   const viewValue = may(deps, actorId, "opportunity.view-value");
@@ -204,6 +209,9 @@ export function opportunityDetail(deps: CrmDeps, actorId: Id | null, opportunity
     },
     client: { id: opportunity.organizationId, name: client?.name ?? "" },
     contactName: contact?.name ?? "",
+    contactIsPrimary: contact !== null && opportunity.contactId === null,
+    contactPhone: contact?.phone ?? "",
+    contactEmail: contact?.email ?? "",
     ownerName: owner?.user.name ?? "",
     nextStage: next ?? "",
     nextStageLabel: next ? (STAGE_LABELS[next] ?? next) : "",

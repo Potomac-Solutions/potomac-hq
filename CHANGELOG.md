@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- On a phone: every staff page now fits a 360px screen. Wide tables scroll
+  inside their panel instead of widening the page, long names and email
+  addresses wrap, and a client's contacts stack instead of squeezing into
+  columns. Phone numbers on clients and opportunities are a tap to call.
+  An opportunity shows its contact (the client's primary contact when none
+  was chosen) with phone and email, and its call log and to-dos come right
+  after "Where it stands", so logging a call is near the top.
+
 - Going cold: an open opportunity with no follow-up set and no contact with
   its client for 14 days shows on Today, quietest first, with a button to log
   a call, and is flagged on its own page. Any call, email, text or meeting
