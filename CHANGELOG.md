@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Profit and loss, under Money: each month of a year, what was invoiced,
+  received and spent, and received less spent, with the year's totals and
+  what the money went on. Earlier years too, and a CSV of every month,
+  which the finance sheet copy also gets. A management view on a cash
+  basis, not the books.
+
 - An inquiry form at /contact, and for a form on Potomac's website (sites
   listed in HQ_FORM_ORIGINS may post to it and be sent back). Each inquiry
   becomes a new opportunity from the website, at a new client with its

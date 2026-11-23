@@ -121,6 +121,8 @@ one only if you were expecting it.
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.
+- **Profit and loss.** Money → Profit and loss by month: money received
+  against money spent, a year at a time, with a CSV.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 

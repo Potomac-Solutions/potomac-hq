@@ -14,7 +14,7 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { financeOverview, hoursThisWeek, invoiceDetail, invoiceReminders, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { financeOverview, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
@@ -181,6 +181,7 @@ export type PageContext = {
     reminders(): { readonly on: boolean; readonly canEdit: boolean; readonly email: boolean };
     invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
     recurring(): ReturnType<typeof recurringOverview>;
+    profit(year: string | null): ReturnType<typeof profitAndLoss>;
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
@@ -465,6 +466,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           reminders: () => ({ on: services.invoiceReminders.reminders.on(), canEdit: actor !== null && authorize(sessionDeps, actor, "finance.edit").ok, email: Boolean(config.email) }),
           invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
           recurring: () => recurringOverview(financeDeps, actor),
+          profit: (year) => profitAndLoss(financeDeps, actor, year),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
           overBudget: () => projectsOverBudget(financeDeps, actor),

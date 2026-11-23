@@ -1,0 +1,55 @@
+<!--
+  Profit and loss by month for a year, on a cash basis: payments received
+  against expenses, with what was invoiced alongside. A management view,
+  not the books.
+-->
+<script>
+  'use route /money/profit'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.money.profit(url.searchParams.get('year'))
+    if (!view.ok) return context.forbidden()
+    return { title: 'Profit and loss, ' + view.value.year, view: view.value }
+  }
+</script>
+<style>
+  .profit-years { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .profit-years a[aria-current] { font-weight: 700; text-decoration: none; }
+  .profit-negative { color: var(--destructive); }
+  .hq-table tfoot td, .hq-table tfoot th { font-weight: 700; border-top: 2px solid var(--border); }
+</style>
+<hq-profit view={{ months: [], totals: {}, byCategory: [], years: [] }}>
+  <div class="hq-page">
+    <h1>Profit and loss, {view.year}</h1>
+    <p class="hq-muted">Money received against money spent, by the day each happened, with what was invoiced alongside. A management view: the finance sheet is the book of record. <a href="/money">Back to Money</a></p>
+    <nav zb-if={view.years.length > 1} aria-label="Years">
+      <ul class="profit-years">
+        <zb-each items={view.years} as="year" key={year}><li><a href="/money/profit?year={year}" aria-current={year === view.year ? 'page' : null}>{year}</a></li></zb-each>
+      </ul>
+    </nav>
+    <section class="hq-panel" aria-labelledby="profit-months">
+      <h2 id="profit-months">By month</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Month</th><th scope="col" class="hq-number">Invoiced</th><th scope="col" class="hq-number">Received</th><th scope="col" class="hq-number">Spent</th><th scope="col" class="hq-number">Received less spent</th></tr></thead>
+        <tbody>
+          <zb-each items={view.months} as="row" key={row.month}>
+            <tr><th scope="row">{row.label}</th><td class="hq-number">{row.invoiced}</td><td class="hq-number">{row.received}</td><td class="hq-number">{row.spent}</td><td class={row.negative ? 'hq-number profit-negative' : 'hq-number'}>{row.net}</td></tr>
+          </zb-each>
+        </tbody>
+        <tfoot><tr><th scope="row">{view.year}</th><td class="hq-number">{view.totals.invoiced}</td><td class="hq-number">{view.totals.received}</td><td class="hq-number">{view.totals.spent}</td><td class={view.totals.negative ? 'hq-number profit-negative' : 'hq-number'}>{view.totals.net}</td></tr></tfoot>
+      </table>
+      <p zb-if={view.canExport} data-spaced><a href="/exports/profit.csv">Download every month as CSV</a></p>
+    </section>
+    <section zb-if={view.byCategory.length > 0} class="hq-panel" aria-labelledby="profit-spent">
+      <h2 id="profit-spent">What the money went on</h2>
+      <table class="hq-table">
+        <thead><tr><th scope="col">Category</th><th scope="col" class="hq-number">Spent</th><th scope="col" class="hq-number">Share</th></tr></thead>
+        <tbody>
+          <zb-each items={view.byCategory} as="one" key={one.label}><tr><th scope="row">{one.label}</th><td class="hq-number">{one.amount}</td><td class="hq-number">{one.share}</td></tr></zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-profit>
