@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Going cold: an open opportunity with no follow-up set and no contact with
+  its client for 14 days shows on Today, quietest first, with a button to log
+  a call, and is flagged on its own page. Any call, email, text or meeting
+  with the client, or a change to the opportunity, warms it; so does setting
+  a follow-up.
+
 ## [0.11.0] - 2026-11-22
 
 - The morning email: at 7 each morning, everyone gets their Today list by

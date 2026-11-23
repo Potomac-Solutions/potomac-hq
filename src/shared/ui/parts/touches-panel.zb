@@ -11,10 +11,11 @@
   .touch-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; align-items: end; }
   .touch-form .touch-note { grid-column: 1 / -1; }
 </style>
-<touches-panel touches={{ items: [], canLog: false, kinds: [], outcomes: [], contacts: [], last: "" }} action="" follow-up={false}>
+<touches-panel touches={{ items: [], canLog: false, kinds: [], outcomes: [], contacts: [], last: "", cold: "" }} action="" follow-up={false}>
   <section class="hq-panel" id="touches" aria-labelledby="touches-heading">
     <h2 id="touches-heading">Calls and messages</h2>
     <p class="hq-muted hq-small">{touches.last}</p>
+    <p zb-if={touches.cold} class="hq-cold"><span class="hq-tag due">Going cold</span> {touches.cold}</p>
     <details zb-if={touches.canLog} class="hq-more" open={touches.items.length === 0}>
       <summary>Log a call, email, text or meeting</summary>
       <form method="post" action={action} class="hq-form">

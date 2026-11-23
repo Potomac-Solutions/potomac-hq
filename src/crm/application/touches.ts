@@ -3,12 +3,13 @@
 // step: "left a voicemail, try again Thursday".
 import { newTouch, OUTCOME_LABELS, TOUCH_KIND_LABELS, touchLabel, type Touch, type TouchError, type TouchInput } from "../domain/touch.ts";
 import { setFollowUp } from "../domain/opportunity.ts";
+import { COLD_AFTER_DAYS, quietDays } from "../domain/cold.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { CrmDeps } from "./commands.ts";
 import type { TouchStore } from "./ports.ts";
 
-export type TouchDeps = CrmDeps & { readonly touches: TouchStore; readonly formatWhen: (instant: string) => string; readonly today: () => string };
+export type TouchDeps = CrmDeps & { readonly touches: TouchStore; readonly formatWhen: (instant: string) => string; readonly today: () => string; readonly timeZone: string };
 type Refused = "forbidden" | "not-found";
 const allowed = (deps: CrmDeps, actorId: Id | null, action: string): actorId is Id => actorId !== null && authorize(deps, actorId, action).ok;
 
@@ -55,6 +56,8 @@ export type TouchesView = {
   readonly outcomes: readonly { readonly value: string; readonly label: string }[];
   readonly contacts: readonly { readonly value: string; readonly label: string }[];
   readonly last: string;
+  /** On an opportunity going cold, why; otherwise empty. */
+  readonly cold: string;
 };
 
 function view(deps: TouchDeps, actorId: Id, organizationId: Id, touches: readonly Touch[], showOpportunity: boolean): TouchesView {
@@ -80,6 +83,7 @@ function view(deps: TouchDeps, actorId: Id, organizationId: Id, touches: readonl
     outcomes: Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
     contacts: contacts.map((one) => ({ value: one.id, label: one.name })),
     last: newest ? `Last touch ${deps.formatWhen(newest.happenedAt)}: ${touchLabel(newest).toLowerCase()}` : "No touches logged yet",
+    cold: "",
   };
 }
 
@@ -94,5 +98,28 @@ export function opportunityTouches(deps: TouchDeps, actorId: Id | null, opportun
   if (!allowed(deps, actorId, "opportunity.view")) return err("forbidden");
   const opportunity = deps.opportunities.get(opportunityId);
   if (!opportunity) return err("not-found");
-  return ok(view(deps, actorId, opportunity.organizationId, deps.touches.listForOpportunity(opportunityId, 50), false));
+  const cold = goingCold(deps, actorId).find((one) => one.id === opportunityId);
+  return ok({ ...view(deps, actorId, opportunity.organizationId, deps.touches.listForOpportunity(opportunityId, 50), false), cold: cold ? `Going cold: no contact in ${cold.days} days and no follow-up set. Log a call or set a follow-up.` : "" });
+}
+
+export type ColdLine = { readonly id: string; readonly title: string; readonly clientName: string; readonly organizationId: string; readonly days: number; readonly lastText: string };
+
+/**
+ * Open opportunities going cold: no follow-up set and no contact with the
+ * client for two weeks, the quietest first. Permission: `opportunity.view`;
+ * empty without it.
+ */
+export function goingCold(deps: TouchDeps, actorId: Id | null): readonly ColdLine[] {
+  if (!allowed(deps, actorId, "opportunity.view")) return [];
+  const today = deps.today();
+  const last = deps.touches.lastActiveByOpportunity();
+  const lines: ColdLine[] = [];
+  for (const one of deps.opportunities.listOpen()) {
+    const at = last.get(one.id);
+    if (!at) continue;
+    const days = quietDays(one, Temporal.Instant.from(at).toZonedDateTimeISO(deps.timeZone).toPlainDate().toString(), today, COLD_AFTER_DAYS);
+    if (days === null) continue;
+    lines.push({ id: one.id, title: one.title, clientName: one.clientName, organizationId: one.organizationId, days, lastText: `No contact in ${days} days and no follow-up set` });
+  }
+  return lines.sort((a, b) => b.days - a.days);
 }

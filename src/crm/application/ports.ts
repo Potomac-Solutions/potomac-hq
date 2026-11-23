@@ -43,4 +43,6 @@ export type TouchStore = {
   listForOpportunity(opportunityId: Id, limit: number): Touch[];
   /** The newest touch at each client, for showing how long since. */
   lastByClient(): ReadonlyMap<Id, string>;
+  /** Each open opportunity's last sign of life: the latest touch with its client, or its own last change, whichever is later. An instant. */
+  lastActiveByOpportunity(): ReadonlyMap<Id, string>;
 };
