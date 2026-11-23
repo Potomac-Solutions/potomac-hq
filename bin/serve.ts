@@ -77,8 +77,24 @@ const calendarConfig = calendarConfigFrom(process.env);
 const busyCalendar = calendarConfig ? googleBusyCalendar(calendarConfig) : null;
 console.log(busyCalendar ? `Booked calls avoid busy times in ${busyCalendar.name}.` : "Booked calls avoid HQ's own calls only: Google Calendar is not set up.");
 
+// The inquiry form: which other sites may post it, and where it is emailed.
+const formOrigins = (process.env["HQ_FORM_ORIGINS"] ?? "")
+  .split(",")
+  .map((one) => one.trim())
+  .filter(Boolean)
+  .map((one) => {
+    try {
+      return new URL(one).origin;
+    } catch {
+      throw new Error(`HQ_FORM_ORIGINS must be site addresses, like https://potomac.solutions. "${one}" is not.`);
+    }
+  });
+const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo || "";
+
 const app = await createApp({
   db,
+  formOrigins,
+  ...(inquiryEmail ? { inquiryEmail } : {}),
   ...(busyCalendar ? { busyCalendar } : {}),
   log,
   secure: process.env["HQ_SECURE"] === "true",

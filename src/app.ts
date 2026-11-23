@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -30,6 +30,7 @@ import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView 
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
+import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -63,6 +64,10 @@ export type AppConfig = {
   /** Signs the one-line messages shown after a redirect. */
   readonly noticeSecret: string;
   readonly log?: (message: string, error?: unknown) => void;
+  /** Other sites whose forms may post to /contact, like https://potomac.solutions. */
+  readonly formOrigins?: readonly string[];
+  /** Where a new inquiry is emailed. */
+  readonly inquiryEmail?: string;
   /** Times already taken in another calendar, such as Google Calendar. */
   readonly busyCalendar?: BusyCalendar;
   /** Sign-in attempts allowed per address per minute. */
@@ -142,6 +147,7 @@ export type PageContext = {
   forbidden(): Answer;
   readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
+    inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string): ReturnType<typeof listClients>;
     pipeline(): ReturnType<typeof pipeline>;
     clientDetail(id: string): ReturnType<typeof clientDetail>;
@@ -231,6 +237,7 @@ export type PageContext = {
     portalTimes(): Promise<OpenTimesView>;
     portalCalls(): readonly CallLine[];
     publicTimes(): Promise<OpenTimesView>;
+    publicOpen(): boolean;
     /** Whether email is set up, so the person who books is emailed. */
     readonly emails: boolean;
     /** A call booked from the public page, by its private link. */
@@ -415,6 +422,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         forbidden,
         dashboard: { recentActivity: () => recentActivity(dashboardDeps, actor), audit: (query) => auditHistory(services.audit, actor, query), refused: () => refusedAttempts(refusedDeps, actor) },
         crm: {
+          inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status) => listClients(crmDeps, actor, { status: status ?? "" }),
           pipeline: () => pipeline(crmDeps, actor, date),
           clientDetail: (id) => withId(id, (clientId) => clientDetail(crmDeps, actor, clientId)),
@@ -495,6 +503,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           portalTimes: () => (client ? openTimes(services.booking, "portal") : Promise.resolve({ open: false, callMinutes: 0, days: [], calendarFailed: false })),
           portalCalls: () => (client ? callsForClient(services.booking, client.organizationId) : []),
           publicTimes: () => openTimes(services.booking, "public"),
+          publicOpen: () => bookingOpen(services.booking, "public"),
           emails: Boolean(config.email),
           byLink: (token) => {
             const found = bookingByLink(services.booking, token);
@@ -672,6 +681,31 @@ export async function createApp(config: AppConfig): Promise<App> {
         log,
       }
     : null;
+  // The inquiry form, from /contact or Potomac's website.
+  const formOrigins = (config.formOrigins ?? []).map((one) => new URL(one).origin);
+  forms.route(
+    "/",
+    inquiryRoutes({
+      crm: services.crm,
+      ownerFor: () => {
+        const host = services.booking.bookings.settings()?.hostId;
+        if (host && users.get(host)?.status === "active") return host;
+        return users.list().find((one) => one.status === "active" && users.rolesOf(one.id).includes("admin"))?.id ?? null;
+      },
+      sign: (location) => notices.sign(location),
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+      returnOrigins: formOrigins,
+      notify: async (inquiry) => {
+        const to = config.inquiryEmail;
+        if (!email || !to) return;
+        const lines = [`${inquiry.name}${inquiry.business ? ` (${inquiry.business})` : ""} sent an inquiry${inquiry.known ? ". They're already in the CRM" : ""}.`, "", `${inquiry.email}${inquiry.phone ? ` · ${inquiry.phone}` : ""}`, "", inquiry.message, "", `In HQ: ${(config.publicUrl ?? email.publicUrl ?? "").replace(/\/$/, "")}/opportunities/${inquiry.opportunityId}`];
+        const sent = await email.send({ channel: "email", to, subject: `Inquiry from ${inquiry.business || inquiry.name}`, body: lines.join("\n") });
+        if (!("ok" in sent)) log("Inquiry: the email to Potomac could not be sent");
+      },
+    }),
+  );
   const publicBooking = bookingPublicRoutes({
     booking: services.booking,
     emails: bookingEmails,
@@ -707,6 +741,8 @@ export async function createApp(config: AppConfig): Promise<App> {
     const origin = req.headers.origin;
     if (!origin || origin === "null") return false;
     try {
+      // The inquiry form may also be posted from Potomac's own website.
+      if (formOrigins.includes(new URL(origin).origin) && new URL(req.url ?? "/", "http://hq.invalid").pathname === "/contact") return true;
       return new URL(origin).host === req.headers.host;
     } catch {
       return false;

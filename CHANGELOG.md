@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- An inquiry form at /contact, and for a form on Potomac's website (sites
+  listed in HQ_FORM_ORIGINS may post to it and be sent back). Each inquiry
+  becomes a new opportunity from the website, at a new client with its
+  contact, or at the client of someone already in the CRM, and is emailed
+  to HQ_INQUIRY_EMAIL (or the contact or alert address). Limited by address
+  and email, with a field that turns bots away.
+
 - Site monitoring: add a client's website on their page, and HQ checks it
   every five minutes. Two failed checks in a row mean it's down: the
   dashboard says so and the alert address gets one email, and another when

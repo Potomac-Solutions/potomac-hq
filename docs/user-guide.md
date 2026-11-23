@@ -118,6 +118,9 @@ one only if you were expecting it.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
+- **Inquiries.** The form at `/contact` (or on the website) puts each
+  inquiry in the pipeline as a new opportunity from the website, and emails
+  Potomac.
 - **Search**, in the top bar: type a name, an email, a phone number, an
   invoice number or a few words from a task, and press Enter.
 

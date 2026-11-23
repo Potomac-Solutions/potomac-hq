@@ -1,0 +1,36 @@
+<!--
+  The public inquiry form. What it sends becomes a new opportunity in the
+  CRM. Works with no scripts.
+-->
+<script>
+  'use route /contact'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    return { title: 'Contact Potomac Solutions', services: context.crm.inquiryServices(), booking: context.booking.publicOpen(), problem: context.notice.problem }
+  }
+</script>
+<style>
+  .contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+<hq-contact services={[]} booking={false} problem="">
+  <h1>Tell us what you need</h1>
+  <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+  <p>A website, an online store, help with what you have, or something you’re not sure about yet. We answer within two business days.<span zb-if={booking}> Or <a href="/book">book a call</a> now.</span></p>
+  <form method="post" action="/contact" class="hq-panel hq-form">
+    <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
+    <text-field label="Your email" name="email" type="email" autocomplete="email" required={true}></text-field>
+    <text-field label="A phone number" name="phone" type="tel" autocomplete="tel" description="If you’d rather we call"></text-field>
+    <text-field label="Your business" name="business" autocomplete="organization"></text-field>
+    <div class="hq-field">
+      <label for="contact-service">What it’s about (optional)</label>
+      <select id="contact-service" name="service">
+        <option value="">Not sure yet</option>
+        <zb-each items={services} as="service" key={service.value}><option value={service.value}>{service.label}</option></zb-each>
+      </select>
+    </div>
+    <text-field label="Your message" name="message" rows={5} required={true}></text-field>
+    <div class="contact-trap" aria-hidden="true"><label for="contact-website">Leave this empty</label><input id="contact-website" name="website" tabindex="-1" autocomplete="off"></div>
+    <div><button class="hq-button portal-big" type="submit">Send</button></div>
+  </form>
+</hq-contact>

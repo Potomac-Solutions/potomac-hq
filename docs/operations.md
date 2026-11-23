@@ -213,6 +213,32 @@ HQ only ever asks Google whether a time is busy: it never sees what an event
 is. If Google can't be reached, the booking pages offer no times and say to
 try again in a minute, rather than offer a time that might be taken.
 
+## The inquiry form
+
+`HQ_PUBLIC_URL/contact` takes inquiries from anyone, into the CRM as new
+opportunities from the website. Each is emailed to `HQ_INQUIRY_EMAIL`, or
+`HQ_CONTACT_EMAIL`, or `HQ_ALERT_EMAIL`.
+
+To put the form on potomac.solutions itself, list the site in
+`HQ_FORM_ORIGINS` (like `https://potomac.solutions`) and post a plain form:
+
+```html
+<form method="post" action="https://HQ_PUBLIC_URL/contact">
+  <input name="name" required> <input name="email" type="email" required>
+  <input name="phone" type="tel"> <input name="business">
+  <textarea name="message" required></textarea>
+  <input name="return_to" type="hidden" value="https://potomac.solutions/thanks">
+  <!-- For bots: hide it with CSS, never fill it in. -->
+  <input name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-10000px">
+  <button>Send</button>
+</form>
+```
+
+`return_to` must be on a listed site; HQ sends people back there with
+`?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
+posts from those sites. Five an hour from one address, three a day for one
+email.
+
 ## Dependency updates
 
 Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:

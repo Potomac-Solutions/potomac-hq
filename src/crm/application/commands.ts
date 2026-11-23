@@ -3,6 +3,7 @@
 import { activateOnWin, changeClientStatus, newClient, type Client, type ClientError, type ClientInput } from "../domain/client.ts";
 import { newContact, type Contact, type ContactError, type ContactInput } from "../domain/contact.ts";
 import {
+  isService,
   moveStage,
   newOpportunity,
   setFollowUp,
@@ -212,5 +213,60 @@ export function convertOpportunity(deps: CrmDeps, actorId: Id | null, opportunit
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
     return applyConversion(deps, actorId, opportunity);
+  });
+}
+
+// ── Inquiries from the website ───────────────────────────────────────────
+
+export type InquiryInput = { readonly name: string; readonly email: string; readonly phone?: string | null; readonly business?: string | null; readonly message: string; readonly service?: string | null };
+export type InquiryError = "name-missing" | "name-too-long" | "email-invalid" | "phone-invalid" | "business-too-long" | "message-missing" | "message-too-long" | "invalid-service";
+
+/**
+ * Someone filled in the inquiry form: anyone on the internet, so no
+ * permission, and HQ is the actor. Someone already in the CRM by email gets
+ * a new opportunity at their client; anyone else becomes a new client and
+ * its primary contact. The opportunity is new, from the website, owned by
+ * `ownerId`, with what they wrote as its summary.
+ */
+export function recordInquiry(deps: CrmDeps, ownerId: Id, input: InquiryInput): Result<{ readonly clientId: Id; readonly opportunityId: Id; readonly known: boolean }, InquiryError> {
+  const name = input.name.trim().replace(/\s+/g, " ");
+  if (!name) return err("name-missing");
+  if (name.length > 100) return err("name-too-long");
+  const email = input.email.trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("email-invalid");
+  const business = (input.business ?? "").trim().replace(/\s+/g, " ");
+  if (business.length > 120) return err("business-too-long");
+  const message = input.message.trim();
+  if (!message) return err("message-missing");
+  if (message.length > 2000) return err("message-too-long");
+  const service = (input.service ?? "").trim();
+  if (service && !isService(service)) return err("invalid-service");
+  const phone = (input.phone ?? "").trim();
+  return deps.transact(() => {
+    const at = deps.clock();
+    const known = deps.contacts.byEmail(email);
+    let clientId: Id;
+    let contactId: Id;
+    if (known) {
+      clientId = known.organizationId;
+      contactId = known.id;
+    } else {
+      const client = newClient(deps.newId(), { name: business || name, sizeTier: "small" });
+      if (!client.ok) return err("business-too-long");
+      deps.clients.insert(client.value, at);
+      recordActivity(deps, { actorId: null, action: "client.created", recordType: "client-organization", recordId: client.value.id, context: { name: client.value.name, from: "inquiry" } });
+      const contact = newContact(deps.newId(), client.value.id, { name, email, phone: phone || null, isPrimary: true });
+      if (!contact.ok) return err(contact.error === "invalid-phone" ? "phone-invalid" : "email-invalid");
+      deps.contacts.insert(contact.value, at);
+      recordActivity(deps, { actorId: null, action: "contact.created", recordType: "contact", recordId: contact.value.id, context: { clientId: client.value.id, primary: true } });
+      clientId = client.value.id;
+      contactId = contact.value.id;
+    }
+    const first = message.split(/[.!?\n]/)[0]?.trim().slice(0, 80) || "Website inquiry";
+    const made = newOpportunity({ id: deps.newId(), organizationId: clientId, ownerId }, { title: `Inquiry: ${first}`, leadSource: "website", service: service || null, contactId, summary: message.slice(0, 2000) });
+    if (!made.ok) return err("message-too-long");
+    deps.opportunities.insert(made.value, at);
+    recordActivity(deps, { actorId: null, action: "opportunity.inquiry-received", recordType: "opportunity", recordId: made.value.id, context: { clientId, known: known !== null } });
+    return ok({ clientId, opportunityId: made.value.id, known: known !== null });
   });
 }
