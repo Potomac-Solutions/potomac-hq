@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Today: one list of what wants doing today, in the order to work it. Calls
+  booked for today first, then what clients are waiting on, sites that are
+  down, anything overdue, then today's follow-ups, to-dos and project
+  deadlines, and renewals in the next week. Tick off to-dos in place, add one
+  for today, and see what you've done. Today is in the top bar; To-dos is
+  reached from it.
+
 - To-dos: add one for yourself or anyone, due on a day or whenever, about a
   client or one of its opportunities. A To-dos page lists yours (or
   everyone's) as overdue, today, coming up and whenever, with what you ticked

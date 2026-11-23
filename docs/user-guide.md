@@ -118,6 +118,11 @@ one only if you were expecting it.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
+- **Today.** Start the day here. It's one list, in order: booked calls, what
+  clients are waiting on, down sites, anything overdue, then today's
+  follow-ups, to-dos and deadlines, and renewals this week. Work down it.
+  For a follow-up, "Log a call" opens the opportunity where you log it and
+  set the next one.
 - **To-dos.** Anything you need to remember to do: "renew the business
   license", "send Rita the quote". Give it a day or leave it for whenever,
   give it to someone else, and add it from a client or an opportunity to tie

@@ -19,12 +19,12 @@
 
   const links = [
     { label: 'Dashboard', href: '/', current: route.path === '/' },
+    { label: 'Today', href: '/today', current: route.path === '/today' || route.path === '/todos' },
     { label: 'Pipeline', href: '/pipeline', current: route.path === '/pipeline' || route.path.startsWith('/opportunities') },
     { label: 'Clients', href: '/clients', current: route.path.startsWith('/clients') },
     ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: route.path.startsWith('/proposals') }] : []),
     // The board is part of Projects: it is linked from the Projects page and the dashboard.
     { label: 'Projects', href: '/projects', current: route.path.startsWith('/projects') || route.path.startsWith('/tasks') || route.path === '/board' },
-    ...(can.todos ? [{ label: 'To-dos', href: '/todos', current: route.path === '/todos' }] : []),
     ...(can.time ? [{ label: 'Time', href: '/time', current: route.path === '/time' }] : []),
     ...(can.money ? [{ label: 'Money', href: '/money', current: route.path === '/money' }] : []),
     ...(can.reports ? [{ label: 'Reports', href: '/reports', current: route.path === '/reports' }] : []),
