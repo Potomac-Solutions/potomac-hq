@@ -12,7 +12,7 @@ import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapt
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
-import { sqliteReferralStore } from "./referrals/adapters.ts";
+import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
@@ -180,7 +180,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today, timeZone: BUSINESS_TIME_ZONE };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
-  const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
+  const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), qr: symbologyQr, opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;

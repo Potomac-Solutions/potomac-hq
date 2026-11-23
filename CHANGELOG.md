@@ -16,7 +16,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   A scan keeps a time and nothing about the person. Link previews and
   crawlers are not counted. For managers and admins (`referral.manage`).
   The inquiry form takes a `ref` field: add it to the website's form
-  (`docs/operations.md`). Migration 0034.
+  (`docs/operations.md`). QR codes are drawn by
+  `@journey-to-code/symbology` 0.2.0, a new dependency. Migration 0034.
 
 ## [0.13.0] - 2026-11-23
 

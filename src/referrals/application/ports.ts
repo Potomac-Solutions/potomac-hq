@@ -10,6 +10,12 @@ export type LinkCounts = {
   readonly inquiries: readonly { readonly opportunityId: Id; readonly at: string }[];
 };
 
+/**
+ * A QR code holding `text`, as an SVG picture named `title` for screen
+ * readers. Null when the text is too long for one.
+ */
+export type QrMaker = (text: string, title: string) => string | null;
+
 export type ReferralStore = {
   insert(link: ReferralLink, at: string): void;
   save(link: ReferralLink, at: string): void;

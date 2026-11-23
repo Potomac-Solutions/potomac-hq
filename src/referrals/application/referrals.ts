@@ -4,8 +4,8 @@
 // on the internet, so following a link needs no permission.
 import { cleanCode, codeFrom, editedLink, isAutomated, landingFor, newLink, successRate, type LinkError, type ReferralLink } from "../domain/link.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
-import { err, ok, qrCode, qrSvg, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { ReferralStore } from "./ports.ts";
+import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
+import type { QrMaker, ReferralStore } from "./ports.ts";
 
 export type ReferralsDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
@@ -14,6 +14,8 @@ export type ReferralsDeps = ActivityDeps & {
   /** An opportunity's title, for the list of inquiries. Null when it is gone. */
   readonly opportunityTitle: (id: Id) => string | null;
   readonly formatWhen: (instant: string) => string;
+  /** Draws a link's QR code. */
+  readonly qr: QrMaker;
   /** Random bytes, for a code nobody chose. */
   readonly random: (length: number) => Uint8Array;
 };
@@ -147,7 +149,7 @@ export function referralLinks(deps: ReferralsDeps, actorId: Id | null, publicUrl
       rate: successRate(counts.scans, counts.inquiries.length),
       inquiries: counts.inquiries.slice(0, 5).map((one) => ({ opportunityId: one.opportunityId, title: deps.opportunityTitle(one.opportunityId) ?? "An opportunity", when: deps.formatWhen(one.at) })),
       removable: counts.scans === 0 && counts.inquiries.length === 0,
-      scannable: publicUrl !== "" && qrCode(address) !== null,
+      scannable: publicUrl !== "" && deps.qr(address, link.label) !== null,
     };
   });
   return ok({ links, totalScans: links.reduce((sum, one) => sum + one.scans, 0), totalInquiries: links.reduce((sum, one) => sum + one.inquiryCount, 0), publicUrlSet: publicUrl !== "" });
@@ -157,7 +159,7 @@ export function referralLinks(deps: ReferralsDeps, actorId: Id | null, publicUrl
 export function referralQr(deps: ReferralsDeps, actorId: Id | null, id: Id, publicUrl: string): Result<{ readonly svg: string; readonly fileName: string }, Refused> {
   if (!allowed(deps, actorId)) return err("forbidden");
   const link = deps.links.get(id);
-  const code = link && publicUrl !== "" ? qrCode(addressOf(publicUrl, link.code)) : null;
-  if (!link || !code) return err("not-found");
-  return ok({ svg: qrSvg(code, `QR code for ${link.label}`), fileName: `qr-${link.code}.svg` });
+  const svg = link && publicUrl !== "" ? deps.qr(addressOf(publicUrl, link.code), `QR code for ${link.label}`) : null;
+  if (!link || !svg) return err("not-found");
+  return ok({ svg, fileName: `qr-${link.code}.svg` });
 }

@@ -197,6 +197,11 @@ link, once.
   ignored. **Only inquiries are credited**: a call booked at `/book`, or a
   phone call, is not.
 - The success rate is inquiries over scans.
+- **QR codes are drawn by symbology** (`@journey-to-code/symbology`, pinned
+  to an exact version), behind a `QrMaker` port with one adapter. Its Rust
+  encoder ships as WebAssembly inside the package, so nothing is fetched.
+  Two-factor setup still draws its code with HQ's own
+  `src/shared/domain/qr.ts`; both are byte mode, level M, up to 213 bytes.
 - A destination is an https address or one of HQ's own pages. A link's
   code never changes, because it is printed; its label and destination
   can. A link that has been scanned cannot be removed.
