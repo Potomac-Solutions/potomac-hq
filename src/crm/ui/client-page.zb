@@ -15,10 +15,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), renewals: context.renewals.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/clients">Clients</a></p>
     <h1>{view.client.name}</h1>
@@ -118,6 +118,49 @@
         <div><button class="hq-button" type="submit">Open opportunity</button></div>
       </form>
     </section>
+    <section zb-if={renewals} class="hq-panel" id="renewals" aria-labelledby="client-renewals">
+      <h2 id="client-renewals">Renewals</h2>
+      <p zb-if={renewals.items.length === 0} class="hq-muted">Domains, hosting, certificates and licenses this client depends on. Each shows on the dashboard 30 days before it renews.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={renewals.items} as="one" key={one.id}>
+          <li>
+            <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <span zb-if={one.state === 'overdue'} class="hq-tag due">Overdue</span></p>
+            <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
+            <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <div zb-if={renewals.canEdit} class="hq-form-row">
+              <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
+              <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={renewals.canEdit} class="hq-more">
+        <summary>Add a renewal</summary>
+        <form method="post" action="/clients/{view.client.id}/renewals" class="hq-form">
+          <div class="hq-field">
+            <label for="renewal-kind">What it is</label>
+            <select id="renewal-kind" name="kind" required>
+              <zb-each items={renewals.kinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="What it’s called" name="name" required={true} description="Like feedstore.com, or Shared hosting"></text-field>
+          <text-field label="Bought from" name="provider" description="Like Cloudflare or Namecheap"></text-field>
+          <text-field label="Renews on" name="renewsOn" type="date" required={true}></text-field>
+          <div class="hq-field">
+            <label for="renewal-term">How often</label>
+            <select id="renewal-term" name="termMonths" required>
+              <zb-each items={renewals.terms} as="term" key={term.value}><option value={term.value} selected={term.value === '12'}>{term.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="What it costs us, in dollars" name="cost" inputmode="decimal"></text-field>
+          <text-field label="What we bill, in dollars" name="price" inputmode="decimal"></text-field>
+          <label class="hq-check"><input type="checkbox" name="autoRenews" value="1"> The provider renews it by itself</label>
+          <text-field label="Note" name="note" rows={2}></text-field>
+          <div><button class="hq-button" type="submit">Add renewal</button></div>
+        </form>
+      </details>
+    </section>
+
     <section zb-if={portal.canView} class="hq-panel" id="portal" aria-labelledby="client-portal">
       <h2 id="client-portal">Client portal</h2>
       <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.</p>

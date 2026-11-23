@@ -26,6 +26,8 @@ import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
+import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -206,6 +208,12 @@ export type PageContext = {
     pipeline(days: string): ReturnType<typeof pipelineReport>;
     projects(): ReturnType<typeof projectHealthReport>;
     budget(): ReturnType<typeof financeOverview>;
+  };
+  readonly renewals: {
+    all(): ReturnType<typeof allRenewals>;
+    /** A client's, or null when this person may not see them. */
+    forClient(id: string): ClientRenewalsView | null;
+    comingUp(): ReturnType<typeof renewalsComingUp>;
   };
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
@@ -453,6 +461,15 @@ export async function createApp(config: AppConfig): Promise<App> {
           projects: () => projectHealthReport(projectsDeps, actor),
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
+        renewals: {
+          all: () => allRenewals(services.renewals, actor),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientRenewals(services.renewals, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          comingUp: () => renewalsComingUp(services.renewals, actor),
+        },
         booking: {
           calls: () => callsView(services.booking, actor),
           setup: () => bookingSetup(services.booking, actor),
@@ -649,6 +666,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(

@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Renewals: each client's domains, hosting, SSL certificates, email and
+  licenses, with who they're bought from, when they renew and how often,
+  what they cost and what is billed, and whether they renew by themselves.
+  Overdue and next-30-days ones are on the dashboard; Renewals lists all
+  with a year's cost and billing. "Renewed" moves a date on a term.
+  Migration 0021.
+
 - Invoice reminders emailed to clients, off until turned on under Money:
   three days before a sent invoice is due, the day after, a week late and
   two weeks late, then no more. Each goes once, to the client's primary

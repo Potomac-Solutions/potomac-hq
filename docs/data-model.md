@@ -760,6 +760,18 @@ or left as a draft, days until due, and whether it is paused.
 - Events: `recurring-invoice.added`, `.paused`, `.resumed`, and the usual
   `invoice.created` and `invoice.sent`, by HQ (no actor).
 
+### Renewals
+
+Decided 2026-11-22 while Mikey was away. Needs his approval.
+
+`renewal`: a client, what it is (domain, hosting, SSL certificate, email,
+software license, other), a name, who it is bought from, the day it renews,
+how often (1 month to 10 years), what it costs Potomac and what Potomac
+bills (each optional), whether the provider renews it by itself, a note,
+and whether it is still kept. Seen with `client.view`, changed with
+`client.edit`. "Renewed" moves the date on one term from when it was due.
+Events: `renewal.added`, `renewal.renewed`, `renewal.retired`.
+
 ### Invoice reminders
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
