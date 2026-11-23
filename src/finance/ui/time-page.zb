@@ -63,7 +63,7 @@
       </p>
       <p><strong>{view.total}</strong> logged, {view.billable} of it billable. {view.week.from} to {view.week.to}.</p>
       <empty-state zb-if={view.entries.length === 0} heading="Nothing logged this week">Move a task to “Working on”, or log time above.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Project</th><th scope="col">Task</th><th zb-if={view.everyone} scope="col">Who</th><th scope="col" class="hq-number">Hours</th><th scope="col">Note</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>
           <zb-each items={view.entries} as="entry" key={entry.id}>

@@ -770,6 +770,23 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+### Change requests
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+`change_request`: a project, a number counted per project, a title, what it
+covers, its price (zero for no charge), extra hours, and its status: draft,
+sent, approved, declined or withdrawn. Who answered: a client user in the
+portal, or an HQ user recording an answer given by phone or email. Drafted,
+sent, withdrawn and recorded with `finance.edit`.
+
+Approving, in one transaction: the project's budget, where it has one, grows
+by the price and the hours (a project with no budget keeps none), and a
+priced change gets a draft invoice of kind "other", "Change N: title", for
+Potomac to check and send. Events: `change-request.drafted`, `.sent`,
+`.withdrawn`, `.approved`, `.declined`, `project.budget-raised-by-change`,
+`invoice.drafted-from-change`.
+
 ### Budget warnings
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.

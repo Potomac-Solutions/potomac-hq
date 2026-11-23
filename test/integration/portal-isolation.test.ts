@@ -22,7 +22,7 @@ let mikey: Id;
 let ann: Client; // client A: Mt. Storm Bakery
 let bob: Client; // client B: Gormania Feed
 
-type World = { clientId: Id; projectId: Id; sharedDeliverable: Id; sharedFile: Id; draftDeliverable: Id; draftFile: Id; sharedProposal: Id; privateProposal: Id; sentInvoice: Id; draftInvoice: Id };
+type World = { clientId: Id; projectId: Id; sharedDeliverable: Id; sharedFile: Id; draftDeliverable: Id; draftFile: Id; sharedProposal: Id; privateProposal: Id; sentInvoice: Id; draftInvoice: Id; sentChange: Id; draftChange: Id };
 let a: World;
 let b: World;
 
@@ -46,7 +46,10 @@ async function world(name: string, title: string): Promise<World> {
   unwrap(finance.sendInvoiceNow(s.finance, mikey, sent.id));
   const draftInvoice = unwrap(finance.createInvoice(s.finance, mikey, project.id, { kind: "balance", description: `${title} unsent balance`, amount: "1000" }));
   unwrap(portal.postProjectUpdate(s.portal, mikey, project.id, `${title}: the design is ready for you.`));
-  return { clientId: client.id, projectId: project.id, sharedDeliverable: shared.id, sharedFile: shared.fileId, draftDeliverable: draft.id, draftFile: draft.fileId, sharedProposal: proposal(true, "phase two"), privateProposal: proposal(false, "internal pricing"), sentInvoice: sent.id, draftInvoice: draftInvoice.id };
+  const sentChange = unwrap(finance.addChangeRequest(s.finance, mikey, project.id, { title: `${title} extra page`, amount: "300" }));
+  unwrap(finance.sendChangeRequest(s.finance, mikey, sentChange.id));
+  const draftChange = unwrap(finance.addChangeRequest(s.finance, mikey, project.id, { title: `${title} unsent change`, amount: "700" }));
+  return { sentChange: sentChange.id, draftChange: draftChange.id, clientId: client.id, projectId: project.id, sharedDeliverable: shared.id, sharedFile: shared.fileId, draftDeliverable: draft.id, draftFile: draft.fileId, sharedProposal: proposal(true, "phase two"), privateProposal: proposal(false, "internal pricing"), sentInvoice: sent.id, draftInvoice: draftInvoice.id };
 }
 
 before(async () => {
@@ -77,6 +80,8 @@ test("client A sees their own records, and not one word of client B's", async ()
   assert.match(project, /Bakery website design/);
   assert.match(project, /the design is ready for you/);
   assert.doesNotMatch(project, /secret draft/, "a draft deliverable is never mentioned");
+  assert.doesNotMatch(project, /unsent change/, "a draft change is never mentioned");
+  assert.match(project, /extra page/, "a sent change is");
   assert.doesNotMatch(project, B_WORDS);
 
   assert.equal((await ann.get(`/portal/files/${a.sharedFile}`)).status, 200);
@@ -111,6 +116,8 @@ test("client A cannot change anything of client B's: every portal form is refuse
     [`/portal/projects/${b.projectId}/messages`, { body: "Hello from the wrong client" }],
     [`/portal/deliverables/${b.sharedDeliverable}/decision`, { decision: "approved", projectId: b.projectId }],
     [`/portal/deliverables/${a.draftDeliverable}/decision`, { decision: "approved", projectId: a.projectId }],
+    [`/portal/changes/${b.sentChange}/decision`, { decision: "approve", projectId: b.projectId }],
+    [`/portal/changes/${a.draftChange}/decision`, { decision: "approve", projectId: a.projectId }],
     [`/portal/proposals/${b.sharedProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     [`/portal/proposals/${a.privateProposal}/answer`, { decision: "accepted", typedName: "Ann Baker" }],
     ["/portal/messages", { projectId: b.projectId, body: "Hello from the home page of the wrong client" }],

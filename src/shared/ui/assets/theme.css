@@ -106,9 +106,13 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
 .hq-links form { margin: 0; }
 .hq-facts dt { color: var(--muted-foreground); }
 .hq-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-/* On a phone, a table keeps its columns and scrolls sideways in its panel. */
+/* On a phone, a table keeps its columns and scrolls sideways inside its
+   panel. Each such table takes keyboard focus (tabindex="0"), so it can be
+   scrolled without a mouse. */
 @media (max-width: 40rem) {
   .hq-table { display: block; overflow-x: auto; }
+  .hq-table:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .hq-table .hq-number { white-space: nowrap; }
   /* A table of things that read without their headings, like contacts:
      each row becomes a short block instead. */
   .hq-table.hq-stack, .hq-stack tbody, .hq-stack tr, .hq-stack td { display: block; overflow: visible; }

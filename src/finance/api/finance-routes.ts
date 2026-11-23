@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import * as finance from "../application/commands.ts";
 import { exportFinance, invoiceDocument, type InvoiceDocument } from "../application/queries.ts";
 import * as reminders from "../application/reminders.ts";
+import * as changes from "../application/change-requests.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -82,6 +83,18 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
     });
     post("/invoices/:id/reminders", (actor, f, id) => reminders.setRemindersForInvoice(remindersDeps, actor, id as Id, f["off"] === "1"), { done: (_, id) => `${invoice(id)}#reminders`, back: (id) => invoice(id), message: "Saved." });
   }
+  post("/projects/:id/changes", (actor, f, id) => changes.addChangeRequest(deps.finance, actor, id as Id, { title: f["title"] ?? "", description: f["description"] ?? null, amount: f["amount"] ?? "", hours: f["hours"] ?? null }), {
+    done: (_, id) => `/projects/${id}/money#changes`,
+    back: (id) => `/projects/${id}/money#changes`,
+    message: "Change drafted. Send it when it’s right.",
+  });
+  post("/changes/:id/send", (actor, _f, id) => changes.sendChangeRequest(deps.finance, actor, id as Id), { done: (c) => `/projects/${c.projectId}/money#changes`, back: () => "/money", message: "Sent. It’s in the client’s portal, waiting for their answer." });
+  post("/changes/:id/withdraw", (actor, _f, id) => changes.withdrawChangeRequest(deps.finance, actor, id as Id), { done: (c) => `/projects/${c.projectId}/money#changes`, back: () => "/money", message: "Withdrawn." });
+  post("/changes/:id/decision", (actor, f, id) => changes.recordChangeDecision(deps.finance, actor, id as Id, { decision: f["decision"] ?? "", note: f["note"] ?? null }), {
+    done: (c) => `/projects/${c.projectId}/money#changes`,
+    back: () => "/money",
+    message: "Answer recorded.",
+  });
   post("/projects/:id/recurring", (actor, f, id) => finance.addRecurringInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "", every: f["every"] ?? "", firstOn: f["firstOn"] ?? "", endsOn: f["endsOn"] ?? null, autoSend: f["autoSend"] === "1", dueDays: f["dueDays"] ?? null }), {
     done: (_, id) => `${money(id)}#recurring`,
     back: (id) => `${money(id)}#recurring`,

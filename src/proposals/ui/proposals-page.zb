@@ -23,7 +23,7 @@
     <section class="hq-panel" aria-labelledby="proposal-list">
       <h2 id="proposal-list" class="sr-only">Proposal list</h2>
       <empty-state zb-if={view.proposals.length === 0} heading="No proposals yet">Start one from an opportunity’s page, once you know what the client needs.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Proposal</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
         <tbody>
           <zb-each items={view.proposals} as="proposal" key={proposal.id}>

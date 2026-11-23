@@ -3,13 +3,14 @@
 // message text, no file. Email is not private, and the portal is.
 
 /** Things a client did that Potomac wants to hear about. */
-export const CLIENT_ACTIONS = ["project.message-received", "file.received-from-client", "deliverable.approved", "deliverable.changes-requested", "proposal.accepted-in-portal", "proposal.declined-in-portal", "call.requested"] as const;
+export const CLIENT_ACTIONS = ["project.message-received", "file.received-from-client", "deliverable.approved", "deliverable.changes-requested", "proposal.accepted-in-portal", "proposal.declined-in-portal", "call.requested", "change-request.approved", "change-request.declined"] as const;
 
 /** Things Potomac did that leave something for the client to see or do. */
 export const FOR_CLIENT_ACTIONS: Readonly<Record<string, string>> = {
   "deliverable.shared": "Something for you to look at and approve",
   "proposal.shared": "A proposal to read and answer",
   "invoice.sent": "An invoice",
+  "change-request.sent": "A change to your project to approve or decline",
   "project.update-posted": "An update on your project",
   "call.confirmed": "An answer about the call you asked for",
   "call.declined": "An answer about the call you asked for",

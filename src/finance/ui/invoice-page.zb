@@ -53,7 +53,7 @@
 
     <section class="hq-panel" aria-labelledby="invoice-lines">
       <h2 id="invoice-lines">Lines</h2>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Description</th><th scope="col" class="hq-number">Amount</th></tr></thead>
         <tbody>
           <zb-each items={view.lines} as="line" key={line.key}><tr><td>{line.description}</td><td class="hq-number">{line.amount}</td></tr></zb-each>
@@ -70,7 +70,7 @@
     <section zb-if={!i.draft} class="hq-panel" aria-labelledby="invoice-payments">
       <h2 id="invoice-payments">Payments received</h2>
       <p zb-if={view.payments.length === 0} class="hq-muted">None yet.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">How</th><th scope="col">Reference</th><th scope="col" class="hq-number">Amount</th></tr></thead>
         <tbody>
           <zb-each items={view.payments} as="payment" key={payment.id}><tr><td>{payment.on}</td><td>{payment.methodLabel}</td><td>{payment.reference}</td><td class="hq-number">{payment.amount}</td></tr></zb-each>

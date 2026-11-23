@@ -79,7 +79,7 @@
     <section zb-if={view.can.viewOpportunities} class="hq-panel" aria-labelledby="client-opportunities">
       <h2 id="client-opportunities">Opportunities</h2>
       <empty-state zb-if={view.opportunities.length === 0} heading="No opportunities yet">Open one when they ask about work.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Title</th><th scope="col">Service</th><th scope="col">Stage</th><th scope="col">Follow-up</th><th scope="col">Price</th></tr></thead>
         <tbody>
           <zb-each items={view.opportunities} as="opportunity" key={opportunity.id}>
@@ -184,7 +184,7 @@
     <section zb-if={portal.canView} class="hq-panel" id="portal" aria-labelledby="client-portal">
       <h2 id="client-portal">Client portal</h2>
       <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Person</th><th scope="col">Email</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
           <zb-each items={portal.users} as="person" key={person.id}>

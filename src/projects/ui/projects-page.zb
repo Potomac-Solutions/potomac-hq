@@ -35,7 +35,7 @@
     <section class="hq-panel" aria-labelledby="projects-list">
       <h2 id="projects-list" class="sr-only">Projects</h2>
       <empty-state zb-if={view.projects.length === 0} heading={view.status ? "No projects with that status" : "No projects yet"}>A project starts when a won opportunity is turned into one.</empty-state>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Owner</th><th scope="col">Status</th><th scope="col">Going</th><th scope="col">Next milestone</th><th scope="col">Open tasks</th></tr></thead>
         <tbody>
           <zb-each items={view.projects} as="project" key={project.id}>

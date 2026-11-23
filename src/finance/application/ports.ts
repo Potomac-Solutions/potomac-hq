@@ -1,3 +1,4 @@
+import type { ChangeRequest } from "../domain/change-request.ts";
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
 import type { Invoice, Payment } from "../domain/invoice.ts";
@@ -95,3 +96,13 @@ export type ReminderStore = {
 
 /** Who at a client gets their invoices: the primary contact with an email, or else their portal users. */
 export type ClientEmails = (organizationId: Id) => readonly { readonly name: string; readonly email: string; readonly portal: boolean }[];
+
+export type ChangeRequestStore = {
+  /** The number the next change on this project takes. */
+  nextNumber(projectId: Id): number;
+  insert(change: ChangeRequest, at: string): void;
+  update(change: ChangeRequest, at: string): void;
+  get(id: Id): ChangeRequest | null;
+  /** A project's changes, newest first. */
+  listFor(projectId: Id): ChangeRequest[];
+};

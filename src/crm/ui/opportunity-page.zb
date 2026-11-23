@@ -99,7 +99,7 @@
     <section zb-if={proposals.canView} class="hq-panel" aria-labelledby="opportunity-proposals">
       <h2 id="opportunity-proposals">Proposals</h2>
       <p zb-if={proposals.items.length === 0} class="hq-muted">None yet.</p>
-      <table zb-else class="hq-table">
+      <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Proposal</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
         <tbody>
           <zb-each items={proposals.items} as="proposal" key={proposal.id}>

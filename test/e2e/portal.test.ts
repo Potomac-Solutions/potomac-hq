@@ -43,6 +43,8 @@ test("a client, from the invite to an accepted proposal", async () => {
   unwrap(proposals.setProposalShared(s.proposals, mikey, proposal.id, true));
   const invoice = unwrap(finance.createInvoice(s.finance, mikey, project.id, { kind: "deposit", description: "Deposit", amount: "500" }));
   unwrap(finance.sendInvoiceNow(s.finance, mikey, invoice.id));
+  const change = unwrap(finance.addChangeRequest(s.finance, mikey, project.id, { title: "A gallery page", description: "Twelve photos of past work.", amount: "300", hours: "6" }));
+  unwrap(finance.sendChangeRequest(s.finance, mikey, change.id));
 
   // Potomac invites Ann from the client's page and is shown her link.
   await staff.goto(`${t.origin}/clients/${client.id}`);
@@ -77,6 +79,8 @@ test("a client, from the invite to an accepted proposal", async () => {
   assert.equal((await download).suggestedFilename(), "design.pdf");
   await ann.getByRole("button", { name: "Approve: Home page design" }).click();
   await ann.getByText("Your decision is recorded.").waitFor();
+  await ann.getByRole("button", { name: "Approve change: A gallery page" }).click();
+  await ann.getByText("Your answer is recorded.").waitFor();
   await ann.getByLabel("Send a message, or ask for a change").fill("Looks great. When do we launch?");
   await ann.getByRole("button", { name: "Send message" }).click();
   await ann.getByText("Message sent to Potomac Solutions.").waitFor();

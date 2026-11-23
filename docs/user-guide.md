@@ -126,6 +126,11 @@ one only if you were expecting it.
 - **Going cold.** An open opportunity with no follow-up and no contact for
   two weeks shows on Today as going cold. Call them, or set a follow-up if
   you're waiting on them for a reason.
+- **Change requests.** When a client asks for something that wasn't in the
+  agreement, don't just do it. On the project's money page, draft a change
+  with its price and hours and send it. They approve it in the portal (or
+  tell you by phone, and you record it). Approving raises the budget and
+  drafts the invoice.
 - **Project links.** On a project, add where the work lives: the staging
   site, the designs, the code. Tick "Show it to the client" and it appears in
   their portal, so they always know where to look.

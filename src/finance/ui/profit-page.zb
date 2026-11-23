@@ -31,7 +31,7 @@
     </nav>
     <section class="hq-panel" aria-labelledby="profit-months">
       <h2 id="profit-months">By month</h2>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Month</th><th scope="col" class="hq-number">Invoiced</th><th scope="col" class="hq-number">Received</th><th scope="col" class="hq-number">Spent</th><th scope="col" class="hq-number">Received less spent</th></tr></thead>
         <tbody>
           <zb-each items={view.months} as="row" key={row.month}>
@@ -44,7 +44,7 @@
     </section>
     <section zb-if={view.byCategory.length > 0} class="hq-panel" aria-labelledby="profit-spent">
       <h2 id="profit-spent">What the money went on</h2>
-      <table class="hq-table">
+      <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Category</th><th scope="col" class="hq-number">Spent</th><th scope="col" class="hq-number">Share</th></tr></thead>
         <tbody>
           <zb-each items={view.byCategory} as="one" key={one.label}><tr><th scope="row">{one.label}</th><td class="hq-number">{one.amount}</td><td class="hq-number">{one.share}</td></tr></zb-each>

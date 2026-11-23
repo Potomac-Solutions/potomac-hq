@@ -48,7 +48,7 @@
       </zb-each>
       <section>
         <h2 id="version-estimate">Estimate</h2>
-        <table class="hq-table" aria-labelledby="version-estimate">
+        <table tabindex="0" class="hq-table" aria-labelledby="version-estimate">
           <thead><tr><th scope="col">Item</th><th scope="col" class="hq-number">Hours or quantity</th><th scope="col" class="hq-number">Rate</th><th scope="col" class="hq-number">Total</th></tr></thead>
           <tbody>
             <zb-each items={doc.lines} as="line" key={line.key}>

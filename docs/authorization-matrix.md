@@ -143,7 +143,7 @@ finance views need a permission a member does not hold by default.
 | See and remove everyone's time entries | `time.view-all` | Yes | Yes | No | No |
 | Record and remove expenses | `expense.edit` | Yes | Yes | No | No |
 | View budgets, costs, margins and payment status | `finance.view` | Yes | Yes | No | No |
-| Set a project's budget, hourly rate and payment status | `finance.edit` | Yes | Yes | No | No |
+| Set a project's budget, hourly rate and payment status; draft, send and withdraw change requests, and record a client's answer given by phone or email | `finance.edit` | Yes | Yes | No | No |
 | Export time, expenses and summaries as CSV | `finance.export` | Yes | Yes | No | No |
 | View invoices, their payments and the PDF | `invoice.view` | Yes | Yes | No | No (v0.6: own organization's sent invoices only) |
 | Draft, send and void an invoice | `invoice.edit` | Yes | Yes | No | No |
@@ -219,6 +219,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | See their organization's projects: status, health, milestones, the next one | The project belongs to their organization |
 | Download a deliverable's file | The deliverable is theirs and has been shared with the client |
 | Approve a deliverable, or ask for changes with a reason | It is shared and waiting for a decision |
+| See a change request's price and hours, and approve or decline it | It is on their project, was sent to them, and is waiting for an answer. Drafts and withdrawn ones are not shown |
 | Read the updates Potomac posted, and send a message back | On their own project. Internal notes are never shown |
 | Send a file, and download a file they sent | On their own active project. Checked like every upload, at most 20 a day for a project |
 | Read a proposal and download its PDF | It is theirs, it was sent, and Potomac turned on sharing for it |
