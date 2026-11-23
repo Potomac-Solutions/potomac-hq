@@ -28,6 +28,8 @@ import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, cal
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
+import { todoRoutes } from "./todos/api/todo-routes.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
@@ -191,7 +193,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -225,6 +227,12 @@ export type PageContext = {
     all(): ReturnType<typeof allSites>;
     forClient(id: string): SitesView | null;
     attention(): ReturnType<typeof sitesNeedingAttention>;
+  };
+  readonly todos: {
+    list(everyone: boolean): Result<TodosView, "forbidden">;
+    atClient(id: string): TodosPanel | null;
+    onOpportunity(id: string): TodosPanel | null;
+    due(): ReturnType<typeof todosDueFor>;
   };
   readonly renewals: {
     all(): ReturnType<typeof allRenewals>;
@@ -485,7 +493,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
           projects: () => projectHealthReport(projectsDeps, actor),
@@ -499,6 +507,20 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           attention: () => sitesNeedingAttention(services.monitor, actor),
+        },
+        todos: {
+          list: (everyone) => listTodos(services.todos, actor, { everyone }),
+          atClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? todosAt(services.todos, actor, { clientId: parsed.value }) : null;
+            return view?.ok ? view.value : null;
+          },
+          onOpportunity: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? todosAt(services.todos, actor, { opportunityId: parsed.value }) : null;
+            return view?.ok ? view.value : null;
+          },
+          due: () => todosDueFor(services.todos, actor),
         },
         renewals: {
           all: () => allRenewals(services.renewals, actor),
@@ -733,6 +755,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));

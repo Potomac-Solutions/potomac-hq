@@ -770,6 +770,16 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+### To-dos
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+`todo`: a title, an optional due day, whose it is, optionally a client and
+one of its opportunities, when it was done, and who added it. It uses the
+project task permissions: `task.view` to see and `task.edit` to add and tick
+off, so a member can give one to anyone. Done ones are kept. Events:
+`todo.added`, `todo.done`, `todo.reopened`.
+
 ### Site monitoring
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.

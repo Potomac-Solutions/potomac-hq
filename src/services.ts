@@ -14,6 +14,8 @@ import type { RenewalsDeps } from "./renewals/index.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
+import type { TodosDeps } from "./todos/index.ts";
+import { sqliteTodoStore } from "./todos/adapters.ts";
 import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
@@ -54,6 +56,7 @@ export type Services = {
   readonly renewals: RenewalsDeps;
   readonly monitor: MonitorDeps;
   readonly touches: TouchDeps;
+  readonly todos: TodosDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -137,6 +140,23 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     return users.map((one) => ({ name: one.name, email: one.email, portal: true }));
   };
   const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
+  const todos: TodosDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    todos: sqliteTodoStore(db),
+    crm: {
+      clientName: (id) => crm.clients.get(id)?.name ?? null,
+      opportunity: (id) => {
+        const found = crm.opportunities.get(id);
+        return found ? { organizationId: found.organizationId, title: found.title } : null;
+      },
+      clients: () => crm.clients.list().filter((one) => one.status !== "former").map((one) => ({ id: one.id, name: one.name })),
+    },
+  };
   const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
@@ -152,5 +172,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     formatWhen,
   };
-  return { booking, invoiceReminders, renewals, monitor, touches, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { booking, invoiceReminders, renewals, monitor, touches, todos, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
