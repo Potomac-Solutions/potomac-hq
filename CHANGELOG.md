@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Recurring invoices, for hosting, maintenance or a retainer: on a
+  project's Money page, an amount every month, three months or year, from a
+  first day, until a last day or until paused. Each morning HQ makes the
+  invoices whose day has come, as drafts or sent, naming their period
+  ("Hosting, January 2027"), and catches up on missed days once each. Money
+  shows what recurs in a month and a year. Migration 0019.
+
 ## [0.11.0] - 2026-11-22
 
 - Someone who booked from the public page goes into the CRM in one step,

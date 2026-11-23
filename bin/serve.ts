@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
-import { syncFinanceSheet } from "../src/finance/index.ts";
+import { runRecurringInvoices, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
@@ -120,6 +120,15 @@ console.log(sheetTarget ? `Finance records are copied each night to ${sheetTarge
 
 console.log(alertTo ? `Errors are emailed to ${alertTo}.` : "Error alerts are not set up. Errors are in the log only.");
 
+// Recurring invoices: every morning at 06:13 business time, and once now in
+// case the server was down at that hour. Each period's invoice is made once.
+const runRecurring = async () => {
+  const result = runRecurringInvoices(createServices(db).finance);
+  if (result.made > 0) console.log(`Recurring invoices: made ${result.made}, sent ${result.sent}.`);
+};
+void runRecurring().catch((error: unknown) => log("Recurring invoices: the run failed", error));
+const stopRecurring = scheduleDaily(runRecurring, { zone: BUSINESS_TIME_ZONE, hour: 6, minute: 13, clock: systemClock, log, name: "recurring invoices" });
+
 // Retention: every night at 04:07 business time (docs/retention-policy.md).
 const stopRetention = scheduleDaily(
   async () => {
@@ -204,6 +213,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopBackups?.();
     stopSheet?.();
     stopRetention();
+    stopRecurring();
     stopNotices?.();
     stopReminders?.();
     server.close(() => {

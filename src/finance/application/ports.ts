@@ -1,6 +1,7 @@
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
 import type { Invoice, Payment } from "../domain/invoice.ts";
+import type { RecurringInvoice } from "../domain/recurring.ts";
 import type { TimeEntry } from "../domain/time.ts";
 import type { Id } from "../../shared/index.ts";
 
@@ -65,4 +66,18 @@ export type InvoiceStore = {
   payments(invoiceId: Id): Payment[];
   /** Every payment with its invoice's number and names, oldest first. */
   allPayments(): (Payment & { readonly number: number; readonly projectName: string; readonly clientName: string })[];
+};
+
+export type RecurringStore = {
+  insert(recurring: RecurringInvoice, at: string): void;
+  update(recurring: RecurringInvoice, at: string): void;
+  get(id: Id): RecurringInvoice | null;
+  /** A project's, active first, then by next day. */
+  listForProject(projectId: Id): RecurringInvoice[];
+  /** Every active one, by next day. */
+  listActive(): RecurringInvoice[];
+  /** Active ones whose next day has come. */
+  due(today: string): RecurringInvoice[];
+  /** Marks an invoice as made by a recurring invoice. */
+  markInvoice(invoiceId: Id, recurringId: Id): void;
 };
