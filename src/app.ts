@@ -28,6 +28,8 @@ import { bookingByLink, bookingOpen, bookingSetup, callLine, callsForClient, cal
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
+import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/views.ts";
@@ -208,6 +210,11 @@ export type PageContext = {
     pipeline(days: string): ReturnType<typeof pipelineReport>;
     projects(): ReturnType<typeof projectHealthReport>;
     budget(): ReturnType<typeof financeOverview>;
+  };
+  readonly monitor: {
+    all(): ReturnType<typeof allSites>;
+    forClient(id: string): SitesView | null;
+    attention(): ReturnType<typeof sitesNeedingAttention>;
   };
   readonly renewals: {
     all(): ReturnType<typeof allRenewals>;
@@ -461,6 +468,15 @@ export async function createApp(config: AppConfig): Promise<App> {
           projects: () => projectHealthReport(projectsDeps, actor),
           budget: () => (authorize(sessionDeps, actor, "report.view").ok ? financeOverview(financeDeps, actor) : err("forbidden")),
         },
+        monitor: {
+          all: () => allSites(services.monitor, actor),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientSites(services.monitor, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          attention: () => sitesNeedingAttention(services.monitor, actor),
+        },
         renewals: {
           all: () => allRenewals(services.renewals, actor),
           forClient: (id) => {
@@ -666,6 +682,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", publicBooking);
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));

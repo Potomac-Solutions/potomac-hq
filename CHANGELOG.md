@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Site monitoring: add a client's website on their page, and HQ checks it
+  every five minutes. Two failed checks in a row mean it's down: the
+  dashboard says so and the alert address gets one email, and another when
+  it's back. Certificates are flagged two weeks before they run out. Sites
+  lists every one with its uptime over 30 days and recent outages. Only
+  public addresses are checked. Migration 0022.
+
 - Renewals: each client's domains, hosting, SSL certificates, email and
   licenses, with who they're bought from, when they renew and how often,
   what they cost and what is billed, and whether they renew by themselves.

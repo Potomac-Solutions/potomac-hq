@@ -30,12 +30,18 @@ test("add a domain on a client's page, and see it coming up", async () => {
   await page.getByLabel("What it costs us, in dollars").fill("10.44");
   await page.getByRole("button", { name: "Add renewal" }).click();
   await page.getByText("Added. It shows on the dashboard").waitFor();
-  await assertAccessible(page, "a client with a renewal");
+  await page.getByLabel("Website address").fill("feedstore.com");
+  await page.getByRole("button", { name: "Watch this site" }).click();
+  await page.getByText("Watching it.").waitFor();
+  await assertAccessible(page, "a client with a renewal and a site");
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await page.goto(`${t.origin}/renewals`);
     await page.getByRole("heading", { name: "In the next 30 days" }).waitFor();
     await assertAccessible(page, `renewals (${colorScheme})`);
+    await page.goto(`${t.origin}/sites`);
+    await page.getByRole("heading", { name: "1 watched, 1 not checked yet" }).waitFor();
+    await assertAccessible(page, `sites (${colorScheme})`);
     await page.goto(`${t.origin}/`);
     await page.getByRole("heading", { name: "Renewals in the next 30 days" }).waitFor();
     await assertAccessible(page, `the dashboard with a renewal (${colorScheme})`);
