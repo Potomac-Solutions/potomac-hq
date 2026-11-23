@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-23
+
 - Booking links. Booking a free call needs a portal account, unless you
   give someone a link. On Calls, make a link for a person (one call or any
   number; a week, a month, three months, or no end) and copy it. With it
@@ -28,8 +30,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   Addresses are read only on the public internet; a calendar's address and
   a Calendly token are never logged, and a client's are never kept.
   Migration 0031.
-
-## [0.12.0] - 2026-11-23
 
 - Passkeys for two-factor sign-in. In Settings, turn two-factor sign-in on
   with a passkey (your fingerprint, face or PIN, or a security key) instead
