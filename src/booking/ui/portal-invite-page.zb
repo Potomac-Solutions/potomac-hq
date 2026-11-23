@@ -8,6 +8,7 @@
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/parts/availability-grid.zb'
+  import '../../shared/ui/parts/fill-from.zb'
   export async function load({ context, params }) {
     const stop = context.portal.guard()
     if (stop) return stop
@@ -36,5 +37,10 @@
       <availability-grid grid={view.grid} legend="guest" caption={'Times you could do for ' + view.invite.title}></availability-grid>
       <p><button class="hq-button portal-big" type="submit">Save my times</button></p>
     </form>
+    <section zb-if={view.invite.status === 'open' && !view.calendarFailed && view.freeCount > 0} class="hq-panel" id="fill" aria-labelledby="fill-heading">
+      <h2 id="fill-heading">Or fill it in for me</h2>
+      <p class="hq-muted">Save marking by hand: bring your times over from your calendar, a Timeful event or Calendly. They replace what’s marked above, and you can change them after.</p>
+      <fill-from action={'/portal/invites/' + view.invite.id + '/fill'} prefix="guest" calendar={true} kept="Your calendar’s address isn’t kept, and we never see what your events are."></fill-from>
+    </section>
   </div>
 </hq-portal-invite>

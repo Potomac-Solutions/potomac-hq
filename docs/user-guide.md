@@ -144,6 +144,12 @@ one only if you were expecting it.
   you're free for calls: press and drag across the grid. For one week that's
   different, Calls → Availability this week: paint over it. Busy times from
   your calendar and calls already booked show underneath.
+- **Your calendars.** On the Hours page, under Your calendars, paste a
+  calendar's private address (Google: Settings → your calendar → "Secret
+  address in iCal format"). Its busy times are never offered for calls. Up
+  to five. Already keep free times in Timeful or Calendly? On Availability,
+  "Fill in from somewhere else" paints the next two weeks from them.
+  Clients answering an invite get the same three ways to fill it in.
 - **Change requests.** When a client asks for something that wasn't in the
   agreement, don't just do it. On the project's money page, draft a change
   with its price and hours and send it. They approve it in the portal (or

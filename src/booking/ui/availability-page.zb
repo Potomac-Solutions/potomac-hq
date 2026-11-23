@@ -7,6 +7,7 @@
   'use route /calls/availability'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/parts/availability-grid.zb'
+  import '../../shared/ui/parts/fill-from.zb'
   export async function load({ context, url }) {
     const stop = context.guard()
     if (stop) return stop
@@ -26,7 +27,7 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
       <alert-banner zb-if={view.calendarFailed} variant="warning">Your calendar couldn’t be read just now, so its busy times aren’t shown.</alert-banner>
     </div>
-    <p class="hq-muted">Paint over your <a href="/calls/hours#usual-week">usual week</a> for just this week. A day painted the same as usual goes back to usual. Times are Eastern.<span zb-if={view.calendar === 'none'}> Busy times from Google Calendar show here once it’s connected.</span></p>
+    <p class="hq-muted">Paint over your <a href="/calls/hours#usual-week">usual week</a> for just this week. A day painted the same as usual goes back to usual. Times are Eastern.<span zb-if={view.calendar === 'none'}> Busy times show here once you <a href="/calls/hours#calendars">link a calendar</a>.</span></p>
     <nav class="week-nav" aria-label="Weeks">
       <a href="/calls/availability?week={view.previous}">← Previous week</a>
       <a href="/calls/availability?week={view.thisWeek}">This week</a>
@@ -38,5 +39,10 @@
       <availability-grid grid={view} legend="hours" caption={'Free for calls, ' + view.label}></availability-grid>
       <p><button class="hq-button" type="submit">Save this week</button></p>
     </form>
+    <section class="hq-panel" id="fill" aria-labelledby="fill-heading">
+      <h2 id="fill-heading">Fill in from somewhere else</h2>
+      <p class="hq-muted">Already keep your free times in Timeful or Calendly? Bring over the next two weeks, then change anything that’s off. To keep calls off your busy times, <a href="/calls/hours#calendars">link your calendar</a> instead.</p>
+      <fill-from action="/calls/availability/fill" prefix="host"></fill-from>
+    </section>
   </div>
 </hq-availability>
