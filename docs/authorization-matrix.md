@@ -166,6 +166,14 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
 | Set the hours for booked calls, days off, and who can book; link calendars; paint days from Timeful or Calendly; make and withdraw booking links | `booking.manage` | Yes | Yes | No | No |
 | Make, change and remove referral links, and see their scans and inquiries | `referral.manage` | Yes | Yes | No | No |
+| Set a client's website up for editing, change its content, send a client's changes back, and publish them to the site | `site.publish` | Yes | Yes | No | No (see below) |
+
+A client user holds no permission key. Signed in to the portal, they may
+change the content of their own organization's website and send the changes
+in: the organization comes from their session and from nothing they send.
+Nothing they change reaches the site until someone with `site.publish`
+publishes it. The list of sites and what is waiting on each is seen with
+`client.view`.
 
 ### Platform (v1.0)
 

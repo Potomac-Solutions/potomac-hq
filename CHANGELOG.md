@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Clients change their own website. On a client's page, under Website
+  editing, say where their site's code lives on GitHub; HQ reads its
+  gallery, notice and reviews. In the portal, under "Your website", the
+  client adds, removes and reorders photos, changes their words, posts a
+  notice and adds reviews, then sends the changes in. Nothing reaches the
+  site until someone with the new `site.publish` permission (admins and
+  managers) publishes it under Delivery → Site content, or sends it back
+  with a note. Publishing is one commit to the site's repository; the site
+  rebuilds from it. Photos are shrunk in the browser before upload. Needs
+  `HQ_GITHUB_TOKEN` (`docs/operations.md`, "Site content"). The choices
+  are in `docs/decisions/0003-site-content.md`. Migration 0035.
+
 - Referral links. Under Sales → Referral links, make a short address for
   each thing you print (business cards, a flyer), choose where a scan goes,
   and download its QR code. HQ counts every scan, sends the person on, and

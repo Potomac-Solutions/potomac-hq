@@ -1,0 +1,46 @@
+<!--
+  Every client website set up for editing: those with changes a client sent
+  in first.
+-->
+<script>
+  'use route /websites'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.websites.all()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Site content', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .websites { list-style: none; margin: 0; padding: 0; }
+  .websites > li { display: grid; gap: 0.25rem; padding: 0.8rem 0; border-top: 1px solid var(--border); }
+  .websites > li:first-child { border-top: 0; }
+  .websites p { margin: 0; overflow-wrap: anywhere; }
+</style>
+<hq-websites view={{ sites: [], waiting: 0, githubSetUp: true }} done="" problem="">
+  <div class="hq-page">
+    <h1>Site content</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Clients change their own site’s photos, notice and reviews in their portal. Their changes wait here until you publish them. Set a site up on its client’s page.</p>
+    <alert-banner zb-if={!view.githubSetUp} variant="warning">HQ has no GitHub token, so sites can’t be set up or published. Set HQ_GITHUB_TOKEN on the server.</alert-banner>
+    <empty-state zb-if={view.sites.length === 0} heading="No sites set up yet">On a client’s page, under Website editing, say where their site’s code lives.</empty-state>
+    <section zb-else class="hq-panel" aria-labelledby="websites-all">
+      <h2 id="websites-all">{view.waiting === 0 ? 'Nothing to check' : view.waiting === 1 ? '1 site has changes to check' : view.waiting + ' sites have changes to check'}</h2>
+      <ul class="websites">
+        <zb-each items={view.sites} as="site" key={site.id}>
+          <li>
+            <p><strong><a href="/websites/{site.id}">{site.name}</a></strong> · <a href="/clients/{site.organizationId}#website">{site.clientName}</a> <status-badge variant={site.state === 'submitted' ? 'warning' : 'neutral'}>{site.stateLabel}</status-badge></p>
+            <p class="hq-small hq-muted">{site.detail} · {site.repo}</p>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-websites>

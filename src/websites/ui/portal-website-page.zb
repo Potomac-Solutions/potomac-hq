@@ -1,0 +1,51 @@
+<!--
+  A client's own website: its photos, notice and reviews, to change. Nothing
+  changed here is on the site until they send it and Potomac publishes it.
+-->
+<script>
+  'use route /portal/website'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import './site-editor.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = context.websites.mine()
+    if (!view) return notFound()
+    return { title: view.name, view, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .pw-changes { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+  .pw-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+  .pw-actions form { margin: 0; }
+</style>
+<hq-portal-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none' }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
+    <h1>{view.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" id="waiting" aria-labelledby="pw-waiting">
+      <h2 id="pw-waiting">{view.state === 'submitted' ? 'Sent to Potomac Solutions' : view.state === 'editing' ? 'Your changes aren’t on your website yet' : 'This is what’s on your website now'}</h2>
+      <p zb-if={view.state === 'none'} class="hq-muted">Change the photos, the notice or the reviews below. When you’re done, send your changes to Potomac Solutions. We check them and put them on your website, usually within a business day.</p>
+      <alert-banner zb-if={view.note} variant="warning" heading="Potomac Solutions asked for a change">{view.note}</alert-banner>
+      <p zb-if={view.state === 'submitted'}>{view.sent}. We’ll check your changes and put them on your website. If you change anything more, send it again.</p>
+      <div zb-if={view.changes.length > 0}>
+        <p zb-if={view.state === 'editing'}>What you’ve changed:</p>
+        <ul class="pw-changes">
+          <zb-each items={view.changes} as="change" key={change}><li>{change}</li></zb-each>
+        </ul>
+        <div class="pw-actions">
+          <form zb-if={view.state === 'editing'} method="post" action="/portal/website/submit"><button class="hq-button portal-big" type="submit">Send to Potomac Solutions</button></form>
+          <form method="post" action="/portal/website/discard"><button class="hq-button secondary portal-big" type="submit">Undo all my changes</button></form>
+        </div>
+      </div>
+    </section>
+
+    <site-editor view={view} base="/portal/website" photos="/portal/website/photos"></site-editor>
+  </div>
+</hq-portal-website>
