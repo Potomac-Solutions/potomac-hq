@@ -39,7 +39,7 @@
     "@zubra/router": "6.0.3",
     "@zubra/runtime": "6.0.3",
     "@zubra/server": "6.0.3",
-    "hono": "4.13.18"
+    "hono": "4.13.19"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
