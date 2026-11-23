@@ -1,0 +1,54 @@
+<!--
+  Every client's renewals: overdue first, then the next 30 days, then later.
+  What they cost Potomac and bring in, over a year.
+-->
+<script>
+  'use route /renewals'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.renewals.all()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Renewals', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .renewals { list-style: none; margin: 0; padding: 0; }
+  .renewals > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .renewals > li:first-child { border-top: 0; }
+  .renewals p { margin: 0; overflow-wrap: anywhere; }
+  .renewal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .renewal-actions form { margin: 0; }
+</style>
+<hq-renewals view={{ overdue: [], soon: [], later: [], canEdit: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Renewals</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Domains, hosting, certificates and licenses that run out on a date. Add them on each client’s page. Over a year they cost {view.yearlyCost} and are billed at {view.yearlyBilled}.</p>
+    <empty-state zb-if={view.overdue.length + view.soon.length + view.later.length === 0} heading="Nothing to renew yet">Add a client’s domain or hosting on the client’s page, under Renewals.</empty-state>
+    <zb-each items={[{ key: 'overdue', title: 'Overdue', items: view.overdue }, { key: 'soon', title: 'In the next 30 days', items: view.soon }, { key: 'later', title: 'Later', items: view.later }]} as="group" key={group.key}>
+      <section zb-if={group.items.length > 0} class="hq-panel" aria-labelledby="renewals-{group.key}">
+        <h2 id="renewals-{group.key}">{group.title}</h2>
+        <ul class="renewals">
+          <zb-each items={group.items} as="one" key={one.id}>
+            <li>
+              <div>
+                <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span></p>
+                <p class="hq-small"><a href="/clients/{one.organizationId}#renewals">{one.clientName}</a> · <time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span></p>
+                <p zb-if={one.cost || one.price} class="hq-small hq-muted">Costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</p>
+              </div>
+              <div zb-if={view.canEdit} class="renewal-actions">
+                <form method="post" action="/renewals/{one.id}/renewed"><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
+              </div>
+            </li>
+          </zb-each>
+        </ul>
+      </section>
+    </zb-each>
+  </div>
+</hq-renewals>

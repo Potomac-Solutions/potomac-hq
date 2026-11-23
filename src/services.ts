@@ -10,6 +10,8 @@ import { renderInvoicePdf, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoice
 import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, BusyCalendar } from "./booking/index.ts";
+import type { RenewalsDeps } from "./renewals/index.ts";
+import { sqliteRenewalStore } from "./renewals/adapters.ts";
 import { manageTokens, noBusyCalendar, sqliteBookingStore } from "./booking/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
@@ -47,6 +49,7 @@ export type Services = {
   readonly portal: PortalDeps;
   readonly booking: BookingDeps;
   readonly invoiceReminders: RemindersDeps;
+  readonly renewals: RenewalsDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -130,6 +133,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     return users.map((one) => ({ name: one.name, email: one.email, portal: true }));
   };
   const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
+  const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const booking: BookingDeps = {
     users,
     transact: sqliteTransact(db),
@@ -142,5 +146,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     formatWhen,
   };
-  return { booking, invoiceReminders, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { booking, invoiceReminders, renewals, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

@@ -18,6 +18,7 @@
 <hq-clients view={{ clients: [], canCreate: false, sizeTiers: [], statuses: [], status: "" }} done="" problem="">
   <div class="hq-page">
     <h1>Clients</h1>
+    <p><a href="/renewals">Renewals</a>: every client’s domains, hosting and licenses, by when they renew.</p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
