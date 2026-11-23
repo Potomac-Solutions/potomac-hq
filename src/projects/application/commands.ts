@@ -10,7 +10,8 @@ import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput 
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import type { BaselineStore, DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -18,6 +19,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly milestones: MilestoneStore;
   readonly tasks: TaskStore;
   readonly deliverables: DeliverableStore;
+  readonly links: ProjectLinkStore;
   readonly baselines: BaselineStore;
   readonly history: ProjectHistory;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -278,5 +280,30 @@ export function setDeliverableShared(deps: ProjectsDeps, actorId: Id | null, del
       context: { projectId: deliverable.projectId, title: deliverable.title },
     });
     return ok(changed.value);
+  });
+}
+
+/** Adds where some of the project's work can be seen. Permission: `project.edit`. */
+export function addProjectLink(deps: ProjectsDeps, actorId: Id | null, projectId: Id, input: { readonly kind: string; readonly label?: string | null; readonly url: string; readonly shared: boolean }): Result<ProjectLink, Refused | LinkError> {
+  if (!allowed(deps, actorId, "project.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.projects.get(projectId)) return err("not-found");
+    const made = newProjectLink({ id: deps.newId(), projectId, createdBy: actorId }, input);
+    if (!made.ok) return made;
+    deps.links.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "project.link-added", recordType: "project", recordId: projectId, context: { kind: made.value.kind, url: made.value.url, shared: made.value.shared } });
+    return ok(made.value);
+  });
+}
+
+/** Removes a link. Permission: `project.edit`. */
+export function removeProjectLink(deps: ProjectsDeps, actorId: Id | null, linkId: Id): Result<ProjectLink, Refused> {
+  if (!allowed(deps, actorId, "project.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const found = deps.links.get(linkId);
+    if (!found) return err("not-found");
+    deps.links.remove(linkId);
+    recordActivity(deps, { actorId, action: "project.link-removed", recordType: "project", recordId: found.projectId, context: { kind: found.kind, url: found.url } });
+    return ok(found);
   });
 }

@@ -15,11 +15,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} money={false} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} money={false} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/projects">Projects</a> / <a href="/clients/{view.clientId}">{view.clientName}</a> / <a href="/opportunities/{view.opportunityId}">Opportunity</a></p>
     <h1>{p.name}</h1>
@@ -161,6 +161,39 @@
       <p><a href="/projects/{p.id}/tasks">See the list</a> · <a href="/projects/{p.id}/board">See the board</a></p>
     </section>
 
+    <section zb-if={links} class="hq-panel" id="links" aria-labelledby="project-links">
+      <h2 id="project-links">Links</h2>
+      <p zb-if={links.items.length === 0} class="hq-muted">Where the work lives: the staging and live sites, the designs, the code. Shared ones show in the client’s portal.</p>
+      <ul zb-else class="hq-links">
+        <zb-each items={links.items} as="link" key={link.id}>
+          <li>
+            <span><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}<span zb-if={link.name !== link.kindLabel}> · {link.kindLabel}</span> · {link.shared ? 'In the portal' : 'Potomac only'}</span></span>
+            <form zb-if={links.canEdit} method="post" action="/project-links/{link.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {link.name}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={links.canEdit} class="hq-more">
+        <summary>Add a link</summary>
+        <form method="post" action="/projects/{view.project.id}/links" class="hq-form">
+          <div class="hq-field">
+            <label for="link-kind">What it is</label>
+            <select id="link-kind" name="kind">
+              <zb-each items={links.kinds} as="kind" key={kind.value}><option value={kind.value}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <div class="hq-field">
+            <label for="link-url">Web address</label>
+            <input id="link-url" name="url" type="text" inputmode="url" maxlength="500" required placeholder="staging.example.com">
+          </div>
+          <div class="hq-field">
+            <label for="link-label">Its own name (optional)</label>
+            <input id="link-label" name="label" type="text" maxlength="80" placeholder="Menu mock-ups">
+          </div>
+          <div class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
+          <div><button class="hq-button" type="submit">Add link</button></div>
+        </form>
+      </details>
+    </section>
     <section class="hq-panel" id="deliverables" aria-labelledby="project-deliverables">
       <h2 id="project-deliverables">Deliverables</h2>
       <empty-state zb-if={view.deliverables.length === 0} heading="No deliverables yet">Upload what you hand over: designs, documents, exports.</empty-state>

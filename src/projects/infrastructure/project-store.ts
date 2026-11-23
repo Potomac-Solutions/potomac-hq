@@ -1,4 +1,5 @@
-import type { BaselineStore, DeliverableStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
+import type { LinkKind, ProjectLink } from "../domain/link.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -256,5 +257,35 @@ export function sqliteBaselineStore(db: Database): BaselineStore {
         lines: JSON.parse(text(r, "lines")) as BaselineLine[],
       } satisfies Baseline;
     },
+  };
+}
+
+export function sqliteProjectLinkStore(db: Database): ProjectLinkStore {
+  const columns = "id, project_id, kind, label, url, shared, created_by";
+  const insert = db.prepare(`insert into project_link (${columns}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)`);
+  const get = db.prepare(`select ${columns} from project_link where id = ?`);
+  const remove = db.prepare("delete from project_link where id = ?");
+  const listFor = db.prepare(`select ${columns} from project_link where project_id = ? order by created_at, rowid`);
+  const toLink = (row: Record<string, unknown>): ProjectLink => ({
+    id: row["id"] as Id,
+    projectId: row["project_id"] as Id,
+    kind: row["kind"] as LinkKind,
+    label: String(row["label"]),
+    url: String(row["url"]),
+    shared: row["shared"] === 1,
+    createdBy: row["created_by"] as Id,
+  });
+  return {
+    insert(l, at) {
+      insert.run(l.id, l.projectId, l.kind, l.label, l.url, l.shared ? 1 : 0, l.createdBy, at);
+    },
+    get(id) {
+      const row = get.get(id);
+      return row ? toLink(row) : null;
+    },
+    remove(id) {
+      remove.run(id);
+    },
+    listFor: (projectId) => listFor.all(projectId).map(toLink),
   };
 }
