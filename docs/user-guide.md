@@ -118,6 +118,10 @@ one only if you were expecting it.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
+- **To-dos.** Anything you need to remember to do: "renew the business
+  license", "send Rita the quote". Give it a day or leave it for whenever,
+  give it to someone else, and add it from a client or an opportunity to tie
+  it there. Tick it off when it's done.
 - **Calls and messages.** On a client or an opportunity, log each call,
   email, text or meeting. For a call, say how it went. On an opportunity,
   set the next follow-up in the same step: "left a voicemail, try Thursday".

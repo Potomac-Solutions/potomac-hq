@@ -1,0 +1,37 @@
+<!--
+  A list of to-dos, each with its tick-off button. `back` and `back-id` say
+  where the button lands afterwards (see src/todos/api/todo-routes.ts).
+-->
+<style>
+  .todos { list-style: none; margin: 0; padding: 0; }
+  .todos > li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.55rem 0; border-top: 1px solid var(--border); }
+  .todos > li:first-child { border-top: 0; }
+  .todos form { margin: 0; flex: none; }
+  .todos p { margin: 0; overflow-wrap: anywhere; }
+  .todo-tick { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; padding: 0; font: inherit; font-weight: 700; color: var(--foreground); background: var(--background); border: 2px solid var(--border); border-radius: 0.35rem; cursor: pointer; }
+  .todo-tick:hover, .todo-tick:focus-visible { border-color: var(--ring); }
+  .todo-done p:first-child { text-decoration: line-through; color: var(--muted-foreground); }
+  .todo-overdue { color: var(--destructive); font-weight: 600; }
+</style>
+<todo-list items={[]} can-edit={false} back="" back-id="" show-who={false} show-client={true}>
+  <ul class="todos">
+    <zb-each items={items} as="todo" key={todo.id}>
+      <li class={todo.done ? 'todo-done' : ''}>
+        <form zb-if={canEdit} method="post" action={todo.done ? `/todos/${todo.id}/reopen` : `/todos/${todo.id}/done`}>
+          <input type="hidden" name="back" value={back}>
+          <input type="hidden" name="backId" value={backId}>
+          <button class="todo-tick" type="submit"><span aria-hidden="true">{todo.done ? '✓' : ''}</span><span class="sr-only">{todo.done ? 'Not done' : 'Done'}: {todo.title}</span></button>
+        </form>
+        <div>
+          <p>{todo.title}</p>
+          <p class="hq-small hq-muted">
+            <span class={todo.state === 'overdue' && !todo.done ? 'todo-overdue' : ''}><time zb-if={todo.dueOn} datetime={todo.dueOn}>{todo.when}</time><span zb-if={!todo.dueOn}>{todo.when}</span></span>
+            <span zb-if={showWho && !todo.mine}> · {todo.assignee}</span>
+            <span zb-if={showClient && todo.clientName}> · <a href="/clients/{todo.organizationId}">{todo.clientName}</a></span>
+            <span zb-if={todo.opportunityTitle}> · <a href="/opportunities/{todo.opportunityId}">{todo.opportunityTitle}</a></span>
+          </p>
+        </div>
+      </li>
+    </zb-each>
+  </ul>
+</todo-list>

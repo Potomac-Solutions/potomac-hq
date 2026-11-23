@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- To-dos: add one for yourself or anyone, due on a day or whenever, about a
+  client or one of its opportunities. A To-dos page lists yours (or
+  everyone's) as overdue, today, coming up and whenever, with what you ticked
+  off this week. Clients and opportunities show their open to-dos and add
+  them in place. Migration 0024.
+
 - Calls and messages: log a call (talked, left a voicemail, no answer), an
   email, a text or a meeting on a client or an opportunity, with who it was
   with and a word about it. On an opportunity, the next follow-up is set in

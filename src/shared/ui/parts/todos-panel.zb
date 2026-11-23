@@ -1,0 +1,44 @@
+<!--
+  A client's or an opportunity's open to-dos, and the form that adds one.
+  `where` is "client" or "opportunity"; `id` is that record's id.
+-->
+<script>
+  import './todo-list.zb'
+</script>
+<style>
+  .todo-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; align-items: end; }
+  .todo-add .todo-title { grid-column: 1 / -1; }
+</style>
+<todos-panel todos={{ items: [], canEdit: false, people: [] }} where="client" id="">
+  <section class="hq-panel" id="todos" aria-labelledby="todos-heading">
+    <h2 id="todos-heading">To-dos</h2>
+    <p zb-if={todos.items.length === 0} class="hq-muted">Nothing open.</p>
+    <todo-list zb-if={todos.items.length > 0} items={todos.items} can-edit={todos.canEdit} back={where} back-id={id} show-who={true} show-client={false}></todo-list>
+    <details zb-if={todos.canEdit} class="hq-more">
+      <summary>Add a to-do</summary>
+      <form method="post" action="/todos" class="hq-form">
+        <input type="hidden" name="back" value={where}>
+        <input type="hidden" name="backId" value={id}>
+        <input zb-if={where === 'client'} type="hidden" name="clientId" value={id}>
+        <input zb-if={where === 'opportunity'} type="hidden" name="opportunityId" value={id}>
+        <div class="todo-add">
+          <div class="hq-field todo-title">
+            <label for="todo-title-{where}">What needs doing</label>
+            <input id="todo-title-{where}" name="title" type="text" maxlength="200" required>
+          </div>
+          <div class="hq-field">
+            <label for="todo-due-{where}">Due (optional)</label>
+            <input id="todo-due-{where}" name="dueOn" type="date">
+          </div>
+          <div class="hq-field">
+            <label for="todo-who-{where}">Whose</label>
+            <select id="todo-who-{where}" name="assigneeId">
+              <zb-each items={todos.people} as="person" key={person.value}><option value={person.value}>{person.label}</option></zb-each>
+            </select>
+          </div>
+        </div>
+        <div><button class="hq-button" type="submit">Add it</button></div>
+      </form>
+    </details>
+  </section>
+</todos-panel>
