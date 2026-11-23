@@ -271,14 +271,15 @@ test("the nightly sheet copy sends the three tables, and records whether it work
   unwrap(finance.logTime(deps, mikey, { projectId: project.id }, { on: TODAY, hours: "1.5", note: "Menu" }));
   const sent: { name: string; rows: readonly (readonly (string | number | null)[])[] }[] = [];
   const result = await finance.syncFinanceSheet(deps, { describe: "a test sheet", replace: async (tabs) => void sent.push(...tabs) });
-  assert.deepEqual(result, { rows: 2 });
-  assert.deepEqual(sent.map((tab) => [tab.name, tab.rows.length]), [["HQ Time", 2], ["HQ Expenses", 1], ["HQ Projects", 2], ["HQ Invoices", 1], ["HQ Payments", 1]]);
+  // The profit tab has one row: this month, with nothing in it yet.
+  assert.deepEqual(result, { rows: 3 });
+  assert.deepEqual(sent.map((tab) => [tab.name, tab.rows.length]), [["HQ Time", 2], ["HQ Expenses", 1], ["HQ Projects", 2], ["HQ Invoices", 1], ["HQ Payments", 1], ["HQ Profit", 2]]);
   assert.deepEqual(sent[0]?.rows[1], [TODAY, "Mt. Storm Bakery", "Bakery website", "", "Mikey Nichols", 1.5, 90, "yes", "Menu"]);
 
   await assert.rejects(finance.syncFinanceSheet(deps, { describe: "a broken sheet", replace: async () => Promise.reject(new Error("Google Sheets write failed: HTTP 403")) }), /HTTP 403/);
   const recorded = events(t.db).filter((e) => e.action.startsWith("finance.sheet"));
   assert.deepEqual(recorded.map((e) => [e.actor, e.action, e.context]), [
-    [null, "finance.sheet-synced", { rows: 2 }],
+    [null, "finance.sheet-synced", { rows: 3 }],
     [null, "finance.sheet-sync-failed", { reason: "Google Sheets write failed: HTTP 403" }],
   ]);
 });

@@ -24,6 +24,7 @@
     </div>
     <section class="hq-panel" aria-labelledby="money-summary">
       <h2 id="money-summary">Revenue and margin, an operational estimate</h2>
+      <p><a href="/money/profit">Profit and loss by month</a>: money received against money spent.</p>
       <dl class="hq-facts">
         <dt>Budgets, every project</dt><dd>{view.totals.budget}</dd>
         <dt>Cost so far</dt><dd>{view.totals.cost}</dd>
@@ -85,6 +86,7 @@
         <li><a href="/exports/time.csv">Time, every entry (CSV)</a></li>
         <li><a href="/exports/expenses.csv">Expenses (CSV)</a></li>
         <li><a href="/exports/projects.csv">Budget against actual, by project (CSV)</a></li>
+        <li><a href="/exports/profit.csv">Profit and loss, by month (CSV)</a></li>
         <li><a href="/exports/invoices.csv">Invoices (CSV)</a></li>
         <li><a href="/exports/payments.csv">Payments received (CSV)</a></li>
       </ul>

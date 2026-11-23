@@ -39,6 +39,9 @@ test("add a domain on a client's page, and see it coming up", async () => {
     await page.goto(`${t.origin}/renewals`);
     await page.getByRole("heading", { name: "In the next 30 days" }).waitFor();
     await assertAccessible(page, `renewals (${colorScheme})`);
+    await page.goto(`${t.origin}/money/profit`);
+    await page.getByRole("heading", { name: "By month" }).waitFor();
+    await assertAccessible(page, `profit and loss (${colorScheme})`);
     await page.goto(`${t.origin}/sites`);
     await page.getByRole("heading", { name: "1 watched, 1 not checked yet" }).waitFor();
     await assertAccessible(page, `sites (${colorScheme})`);
