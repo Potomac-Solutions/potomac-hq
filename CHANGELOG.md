@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - Profit and loss, under Money: each month of a year, what was invoiced,
   received and spent, and received less spent, with the year's totals and
   what the money went on. Earlier years too, and a CSV of every month,
@@ -49,8 +51,6 @@ moves those lines under a version heading. See `docs/conventions.md`.
   invoices whose day has come, as drafts or sent, naming their period
   ("Hosting, January 2027"), and catches up on missed days once each. Money
   shows what recurs in a month and a year. Migration 0019.
-
-## [0.11.0] - 2026-11-22
 
 - Someone who booked from the public page goes into the CRM in one step,
   from Calls: a client named for their business, them as its contact, and
