@@ -121,7 +121,7 @@ test("a layout is rendered once around a page, and a page's title replaces the l
   const html = await admin.page("/clients");
   assert.equal((html.match(/<main\b/g) ?? []).length, 1);
   assert.equal((html.match(/<hq-app\b/g) ?? []).length, 1);
-  assert.equal((html.match(/<nav-bar\b/g) ?? []).length, 1, "issue 300: a component imported by a layout and a page was nested in itself");
+  assert.equal((html.match(/<user-avatar\b/g) ?? []).length, 1, "issue 300: a component imported by a layout and a page was nested in itself");
   assert.match(html, /<title>Clients[^<]*<\/title>/);
   const portal = await httpClient(t.origin).get("/portal");
   assert.doesNotMatch(await portal.text(), /<hq-app\b/, "the portal's root layout does not sit inside HQ's");

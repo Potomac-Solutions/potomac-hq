@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- A new look and frame for HQ. A sidebar groups every section (Today and
+  Dashboard; Sales; Delivery; Finance; Company), so Calls, Board, Sites,
+  Renewals, People and Audit history are one click away instead of hidden
+  behind other pages. A top bar holds a wider search and your account. Pages
+  use the full width of the screen. The typeface is IBM Plex Sans, served by
+  HQ itself. Cards and inputs are white on a pale page, in light and dark.
+  On a phone the sidebar folds behind a Menu button.
+- Zubra UI is updated to commit 0f852ba, with ten more components copied in
+  for the pages to use: status badge, breadcrumb trail, stat card, avatar,
+  progress bar, code input, select field, check box, date field and step
+  indicator. The top nav bar component is no longer used.
+
 ## [0.12.0] - 2026-11-23
 
 - Scheduling invites, like a Timeful poll: from a client's page, ask
