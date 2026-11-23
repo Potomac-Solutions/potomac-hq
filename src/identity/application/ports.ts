@@ -1,3 +1,4 @@
+import type { PasskeyKey } from "../domain/passkey.ts";
 import type { Access } from "../domain/access.ts";
 import type { RoleKey } from "../domain/permissions.ts";
 import type { Theme } from "../domain/theme.ts";
@@ -71,20 +72,63 @@ export type TwoFactorCrypto = {
   hash(text: string): string;
 };
 
-export type TwoFactorRecord = { readonly userId: Id; readonly secret: string; readonly confirmed: boolean; readonly lastStep: number };
+export type TwoFactorRecord = {
+  readonly userId: Id;
+  readonly secret: string;
+  readonly confirmed: boolean;
+  readonly lastStep: number;
+  /** False when it was turned on with a passkey alone: no code from an app is accepted. */
+  readonly app: boolean;
+};
+
+export type Passkey = {
+  readonly id: Id;
+  readonly userId: Id;
+  /** The credential's id from the authenticator, base64url. */
+  readonly credentialId: string;
+  readonly key: PasskeyKey;
+  readonly signCount: number;
+  readonly label: string;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+};
+
+export type PasskeyStore = {
+  listFor(userId: Id): Passkey[];
+  byCredential(credentialId: string): Passkey | null;
+  add(passkey: Passkey): void;
+  /** Records a use: the authenticator's new counter, and when. */
+  used(id: Id, signCount: number, at: string): void;
+  remove(id: Id): void;
+  /** Gives a session a challenge, replacing any it had. */
+  setChallenge(sessionHash: string, userId: Id, purpose: "register" | "verify", challenge: string, expiresAt: string, now: string): void;
+  /** Takes the session's challenge, once: null when there is none for this person and purpose, or it is too old. */
+  takeChallenge(sessionHash: string, userId: Id, purpose: "register" | "verify", now: string): string | null;
+};
+
+/** The cryptography passkeys need. */
+export type PasskeyCrypto = {
+  /** 32 random bytes, base64url. */
+  challenge(): string;
+  sha256(bytes: Uint8Array): Uint8Array;
+  /** Whether the signature over the data was made by this key. */
+  verify(key: PasskeyKey, data: Uint8Array, signature: Uint8Array): boolean;
+};
 
 export type TwoFactorStore = {
   get(userId: Id): TwoFactorRecord | null;
   /** Starts again from nothing: a new secret, not confirmed, no recovery codes. */
   begin(userId: Id, secret: string, at: string): void;
   confirm(userId: Id, step: number, recoveryHashes: readonly string[], at: string): void;
+  /** Turns it on with a passkey and no app: a confirmed record whose secret nobody was shown. */
+  confirmWithoutApp(userId: Id, secret: string, recoveryHashes: readonly string[], at: string): void;
   setLastStep(userId: Id, step: number, at: string): void;
   /** Replaces every recovery code. */
   replaceRecovery(userId: Id, recoveryHashes: readonly string[]): void;
   /** Uses a recovery code. False when there is no such unused code. */
   useRecovery(userId: Id, codeHash: string, at: string): boolean;
   recoveryLeft(userId: Id): number;
-  /** Turns it off: the secret, the recovery codes and every passed session go. */
+  /** Turns it off: the secret, the recovery codes, every passkey and every passed session go. */
   remove(userId: Id): void;
   markSession(sessionHash: string, userId: Id, at: string): void;
   sessionPassed(sessionHash: string, userId: Id): boolean;

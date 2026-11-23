@@ -219,7 +219,10 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact");
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options");
+  // The one internal post a page's script makes: it answers in JSON, and refuses the same.
+  assert.equal((await ann.post("/passkeys/options", { purpose: "register" })).status, 403);
+  assert.equal((await ann.post("/passkeys/options", { purpose: "verify" })).status, 403);
   assert.ok(internal.length >= 40, `found ${internal.length} internal forms`);
   const tables = ["activity_event", "client_organization", "opportunity", "project", "task", "note", "proposal", "time_entry", "expense", "invoice", "payment", "client_user", "project_update", "file"];
   const before = tables.map((table) => count(t.db, table));

@@ -19,7 +19,7 @@ import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
 import { manageTokens, noBusyCalendar, sqliteBookingStore, sqliteScheduleInviteStore } from "./booking/adapters.ts";
-import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
+import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRefusedLog, sqliteTwoFactorStore, sqlitePasskeyStore, passkeyCrypto, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
@@ -88,7 +88,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
   const users = sqliteUserStore(db);
-  const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
+  const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, passkeys: sqlitePasskeyStore(db), webauthn: passkeyCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);

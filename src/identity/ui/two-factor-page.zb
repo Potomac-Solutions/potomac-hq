@@ -1,27 +1,37 @@
 <!--
   The second step at sign-in, for someone who has turned on two-factor
-  sign-in: the code from their authenticator app, or a recovery code.
+  sign-in: a passkey, the code from their authenticator app, or a recovery
+  code. `passkey` and `app` say which of the first two they have.
 -->
 <script>
   import '../../shared/ui/zubra/action-button.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/parts/passkey-button.zb'
 </script>
 <style>
   :host { display: block; max-width: 26rem; margin: 2rem auto; }
-  .hq-sign-in { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
+  .hq-sign-in { display: grid; gap: 1rem; padding: 1.5rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
   .hq-sign-in h1, .hq-sign-in p { margin: 0; }
   .hq-sign-in form { display: grid; gap: 1rem; margin: 0; }
   .hq-sign-in .hq-leave { justify-items: start; }
+  .hq-or { display: flex; align-items: center; gap: 0.75rem; color: var(--muted-foreground); font-size: 0.875rem; }
+  .hq-or::before, .hq-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
 </style>
-<hq-two-factor problem="">
+<hq-two-factor problem="" app={true} passkey={false}>
   <div class="hq-sign-in">
-    <h1>Enter your code</h1>
+    <h1>Confirm it’s you</h1>
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
-    <p>Open your authenticator app and enter the 6-digit code for Potomac HQ.</p>
+    <form zb-if={passkey} method="post" action="/two-factor">
+      <p>Use the passkey you added to Potomac HQ: your fingerprint, face or PIN, or your security key.</p>
+      <passkey-button purpose="verify" field="passkey" label="Continue with a passkey"></passkey-button>
+    </form>
+    <p zb-if={passkey} class="hq-or">or</p>
     <form method="post" action="/two-factor">
-      <text-field label="Code" name="code" autocomplete="one-time-code" inputmode="numeric" required={true} description="Lost your phone? Enter one of your recovery codes instead."></text-field>
-      <div><action-button type="submit">Continue</action-button></div>
+      <p zb-if={app}>Open your authenticator app and enter the 6-digit code for Potomac HQ.</p>
+      <text-field zb-if={app} label="Code" name="code" autocomplete="one-time-code" inputmode="numeric" required={true} description="Lost your phone? Enter one of your recovery codes instead."></text-field>
+      <text-field zb-else label="Recovery code" name="code" autocomplete="off" required={true} description="Lost your passkey? Each recovery code signs you in once."></text-field>
+      <div><action-button type="submit" variant={passkey ? 'outline' : 'default'}>Continue</action-button></div>
     </form>
     <form method="post" action="/staff/sign-out" class="hq-leave"><button class="hq-button secondary" type="submit">Sign out</button></form>
   </div>

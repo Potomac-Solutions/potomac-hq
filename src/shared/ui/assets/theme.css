@@ -266,6 +266,13 @@ hq-portal input[type=file] { font: inherit; padding: 0.5rem 0; }
 hq-portal .hq-number, hq-portal th { white-space: nowrap; overflow-wrap: normal; }
 hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-right: 0.3rem; }
 .portal-preview { display: block; max-width: 100%; height: auto; max-height: 28rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
+
+/* Settings: the two ways to turn on two-factor sign-in, and a person's passkeys. */
+.hq-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 1rem; }
+.hq-choice { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+.hq-choice h3 { margin-top: 0; }
+.hq-passkeys li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.hq-passkeys form { margin: 0; }
 }
 
 /* Outside the layer, because these adjust copied components: stat cards in a

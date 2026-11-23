@@ -17,6 +17,12 @@ at least 10 characters. The link works once.
   phone. Used most of them? Settings makes ten new ones, with a code from
   the app, and the old ones stop working. With neither phone nor codes, an
   admin can reset it from the People page.
+- **Passkeys.** Instead of an app, or beside one, use a passkey: your
+  fingerprint, face or PIN on your phone or computer, or a security key.
+  In Settings, choose "Turn on with a passkey", or "Add a passkey" once
+  two-factor sign-in is on. After your password, choose "Continue with a
+  passkey". Add one for each device you sign in from. A passkey can't be
+  typed into a fake sign-in page, so it is the safer of the two.
 - **Requiring it of admins.** On People, under Sign-in rules, an admin who
   has it on can require it of every admin. An admin without it can then
   open only Settings until it is on.

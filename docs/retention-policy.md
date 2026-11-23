@@ -14,6 +14,8 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | Sign-in sessions that have ended or expired, for HQ and for the portal | 30 days after they stopped working | They are no use after that. 30 days leaves time to look into a sign-in problem |
 | A rate limit's count of tries | Until its window ends (a minute, or an hour for "Forgot your password?") | It is only for counting |
 | A session's two-factor pass | With its session | It means nothing without the session |
+| A passkey challenge | Until it is answered, or five minutes | It is for one use |
+| A passkey's public key | Until it is removed, or two-factor sign-in is turned off or reset | It is how HQ checks the passkey |
 | A refused attempt (wrong password or code, a form someone was not allowed to use) | 90 days | Long enough to see a pattern. It can come from anyone, so it is not kept for good like the activity log |
 | One-time links (setup, invite, password reset) that expired or were used | 30 days after they stopped working | The same |
 | Invites to HQ that nobody used | 30 days | The link stopped working after 7 |

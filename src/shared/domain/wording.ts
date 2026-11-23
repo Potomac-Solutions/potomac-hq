@@ -13,6 +13,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "sign-in-rule.two-factor-required": "required two-factor sign-in for admins",
   "sign-in-rule.two-factor-optional": "made two-factor sign-in optional for admins",
   "user.two-factor-on": "turned on two-factor sign-in",
+  "user.passkey-added": "added a passkey",
+  "user.passkey-removed": "removed a passkey",
   "user.two-factor-new-codes": "made new recovery codes",
   "user.two-factor-off": "turned off two-factor sign-in",
   "user.two-factor-reset": "reset someone’s two-factor sign-in",
