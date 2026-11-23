@@ -17,8 +17,9 @@
   .search-hits li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
   .search-hits li:first-child { border-top: 0; }
   .search-hits .hq-muted { font-size: 0.9rem; }
+  .search-hits li > * { min-width: 0; overflow-wrap: anywhere; }
   .search-box { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
-  .search-field { flex: 1 1 18rem; }
+  .search-field { flex: 1 1 14rem; min-width: 0; }
 </style>
 <hq-search view={{ groups: [], tips: [] }}>
   <div class="hq-page">
