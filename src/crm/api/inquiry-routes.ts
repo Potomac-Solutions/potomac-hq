@@ -15,6 +15,8 @@ export type InquiryRoutesDeps = {
   readonly allowPerEmail: (key: string) => boolean;
   /** Where a form on another site may send people back to: its origins, like https://potomac.solutions. */
   readonly returnOrigins: readonly string[];
+  /** Counts the inquiry for the referral link whose code came with the form, if one did. */
+  readonly credit?: (code: string, opportunityId: Id) => void;
   /** Tells Potomac's people, after it is saved. Never fails the request. */
   readonly notify: (inquiry: InquiryInput & { readonly opportunityId: Id; readonly known: boolean }) => Promise<void>;
 };
@@ -56,6 +58,15 @@ export function inquiryRoutes(deps: InquiryRoutesDeps): Hono<{ Bindings: { incom
     const input: InquiryInput = { name: fields["name"] ?? "", email, phone: fields["phone"] ?? null, business: fields["business"] ?? null, message: fields["message"] ?? "", service: fields["service"] ?? null };
     const made = recordInquiry(deps.crm, owner, input);
     if (!made.ok) return answer("problem", MESSAGES[made.error] ?? "That didn’t work. Try again.");
+    // The code a referral link put in the page's address (`ref`), sent on by the form.
+    const ref = (fields["ref"] ?? "").trim();
+    if (ref && deps.credit) {
+      try {
+        deps.credit(ref, made.value.opportunityId);
+      } catch {
+        // The inquiry is saved. Losing its credit must not lose the answer.
+      }
+    }
     await deps.notify({ ...input, opportunityId: made.value.opportunityId, known: made.value.known }).catch(() => undefined);
     return answer("done", "Thanks. We’ll be in touch within two business days.");
   });

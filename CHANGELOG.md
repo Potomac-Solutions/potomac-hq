@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Referral links. Under Sales → Referral links, make a short address for
+  each thing you print (business cards, a flyer), choose where a scan goes,
+  and download its QR code. HQ counts every scan, sends the person on, and
+  credits the inquiries that follow, so each link shows its success rate.
+  A scan keeps a time and nothing about the person. Link previews and
+  crawlers are not counted. For managers and admins (`referral.manage`).
+  The inquiry form takes a `ref` field: add it to the website's form
+  (`docs/operations.md`). QR codes are drawn by
+  `@journey-to-code/symbology` 0.2.0, a new dependency. Migration 0034.
+
 ## [0.13.0] - 2026-11-23
 
 - Fixed: "Open HQ in your app", while turning on two-factor sign-in on a

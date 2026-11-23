@@ -165,6 +165,7 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
 | Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
 | Set the hours for booked calls, days off, and who can book; link calendars; paint days from Timeful or Calendly; make and withdraw booking links | `booking.manage` | Yes | Yes | No | No |
+| Make, change and remove referral links, and see their scans and inquiries | `referral.manage` | Yes | Yes | No | No |
 
 ### Platform (v1.0)
 

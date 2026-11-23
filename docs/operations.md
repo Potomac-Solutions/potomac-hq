@@ -290,6 +290,21 @@ To put the form on potomac.solutions itself, list the site in
 </form>
 ```
 
+To credit an inquiry to a referral link, the form must pass the link's code
+on. A scan lands on the site with `?ref=<code>` in the address. Add a hidden
+field and fill it from the address:
+
+```html
+<input name="ref" type="hidden">
+<script>
+  document.querySelector('input[name=ref]').value = new URLSearchParams(location.search).get('ref') || sessionStorage.getItem('ref') || ''
+  if (new URLSearchParams(location.search).get('ref')) sessionStorage.setItem('ref', new URLSearchParams(location.search).get('ref'))
+</script>
+```
+
+Keeping it in `sessionStorage` carries the code from the page they landed
+on to the page with the form. HQ's own `/contact` needs none of this.
+
 `return_to` must be on a listed site; HQ sends people back there with
 `?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
 posts from those sites. Five an hour from one address, three a day for one

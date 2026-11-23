@@ -121,6 +121,12 @@ one only if you were expecting it.
 - **Sites.** On a client's page, add their website. HQ checks it every five
   minutes, shows it on the dashboard when it's down or its certificate is
   running out, and emails the alert address. Sites lists them all.
+- **Referral links.** Under Sales → Referral links, make a link for each
+  thing you print: a batch of business cards, a flyer, a sign. Say where a
+  scan should go (your website, or `/contact` or `/book` here), then
+  download its QR code and put it in the design. HQ counts each scan and
+  each inquiry that follows, and shows the rate. You can change where a
+  link goes later; the printed code stays the same.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
