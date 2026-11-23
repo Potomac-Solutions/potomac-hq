@@ -770,6 +770,16 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+### Budget warnings
+
+Decided 2026-11-22 at Mikey's request. Needs his approval.
+
+Not stored: worked out from the budget, time, expenses and milestones. A
+project is "watch" when 75% or more of its hours or money is used
+(`WATCH_AT_PERCENT` in `src/finance/domain/budget.ts`) and the share of its
+milestones done is lower than that. With no milestones, or on a monthly or
+yearly plan, 75% used is enough. "Over" is unchanged.
+
 ### Project links
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.

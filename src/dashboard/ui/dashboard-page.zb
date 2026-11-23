@@ -155,11 +155,11 @@
     </div>
   </section>
   <section zb-if={showOver} class="hq-panel" aria-labelledby="over-budget">
-    <h2 id="over-budget">Projects over budget</h2>
-    <p zb-if={over.length === 0} class="hq-muted">None. Every active project is within its hours and its budget.</p>
+    <h2 id="over-budget">Budgets to watch</h2>
+    <p zb-if={over.length === 0} class="hq-muted">None. Every active project is within its hours and its budget, and none has used three quarters of it ahead of the work.</p>
     <ul zb-else class="hq-activity">
       <zb-each items={over} as="project" key={project.id}>
-        <li><span><a href="/projects/{project.id}/money">{project.name}</a> · {project.clientName}</span> <span>{project.why}</span></li>
+        <li><span><a href="/projects/{project.id}/money">{project.name}</a> · {project.clientName}<br><span class="hq-scope">{project.warning}</span></span> <span><span class={project.level === 'over' ? 'hq-tag due' : 'hq-tag'}>{project.level === 'over' ? 'Over' : 'Watch'}</span> {project.why}</span></li>
       </zb-each>
     </ul>
   </section>

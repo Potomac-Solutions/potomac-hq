@@ -36,6 +36,8 @@
 
     <section class="hq-panel" aria-labelledby="money-standing">
       <h2 id="money-standing">Estimate against actual, {view.period}</h2>
+      <alert-banner zb-if={view.warning && view.warning.level === 'watch'} variant="warning" heading="Worth watching">{view.warning.text}. Three quarters of the budget is used ahead of the work. Now is the time to talk to the client about scope, before it runs over.</alert-banner>
+      <alert-banner zb-if={view.warning && view.warning.level === 'over'} variant="danger" heading="Over budget">{view.warning.text}.</alert-banner>
       <table class="hq-table">
         <thead><tr><th scope="col">Measure</th><th scope="col" class="hq-number">Budget</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
         <tbody>
