@@ -9,32 +9,28 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-22
+
 - The morning email: at 7 each morning, everyone gets their Today list by
   email, numbered in order with a link to each thing. A day with nothing due
   sends nothing, and it goes once a day even if HQ restarts. Turn it off in
   Settings. Needs email set up. Migration 0025.
-
 - Today: one list of what wants doing today, in the order to work it. Calls
   booked for today first, then what clients are waiting on, sites that are
   down, anything overdue, then today's follow-ups, to-dos and project
   deadlines, and renewals in the next week. Tick off to-dos in place, add one
   for today, and see what you've done. Today is in the top bar; To-dos is
   reached from it.
-
 - To-dos: add one for yourself or anyone, due on a day or whenever, about a
   client or one of its opportunities. A To-dos page lists yours (or
   everyone's) as overdue, today, coming up and whenever, with what you ticked
   off this week. Clients and opportunities show their open to-dos and add
   them in place. Migration 0024.
-
 - Calls and messages: log a call (talked, left a voicemail, no answer), an
   email, a text or a meeting on a client or an opportunity, with who it was
   with and a word about it. On an opportunity, the next follow-up is set in
   the same step. Each client and opportunity shows its timeline and when it
   was last touched. Migration 0023.
-
-## [0.11.0] - 2026-11-22
-
 - Profit and loss, under Money: each month of a year, what was invoiced,
   received and spent, and received less spent, with the year's totals and
   what the money went on. Earlier years too, and a CSV of every month,
