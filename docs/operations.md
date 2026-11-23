@@ -21,6 +21,55 @@ How Potomac HQ is deployed, watched, backed up and restored.
 Until the Railway secrets below exist, the Deploy job says "Skipped" and
 passes.
 
+### What the first real deploys found (2026-11-22)
+
+Releases 0.9.0, 0.10.0 and 0.11.0 never stayed up on Railway. None of them
+reached the health check: HQ stopped while it started, before it listened.
+
+- **The cause was Railway's settings, not the image.**
+  - In **test**, `HQ_DATABASE_PATH` was a relative path (`data/...`), and
+    `RAILWAY_RUN_UID` was not set. HQ ran as `node` in `/app`, which is
+    read-only to it, so the start stopped with
+    `EACCES: permission denied, mkdir 'data'`.
+  - **production** had no volume and none of the variables below, so it
+    stopped with `Set HQ_DATABASE_PATH to the SQLite file.`
+  - Railway restarted it until it gave up, then marked it Crashed.
+- **CI did not catch it,** because CI starts the image with the right
+  settings. CI proves the image works. It cannot prove Railway is set up.
+- **Both fixes are needed.** A relative path fails as above. `/data/hq.db`
+  without `RAILWAY_RUN_UID=0` fails with "unable to open database file".
+- **How it deploys today:** the Deploy job's secrets are not set, so it is
+  skipped. Railway's own GitHub integration deploys `main` to **both**
+  environments. Until that changes, test runs what production runs.
+
+### Railway settings that work
+
+Set these for each environment, then check them in the service's Settings
+and Variables tabs:
+
+| Setting | Value |
+| --- | --- |
+| Volume | Attached to the service, mounted at `/data` |
+| `HQ_DATABASE_PATH` | `/data/hq.db`. It must start with `/data/`: a relative path is inside the read-only app folder |
+| `RAILWAY_RUN_UID` | `0` |
+| Replicas | 1 |
+| Start command | Empty. The `Dockerfile` runs `bin/start.sh` |
+| Health check | `/healthz`, 60 seconds (from `railway.json`) |
+| Restart policy | On failure (from `railway.json`) |
+| Domain | test: Railway's domain. production: `hq.potomac.solutions` |
+
+### Checking a deploy is healthy
+
+1. The deploy log shows the migrations (`Applied ...` or
+   `Nothing to apply`), the lines about backups, alerts and email, and then
+   `Potomac HQ is listening on port ...`. No `EACCES`, no
+   `unable to open database file`, no `Set HQ_...`.
+2. The deployment is **Active**, not Crashed, and it stays Active for ten
+   minutes, past the first site check.
+3. `curl https://<domain>/healthz` answers `{"ok":true}`.
+4. Redeploy once. The second start says `Nothing to apply`, which shows the
+   database is on the volume and survived.
+
 ## First deploy checklist
 
 Do it for the test environment first, then again for production.
@@ -261,6 +310,8 @@ together.
 | --- | --- |
 | The site does not answer | Railway: is the service running, and what does the end of its log say? A failed migration stops the start and names the migration |
 | The log says "unable to open database file" or "permission denied" | `RAILWAY_RUN_UID=0` is not set, or the volume is not mounted at `/data` |
+| The log says `EACCES: permission denied, mkdir 'data'` | `HQ_DATABASE_PATH` is a relative path. Set it to `/data/hq.db` |
+| The log says `Set HQ_DATABASE_PATH` and the deploy is Crashed | The environment's variables are not set. See "Railway settings that work" |
 | "Something went wrong" on a page | The log line with `"level":"error"` at that time. It has the address and the stack |
 | Nobody can sign in | Is `HQ_SECURE=true` and the address https? Is `HQ_PROXIES=1`? |
 | You are locked out | In Railway's shell: `npm run reset-link -- you@example.com` prints a one-time link |

@@ -20,6 +20,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
   sites, the designs, documents, the code. Shared ones show in the client's
   portal under "Where to see the work"; the rest, like the repository, stay
   with Potomac. Addresses typed without https:// get it. Migration 0026.
+- Operations: why no Railway deploy stayed up. HQ stopped at start because
+  test's database path was relative and `RAILWAY_RUN_UID` was not set, and
+  production had no volume or variables. The guide now lists the Railway
+  settings that work and how to check that a deploy is healthy.
 
 ## [0.11.0] - 2026-11-22
 
