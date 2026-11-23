@@ -118,6 +118,9 @@ one only if you were expecting it.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
+- **Calls and messages.** On a client or an opportunity, log each call,
+  email, text or meeting. For a call, say how it went. On an opportunity,
+  set the next follow-up in the same step: "left a voicemail, try Thursday".
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.

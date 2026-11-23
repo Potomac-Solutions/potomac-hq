@@ -1,3 +1,4 @@
+import type { Touch } from "../domain/touch.ts";
 import type { Client } from "../domain/client.ts";
 import type { Contact } from "../domain/contact.ts";
 import type { Opportunity } from "../domain/opportunity.ts";
@@ -33,4 +34,13 @@ export type OpportunityStore = {
   dueBy(date: string): (Opportunity & { readonly clientName: string })[];
   /** Every opportunity, open or closed, oldest first. For reports. */
   listAll(): Opportunity[];
+};
+
+export type TouchStore = {
+  insert(touch: Touch, at: string): void;
+  /** A client's touches, newest first. */
+  listForClient(organizationId: Id, limit: number): Touch[];
+  listForOpportunity(opportunityId: Id, limit: number): Touch[];
+  /** The newest touch at each client, for showing how long since. */
+  lastByClient(): ReadonlyMap<Id, string>;
 };

@@ -760,6 +760,16 @@ or left as a draft, days until due, and whether it is paused.
 - Events: `recurring-invoice.added`, `.paused`, `.resumed`, and the usual
   `invoice.created` and `invoice.sent`, by HQ (no actor).
 
+### Touches
+
+Decided 2026-11-22 at Mikey's request for a call log. Needs his approval.
+
+`touch`: a client, optionally an opportunity and a contact, what it was
+(call, email, text, meeting), for a call how it went (talked, voicemail, no
+answer), a note, when, and who logged it. A conversation needs a note; a
+missed call does not. Logged with `contact.edit`; setting the next
+follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
+
 ### Site monitoring
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
