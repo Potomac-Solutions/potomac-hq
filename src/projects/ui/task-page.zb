@@ -237,10 +237,10 @@
       <ol zb-if={view.comments.length > 0} class="comments">
         <zb-each items={view.comments} as="comment" key={comment.id}>
           <li id="comment-{comment.id}" class="comment">
-            <header><strong>{comment.authorName}</strong> <span class="hq-muted hq-small">{comment.when}</span> <span zb-if={comment.editedWhen} class="hq-muted hq-small">(edited {comment.editedWhen})</span></header>
+            <header><strong>{comment.authorName}</strong> <span zb-if={comment.fromLink} class="hq-tag">Through the share link “{comment.fromLink}”</span> <span class="hq-muted hq-small">{comment.when}</span> <span zb-if={comment.editedWhen} class="hq-muted hq-small">(edited {comment.editedWhen})</span></header>
             <p class="comment-body"><zb-each items={comment.pieces} as="piece" key={piece.text + piece.mention}><strong zb-if={piece.mention} class="mention">{piece.text}</strong><span zb-if={!piece.mention}>{piece.text}</span></zb-each></p>
-            <div zb-if={comment.mine} class="comment-actions">
-              <details>
+            <div zb-if={comment.canRemove} class="comment-actions">
+              <details zb-if={comment.mine}>
                 <summary>Edit your comment</summary>
                 <form method="post" action="/comments/{comment.id}" class="hq-form">
                   <input type="hidden" name="taskId" value={t.id}>
@@ -250,7 +250,7 @@
               </details>
               <form method="post" action="/comments/{comment.id}/remove" class="hq-inline">
                 <input type="hidden" name="taskId" value={t.id}>
-                <button class="hq-button secondary small" type="submit" aria-label="Delete your comment from {comment.when}">Delete</button>
+                <button class="hq-button secondary small" type="submit" aria-label={comment.mine ? `Delete your comment from ${comment.when}` : `Delete ${comment.authorName}'s comment from ${comment.when}`}>Delete</button>
               </form>
             </div>
           </li>

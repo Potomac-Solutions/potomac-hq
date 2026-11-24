@@ -18,11 +18,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} money={false} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -129,6 +129,52 @@
           </div>
           <div class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
           <div><button class="hq-button" type="submit">Add link</button></div>
+        </form>
+      </details>
+    </section>
+    <section zb-if={shares.canShare} class="hq-panel" id="share" aria-labelledby="project-share">
+      <h2 id="project-share">Share by link</h2>
+      <p class="hq-muted">A link anyone can open without an account: the plan, tasks with their status and due dates, and shared deliverables. Never notes, time, estimates, money, who has which task, or the team's own comments.</p>
+      <table zb-if={shares.links.length > 0} tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">For</th><th scope="col">May</th><th scope="col">Works</th><th scope="col">Visits</th><th scope="col">Made by</th><th scope="col"><span class="sr-only">Stop</span></th></tr></thead>
+        <tbody>
+          <zb-each items={shares.links} as="one" key={one.id}>
+            <tr>
+              <td>{one.label}</td>
+              <td>{one.rights}</td>
+              <td>{one.live ? one.expires : one.state}</td>
+              <td>{one.visits}</td>
+              <td>{one.made}</td>
+              <td>
+                <form zb-if={one.live} method="post" action="/shares/{one.id}/stop" class="hq-inline">
+                  <input type="hidden" name="projectId" value={view.project.id}>
+                  <button class="hq-button secondary small" type="submit" aria-label="Stop the link for {one.label}">Stop</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <details class="hq-more" open={shares.links.length === 0}>
+        <summary>Make a link</summary>
+        <form method="post" action="/projects/{view.project.id}/shares" class="hq-form">
+          <div class="hq-field">
+            <label for="share-label">Who it's for</label>
+            <input id="share-label" name="label" type="text" maxlength="80" required placeholder="Dale at Better Days">
+          </div>
+          <div class="hq-field">
+            <label for="share-rights">They may</label>
+            <select id="share-rights" name="rights">
+              <option value="see">See the project</option>
+              <option value="comment">See it and comment on tasks</option>
+            </select>
+          </div>
+          <div class="hq-field">
+            <label for="share-expires">Last day it works (optional)</label>
+            <input id="share-expires" name="expiresOn" type="date">
+          </div>
+          <div><button class="hq-button" type="submit">Make the link</button></div>
+          <p class="hq-muted hq-small">HQ shows the link once, when it's made.</p>
         </form>
       </details>
     </section>
