@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Decision 0008, agency tools: task keys, GitHub, workload by week, tasks
+  from any CSV, retainers, automation rules, reply targets, a weighted
+  forecast, proposal approvals, duplicate warnings, check-ins, and clients
+  from Salesforce and HubSpot and time from Toggl and Harvest, in thirteen
+  slices.
+
 - Import tasks from Trello and Todoist (decision 0007, slice 13). From a
   project's task list, upload a Trello board's JSON export or a Todoist
   project's CSV export, see what it would make, then import it all at once:
