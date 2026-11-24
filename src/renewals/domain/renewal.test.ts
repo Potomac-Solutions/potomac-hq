@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { newRenewal, renewed, stateOf, yearly } from "./renewal.ts";
+import { billed, billedThisTerm, billFor, newRenewal, payBy, renewed, stateOf, yearly } from "./renewal.ts";
 import type { Id } from "../../shared/domain/id.ts";
 
 const ids = { id: "11111111-1111-4111-8111-111111111111" as Id, organizationId: "22222222-2222-4222-8222-222222222222" as Id };
@@ -24,4 +24,26 @@ test("renewing moves the date on one term from when it was due; the state says h
   assert.equal(stateOf(made.value, "2026-12-01"), "later");
   assert.deepEqual(yearly(made.value), { cost: 14400, price: 36000 });
   assert.deepEqual(yearly({ ...made.value, termMonths: 24 }), { cost: 600, price: 1500 });
+});
+
+test("a renewal billed to the client is paid a week before it renews, once a term", () => {
+  const made = newRenewal({ id: "0190a000-0000-7000-8000-0000000000d1" as Id, organizationId: "0190a000-0000-7000-8000-0000000000d2" as Id }, { kind: "domain", name: "betterdaystowing.com", provider: "Namecheap", renewsOn: "2026-12-02", termMonths: "12", cost: "11.28", price: "20" });
+  assert.ok(made.ok);
+  assert.equal(payBy(made.value), "2026-11-25");
+  const bill = billFor(made.value, "2026-11-23");
+  assert.ok(bill.ok);
+  assert.deepEqual(bill.value, { description: "betterdaystowing.com: domain renewal from December 2, 2026 (every year)", amount: { minor: 2000, currency: "USD" }, dueOn: "2026-11-25" });
+  assert.deepEqual(billFor(made.value, "2026-11-28").ok && billFor(made.value, "2026-11-28"), { ok: true, value: { ...bill.value, dueOn: "2026-11-28" } }, "billed late, it is due today");
+
+  const sent = billed(made.value, "0190a000-0000-7000-8000-0000000000d3" as Id);
+  assert.equal(billedThisTerm(sent), true);
+  assert.deepEqual(billFor(sent, "2026-11-23"), { ok: false, error: "already-billed" });
+  const next = renewed(sent);
+  assert.equal(next.renewsOn, "2027-12-02");
+  assert.equal(billedThisTerm(next), false, "renewed, the next term is not billed yet");
+  assert.ok(billFor(next, "2027-11-01").ok);
+
+  const ours = newRenewal({ id: "0190a000-0000-7000-8000-0000000000d4" as Id, organizationId: "0190a000-0000-7000-8000-0000000000d2" as Id }, { kind: "hosting", name: "Shared hosting", renewsOn: "2026-12-02", termMonths: "1", cost: "5" });
+  assert.ok(ours.ok);
+  assert.deepEqual(billFor(ours.value, "2026-11-23"), { ok: false, error: "not-billed-to-client" });
 });

@@ -6,6 +6,7 @@
   'use route /renewals'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
@@ -41,8 +42,10 @@
                 <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span></p>
                 <p class="hq-small"><a href="/clients/{one.organizationId}#renewals">{one.clientName}</a> · <time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span></p>
                 <p zb-if={one.cost || one.price} class="hq-small hq-muted">Costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</p>
+                <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
               </div>
               <div zb-if={view.canEdit} class="renewal-actions">
+                <a zb-if={one.canBill} class="hq-button secondary" href="/clients/{one.organizationId}#renewals">Bill the client<span class="sr-only">: {one.name}</span></a>
                 <form method="post" action="/renewals/{one.id}/renewed"><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               </div>
             </li>
