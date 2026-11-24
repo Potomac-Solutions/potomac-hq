@@ -91,7 +91,7 @@ total on the dashboard, need `opportunity.view-value` too.
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | View projects | `project.view` | Yes | Yes | Yes | No (v0.6: own organization only) |
-| Edit a project's name | `project.edit` | Yes | Yes | Yes | No |
+| Edit a project's name or key | `project.edit` | Yes | Yes | Yes | No |
 | Complete or cancel a project | `project.set-status` | Yes | Yes | Yes | No |
 | Change a project's owner | `project.set-owner` | Yes | Yes | No | No |
 

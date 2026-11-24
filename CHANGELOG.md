@@ -14,6 +14,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
   forecast, proposal approvals, duplicate warnings, check-ins, and clients
   from Salesforce and HubSpot and time from Toggl and Harvest, in thirteen
   slices.
+- Task keys: every task has a short key like BDW-12, shown beside its
+  title; to-dos are TODO-7. Typing a key into search or quick add opens the
+  task, and a project's key can be changed with the old one still working.
 
 - Import tasks from Trello and Todoist (decision 0007, slice 13). From a
   project's task list, upload a Trello board's JSON export or a Todoist

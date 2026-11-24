@@ -289,3 +289,25 @@ deep; notes go into the task's details.
 
 Labels match HQ's by name, whatever the capitals, or are made. No one is
 assigned. At most 1,000 tasks and subtasks in one import.
+
+## Task keys
+
+Added by decision 0008, section 1 (migration 0052). Each project has a
+`key`, 2 to 6 capital letters or digits starting with a letter, and each
+task a `number`, counted from 1 within its project; to-dos share one count
+and are TODO-n. So a task is BDW-12. Numbers are never reused or changed.
+
+A new project's key is made from its name: the initials of up to five
+words, or the first three letters of a one-word name, with a digit added
+when it's taken (BDW, then BDW2). TODO and INV are never keys, since INV-0003
+is an invoice number. Migration 0052 gave existing projects keys the same
+way and numbered their tasks in the order they were made.
+
+`project_key` keeps every key a project has had, so changing BDW to SITE
+leaves BDW-12 finding the same task, and no other project can take BDW.
+Changing a key needs `project.edit` and writes `project.key-changed` with
+`from` and `to`.
+
+Search and quick add open a task when what's typed is just its key, in any
+capitals, for anyone with `task.view`. Anything more is searched, or added,
+as usual.
