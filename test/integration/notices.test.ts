@@ -83,7 +83,7 @@ test("reminders: yours only, fired once when due, again when the due date moves,
   const task = unwrap(projects.addTask(t.services.projects, mikeyId, website, { title: "Renew the hosting", dueOn: due.toString() }));
   const set = await mikey.submit(`/tasks/${task.id}/reminders`, { kind: "before", daysBefore: "1", time: "09:00" });
   assert.match(set.html, /Reminder set\./);
-  assert.match(textOf(set.html), /Your reminders The day before it's due, at 9:00 AM Fires /);
+  assert.match(textOf(set.html), /Reminders The day before it's due, at 9:00 AM For you\. Fires /);
   assert.match(problemOf((await mikey.post(`/tasks/${task.id}/reminders`, { kind: "at", when: "2020-01-01T09:00" })).headers.get("location")), /That time has passed/);
   assert.doesNotMatch(textOf(await sam.page(`/tasks/${task.id}`)), /The day before it's due/, "a reminder is only its setter's");
 
@@ -108,10 +108,46 @@ test("reminders: yours only, fired once when due, again when the due date moves,
   assert.match(removed.html, /Reminder removed\./);
 });
 
+test("a reminder for whoever has the task goes to them when it fires, and anyone who edits tasks sees and may remove it", async () => {
+  const due = Temporal.Now.plainDateISO("America/New_York").add({ days: 3 });
+  const task = unwrap(projects.addTask(t.services.projects, mikeyId, website, { title: "Send the invoice", dueOn: due.toString() }));
+  await mikey.submit(`/tasks/${task.id}/reminders`, { kind: "before", daysBefore: "0", time: "08:00", forWhom: "assignee" });
+  assert.match(textOf(await sam.page(`/tasks/${task.id}`)), /The day it's due, at 8:00 AM For whoever has it\. Fires /);
+  unwrap(projects.updateTask(t.services.projects, mikeyId, task.id, { title: "Send the invoice", dueOn: due.toString(), assigneeId: samId }));
+  const before = count(samId);
+  const when = due.toPlainDateTime(Temporal.PlainTime.from("08:00")).toZonedDateTime("America/New_York").toInstant().toString();
+  assert.equal(notices.fireReminders({ ...t.services.notices, clock: () => when }), 1);
+  assert.equal(count(samId), before + 1, "went to Sam, who has it now");
+  assert.match(textOf(await sam.page("/notices")), /Reminder: “Send the invoice”/);
+  const id = t.db.prepare("select id from task_reminder where task_id = ?").get(task.id)?.["id"] as Id;
+  assert.match((await sam.submit(`/reminders/${id}/remove`, {})).html, /Reminder removed\./);
+});
+
+test("reminders marked to keep go to the next of a repeat, moved with the due date; others stay behind", async () => {
+  const due = Temporal.Now.plainDateISO("America/New_York").add({ days: 2 });
+  const task = unwrap(projects.addTask(t.services.projects, mikeyId, website, { title: "Post the weekly update", dueOn: due.toString() }));
+  unwrap(projects.setTaskRepeat(t.services.projects, mikeyId, task.id, { every: "1", unit: "week", from: "due" }));
+  await mikey.submit(`/tasks/${task.id}/reminders`, { kind: "before", daysBefore: "1", time: "09:00", carry: "1" });
+  const at = due.subtract({ days: 1 }).toPlainDateTime(Temporal.PlainTime.from("15:00")).toString().slice(0, 16);
+  await mikey.submit(`/tasks/${task.id}/reminders`, { kind: "at", when: at, forWhom: "assignee", carry: "1" });
+  await mikey.submit(`/tasks/${task.id}/reminders`, { kind: "before", daysBefore: "0", time: "07:00" });
+  unwrap(projects.moveTaskStatus(t.services.projects, mikeyId, task.id, "done"));
+  const next = t.db.prepare("select id from task where previous_id = ?").get(task.id)?.["id"] as Id;
+  const carried = t.db.prepare("select days_before, time_of_day, at, for_whom, carry from task_reminder where task_id = ? order by rowid").all(next) as Record<string, unknown>[];
+  assert.equal(carried.length, 2, "the one not marked to keep stays behind");
+  assert.deepEqual({ ...carried[0] }, { days_before: 1, time_of_day: "09:00", at: null, for_whom: "me", carry: 1 });
+  const moved = Temporal.Instant.from(String(carried[1]?.["at"])).toZonedDateTimeISO("America/New_York");
+  assert.equal(moved.toPlainDate().toString(), due.add({ weeks: 1 }).subtract({ days: 1 }).toString());
+  assert.equal(moved.hour, 15);
+  assert.equal(carried[1]?.["for_whom"], "assignee");
+  assert.match(textOf(await mikey.page(`/tasks/${next}`)), /Kept on each repeat/);
+});
+
 test("emailed notices: only for those who ask, one email per person per run, never twice", async () => {
   assert.match(textOf(await sam.page("/notices")), /Email isn't set up for HQ yet/);
   const on = await sam.submit("/notices/email", { on: "1" });
   assert.match(on.html, /Your notices will be emailed to you\./);
+  assert.equal(Number(t.db.prepare("select count(*) as n from notice where user_id = ? and emailed_at is null").get(samId)?.["n"]), 0, "what was already here isn't sent");
   unwrap(projects.addTask(t.services.projects, mikeyId, website, { title: "Check the contact form", assigneeId: samId }));
   unwrap(projects.addTask(t.services.projects, mikeyId, website, { title: "Check the map", assigneeId: samId }));
   const sent: { to: string; subject: string; body: string }[] = [];
