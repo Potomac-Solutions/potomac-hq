@@ -37,7 +37,7 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore } from "./projects/adapters.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
@@ -153,6 +153,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     comments: sqliteCommentStore(db),
     repeats: sqliteRepeatStore(db),
     feeds: sqliteCalendarFeedStore(db),
+    shares: sqliteShareStore(db),
     feedTokens: siteTokens,
     deliverables: sqliteDeliverableStore(db),
     links: sqliteProjectLinkStore(db),

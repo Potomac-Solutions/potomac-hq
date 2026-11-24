@@ -72,6 +72,7 @@ export const PERMISSIONS = [
   "public-site.edit",
   // Task management (decision 0007)
   "label.manage",
+  "project.share",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -112,6 +113,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "referral.manage",
   "site.publish",
   "label.manage",
+  "project.share",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

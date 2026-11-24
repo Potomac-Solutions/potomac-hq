@@ -14,7 +14,7 @@ import { err, friendlyDay, ok, recordActivity, type Id, type Result } from "../.
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
 import { mayHaveSubtasks } from "../domain/dependencies.ts";
 import { nextDue, shiftBy } from "../domain/repeat.ts";
-import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeedStore, FeedTokens, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeedStore, FeedTokens, ShareStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -27,6 +27,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly comments: CommentStore;
   readonly repeats: RepeatStore;
   readonly feeds: CalendarFeedStore;
+  readonly shares: ShareStore;
   readonly feedTokens: FeedTokens;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
