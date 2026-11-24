@@ -182,6 +182,14 @@ puts back what HQ had.
   the Hours page (it needs email set up), and link your website to /book.
   People sign up, confirm their email, and book in their own portal. Each
   one shows up in the pipeline as "Signed up to book a call".
+- **Booking from potomac.solutions.** With the same setting on, the website
+  shows your open times. Someone new picks one, gives their name, email and
+  phone, and is booked at once. They also get a client account, and an email
+  with a link to their dashboard to choose a password and add or change their
+  details. One person gets one account: if their email or phone is already on
+  file, nothing is booked and the sign-in link goes to the email on file, not
+  the one they typed. "+tags", Gmail dots and differently written phone
+  numbers count as the same. Demo clients never block anyone.
 - **Importing clients.** Clients → Import clients: paste a list with a
   header line (Client, Contact, Phone, Email, Project, Pricing, Price,
   Repository, Live, Demo, in any order). Each line becomes a client, its

@@ -28,7 +28,7 @@ import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, cli
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
-import { publicSiteView } from "./public-site/index.ts";
+import { publicSiteView, settingsForSite } from "./public-site/index.ts";
 import { publicSiteRoutes, siteApiRoutes } from "./public-site/api/public-site-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
@@ -54,6 +54,7 @@ import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
+import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
 import { projectRoutes } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
@@ -785,6 +786,10 @@ export async function createApp(config: AppConfig): Promise<App> {
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nSomeone, probably you, tried to sign up with this email. You already have a client portal account. Sign in as usual, or open this link to choose a new password. It works once, for a week:\n\n${link}\n\nIf it wasn't you, ignore this email and nothing changes.\n\nPotomac Solutions`,
           }),
+          "website-booked": ({ name, link, when }: { name: string; link: string; when: string }) => ({
+            subject: "Your call with Potomac Solutions is booked",
+            body: `Hi ${name},\n\nThanks for booking a call with us for ${when}. We also made you a client account, so everything about your call and your website lives in one place.\n\nOpen this link to choose a password and see your dashboard. There you can add or change your details, and move or cancel your call. It works once, for a week:\n\n${link}\n\nIf you didn't book this, ignore this email and nothing else happens.\n\nPotomac Solutions`,
+          }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nPotomac Solutions has set up a client portal for you. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nIn the portal you can follow your project, approve work and send messages.\n\nPotomac Solutions`,
@@ -943,6 +948,23 @@ export async function createApp(config: AppConfig): Promise<App> {
   const allowSiteApi = sqliteRateLimit(db, { name: "site-api", max: 120, windowMs: 60_000 });
   const web = new Hono();
   const ping = db.prepare("select 1 as ok");
+  web.route(
+    "/",
+    siteBookingRoutes({
+      portal: portalDeps,
+      booking: services.booking,
+      emails: bookingEmails,
+      isSite: (token) => settingsForSite(services.publicSite, token) !== null,
+      open: signUpOpen,
+      ownerFor: leadOwner,
+      publicUrl,
+      mail: async (to, link, kind, when) =>
+        inviteMail !== null && "ok" in (await inviteMail.notify({ email: to.email }, kind === "booked" ? "website-booked" : kind === "reset" ? "sign-up-again" : "sign-up", { name: to.name, link, when })),
+      allowPerVisitor: sqliteRateLimit(db, { name: "site-booking-visitor", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "site-booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+      allowApi: (incoming) => allowSiteApi(clientAddressOf(incoming as never)),
+    }),
+  );
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
@@ -962,7 +984,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });

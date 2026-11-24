@@ -393,3 +393,10 @@ about every 30 seconds and keeps the last answer if HQ is down, so an HQ outage
 never opens or closes the site by itself. The address is limited to 120 requests
 a minute per caller and answers 401, with no reason, to anything without the
 right token.
+
+The same token lets the website book calls. `GET /api/site/booking` answers the
+open times; `POST /api/site/booking` (JSON: name, email, phone, business, topic,
+start, and `visitor`, the visitor's address) books someone new or emails someone
+already on file a sign-in link. It is open only when "Anyone can sign up at
+/book" is on, hours are set and email works. Each visitor address may try 5
+times an hour and each email 3 times a day.

@@ -78,3 +78,18 @@ export type PortalAuth = {
   accept(token: string, form: { readonly name: string; readonly password: string }): Promise<{ ok: true; account: string; cookie: string } | { ok: false; message: string }>;
   setDisabled(account: string, disabled: boolean): Promise<void>;
 };
+
+/** Someone already on file who matched a sign-up by email or phone. */
+export type KnownPerson = {
+  /** Where their sign-in link goes: their portal account's email, else the matched contact's. Null when there is none. */
+  readonly email: string | null;
+  readonly name: string;
+  readonly organizationId: string;
+  /** True when that email is a portal account that has been turned off. */
+  readonly disabled: boolean;
+};
+
+/** Finds anyone on file with the same email or phone as a sign-up, by the keys in identity-keys.ts. Demo clients are left out. */
+export type PeopleLookup = {
+  match(keys: { readonly email: string | null; readonly phone: string | null }): KnownPerson | null;
+};
