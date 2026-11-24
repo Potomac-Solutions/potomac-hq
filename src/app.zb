@@ -20,7 +20,8 @@
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
     const groups = [
       { label: '', links: [
-        { label: 'Today', href: '/today', current: at('/today', '/todos') },
+        { label: 'Today', href: '/today', current: at('/today') },
+        { label: 'My work', href: '/todos', current: at('/todos') },
         { label: 'Dashboard', href: '/', current: at('/') },
       ] },
       { label: 'Sales', links: [
