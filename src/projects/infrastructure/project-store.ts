@@ -141,16 +141,17 @@ const toTask = (r: Row): Task => ({
   assigneeId: maybe(r, "assignee_id") as Id | null,
   priority: text(r, "priority") as TaskPriority,
   dueOn: maybe(r, "due_on"),
+  startOn: maybe(r, "start_on"),
   estimateMinutes: (r["estimate_minutes"] ?? null) as number | null,
   status: text(r, "status") as TaskStatus,
   doneAt: maybe(r, "done_at"),
 });
 
 export function sqliteTaskStore(db: Database): TaskStore {
-  const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, organization_id, opportunity_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, start_on, estimate_minutes, status, done_at";
+  const insert = db.prepare(`insert into task (${columns}, organization_id, opportunity_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare(
-    "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
+    "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, start_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
   const get = db.prepare(`select ${columns} from task where id = ?`);
   const joined = `select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, u.name as assignee_name
@@ -162,10 +163,10 @@ export function sqliteTaskStore(db: Database): TaskStore {
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
     insert(t, at, origin = {}) {
-      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.opportunityId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
+      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.startOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.opportunityId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
     },
     update(t, at) {
-      update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
+      update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.startOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
     },
     get(id) {
       const found = get.get(id) as Row | undefined;
@@ -413,7 +414,7 @@ export function sqliteCommentStore(db: Database): CommentStore {
 }
 
 export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
-  const columns = "t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.estimate_minutes, t.status, t.done_at, coalesce(p.name, '') as project_name, u.name as assignee_name";
+  const columns = "t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.start_on, t.estimate_minutes, t.status, t.done_at, coalesce(p.name, '') as project_name, u.name as assignee_name";
   const from = "from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id";
   const parentOf = db.prepare("select parent_id from task where id = ?");
   const subtasks = db.prepare(`select ${columns} ${from} where t.parent_id = ? order by t.rowid`);
@@ -450,7 +451,7 @@ export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
 }
 
 export function sqliteWorkStore(db: Database): WorkStore {
-  const rows = db.prepare(`select t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.estimate_minutes, t.status, t.done_at,
+  const rows = db.prepare(`select t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.start_on, t.estimate_minutes, t.status, t.done_at,
       coalesce(p.name, '') as project_name, coalesce(p.organization_id, t.organization_id) as organization_id, coalesce(c.name, '') as client_name, coalesce(u.name, '') as assignee_name
     from task t
     left join project p on p.id = t.project_id

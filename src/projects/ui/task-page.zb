@@ -46,6 +46,7 @@
         <dt>Who</dt><dd>{t.assigneeName || "Nobody yet"}</dd>
         <dt>Priority</dt><dd>{t.priorityLabel}</dd>
         <dt>Labels</dt><dd><label-chips zb-if={t.labels.length > 0} labels={t.labels}></label-chips><span zb-if={t.labels.length === 0}>None</span></dd>
+        <dt zb-if={t.startOn}>Starts</dt><dd zb-if={t.startOn}><time datetime={t.startOn}>{t.startText}</time></dd>
         <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <status-badge zb-if={t.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
         <dt zb-if={!t.projectId}>Kind</dt><dd zb-if={!t.projectId}>A to-do, not on a project</dd>
@@ -307,6 +308,7 @@
             <zb-each items={view.form.phases} as="phase" key={phase.value}><option value={phase.value} selected={phase.value === t.phaseId}>{phase.label}</option></zb-each>
           </select>
         </div>
+        <text-field label="Starts" name="startOn" type="date" value={t.startOn} description="Optional. Draws it as a bar on the timeline."></text-field>
         <text-field label="Due" name="dueOn" type="date" value={t.dueOn}></text-field>
         <text-field label="Estimate in hours" name="estimate" inputmode="decimal" value={t.estimate}></text-field>
         <text-field label="Details" name="description" rows={3} value={t.description}></text-field>

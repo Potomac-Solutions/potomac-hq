@@ -1,0 +1,29 @@
+<!--
+  Every active project on one timeline (decision 0007, section 9): each from
+  its start to its target date, or across its tasks' dates when those aren't
+  set, with its milestones marked. Demo clients' projects are left out.
+-->
+<script>
+  'use route /timeline'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import './timeline-chart.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.timelines()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Timeline', view: view.value }
+  }
+</script>
+<hq-timeline view={{ scale: null, rows: [], undated: 0 }}>
+  <div class="hq-page">
+    <h1>Timeline</h1>
+    <p class="hq-muted">Every active project, from its start to its target date. Open one for its phases and tasks.</p>
+    <section class="hq-panel" aria-labelledby="timeline-heading">
+      <h2 id="timeline-heading">Active projects</h2>
+      <empty-state zb-if={!view.scale} heading="No dated projects">Give a project a start and target date, or its tasks due dates, and it shows here. <a href="/projects">Go to the projects</a></empty-state>
+      <timeline-chart zb-else scale={view.scale} groups={[{ key: 'all', label: '', bar: null, rows: view.rows }]}></timeline-chart>
+      <p zb-if={view.undated > 0} class="hq-muted hq-small" data-spaced>{view.undated === 1 ? '1 active project has' : view.undated + ' active projects have'} no dates yet, so {view.undated === 1 ? "it isn't" : "they aren't"} shown.</p>
+    </section>
+  </div>
+</hq-timeline>

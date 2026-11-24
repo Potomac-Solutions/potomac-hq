@@ -1,0 +1,38 @@
+<!--
+  A project's timeline (decision 0007, section 9): its phases, milestones and
+  tasks from start to due, with today marked. Tasks with no dates are counted
+  under it. Give a task a start date on its page to draw it as a bar.
+-->
+<script>
+  'use route /projects/:id/timeline'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import { notFound } from '@zubra/router'
+  import './timeline-chart.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.timeline(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Timeline: ' + view.value.projectName, view: view.value, money: context.can.money }
+  }
+</script>
+<hq-project-timeline view={{ projectId: '', projectName: '', clientName: '', scale: null, groups: [], undated: 0 }} money={false}>
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.projectName, href: `/projects/${view.projectId}` }, { label: 'Timeline', href: '' }]}></breadcrumb-trail>
+    <h1>{view.projectName} <span class="hq-muted hq-small">{view.clientName}</span></h1>
+    <nav class="hq-tabs" aria-label="Project">
+      <a href="/projects/{view.projectId}">Overview</a>
+      <a href="/projects/{view.projectId}/tasks">Tasks</a>
+      <a href="/projects/{view.projectId}/board">Board</a>
+      <a href="/projects/{view.projectId}/timeline" aria-current="page">Timeline</a>
+      <a zb-if={money} href="/projects/{view.projectId}/money">Money</a>
+    </nav>
+    <section class="hq-panel" aria-labelledby="timeline-heading">
+      <h2 id="timeline-heading">From start to due</h2>
+      <empty-state zb-if={!view.scale} heading="Nothing dated yet">Give tasks and milestones a due date, and a start date if they take more than a day, and they show here. <a href="/projects/{view.projectId}/tasks">Go to the tasks</a></empty-state>
+      <timeline-chart zb-else scale={view.scale} groups={view.groups}></timeline-chart>
+      <p zb-if={view.undated > 0} class="hq-muted hq-small" data-spaced>{view.undated === 1 ? '1 task has' : view.undated + ' tasks have'} no dates, so {view.undated === 1 ? "it isn't" : "they aren't"} shown. <a href="/projects/{view.projectId}/tasks">See the tasks</a></p>
+    </section>
+  </div>
+</hq-project-timeline>

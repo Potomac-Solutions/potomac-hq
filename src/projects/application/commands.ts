@@ -420,7 +420,7 @@ export function repeatAfterDone(deps: ProjectsDeps, actorId: Id, taskId: Id): Ta
   const at = deps.clock();
   const dueOn = nextDue(repeat, task.dueOn, deps.today());
   const place = task.projectId === null ? deps.repeats.todoPlace(taskId) : { organizationId: null, opportunityId: null };
-  const next: Task = { ...task, id: deps.newId(), dueOn, status: "todo", doneAt: null };
+  const next: Task = { ...task, id: deps.newId(), dueOn, startOn: shiftBy(task.dueOn, dueOn, task.startOn), status: "todo", doneAt: null };
   deps.tasks.insert(next, at, { ...place, createdBy: actorId });
   deps.repeats.set(next.id, repeat, at);
   deps.repeats.setPrevious(next.id, taskId);
@@ -428,7 +428,7 @@ export function repeatAfterDone(deps: ProjectsDeps, actorId: Id, taskId: Id): Ta
   if (labels(taskId).length > 0) deps.labels.setForTask(next.id, labels(taskId));
   if (mayHaveSubtasks({ projectId: task.projectId, parentId: null }).ok) {
     for (const sub of deps.taskLinks.subtasks(taskId)) {
-      const copy: Task = { id: deps.newId(), projectId: sub.projectId, phaseId: sub.phaseId, title: sub.title, description: sub.description, assigneeId: sub.assigneeId, priority: sub.priority, dueOn: shiftBy(task.dueOn, dueOn, sub.dueOn), estimateMinutes: sub.estimateMinutes, status: "todo", doneAt: null };
+      const copy: Task = { id: deps.newId(), projectId: sub.projectId, phaseId: sub.phaseId, title: sub.title, description: sub.description, assigneeId: sub.assigneeId, priority: sub.priority, dueOn: shiftBy(task.dueOn, dueOn, sub.dueOn), startOn: shiftBy(task.dueOn, dueOn, sub.startOn), estimateMinutes: sub.estimateMinutes, status: "todo", doneAt: null };
       deps.tasks.insert(copy, at, { parentId: next.id, createdBy: actorId });
       if (labels(sub.id).length > 0) deps.labels.setForTask(copy.id, labels(sub.id));
     }
