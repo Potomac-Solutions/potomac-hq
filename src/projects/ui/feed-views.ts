@@ -18,3 +18,14 @@ ${view.replaced ? '<p class="notice good" role="status">Your old address has sto
 <p>Calendars check it about once an hour. Changes you make in the calendar don't come back to HQ.</p>
 <p><a class="button" href="/calendar-feed">Done</a></p>`;
 }
+
+/** A new share link, shown once, on the answer to making it. */
+export function shareAddressPage(view: { readonly address: string; readonly label: string; readonly rights: string; readonly projectId: string }): string {
+  const can = view.rights === "comment" ? "see the project's plan, tasks and shared deliverables, and comment on tasks" : "see the project's plan, tasks and shared deliverables";
+  return `<h1>A link for ${escapeHtml(view.label)}</h1>
+<label>Send them this link
+<input readonly value="${escapeHtml(view.address)}">
+<span class="hint">Anyone with it can ${can}, with no account, until you stop it. This page won't show it again; if it's lost, stop it and make another.</span></label>
+<p>It never shows notes, time, estimates, money, who has which task, the team's own comments, or any other project. Every visit is recorded.</p>
+<p><a class="button" href="/projects/${escapeHtml(view.projectId)}#share">Back to the project</a></p>`;
+}

@@ -8,6 +8,7 @@ import * as links from "../application/dependencies.ts";
 import * as talk from "../application/comments.ts";
 import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
+import * as sharing from "../application/share.ts";
 import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -17,6 +18,8 @@ export type ProjectRoutesDeps = {
   readonly sign: (location: string) => string;
   /** The page that shows a new calendar address, once. */
   readonly feedPage?: (view: { readonly address: string; readonly replaced: boolean }) => string;
+  /** The page that shows a new share link, once. */
+  readonly sharePage?: (view: { readonly address: string; readonly label: string; readonly rights: string; readonly projectId: string }) => string;
   /** HQ's own address, for calendar addresses; the request's when unset. */
   readonly publicUrl?: string;
 };
@@ -149,6 +152,22 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     const page = deps.feedPage?.({ address: `${base}/calendar/${made.value.token}.ics`, replaced: made.value.replaced }) ?? "";
     return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
   });
+  // Share links. Making one answers with it, once, like the calendar address.
+  app.post("/projects/:id/shares", async (c) => {
+    const { fields } = await readForm(c);
+    const projectId = parseId(c.req.param("id"));
+    if (!projectId.ok) return c.redirect(deps.sign(withMessage("/projects", "problem", messageFor("not-found"))), 303);
+    const made = sharing.makeShareLink(deps.projects, deps.actorOf(c.req.header("cookie") ?? ""), projectId.value, { label: fields["label"] ?? "", rights: fields["rights"] ?? "", expiresOn: fields["expiresOn"] ?? null });
+    if (!made.ok) return c.redirect(deps.sign(withMessage(`/projects/${projectId.value}#share`, "problem", messageFor(made.error))), 303);
+    const base = (deps.publicUrl || new URL(c.req.url).origin).replace(/\/$/, "");
+    const page = deps.sharePage?.({ address: `${base}/s/${made.value.token}`, label: made.value.link.label, rights: made.value.link.rights, projectId: projectId.value }) ?? "";
+    return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+  });
+  post("/shares/:id/stop", (actor, _f, id) => sharing.stopShareLink(deps.projects, actor, id as Id), {
+    done: (link) => `/projects/${link.projectId}#share`,
+    back: (_id, f) => `/projects/${optionalId(f["projectId"]) ?? ""}#share`,
+    message: (link) => `The link “${link.label}” has stopped working.`,
+  });
   post("/calendar-feed/stop", (actor) => calendar.stopCalendarFeed(deps.projects, actor), { done: () => "/calendar-feed", back: () => "/calendar-feed", message: "Your calendar address has stopped working." });
   // Repeating, from the task page.
   post("/tasks/:id/repeat", (actor, f, id) => repeating.setTaskRepeat(deps.projects, actor, id as Id, { every: f["every"] ?? null, unit: f["unit"] ?? null, from: f["from"] ?? null }), {
@@ -246,6 +265,49 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
 }
 
 /** The work table as a CSV file, for the same filter and sort as the page. */
+/**
+ * A share link's own forms and files: reached by its secret alone, with no
+ * one signed in. A comment goes back to its task on the shared page.
+ */
+export function shareRoutes(deps: Pick<ProjectRoutesDeps, "projects" | "sign"> & { readonly allowComment: (key: string) => boolean }): Hono {
+  const app = new Hono();
+  app.post("/s/:token/tasks/:taskId/comments", async (c) => {
+    const token = c.req.param("token");
+    const taskId = parseId(c.req.param("taskId"));
+    const { fields } = await readForm(c);
+    const back = (anchor: string, kind: "done" | "problem", message: string) => c.redirect(deps.sign(withMessage(`/s/${token}`, kind, message)) + anchor, 303);
+    if (!taskId.ok) return c.text("Not found", 404);
+    if (!deps.allowComment(`share ${token}`)) return back(`#task-${taskId.value}`, "problem", "That's a lot of comments at once. Wait a few minutes, then try again.");
+    const said = sharing.commentThroughLink(deps.projects, token, taskId.value, { name: fields["name"] ?? "", body: fields["body"] ?? "" });
+    if (!said.ok && said.error === "not-found") return c.text("Not found", 404);
+    return said.ok ? back(`#task-${taskId.value}`, "done", "Comment added. The team will see it.") : back(`#task-${taskId.value}`, "problem", messageFor(said.error));
+  });
+  return app;
+}
+
+/** A shared deliverable's file, through a working share link. */
+export function shareFiles(deps: Pick<ProjectRoutesDeps, "projects">): Hono {
+  const app = new Hono();
+  app.get("/s/:token/files/:fileId", (c) => {
+    const fileId = parseId(c.req.param("fileId"));
+    const file = fileId.ok ? sharing.fileThroughLink(deps.projects, c.req.param("token"), fileId.value) : null;
+    if (!file) return c.text("Not found", 404, { "cache-control": "no-store" });
+    const fallback = file.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+    return new Response(new Uint8Array(file.body), {
+      status: 200,
+      headers: {
+        "content-type": file.contentType,
+        "content-disposition": `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+        "cache-control": "private, no-store",
+        "content-security-policy": "default-src 'none'; sandbox",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
+      },
+    });
+  });
+  return app;
+}
+
 /** The calendar feed: reached by its secret address alone, with no one signed in. */
 export function calendarFeeds(deps: Pick<ProjectRoutesDeps, "projects" | "publicUrl">): Hono {
   const app = new Hono();
