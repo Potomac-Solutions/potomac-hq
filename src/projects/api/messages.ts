@@ -35,6 +35,11 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-colour": "Choose a colour from the list.",
   "name-taken": "There’s already a label with that name.",
   "filter-empty": "Choose something to filter by first, then save it.",
+  "parent-is-a-todo": "Subtasks go under project tasks. A to-do can't have them.",
+  "parent-is-a-subtask": "A subtask can't have subtasks of its own. Add this one to its parent instead.",
+  "blocks-itself": "A task can't wait on itself.",
+  "makes-a-circle": "That task already waits on this one, so this one can't wait on it.",
+  "already-blocked": "It already waits on that task.",
   "not-understood": "Part of that matches no one, or more than one. Remove that part or change the words, then add it.",
   "label-not-found": "One of those labels has just been deleted. Choose again.",
 };
