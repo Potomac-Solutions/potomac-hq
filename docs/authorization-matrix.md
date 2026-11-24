@@ -250,6 +250,9 @@ The work table, its CSV and saved filters need `task.view` and
 `project.view`, as the boards do. A saved filter is its owner's: only they
 pin, share or delete it, and no role key overrides that.
 
+Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
+them needs `task.view`, like the task itself.
+
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
 
