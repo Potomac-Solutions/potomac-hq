@@ -146,7 +146,7 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await page.getByRole("button", { name: "Save theme" }).click();
   await page.getByText("Theme saved.").waitFor();
   assert.equal(await page.evaluate(BACKGROUND), "#101820");
-  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, `/projects/${projectId}/timeline`, "/board", "/timeline", "/labels", "/work", "/notices", "/calendar-feed", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
+  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, `/projects/${projectId}/timeline`, "/board", "/timeline", "/labels", "/work", "/notices", "/calendar-feed", "/webhooks", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
     await page.goto(t.origin + path);
     await assertAccessible(page, `${path} in dark mode`);
   }
@@ -189,6 +189,18 @@ test("quick add: N goes to the box, the line is checked, then added", async () =
   await page.getByRole("heading", { name: "Your calendar address" }).waitFor();
   assert.match(await page.getByLabel("Subscribe to this in your calendar").inputValue(), /\/calendar\/[A-Za-z0-9_-]{43}\.ics$/);
   await assertAccessible(page, "the calendar address, shown once");
+
+  // A webhook: added, its secret shown once, then its own page.
+  await page.goto(t.origin + "/webhooks");
+  await page.getByLabel("Address", { exact: true }).fill("https://n8n.example.com/webhook/hq");
+  await page.getByLabel("A task is done").check();
+  await page.getByRole("button", { name: "Add webhook" }).click();
+  await page.getByRole("heading", { name: "Webhook added" }).waitFor();
+  await assertAccessible(page, "a webhook's secret, shown once");
+  await page.getByRole("link", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Send a test" }).click();
+  await page.getByText("A test is queued.").waitFor();
+  await assertAccessible(page, "a webhook with a delivery waiting");
   assert.deepEqual(problems, []);
   await page.close();
 });

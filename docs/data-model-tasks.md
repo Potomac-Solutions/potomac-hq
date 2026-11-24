@@ -225,3 +225,38 @@ link's name. Through-link comments are limited to 30 an hour per link.
 Events: `project.share-made`, `project.share-stopped`,
 `project.share-visited` (each visit), `comment.added` (with no actor, and
 `shareId` and `guestName`), `file.downloaded` (with `by: "share-link"`).
+
+## Webhooks
+
+Added by decision 0007, section 12 (migration 0050), in the `webhooks`
+module. Admin only (`webhook.manage`).
+
+`webhook` is an https address on the usual port (never one inside a
+network: names are checked again when sent, and redirects aren't followed),
+the `events` it's sent, whether it's `paused`, and a `salt`. Its signing
+secret is never stored: it's HMAC-SHA256 of its id and salt under HQ's key
+(`HQ_NOTICE_SECRET`), shown once when it's added or replaced. Changing
+`HQ_NOTICE_SECRET` changes every webhook's secret.
+
+Events: `task.added`, `task.assigned`, `task.moved` (with `from`, `to`),
+`task.done`, `task.commented` (with `comment`, and `name` when it came
+through a share link), `project.added`, `project.completed`, and
+`webhook.test`. Each is read from the events HQ records, by the activity
+log the projects, todos and crm modules are given, and queued in the same
+transaction.
+
+`webhook_delivery` is one delivery: its `event`, the JSON `payload`
+exactly as sent (`id`, `event`, `occurredAt`, `by`, the `task` or `project`
+as it was then, with a link back to HQ, and the event's details), its
+`state` (`pending`, `delivered`, `failed`), `attempts`, `next_at`, and the
+last answer's status and first 500 characters. A job sends what's due each
+minute with `X-HQ-Event`, `X-HQ-Delivery` and `X-HQ-Signature-256`
+(`sha256=` and the hex HMAC of the body). A 2xx answer is delivered;
+anything else is tried again after 1, 5 and 15 minutes, then 1, 3, 6 and 12
+hours, within a day of the first, then given up. Paused webhooks queue
+nothing, and their waiting deliveries wait. Each webhook keeps its newest
+200 deliveries; deleting it deletes them.
+
+Events about webhooks: `webhook.added`, `webhook.changed`, `webhook.paused`,
+`webhook.resumed`, `webhook.secret-replaced`, `webhook.tested`,
+`webhook.removed`.

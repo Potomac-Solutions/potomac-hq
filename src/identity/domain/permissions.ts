@@ -73,6 +73,7 @@ export const PERMISSIONS = [
   // Task management (decision 0007)
   "label.manage",
   "project.share",
+  "webhook.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -87,6 +88,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "activity.view-all",
   "public-site.view",
   "public-site.edit",
+  "webhook.manage",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

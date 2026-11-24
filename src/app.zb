@@ -53,6 +53,7 @@
         ...(can.publicSite ? [{ label: 'Our website', href: '/our-website', current: at('/our-website') }] : []),
         ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
         ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
+        ...(can.webhooks ? [{ label: 'Webhooks', href: '/webhooks', current: at('/webhooks') }] : []),
       ] },
     ]
     // The default title. A page's own title replaces it.

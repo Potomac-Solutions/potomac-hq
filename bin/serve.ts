@@ -28,6 +28,8 @@ import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
+import { deliverDue } from "../src/webhooks/index.ts";
+import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
@@ -247,6 +249,21 @@ const taskNoticeTimer = setInterval(() => {
 }, 60_000);
 taskNoticeTimer.unref();
 
+// Webhooks (decision 0007, section 12): every minute, send the deliveries
+// that are due, signed, and schedule the next try for any that didn't land.
+let busyHooks = false;
+const webhookTimer = setInterval(() => {
+  if (busyHooks) return;
+  busyHooks = true;
+  deliverDue(createServices(db, { webhookKey: noticeSecret, publicUrl }).webhooks, httpsHookSend)
+    .then((sent) => {
+      if (sent.failed > 0) log(`Webhooks: ${sent.failed} deliveries didn't land; they'll be tried again`);
+    })
+    .catch((error: unknown) => log("Webhooks: the run failed", error))
+    .finally(() => (busyHooks = false));
+}, 60_000);
+webhookTimer.unref();
+
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
 if (email) {
@@ -304,6 +321,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopMorning?.();
     stopNotices?.();
     clearInterval(taskNoticeTimer);
+    clearInterval(webhookTimer);
     stopReminders?.();
     server.close(() => {
       db.close();
