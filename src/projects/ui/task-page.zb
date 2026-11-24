@@ -137,7 +137,14 @@
       <h2 id="task-files">Files</h2>
       <ul zb-if={view.files.length > 0} class="hq-links">
         <zb-each items={view.files} as="file" key={file.id}>
-          <li><span><a href={file.href}>{file.name}</a> <span class="hq-muted hq-small">{file.size}</span></span> <span class="hq-muted hq-small">{file.who ? file.who + ', ' : ''}{file.when}</span></li>
+          <li>
+            <span><a href={file.href}>{file.name}</a> <span class="hq-muted hq-small">{file.size}</span></span>
+            <span class="hq-muted hq-small">{file.who ? file.who + ', ' : ''}{file.when}</span>
+            <form zb-if={view.canAttach} method="post" action="/tasks/{t.id}/files/remove" class="hq-inline">
+              <input type="hidden" name="fileId" value={file.id}>
+              <button class="hq-button secondary small" type="submit" aria-label="Remove {file.name}">Remove</button>
+            </form>
+          </li>
         </zb-each>
       </ul>
       <p zb-if={view.files.length === 0} class="hq-muted">No files yet.</p>

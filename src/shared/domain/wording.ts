@@ -83,6 +83,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "task.blocked": "marked a task as waiting on another",
   "task.unblocked": "stopped a task waiting on another",
   "task.file-attached": "attached a file to a task",
+  "task.file-removed": "removed a file from a task",
+  "file.removed": "removed a file",
   "comment.added": "commented on a task",
   "comment.edited": "edited a comment",
   "comment.removed": "deleted a comment",

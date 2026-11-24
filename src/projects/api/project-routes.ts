@@ -122,6 +122,11 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back: (id) => `/tasks/${id}#files`,
     message: "File attached.",
   });
+  post("/tasks/:id/files/remove", (actor, f, id) => talk.removeTaskFile(deps.projects, actor, id as Id, optionalId(f["fileId"]) ?? ("" as Id)), {
+    done: (_, id) => `/tasks/${id}#files`,
+    back: (id) => `/tasks/${id}#files`,
+    message: (removed) => `Removed “${removed.name}”.`,
+  });
   // Subtasks and blocking, from the task page.
   post("/tasks/:id/subtasks", (actor, f, id) => links.addSubtask(deps.projects, actor, id as Id, { title: f["title"] ?? "", assigneeId: optionalId(f["assigneeId"]), dueOn: f["dueOn"] ?? null }), {
     done: (_, id) => `/tasks/${id}#subtasks`,

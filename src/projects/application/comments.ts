@@ -9,7 +9,7 @@
 // its type checks, `file.upload` to send and `file.download` to fetch.
 import { editComment, mayChangeComment, mentionsIn, newComment, type Comment, type CommentError } from "../domain/comment.ts";
 import { matchHandle } from "../domain/quick-add.ts";
-import { saveFile, type UploadError } from "../../files/index.ts";
+import { removeFile, saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { ProjectsDeps, Refused } from "./commands.ts";
@@ -94,5 +94,20 @@ export function attachToTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id,
     if (!saved.ok) return saved;
     recordActivity(deps, { actorId, action: "task.file-attached", recordType: "task", recordId: taskId, context: { projectId: task.projectId, title: task.title, fileId: saved.value.id, name: saved.value.name } });
     return ok({ taskId });
+  });
+}
+
+/** Removes a file from a task, bytes and all. The same permission as attaching one. */
+export function removeTaskFile(deps: ProjectsDeps, actorId: Id | null, taskId: Id, fileId: Id): Result<{ readonly taskId: Id; readonly name: string }, Refused> {
+  if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const task = deps.tasks.get(taskId);
+    const record = deps.files.get(fileId);
+    // Only this task's own files: a deliverable's or a receipt's file can't be removed through a task.
+    if (!task || !record || record.ownerType !== "task" || record.ownerId !== taskId) return err("not-found");
+    const removed = removeFile(deps, actorId, record, task.projectId);
+    if (!removed.ok) return removed;
+    recordActivity(deps, { actorId, action: "task.file-removed", recordType: "task", recordId: taskId, context: { projectId: task.projectId, title: task.title, fileId, name: record.name } });
+    return ok({ taskId, name: record.name });
   });
 }
