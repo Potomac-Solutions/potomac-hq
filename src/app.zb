@@ -12,6 +12,7 @@
   // user-avatar is the shell's alone; the account actions are a plain link
   // and a plain button, not action-button.
   import './shared/ui/zubra/user-avatar.zb'
+  import { onMount, onUnmount } from '@zubra/runtime'
 
   export async function load({ context, url }) {
     const can = context.can
@@ -54,10 +55,24 @@
       ] },
     ]
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search' }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add' }
   }
 
   let menu = false
+
+  // N goes to quick add, unless you're typing somewhere.
+  function quickKey(event) {
+    if (event.key !== 'n' && event.key !== 'N') return
+    if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return
+    const target = event.target
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+    const box = document.getElementById('hq-quick-text')
+    if (!box) return
+    event.preventDefault()
+    box.focus()
+  }
+  onMount(() => document.addEventListener('keydown', quickKey))
+  onUnmount(() => document.removeEventListener('keydown', quickKey))
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
@@ -82,6 +97,9 @@
   .hq-find { flex: 1 1 auto; max-width: 28rem; margin: 0; }
   .hq-find input { width: 100%; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--canvas); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .hq-find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; background: var(--background); }
+  .hq-quick { flex: 1 1 auto; max-width: 22rem; margin: 0; }
+  .hq-quick input { width: 100%; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--canvas); border: 1px dashed var(--border); border-radius: calc(var(--radius) - 2px); }
+  .hq-quick input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; background: var(--background); border-style: solid; }
   .hq-account { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; white-space: nowrap; }
   .hq-who { font-size: 0.875rem; font-weight: 600; margin-right: 0.35rem; }
   .hq-account form { display: inline; margin: 0; }
@@ -102,7 +120,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} searching={false}>
+<hq-app who="" groups={[]} searching={false} adding={false}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -128,6 +146,10 @@
         <form zb-if={!searching} method="get" action="/search" role="search" class="hq-find">
           <label class="sr-only" for="hq-find-q">Search HQ</label>
           <input id="hq-find-q" name="q" type="search" placeholder="Search clients, projects, invoices…" autocomplete="off" maxlength="100">
+        </form>
+        <form zb-if={adding} method="get" action="/add" class="hq-quick">
+          <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
+          <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">
         </form>
         <div class="hq-account">
           <user-avatar name={who} size="sm"></user-avatar>

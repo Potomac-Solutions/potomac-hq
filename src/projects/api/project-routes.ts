@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import * as projects from "../application/commands.ts";
 import * as work from "../application/work.ts";
+import * as quick from "../application/quick-add.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -132,6 +133,18 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
       ),
     { done: (_, _id, f) => toWork(f), back: (_id, f) => toWork(f), message: "Columns saved." },
   );
+  // Quick add. On success the box is ready for the next one, with a link to what was added; on a problem, the same line comes back.
+  const quickInput = (f: FormFields) => ({ text: f["text"] ?? "", skip: quick.readSkip([f["skip"] ?? ""]) });
+  post("/add", (actor, f) => quick.quickAdd(deps.projects, actor, quickInput(f)), {
+    done: (added) => `/add?added=${added.id}`,
+    back: (_id, f) => {
+      const { text, skip } = quickInput(f);
+      const params = new URLSearchParams({ text });
+      for (const index of skip) params.append("skip", String(index));
+      return `/add?${params}`;
+    },
+    message: "Added.",
+  });
   post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), { done: () => "/labels", back: () => "/labels", message: "Label made." });
   post("/labels/:id", (actor, f, id) => projects.editLabelDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
     done: () => "/labels",
