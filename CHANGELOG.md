@@ -19,6 +19,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
   with no photo gallery can now be set up, for a site that has only a
   service area or a status. Needs the site's code to draw the
   `serviceArea` block (`docs/decisions/0005-service-area.md`). Migration 0037.
+- Zubra packages upgraded from 6.0.3 to 6.0.5. All four move together and
+  stay pinned to the exact version. Nothing in HQ needed to change: the type
+  check, the Zubra regression suite and every integration test pass as
+  before.
 
 - TypeScript is back on 6.0.3. Dependabot's move to 7.0.2 left the boundary
   check (dependency-cruiser) reading no files, so `lint:boundaries` passed
