@@ -1,5 +1,5 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeed, CalendarFeedStore, ShareRow, ShareStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeed, CalendarFeedStore, ShareRow, ShareStore, ImportStore, PendingImport } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
@@ -359,6 +359,22 @@ export function sqliteLabelStore(db: Database): LabelStore {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
     },
+  };
+}
+
+export function sqliteImportStore(db: Database): ImportStore {
+  const save = db.prepare("insert into task_import (id, user_id, project_id, plan, created_at) values (?, ?, ?, ?, ?) on conflict (user_id) do update set id = excluded.id, project_id = excluded.project_id, plan = excluded.plan, created_at = excluded.created_at");
+  const get = db.prepare("select id, user_id, project_id, plan, created_at from task_import where id = ?");
+  const remove = db.prepare("delete from task_import where id = ?");
+  const old = db.prepare("delete from task_import where created_at < ?");
+  return {
+    save: (p) => void save.run(p.id, p.userId, p.projectId, JSON.stringify(p.plan), p.createdAt),
+    get(id) {
+      const r = get.get(id) as Row | undefined;
+      return r ? { id: text(r, "id") as Id, userId: text(r, "user_id") as Id, projectId: text(r, "project_id") as Id, plan: JSON.parse(text(r, "plan")) as PendingImport["plan"], createdAt: text(r, "created_at") } : null;
+    },
+    remove: (id) => void remove.run(id),
+    removeOlderThan: (at) => void old.run(at),
   };
 }
 

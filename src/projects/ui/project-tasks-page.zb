@@ -16,10 +16,10 @@
     if (stop) return stop
     const view = context.projects.tasks(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, canImport: context.projects.canImport(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="">
+<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="" can-import={false}>
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Tasks', href: '' }]}></breadcrumb-trail>
     <h1>Tasks</h1>
@@ -34,6 +34,7 @@
       <a href="/projects/{view.project.id}/timeline">Timeline</a>
       <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
+    <p zb-if={canImport} class="hq-small"><a href="/projects/{view.project.id}/import">Import tasks from Trello or Todoist</a></p>
     <section class="hq-panel" aria-labelledby="task-list">
       <h2 id="task-list" class="sr-only">Task list</h2>
       <empty-state zb-if={view.tasks.length === 0} heading="No tasks yet">Break the work into pieces someone can pick up.</empty-state>

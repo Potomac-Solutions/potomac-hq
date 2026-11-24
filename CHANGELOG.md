@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Import tasks from Trello and Todoist (decision 0007, slice 13). From a
+  project's task list, upload a Trello board's JSON export or a Todoist
+  project's CSV export, see what it would make, then import it all at once:
+  statuses from lists and sections, labels, checklists and indented tasks
+  as subtasks, due dates, and Todoist's priorities and repeats.
+
 - Webhooks for n8n (decision 0007, slice 12). Admins add an https address
   (Company, then Webhooks) and pick what to send it: tasks added, assigned,
   moved, done or commented on, and projects added or completed. Each

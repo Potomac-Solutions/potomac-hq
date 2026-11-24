@@ -9,6 +9,7 @@ import * as talk from "../application/comments.ts";
 import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
+import * as importing from "../application/task-import.ts";
 import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -167,6 +168,22 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (link) => `/projects/${link.projectId}#share`,
     back: (_id, f) => `/projects/${optionalId(f["projectId"]) ?? ""}#share`,
     message: (link) => `The link “${link.label}” has stopped working.`,
+  });
+  // Importing tasks: the export is read and shown first; yes makes it all at once.
+  post("/projects/:id/import", (actor, f, id, files) => importing.planTaskImport(deps.projects, actor, id as Id, { source: f["source"] ?? "", file: files["file"] ?? null }), {
+    done: (planned) => `/imports/${planned.importId}`,
+    back: (id) => `/projects/${id ?? ""}/import`,
+    message: "Here's what it would make. Nothing is added until you say so.",
+  });
+  post("/imports/:id", (actor, _f, id) => importing.applyTaskImport(deps.projects, actor, id as Id), {
+    done: (made) => `/projects/${made.projectId}/tasks`,
+    back: (id) => `/imports/${id ?? ""}`,
+    message: (made) => `Imported ${made.tasks} ${made.tasks === 1 ? "task" : "tasks"}${made.subtasks > 0 ? ` and ${made.subtasks} ${made.subtasks === 1 ? "subtask" : "subtasks"}` : ""}${made.labels > 0 ? `, with ${made.labels} new ${made.labels === 1 ? "label" : "labels"}` : ""}.`,
+  });
+  post("/imports/:id/cancel", (actor, _f, id) => importing.cancelTaskImport(deps.projects, actor, id as Id), {
+    done: (cancelled) => `/projects/${cancelled.projectId}/import`,
+    back: (id) => `/imports/${id ?? ""}`,
+    message: "Import cancelled. Nothing was added.",
   });
   post("/calendar-feed/stop", (actor) => calendar.stopCalendarFeed(deps.projects, actor), { done: () => "/calendar-feed", back: () => "/calendar-feed", message: "Your calendar address has stopped working." });
   // Repeating, from the task page.

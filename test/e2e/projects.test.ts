@@ -288,6 +288,26 @@ test("share a project by link, and comment through it with no account", async ()
   assert.deepEqual(problems, []);
 });
 
+test("import a Trello board into a project, after a preview", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  const board = join(scratch, "board.json");
+  writeFileSync(board, JSON.stringify({ name: "Bakery board", lists: [{ id: "l", name: "Doing", closed: false }], labels: [{ id: "g", name: "Menu", color: "green" }], cards: [{ id: "c", name: "Photograph the pies", idList: "l", closed: false, idLabels: ["g"] }], checklists: [{ idCard: "c", checkItems: [{ name: "Apple", state: "incomplete" }] }] }));
+  await page.goto(`${t.origin}/projects/${projectId}/tasks`);
+  await page.getByRole("link", { name: "Import tasks from Trello or Todoist" }).click();
+  await assertAccessible(page, "the import page");
+  await page.getByLabel("Trello: the board's JSON export").check();
+  await page.getByLabel("The file").setInputFiles(board);
+  await page.getByRole("button", { name: "Show what it would make" }).click();
+  await page.getByRole("heading", { name: "Import from Trello: Bakery board" }).waitFor();
+  await assertAccessible(page, "an import preview");
+  await page.getByRole("button", { name: "Import 2 tasks" }).click();
+  await page.getByText("Imported 1 task and 1 subtask, with 1 new label.").waitFor();
+  await page.getByRole("link", { name: "Photograph the pies" }).waitFor();
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
 test("the pipeline: a card dragged to the next column moves a stage", async () => {
   const crm = await import("../../src/crm/index.ts");
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
