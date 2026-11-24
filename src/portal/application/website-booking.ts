@@ -45,18 +45,19 @@ export async function bookFromWebsite(deps: WebsiteBookingDeps, ownerId: Id, inp
   if (topic.length > 1000) return err("topic-too-long");
   if (!input.start.trim()) return err("time-missing");
 
+  // The time is checked first, for everyone, so a taken time answers the same
+  // whether or not the person is on file, and leaves no account behind.
+  const times = await openTimes(deps.booking, "public");
+  if (!times.open) return err("closed");
+  if (times.calendarFailed) return err("calendar-failed");
+  if (!times.days.some((day) => day.slots.some((slot) => slot.start === input.start))) return err("taken");
+
   // Someone on file: a sign-in link to the email on file, and no new account or call.
   const known = deps.portal.people?.match(keys) ?? null;
   if (known) {
     const link = known.disabled || !known.email ? ok(null) : await signUpForPortal(deps.portal, ownerId, { name: known.name, email: known.email });
     return ok({ kind: "known", link: link.ok ? link.value : null });
   }
-
-  // Check the time before making anything, so a taken time leaves no account behind.
-  const times = await openTimes(deps.booking, "public");
-  if (!times.open) return err("closed");
-  if (times.calendarFailed) return err("calendar-failed");
-  if (!times.days.some((day) => day.slots.some((slot) => slot.start === input.start))) return err("taken");
 
   const made = await signUpForPortal(deps.portal, ownerId, { name: input.name, email, phone: input.phone, business: input.business ?? null });
   if (!made.ok) return made;

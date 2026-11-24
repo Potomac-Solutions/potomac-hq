@@ -4,7 +4,6 @@
 import { Hono } from "hono";
 import { emailBookingChange, openTimes, type Booking, type BookingDeps, type BookingEmailOptions, type BookingMail } from "../../booking/index.ts";
 import { bookFromWebsite, emailKey, type WebsiteBookingDeps } from "../application/website-booking.ts";
-import type { SignUpLink } from "../application/sign-up.ts";
 import type { Id } from "../../shared/index.ts";
 
 /** Emails about the booked call, as the booking module sends them; null when email is off. */
@@ -30,7 +29,7 @@ export type SiteBookingRoutesDeps = WebsiteBookingDeps & {
   readonly open: () => boolean;
   readonly ownerFor: () => Id | null;
   readonly publicUrl: string;
-  readonly mail: (to: { readonly email: string; readonly name: string }, link: string, kind: "booked" | NonNullable<SignUpLink>["kind"], when: string) => Promise<boolean>;
+  readonly mail: (to: { readonly email: string; readonly name: string }, link: string, kind: "booked" | "known", when: string) => Promise<boolean>;
   /** Per visitor address, as the website passes it on. */
   readonly allowPerVisitor: (key: string) => boolean;
   readonly allowPerEmail: (key: string) => boolean;
@@ -89,7 +88,7 @@ export function siteBookingRoutes(deps: SiteBookingRoutesDeps): Hono {
     if (!result.ok) return refuse(result.error, result.error === "taken" ? 409 : 400);
     if (result.value.kind === "known") {
       const link = result.value.link;
-      const sent = link ? await deps.mail({ email: link.email, name: link.name }, `${deps.publicUrl}${link.path}`, link.kind, "") : false;
+      const sent = link ? await deps.mail({ email: link.email, name: link.name }, `${deps.publicUrl}${link.path}`, "known", "") : false;
       return c.json({ ok: true, status: "known", sent }, 200, noStore);
     }
     const { booking, link } = result.value;

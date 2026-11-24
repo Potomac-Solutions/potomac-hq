@@ -766,6 +766,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   /** Anyone can sign up to book when booking for new people is on and HQ can email the confirm link. */
   const signUpOpen = (): boolean => inviteMail !== null && services.booking.bookings.settings()?.publicOpen === true && (services.booking.bookings.settings()?.hours.length ?? 0) > 0;
+  /** How someone reaches Potomac about an email they didn't expect: " by calling or texting …", or by email, or by replying. */
+  const contactLine = contact.phone ? ` by calling or texting ${contact.phone}` : contact.email ? ` at ${contact.email}` : " by replying to this email";
   const inviteMail = email
     ? createNotify({
         send: email.send,
@@ -788,7 +790,11 @@ export async function createApp(config: AppConfig): Promise<App> {
           }),
           "website-booked": ({ name, link, when }: { name: string; link: string; when: string }) => ({
             subject: "Your call with Potomac Solutions is booked",
-            body: `Hi ${name},\n\nThanks for booking a call with us for ${when}. We also made you a client account, so everything about your call and your website lives in one place.\n\nOpen this link to choose a password and see your dashboard. There you can add or change your details, and move or cancel your call. It works once, for a week:\n\n${link}\n\nIf you didn't book this, ignore this email and nothing else happens.\n\nPotomac Solutions`,
+            body: `Hi ${name},\n\nThanks for booking a call with us for ${when}. We also made you a client account, so everything about your call and your website lives in one place.\n\nOpen this link to choose a password and see your dashboard. There you can add or change your details, and move or cancel your call. It works once, for a week:\n\n${link}\n\nIf you didn't book this, someone used your email address on our website. Please let us know${contactLine}, and we'll cancel the call and close the account.\n\nPotomac Solutions`,
+          }),
+          "website-booking-again": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Someone tried to book a call with your details",
+            body: `Hi ${name},\n\nSomeone just tried to book a free call on the Potomac Solutions website using your email address or phone number. You already have an account with us, so we didn't book a second free call.\n\nIf it was you, open this link to sign in (or choose a new password) and book from your dashboard. It works once, for a week:\n\n${link}\n\nIf it wasn't you, please let us know${contactLine}. Nothing has been booked or changed, and nobody can use this link without access to this inbox.\n\nPotomac Solutions`,
           }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
@@ -959,7 +965,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       ownerFor: leadOwner,
       publicUrl,
       mail: async (to, link, kind, when) =>
-        inviteMail !== null && "ok" in (await inviteMail.notify({ email: to.email }, kind === "booked" ? "website-booked" : kind === "reset" ? "sign-up-again" : "sign-up", { name: to.name, link, when })),
+        inviteMail !== null && "ok" in (await inviteMail.notify({ email: to.email }, kind === "booked" ? "website-booked" : "website-booking-again", { name: to.name, link, when })),
       allowPerVisitor: sqliteRateLimit(db, { name: "site-booking-visitor", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "site-booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
       allowApi: (incoming) => allowSiteApi(clientAddressOf(incoming as never)),

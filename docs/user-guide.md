@@ -189,7 +189,10 @@ puts back what HQ had.
   details. One person gets one account: if their email or phone is already on
   file, nothing is booked and the sign-in link goes to the email on file, not
   the one they typed. "+tags", Gmail dots and differently written phone
-  numbers count as the same. Demo clients never block anyone.
+  numbers count as the same. Demo clients never block anyone. The website
+  answers "check your email" either way, so it never tells a visitor who is
+  already a client, and both emails ask people to call or text you if it
+  wasn't them.
 - **Importing clients.** Clients → Import clients: paste a list with a
   header line (Client, Contact, Phone, Email, Project, Pricing, Price,
   Repository, Live, Demo, in any order). Each line becomes a client, its

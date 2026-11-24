@@ -14,7 +14,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
   books the call, and emails a link to their dashboard where they set a
   password and add or change their details. Anyone whose email or phone is
   already on file is not booked again; the sign-in link goes to the email on
-  file instead. Emails match without "+tags", Gmail dots or case, and phones
+  file instead. Both emails say to call or text Potomac if it wasn't them,
+  and the website answers the same either way, so it never reveals who is a
+  client. Emails match without "+tags", Gmail dots or case, and phones
   on their last ten digits. The portal's own sign-up follows the same rule.
   New `GET`/`POST /api/site/booking`, behind the website's token.
 

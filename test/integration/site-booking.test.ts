@@ -56,6 +56,7 @@ test("someone new books from the website: a call, an account, and a link to thei
   assert.equal(count("select count(*) as n from booking where email = 'dale.pruitt@gmail.com' and status = 'booked' and organization_id is not null"), 1);
   const welcome = sent.find((one) => one.to === "dale.pruitt@gmail.com" && one.subject === "Your call with Potomac Solutions is booked");
   assert.ok(welcome, "the dashboard link is emailed");
+  assert.match(welcome.body, /If you didn't book this, someone used your email address on our website\. Please let us know by calling or texting 304-555-0142/);
   assert.match(welcome.body, new RegExp(answer.when.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   const link = linkIn(welcome.body);
   assert.ok(link && !link.includes("next=book"), "the link opens the dashboard, not the booking page");
@@ -83,7 +84,8 @@ test("the same person again, by an email alias or the same phone, is not booked 
     assert.equal(answer.status, "known");
     assert.equal(answer.sent, true);
     assert.deepEqual(sent.map((one) => one.to), ["dale.pruitt@gmail.com"], "the link goes to the email on file, never the one typed");
-    assert.equal(sent[0]?.subject, "Your Potomac Solutions client portal");
+    assert.equal(sent[0]?.subject, "Someone tried to book a call with your details");
+    assert.match(sent[0]?.body ?? "", /If it wasn't you, please let us know by calling or texting 304-555-0142\./);
   }
   assert.equal(count("select count(*) as n from client_user"), before.users);
   assert.equal(count("select count(*) as n from booking"), before.calls);
@@ -92,6 +94,7 @@ test("the same person again, by an email alias or the same phone, is not booked 
   sent = [];
   await httpClient(t.origin).post("/portal/sign-up", { name: "Dale Third", email: "third@example.com", phone: "304 555 0134" });
   assert.deepEqual(sent.map((one) => one.to), ["dale.pruitt@gmail.com"]);
+  assert.equal(sent[0]?.subject, "Your Potomac Solutions client portal");
   assert.equal(count("select count(*) as n from client_user where email = 'third@example.com'"), 0);
 });
 
@@ -112,6 +115,14 @@ test("a CRM contact's phone finds them; a demo client's never blocks anyone", as
 
   const fresh = (await (await book({ name: "Rae", email: "rae@example.com", phone: "304-555-0188", start: slot.start })).json()) as { status: string };
   assert.equal(fresh.status, "booked");
+});
+
+test("a taken time is refused the same way for someone on file and someone new", async () => {
+  for (const [email, phone] of [["dale.pruitt@gmail.com", "304-555-0134"], ["brand.new@example.com", "304-555-0166"]] as const) {
+    const res = await book({ name: "Who", email, phone, start: "2001-01-01T14:00:00Z" });
+    assert.equal(res.status, 409, email);
+    assert.equal(((await res.json()) as { error: string }).error, "taken");
+  }
 });
 
 test("a bad form or a taken time is refused, and nothing is made", async () => {
