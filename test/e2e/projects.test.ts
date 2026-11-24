@@ -146,7 +146,7 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await page.getByRole("button", { name: "Save theme" }).click();
   await page.getByText("Theme saved.").waitFor();
   assert.equal(await page.evaluate(BACKGROUND), "#101820");
-  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, "/board", "/labels", "/work"]) {
+  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, "/board", "/labels", "/work", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
     await page.goto(t.origin + path);
     await assertAccessible(page, `${path} in dark mode`);
   }
@@ -164,6 +164,26 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await darkPage.goto(t.origin + "/");
   assert.equal(await darkPage.evaluate(BACKGROUND), "#101820");
   await dark.close();
+});
+
+test("quick add: N goes to the box, the line is checked, then added", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(t.origin + "/today");
+  await page.locator("h1").click();
+  await page.keyboard.press("n");
+  assert.equal(await page.evaluate("document.activeElement && document.activeElement.id"), "hq-quick-text");
+  await page.keyboard.type("Swap the truck photos *photos tomorrow");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/add\?text=/);
+  await page.getByText("New label photos").waitFor();
+  await assertAccessible(page, "quick add preview");
+  await page.getByRole("button", { name: "Add it" }).click();
+  await page.getByText("Added.").waitFor();
+  await page.getByRole("link", { name: "Open it" }).click();
+  await page.getByRole("heading", { name: "Swap the truck photos" }).waitFor();
+  assert.deepEqual(problems, []);
+  await page.close();
 });
 
 test("the pipeline: a card dragged to the next column moves a stage", async () => {
