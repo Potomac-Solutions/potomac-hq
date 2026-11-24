@@ -44,6 +44,21 @@ export type TaskRow = Task & { readonly projectName: string; readonly assigneeNa
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
 export type TaskOrigin = { readonly organizationId?: Id | null; readonly opportunityId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
 
+/** Each person's calendar address (decision 0007, section 10). */
+export type CalendarFeed = { readonly userId: Id; readonly tokenHash: string; readonly filterId: Id | null; readonly createdAt: string; readonly lastUsedAt: string | null };
+
+export type CalendarFeedStore = {
+  forUser(userId: Id): CalendarFeed | null;
+  byHash(tokenHash: string): CalendarFeed | null;
+  /** Saves a person's feed, replacing any they had. */
+  save(feed: CalendarFeed): void;
+  remove(userId: Id): void;
+  used(userId: Id, at: string): void;
+};
+
+/** Secrets for calendar addresses: made at random, kept only as a hash. */
+export type FeedTokens = { newToken(): string; hash(token: string): string };
+
 /** Repeating tasks (decision 0007, section 7). */
 export type RepeatStore = {
   get(taskId: Id): Repeat | null;

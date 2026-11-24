@@ -17,3 +17,4 @@ export * from "./application/dependencies.ts";
 export * from "./application/comments.ts";
 export * from "./application/repeating.ts";
 export * from "./application/timeline.ts";
+export * from "./application/calendar.ts";

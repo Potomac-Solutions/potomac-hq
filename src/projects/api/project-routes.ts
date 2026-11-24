@@ -7,13 +7,18 @@ import * as quick from "../application/quick-add.ts";
 import * as links from "../application/dependencies.ts";
 import * as talk from "../application/comments.ts";
 import * as repeating from "../application/repeating.ts";
-import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
+import * as calendar from "../application/calendar.ts";
+import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type ProjectRoutesDeps = {
   readonly projects: projects.ProjectsDeps;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
+  /** The page that shows a new calendar address, once. */
+  readonly feedPage?: (view: { readonly address: string; readonly replaced: boolean }) => string;
+  /** HQ's own address, for calendar addresses; the request's when unset. */
+  readonly publicUrl?: string;
 };
 
 /** An optional id from a form field. Anything that is not an id is "none". */
@@ -135,6 +140,16 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back: (id) => `/tasks/${id}#files`,
     message: (removed) => `Removed “${removed.name}”.`,
   });
+  // The calendar address. Making one answers with it, once: never a redirect that would put it in an address bar.
+  app.post("/calendar-feed", async (c) => {
+    const { fields } = await readForm(c);
+    const made = calendar.makeCalendarFeed(deps.projects, deps.actorOf(c.req.header("cookie") ?? ""), optionalId(fields["filterId"]));
+    if (!made.ok) return c.redirect(deps.sign(withMessage("/calendar-feed", "problem", messageFor(made.error))), 303);
+    const base = (deps.publicUrl || new URL(c.req.url).origin).replace(/\/$/, "");
+    const page = deps.feedPage?.({ address: `${base}/calendar/${made.value.token}.ics`, replaced: made.value.replaced }) ?? "";
+    return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" } });
+  });
+  post("/calendar-feed/stop", (actor) => calendar.stopCalendarFeed(deps.projects, actor), { done: () => "/calendar-feed", back: () => "/calendar-feed", message: "Your calendar address has stopped working." });
   // Repeating, from the task page.
   post("/tasks/:id/repeat", (actor, f, id) => repeating.setTaskRepeat(deps.projects, actor, id as Id, { every: f["every"] ?? null, unit: f["unit"] ?? null, from: f["from"] ?? null }), {
     done: (_, id) => `/tasks/${id}#repeat`,
@@ -231,6 +246,19 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
 }
 
 /** The work table as a CSV file, for the same filter and sort as the page. */
+/** The calendar feed: reached by its secret address alone, with no one signed in. */
+export function calendarFeeds(deps: Pick<ProjectRoutesDeps, "projects" | "publicUrl">): Hono {
+  const app = new Hono();
+  app.get("/calendar/:file", (c) => {
+    const file = c.req.param("file");
+    const token = /^([A-Za-z0-9_-]{43})\.ics$/.exec(file)?.[1];
+    const body = token ? calendar.calendarFor(deps.projects, token, deps.publicUrl || new URL(c.req.url).origin) : null;
+    if (body === null) return c.text("Not found", 404, { "cache-control": "no-store" });
+    return new Response(body, { status: 200, headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "private, no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" } });
+  });
+  return app;
+}
+
 export function workDownloads(deps: Pick<ProjectRoutesDeps, "projects" | "actorOf">): Hono {
   const app = new Hono();
   app.get("/work.csv", (c) => {

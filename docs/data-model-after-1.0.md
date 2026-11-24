@@ -150,6 +150,12 @@ morning email list only to-dos, since Today shows project tasks as deadlines.
 A to-do keeps its `todo.*` events. Ticking off a project task from My work
 moves it as the board does (`task.moved`), so its timer stops.
 
+## Task management
+
+Labels, saved filters, quick add, subtasks, comments, repeats, notices and
+reminders, the timeline and calendar feeds (decision 0007) have their own
+page: [data-model-tasks.md](data-model-tasks.md).
+
 ## Morning email
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.

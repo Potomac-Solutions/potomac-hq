@@ -58,10 +58,11 @@ import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting,
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
-import { projectRoutes, workDownloads } from "./projects/api/project-routes.ts";
+import { calendarFeeds, projectRoutes, workDownloads } from "./projects/api/project-routes.ts";
+import { feedAddressPage } from "./projects/ui/feed-views.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -195,6 +196,8 @@ export type PageContext = {
     /** One project's timeline, and every active project's (decision 0007, section 9). */
     timeline(id: string): ReturnType<typeof projectTimeline>;
     timelines(): ReturnType<typeof projectsTimeline>;
+    /** Your calendar address: whether you have one, and the filters it could follow (decision 0007, section 10). */
+    calendar(): ReturnType<typeof calendarFeedView>;
     /** Saved filters pinned to the sidebar. */
     pinned(): ReturnType<typeof pinnedFilters>;
     /** Quick add's preview for the page's address, and the task just added, if any. `params` is `url.searchParams.getAll`. */
@@ -567,6 +570,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           pinned: () => pinnedFilters(projectsDeps, actor),
           timeline: (id) => withId(id, (projectId) => projectTimeline(projectsDeps, actor, projectId)),
           timelines: () => projectsTimeline(projectsDeps, actor),
+          calendar: () => calendarFeedView(projectsDeps, actor),
           quickAdd: (params) => {
             const added = parseId(params("added")[0] ?? "");
             return { view: quickAddPreview(projectsDeps, actor, { text: params("text")[0] ?? "", skip: readSkip(params("skip")) }), added: added.ok ? `/tasks/${added.value}` : "" };
@@ -785,7 +789,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
@@ -1026,6 +1030,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", workDownloads({ projects: projectsDeps, actorOf }));
+  downloads.route("/", calendarFeeds({ projects: projectsDeps, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
@@ -1068,7 +1073,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }
