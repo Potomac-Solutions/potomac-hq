@@ -43,6 +43,10 @@
         <button class="hq-button" type="submit">Save</button>
       </form>
     </section>
+    <section class="hq-panel" aria-labelledby="settings-calendar">
+      <h2 id="settings-calendar">Calendar</h2>
+      <p>Your tasks and milestones in Google Calendar, Apple Calendar or Outlook. <a href="/calendar-feed">Set up your calendar feed</a></p>
+    </section>
     <section class="hq-panel" aria-labelledby="settings-password">
       <h2 id="settings-password">Password</h2>
       <p><a href="/staff/password">Change your password</a></p>

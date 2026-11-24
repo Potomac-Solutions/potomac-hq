@@ -26,7 +26,7 @@
 <hq-todos view={{ overdue: [], today: [], upcoming: [], someday: [], done: [], everyone: false, canEdit: false, people: [], clients: [] }} done="" problem="">
   <div class="hq-page">
     <h1>{view.everyone ? 'Everyone’s work' : 'My work'}</h1>
-    <p class="hq-muted">To-dos and project tasks together, by when they’re due.</p>
+    <p class="hq-muted">To-dos and project tasks together, by when they’re due. <a href="/calendar-feed">See them in your calendar</a></p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
