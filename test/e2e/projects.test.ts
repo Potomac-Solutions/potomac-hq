@@ -146,7 +146,7 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await page.getByRole("button", { name: "Save theme" }).click();
   await page.getByText("Theme saved.").waitFor();
   assert.equal(await page.evaluate(BACKGROUND), "#101820");
-  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, "/board", "/labels", "/work", "/notices", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
+  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, `/projects/${projectId}/timeline`, "/board", "/timeline", "/labels", "/work", "/notices", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
     await page.goto(t.origin + path);
     await assertAccessible(page, `${path} in dark mode`);
   }

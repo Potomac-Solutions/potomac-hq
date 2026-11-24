@@ -31,7 +31,7 @@ test("every staff page fits a phone, and contacts are a tap to call", async () =
   const opportunity = unwrap(crm.createOpportunity(t.services.crm, me, client.id, { title: "A new website with online ordering", leadSource: "referral" }));
   const { project } = await wonProject(t.services, me);
   unwrap(addProjectLink(t.services.projects, me, project.id, { kind: "staging", url: "staging.a-very-long-client-name-for-testing.example.com/menu", shared: true }));
-  const pages = ["/", "/today", "/todos", "/pipeline", "/clients", `/clients/${client.id}`, `/opportunities/${opportunity.id}`, "/projects", `/projects/${project.id}`, "/board", "/labels", "/work", "/notices", "/add?text=Proof%20tomorrow", "/time", "/money", "/money/profit", "/proposals", "/calls", "/renewals", "/sites", "/websites", "/referrals", "/reports", "/knowledge", "/search?q=bob", "/settings", "/people"];
+  const pages = ["/", "/today", "/todos", "/pipeline", "/clients", `/clients/${client.id}`, `/opportunities/${opportunity.id}`, "/projects", `/projects/${project.id}`, `/projects/${project.id}/timeline`, "/board", "/timeline", "/labels", "/work", "/notices", "/add?text=Proof%20tomorrow", "/time", "/money", "/money/profit", "/proposals", "/calls", "/renewals", "/sites", "/websites", "/referrals", "/reports", "/knowledge", "/search?q=bob", "/settings", "/people"];
   for (const path of pages) {
     const res = await page.goto(t.origin + path);
     assert.equal(res?.status(), 200, path);
