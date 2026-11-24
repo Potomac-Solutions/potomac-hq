@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Zubra packages upgraded from 6.0.3 to 6.0.5. All four move together and
+  stay pinned to the exact version. Nothing in HQ needed to change: the type
+  check, the Zubra regression suite and every integration test pass as
+  before.
+
 - TypeScript is back on 6.0.3. Dependabot's move to 7.0.2 left the boundary
   check (dependency-cruiser) reading no files, so `lint:boundaries` passed
   while checking nothing and its self-test failed. Dependabot now skips
