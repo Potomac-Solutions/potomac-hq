@@ -249,6 +249,22 @@ soonest, with undated ones after every dated one.
 Tasks have no dependencies on each other, as the roadmap says. A finished
 task stays on the board for two weeks.
 
+### Label
+
+Added by decision 0007, section 2.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `name` | text | Required, at most 40 characters. Inner runs of spaces become one |
+| `name_key` | text | The name in lower case. Unique: "Website" and "website" are one label |
+| `colour` | `slate`, `red`, `orange`, `amber`, `green`, `teal`, `sky`, `blue`, `indigo`, `violet`, `pink`, `brown` | Picked from the name when none is chosen |
+
+`task_label` joins a task to each of its labels. Deleting a label takes it
+off every task. Events: `label.added`, `label.edited` (with the old name),
+`label.removed` (with how many tasks had it), and `task.labelled` (the names
+put on and taken off).
+
 ### Note
 
 A note on a client organization, an opportunity or a project.

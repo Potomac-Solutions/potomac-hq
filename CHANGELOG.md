@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Labels on tasks (decision 0007, slice 1). Twelve colours, each readable
+  in light and dark. Put them on from a task's page, making a new one on the
+  way; they show on the task list and the boards. A Labels page lists them
+  with how many tasks have each, and admins and managers rename, recolour
+  and delete them there (`label.manage`).
+
 ## [0.14.0] - 2026-11-24
 
 - Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
