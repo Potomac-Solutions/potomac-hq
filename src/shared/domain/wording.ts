@@ -94,6 +94,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "webhook.secret-replaced": "made a new webhook secret",
   "webhook.tested": "sent a webhook a test",
   "project.share-made": "made a share link",
+  "project.tasks-imported": "imported tasks into a project",
   "project.share-stopped": "stopped a share link",
   "project.share-visited": "opened a project through a share link",
   "calendar.feed-stopped": "stopped their calendar address",

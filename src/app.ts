@@ -65,7 +65,7 @@ import { calendarFeeds, projectRoutes, shareFiles, shareRoutes, workDownloads } 
 import { feedAddressPage, shareAddressPage } from "./projects/ui/feed-views.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -205,6 +205,9 @@ export type PageContext = {
     shares(projectId: string): ReturnType<typeof shareLinks>;
     /** What a share link shows, with no one signed in; null if it isn't a working link. Records the visit. */
     shared(token: string): ReturnType<typeof sharedProject>;
+    /** Importing tasks from Trello or Todoist (decision 0007, section 13). */
+    canImport(): boolean;
+    importPreview(id: string): ReturnType<typeof taskImportPreview>;
     /** Saved filters pinned to the sidebar. */
     pinned(): ReturnType<typeof pinnedFilters>;
     /** Quick add's preview for the page's address, and the task just added, if any. `params` is `url.searchParams.getAll`. */
@@ -374,7 +377,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos)$/;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
@@ -588,6 +591,8 @@ export async function createApp(config: AppConfig): Promise<App> {
             return parsed.ok ? shareLinks(projectsDeps, actor, parsed.value) : { canShare: false, links: [] };
           },
           shared: (token) => sharedProject(projectsDeps, token),
+          canImport: () => canImportTasks(projectsDeps, actor),
+          importPreview: (id) => withId(id, (importId) => taskImportPreview(projectsDeps, actor, importId)),
           quickAdd: (params) => {
             const added = parseId(params("added")[0] ?? "");
             return { view: quickAddPreview(projectsDeps, actor, { text: params("text")[0] ?? "", skip: readSkip(params("skip")) }), added: added.ok ? `/tasks/${added.value}` : "" };
