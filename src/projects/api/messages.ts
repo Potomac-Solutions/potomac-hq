@@ -35,6 +35,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-colour": "Choose a colour from the list.",
   "name-taken": "There’s already a label with that name.",
   "filter-empty": "Choose something to filter by first, then save it.",
+  "comment-empty": "Write something first.",
+  "comment-too-long": "Keep a comment under 5,000 characters.",
   "parent-is-a-todo": "Subtasks go under project tasks. A to-do can't have them.",
   "parent-is-a-subtask": "A subtask can't have subtasks of its own. Add this one to its parent instead.",
   "blocks-itself": "A task can't wait on itself.",
