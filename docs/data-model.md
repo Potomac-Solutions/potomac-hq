@@ -337,7 +337,11 @@ active person; telling them comes with notices (section 8).
 Files attached to a task are rows in `file` with `owner_type` `task`, filed
 under the project's client or a to-do's own, with the same type checks as a
 deliverable. Downloading goes through `/files/:id` and `file.download`.
-Event: `task.file-attached`, besides the files module's `file.uploaded`.
+Events: `task.file-attached`, besides the files module's `file.uploaded`.
+A task's file can be removed from that task, which deletes its bytes and its
+record (`task.file-removed` and `file.removed`, which keeps the name, size and
+hash). Only files whose owner is that task: a deliverable's or a receipt's
+file can't be removed this way.
 
 ### Quick add
 

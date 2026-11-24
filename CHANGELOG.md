@@ -13,7 +13,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
   task can comment on it, and mention people with @ and their first name.
   Only the author edits or deletes a comment; an edited one says so, and
   every version and deletion stays in the task's history. Files attach to a
-  task with the same checks as deliverables.
+  task with the same checks as deliverables, and can be removed from it.
 
 - Subtasks and blocking (decision 0007, slice 5). A project task's page adds
   subtasks, each a task of its own in the same project, and shows "3 of 5
