@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Decision 0007, task management after Vikunja: labels, one inbox for
+  tasks and to-dos, filters and a table, quick add, subtasks and blocking,
+  comments and attachments, repeats, reminders, a timeline, a calendar
+  feed, sharing a project by link, webhooks, and import from Trello and
+  Todoist, in thirteen slices.
+
 ## [0.14.0] - 2026-11-24
 
 - Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
