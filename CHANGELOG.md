@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Comments and files on tasks (decision 0007, slice 6). Anyone who can see a
+  task can comment on it, and mention people with @ and their first name.
+  Only the author edits or deletes a comment; an edited one says so, and
+  every version and deletion stays in the task's history. Files attach to a
+  task with the same checks as deliverables.
+
 - Subtasks and blocking (decision 0007, slice 5). A project task's page adds
   subtasks, each a task of its own in the same project, and shows "3 of 5
   done" there, on the task list and on the board. A task can wait on any

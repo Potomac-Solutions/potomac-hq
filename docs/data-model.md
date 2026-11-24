@@ -313,6 +313,32 @@ says what it still waits on. This is separate from the "Blocked" status,
 which is still set by hand. Events: `task.added` (with `parentId`),
 `task.blocked`, `task.unblocked`.
 
+### Task comments and files
+
+Added by decision 0007, section 6 (migration 0044).
+
+`task_comment`:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `task_id` | Task id | |
+| `author_id` | User id | Only they edit or delete it; no role overrides that |
+| `body` | text | 1 to 5,000 characters |
+| `edited_at` | time | When it was last edited, shown as "(edited …)" |
+
+Deleting a comment removes its row. Every version and the deletion stay in
+the task's history as events: `comment.added` (with `body` and the people it
+`mentions`), `comment.edited` (with `was`, `body`, and anyone newly
+mentioned) and `comment.removed` (with `was`). A mention is `@` and a first
+name, a full name with hyphens, or the name part of an email, meaning one
+active person; telling them comes with notices (section 8).
+
+Files attached to a task are rows in `file` with `owner_type` `task`, filed
+under the project's client or a to-do's own, with the same type checks as a
+deliverable. Downloading goes through `/files/:id` and `file.download`.
+Event: `task.file-attached`, besides the files module's `file.uploaded`.
+
 ### Quick add
 
 Added by decision 0007, section 4. No table of its own: a line typed at
