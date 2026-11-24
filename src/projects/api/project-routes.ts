@@ -10,6 +10,7 @@ import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
+import * as keys from "../application/task-keys.ts";
 import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -62,6 +63,11 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     (actor, f, id) => projects.editProjectDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", description: f["description"] ?? null, health: f["health"] ?? "", startOn: f["startOn"] ?? null, targetOn: f["targetOn"] ?? null }),
     { done: (_, id) => project(id), back: (id) => project(id), message: "Project saved." },
   );
+  post("/projects/:id/key", (actor, f, id) => keys.setProjectKey(deps.projects, actor, id as Id, f["key"] ?? ""), {
+    done: (_, id) => project(id),
+    back: (id) => project(id),
+    message: (changed) => `Its tasks are ${changed.key}-1, ${changed.key}-2 and on. Old keys still find them.`,
+  });
   post("/projects/:id/status", (actor, f, id) => projects.setProjectStatus(deps.projects, actor, id as Id, f["status"] ?? ""), {
     done: (_, id) => project(id),
     back: (id) => project(id),

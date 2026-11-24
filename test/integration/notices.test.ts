@@ -37,10 +37,10 @@ test("a task given to someone else tells them; one you take yourself doesn't", a
   const page = await sam.page("/today");
   assert.equal(bell(page), "1");
   assert.match(page, /Notices<\/span><span class="hq-bell-count">1<span class="sr-only"> new<\/span>/);
-  assert.match(textOf(page), /New for you Mikey Nichols gave you “Swap the truck photos”/);
+  assert.match(textOf(page), /New for you Mikey Nichols gave you [A-Z0-9]+-[0-9]+ “Swap the truck photos”/);
 
   const list = await sam.page("/notices");
-  assert.match(textOf(list), /1 new Mikey Nichols gave you “Swap the truck photos” \(new\)/);
+  assert.match(textOf(list), /1 new Mikey Nichols gave you [A-Z0-9]+-[0-9]+ “Swap the truck photos” \(new\)/);
   const href = /<a href="(\/notices\/[0-9a-f-]{36})">Mikey Nichols gave you/.exec(list)?.[1] ?? "";
   assert.equal((await mikey.get(href)).headers.get("location"), "/notices", "not someone else's");
   const opened = await sam.get(href);
@@ -66,7 +66,7 @@ test("a mention tells the person mentioned, with the comment's first words; edit
   await sam.submit(`/tasks/${task}/comments`, { body: "Got the new photos from Dale. @mikey want to pick the hero shot?" });
   assert.equal(count(mikeyId), 1);
   const list = textOf(await mikey.page("/notices"));
-  assert.match(list, /Sam Rivers mentioned you on “Swap the truck photos” \(new\) Got the new photos from Dale\. @mikey want to pick the hero shot\?/);
+  assert.match(list, /Sam Rivers mentioned you on [A-Z0-9]+-[0-9]+ “Swap the truck photos” \(new\) Got the new photos from Dale\. @mikey want to pick the hero shot\?/);
   await sam.submit(`/tasks/${task}/comments`, { body: "Note to self @sam" });
   assert.equal(count(samId), 4, "mentioning yourself isn't news");
 });
@@ -93,7 +93,7 @@ test("reminders: yours only, fired once when due, again when the due date moves,
   assert.equal(run(at(due.subtract({ days: 1 }), "09:00")), 1);
   assert.equal(run(at(due.subtract({ days: 1 }), "09:05")), 0, "once");
   const before = count(mikeyId);
-  assert.match(textOf(await mikey.page("/notices")), /Reminder: “Renew the hosting” \(new\) Due /);
+  assert.match(textOf(await mikey.page("/notices")), /Reminder: [A-Z0-9]+-[0-9]+ “Renew the hosting” \(new\) Due /);
 
   unwrap(projects.updateTask(t.services.projects, mikeyId, task.id, { title: "Renew the hosting", dueOn: due.add({ days: 7 }).toString() }));
   assert.equal(run(at(due.add({ days: 6 }), "09:00")), 1, "the due date moved, so it fires for the new one");
@@ -118,7 +118,7 @@ test("a reminder for whoever has the task goes to them when it fires, and anyone
   const when = due.toPlainDateTime(Temporal.PlainTime.from("08:00")).toZonedDateTime("America/New_York").toInstant().toString();
   assert.equal(notices.fireReminders({ ...t.services.notices, clock: () => when }), 1);
   assert.equal(count(samId), before + 1, "went to Sam, who has it now");
-  assert.match(textOf(await sam.page("/notices")), /Reminder: “Send the invoice”/);
+  assert.match(textOf(await sam.page("/notices")), /Reminder: [A-Z0-9]+-[0-9]+ “Send the invoice”/);
   const id = t.db.prepare("select id from task_reminder where task_id = ?").get(task.id)?.["id"] as Id;
   assert.match((await sam.submit(`/reminders/${id}/remove`, {})).html, /Reminder removed\./);
 });
@@ -156,7 +156,7 @@ test("emailed notices: only for those who ask, one email per person per run, nev
   assert.deepEqual(first, { sent: 1, failed: 0 });
   assert.equal(sent[0]?.to, "sam@example.com");
   assert.equal(sent[0]?.subject, "2 new notices in HQ");
-  assert.match(sent[0]?.body ?? "", /Mikey Nichols gave you “Check the contact form”\n  https:\/\/hq\.example\.com\/notices\/[0-9a-f-]{36}/);
+  assert.match(sent[0]?.body ?? "", /Mikey Nichols gave you [A-Z0-9]+-[0-9]+ “Check the contact form”\n  https:\/\/hq\.example\.com\/notices\/[0-9a-f-]{36}/);
   assert.deepEqual(await notices.emailNotices(t.services.notices, mail, { publicUrl: "https://hq.example.com" }), { sent: 0, failed: 0 });
   assert.equal(sent.length, 1, "Mikey didn't ask, and nothing went twice");
 });

@@ -254,6 +254,8 @@ h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 .hq-button.small { height: 2rem; padding: 0 0.75rem; font-size: 0.85rem; }
 .hq-inline { display: inline; margin: 0; }
 .hq-small { font-size: 0.85rem; margin: 0; }
+/* A task's key, BDW-12 (decision 0008, section 1): quiet, and never broken across lines. */
+.hq-ref { color: var(--muted-foreground); font-size: 0.85em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hq-prose { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .hq-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--border); }
 .hq-tabs a { padding: 0.5rem 0.9rem; color: var(--foreground); text-decoration: none; font-weight: 600; border-bottom: 3px solid transparent; }

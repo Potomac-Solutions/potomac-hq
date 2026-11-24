@@ -38,7 +38,7 @@
           <button class="todo-tick" type="submit"><span aria-hidden="true">{todo.done ? '✓' : ''}</span><span class="sr-only">{todo.done ? 'Not done' : 'Done'}: {todo.title}</span></button>
         </form>
         <div>
-          <p><a href={todo.href}>{todo.title}</a></p>
+          <p><span class="hq-ref">{todo.ref}</span> <a href={todo.href}>{todo.title}</a></p>
           <ul zb-if={todo.labels && todo.labels.length > 0} class="todo-labels" aria-label="Labels"><zb-each items={todo.labels} as="label" key={label.id}><li data-colour={label.colour}>{label.name}</li></zb-each></ul>
           <p class="hq-small hq-muted">
             <span class={todo.state === 'overdue' && !todo.done ? 'todo-overdue' : ''}><time zb-if={todo.dueOn} datetime={todo.dueOn}>{todo.when}</time><span zb-if={!todo.dueOn}>{todo.when}</span></span>

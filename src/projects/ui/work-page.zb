@@ -138,7 +138,7 @@
           <tbody>
             <zb-each items={view.rows} as="row" key={row.id}>
               <tr>
-                <td><a href={row.href}>{row.title}</a></td>
+                <td><span class="hq-ref">{row.ref}</span> <a href={row.href}>{row.title}</a></td>
                 <td zb-if={view.show.project}><a zb-if={row.projectId} href="/projects/{row.projectId}">{row.projectName}</a><span zb-if={!row.projectId} class="hq-muted">To-do</span></td>
                 <td zb-if={view.show.client}>{row.clientName}</td>
                 <td zb-if={view.show.who}>{row.who || 'Nobody yet'}</td>

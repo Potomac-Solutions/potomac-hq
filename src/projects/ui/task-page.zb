@@ -34,6 +34,7 @@
 <hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} reminders={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
+    <p zb-if={t.ref} class="hq-ref hq-small">{t.ref}</p>
     <h1>{t.title}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -106,7 +107,7 @@
       <ul zb-if={view.waitingOn.length > 0} class="hq-links">
         <zb-each items={view.waitingOn} as="one" key={one.id}>
           <li>
-            <span><a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span> <status-badge variant={one.done ? 'success' : 'warning'}>{one.statusLabel}</status-badge></span>
+            <span><span class="hq-ref">{one.ref}</span> <a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span> <status-badge variant={one.done ? 'success' : 'warning'}>{one.statusLabel}</status-badge></span>
             <form zb-if={view.canEdit} method="post" action="/tasks/{t.id}/blockers/remove" class="hq-inline">
               <input type="hidden" name="blockerId" value={one.id}>
               <button class="hq-button secondary small" type="submit" aria-label="Stop waiting on {one.title}">Stop waiting</button>
@@ -132,7 +133,7 @@
       <h3 class="hq-small">Holds up</h3>
       <ul zb-if={view.holdsUp.length > 0} class="hq-links">
         <zb-each items={view.holdsUp} as="one" key={one.id}>
-          <li><span><a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span></span> <status-badge variant={one.done ? 'success' : 'neutral'}>{one.statusLabel}</status-badge></li>
+          <li><span><span class="hq-ref">{one.ref}</span> <a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span></span> <status-badge variant={one.done ? 'success' : 'neutral'}>{one.statusLabel}</status-badge></li>
         </zb-each>
       </ul>
       <p zb-if={view.holdsUp.length === 0} class="hq-muted">Nothing waits on this.</p>

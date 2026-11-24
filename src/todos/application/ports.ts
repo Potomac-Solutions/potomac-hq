@@ -2,7 +2,7 @@ import type { Todo } from "../domain/todo.ts";
 import type { Id } from "../../shared/index.ts";
 
 /** A to-do or a project task as My work lists it, with its project's name ("" for a to-do). */
-export type TodoRow = Todo & { readonly projectName: string };
+export type TodoRow = Todo & { readonly projectName: string; /** "BDW-12", or "TODO-7" (decision 0008, section 1). */ readonly ref: string };
 
 /**
  * To-dos are tasks without a project (decision 0007, section 1). The store

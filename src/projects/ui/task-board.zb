@@ -52,7 +52,7 @@
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
             <li class="board-card" draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id)}>
-              <p><a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
+              <p><span class="hq-ref">{card.ref}</span> <a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
               <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={card.subtasks || card.waiting > 0} class="board-meta"><span zb-if={card.subtasks}>Subtasks {card.subtasks}</span><span zb-if={card.subtasks && card.waiting > 0}> · </span><span zb-if={card.waiting > 0}>Waiting on {card.waiting}</span></p>
               <p zb-if={card.repeats} class="board-meta">Repeats</p>

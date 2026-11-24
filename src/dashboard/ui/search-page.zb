@@ -5,9 +5,13 @@
 <script>
   'use route /search'
   import '../../shared/ui/zubra/empty-state.zb'
+  import { redirect } from '@zubra/router'
   export async function load({ context, url }) {
     const stop = context.guard()
     if (stop) return stop
+    // A task's key, like BDW-12, opens that task (decision 0008, section 1).
+    const task = context.taskByRef(url.searchParams.get('q') || '')
+    if (task) return redirect(task)
     const view = context.search(url.searchParams.get('q') || '')
     return { title: view.q ? `Search: ${view.q}` : 'Search', view }
   }

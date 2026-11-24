@@ -53,7 +53,7 @@ function filtered(deps: ProjectsDeps, actorId: Id, params: Params): Filtered {
   return { rows: sorted, sort, dir };
 }
 
-export type WorkCell = { readonly id: string; readonly href: string; readonly title: string; readonly projectId: string; readonly projectName: string; readonly clientName: string; readonly who: string; readonly status: string; readonly statusLabel: string; readonly priority: string; readonly priorityLabel: string; readonly pressing: boolean; readonly dueOn: string; readonly dueText: string; readonly overdue: boolean; readonly labels: readonly { readonly id: string; readonly name: string; readonly colour: string }[]; readonly estimate: string };
+export type WorkCell = { readonly id: string; readonly href: string; readonly ref: string; readonly title: string; readonly projectId: string; readonly projectName: string; readonly clientName: string; readonly who: string; readonly status: string; readonly statusLabel: string; readonly priority: string; readonly priorityLabel: string; readonly pressing: boolean; readonly dueOn: string; readonly dueText: string; readonly overdue: boolean; readonly labels: readonly { readonly id: string; readonly name: string; readonly colour: string }[]; readonly estimate: string };
 
 export type WorkView = {
   readonly form: {
@@ -156,6 +156,7 @@ export function workTable(deps: ProjectsDeps, actorId: Id | null, params: Params
     rows: rows.map((row) => ({
       id: row.id,
       href: `/tasks/${row.id}`,
+      ref: row.ref,
       title: row.title,
       projectId: row.projectId ?? "",
       projectName: row.projectName,

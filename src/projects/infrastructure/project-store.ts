@@ -5,6 +5,7 @@ import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
 import type { ShareLink, ShareRights } from "../domain/share.ts";
+import { keyFromName, taskRef, TODO_KEY } from "../domain/task-key.ts";
 import type { Repeat, RepeatFrom, RepeatUnit } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -33,13 +34,19 @@ const toProject = (r: Row): Project => ({
 
 export function sqliteProjectStore(db: Database): ProjectStore {
   const columns = "id, organization_id, opportunity_id, owner_id, name, kind, status, description, health, start_on, target_on";
-  const insert = db.prepare(`insert into project (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into project (${columns}, key, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update project set owner_id = ?, name = ?, status = ?, description = ?, health = ?, start_on = ?, target_on = ?, updated_at = ? where id = ?");
+  // Task keys (decision 0008, section 1): a new project's key is made from its name, never one any project has had.
+  const keys = db.prepare("select key from project_key");
+  const remember = db.prepare("insert into project_key (key, project_id) values (?, ?) on conflict (key) do nothing");
+  const keyOf = db.prepare("select key from project where id = ?");
+  const setKey = db.prepare("update project set key = ?, updated_at = ? where id = ?");
+  const byKey = db.prepare("select project_id from project_key where key = ?");
   const byId = db.prepare(`select ${columns} from project where id = ?`);
   const byOpportunity = db.prepare(`select ${columns} from project where opportunity_id = ?`);
   const listFor = db.prepare(`select ${columns} from project where organization_id = ? order by created_at desc, rowid desc`);
   const list = db.prepare(
-    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, c.name as client_name, c.demo as client_demo, u.name as owner_name,
+    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, p.key, c.name as client_name, c.demo as client_demo, u.name as owner_name,
             (select count(*) from task t where t.project_id = p.id and t.status <> 'done') as open_tasks
        from project p
        join client_organization c on c.id = p.organization_id
@@ -48,7 +55,19 @@ export function sqliteProjectStore(db: Database): ProjectStore {
   );
   return {
     insert(p, at) {
-      insert.run(p.id, p.organizationId, p.opportunityId, p.ownerId, p.name, p.kind, p.status, p.description, p.health, p.startOn, p.targetOn, at, at);
+      const key = keyFromName(p.name, new Set((keys.all() as Row[]).map((r) => text(r, "key"))));
+      insert.run(p.id, p.organizationId, p.opportunityId, p.ownerId, p.name, p.kind, p.status, p.description, p.health, p.startOn, p.targetOn, key, at, at);
+      remember.run(key, p.id);
+    },
+    keyOf: (id) => ((keyOf.get(id) as Row | undefined)?.["key"] ?? null) as string | null,
+    setKey(id, key, at) {
+      setKey.run(key, at, id);
+      remember.run(key, id);
+    },
+    byKey: (key) => ((byKey.get(key) as Row | undefined)?.["project_id"] ?? null) as Id | null,
+    keyTaken: (key, exceptProjectId) => {
+      const owner = (byKey.get(key) as Row | undefined)?.["project_id"];
+      return owner !== undefined && owner !== exceptProjectId;
     },
     update(p, at) {
       update.run(p.ownerId, p.name, p.status, p.description, p.health, p.startOn, p.targetOn, at, p.id);
@@ -62,7 +81,7 @@ export function sqliteProjectStore(db: Database): ProjectStore {
       return row ? toProject(row) : null;
     },
     list() {
-      return (list.all() as Row[]).map((r): ProjectRow => ({ ...toProject(r), clientName: text(r, "client_name"), ownerName: text(r, "owner_name"), openTasks: r["open_tasks"] as number, demo: r["client_demo"] === 1 }));
+      return (list.all() as Row[]).map((r): ProjectRow => ({ ...toProject(r), key: text(r, "key"), clientName: text(r, "client_name"), ownerName: text(r, "owner_name"), openTasks: r["open_tasks"] as number, demo: r["client_demo"] === 1 }));
     },
     listFor(organizationId) {
       return (listFor.all(organizationId) as Row[]).map(toProject);
@@ -133,6 +152,9 @@ export function sqliteMilestoneStore(db: Database): MilestoneStore {
   };
 }
 
+/** "BDW-12" from a row with the task's number and its project's key; "TODO-7" for a to-do. */
+const refOf = (r: Row): string => taskRef(r["project_id"] === null || r["project_id"] === undefined ? TODO_KEY : maybe(r, "project_key"), (r["number"] ?? null) as number | null);
+
 const toTask = (r: Row): Task => ({
   id: text(r, "id") as Id,
   projectId: maybe(r, "project_id") as Id | null,
@@ -150,18 +172,20 @@ const toTask = (r: Row): Task => ({
 
 export function sqliteTaskStore(db: Database): TaskStore {
   const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, start_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, organization_id, opportunity_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  // Each task's number is the next in its project, or across to-dos (decision 0008, section 1).
+  const insert = db.prepare(`insert into task (${columns}, organization_id, opportunity_id, created_by, parent_id, created_at, updated_at, number) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (select coalesce(max(number), 0) + 1 from task where project_id is ?2))`);
   const update = db.prepare(
     "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, start_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
   const get = db.prepare(`select ${columns} from task where id = ?`);
-  const joined = `select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, u.name as assignee_name
+  const joined = `select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, u.name as assignee_name, t.number, p.key as project_key
        from task t join project p on p.id = t.project_id left join user u on u.id = t.assignee_id`;
-  const one = db.prepare(`select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, coalesce(p.name, '') as project_name, u.name as assignee_name
+  const one = db.prepare(`select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, coalesce(p.name, '') as project_name, u.name as assignee_name, t.number, p.key as project_key
        from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id where t.id = ?`);
   const listFor = db.prepare(`${joined} where t.project_id = ? order by t.rowid`);
+  const byNumber = db.prepare("select id from task where project_id is ? and number = ?");
   const listBoard = db.prepare(`${joined} where p.status = 'active' and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
-  const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
+  const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name"), ref: refOf(r) });
   return {
     insert(t, at, origin = {}) {
       insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.startOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.opportunityId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
@@ -173,6 +197,7 @@ export function sqliteTaskStore(db: Database): TaskStore {
       const found = get.get(id) as Row | undefined;
       return found ? toTask(found) : null;
     },
+    byNumber: (projectId, number) => ((byNumber.get(projectId, number) as Row | undefined)?.["id"] ?? null) as Id | null,
     row(id) {
       const found = one.get(id) as Row | undefined;
       return found ? row(found) : null;
@@ -477,7 +502,7 @@ export function sqliteCommentStore(db: Database): CommentStore {
 }
 
 export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
-  const columns = "t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.start_on, t.estimate_minutes, t.status, t.done_at, coalesce(p.name, '') as project_name, u.name as assignee_name";
+  const columns = "t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.start_on, t.estimate_minutes, t.status, t.done_at, coalesce(p.name, '') as project_name, u.name as assignee_name, t.number, p.key as project_key";
   const from = "from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id";
   const parentOf = db.prepare("select parent_id from task where id = ?");
   const subtasks = db.prepare(`select ${columns} ${from} where t.parent_id = ? order by t.rowid`);
@@ -486,7 +511,7 @@ export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
   const blockersOf = db.prepare("select blocker_id from task_block where blocked_id = ?");
   const waitingOn = db.prepare(`select ${columns} ${from} join task_block b on b.blocker_id = t.id where b.blocked_id = ? order by t.status = 'done', t.title collate nocase`);
   const holdingUp = db.prepare(`select ${columns} ${from} join task_block b on b.blocked_id = t.id where b.blocker_id = ? order by t.status = 'done', t.title collate nocase`);
-  const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
+  const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name"), ref: refOf(r) });
   // Counts for many tasks at once, without a query per task: the ids go in as one JSON array.
   const progress = db.prepare("select parent_id, count(*) as total, sum(status = 'done') as done from task where parent_id in (select value from json_each(?)) group by parent_id");
   const open = db.prepare("select b.blocked_id, count(*) as open from task_block b join task t on t.id = b.blocker_id where t.status <> 'done' and b.blocked_id in (select value from json_each(?)) group by b.blocked_id");
@@ -515,7 +540,7 @@ export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
 
 export function sqliteWorkStore(db: Database): WorkStore {
   const rows = db.prepare(`select t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.start_on, t.estimate_minutes, t.status, t.done_at,
-      coalesce(p.name, '') as project_name, coalesce(p.organization_id, t.organization_id) as organization_id, coalesce(c.name, '') as client_name, coalesce(u.name, '') as assignee_name
+      coalesce(p.name, '') as project_name, coalesce(p.organization_id, t.organization_id) as organization_id, coalesce(c.name, '') as client_name, coalesce(u.name, '') as assignee_name, t.number, p.key as project_key
     from task t
     left join project p on p.id = t.project_id
     left join client_organization c on c.id = coalesce(p.organization_id, t.organization_id)
@@ -542,6 +567,7 @@ export function sqliteWorkStore(db: Database): WorkStore {
         organizationId: maybe(r, "organization_id") as Id | null,
         clientName: text(r, "client_name"),
         assigneeName: text(r, "assignee_name"),
+        ref: refOf(r),
       }));
     },
     insertFilter(f, at) {

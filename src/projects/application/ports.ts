@@ -12,7 +12,7 @@ import type { Project } from "../domain/project.ts";
 import type { Task } from "../domain/task.ts";
 import type { Id } from "../../shared/index.ts";
 
-export type ProjectRow = Project & { readonly clientName: string; readonly ownerName: string; readonly openTasks: number; /** Its client is a demo. */ readonly demo: boolean };
+export type ProjectRow = Project & { /** Its task key (decision 0008, section 1). */ readonly key: string; readonly clientName: string; readonly ownerName: string; readonly openTasks: number; /** Its client is a demo. */ readonly demo: boolean };
 
 export type ProjectStore = {
   insert(project: Project, at: string): void;
@@ -23,6 +23,14 @@ export type ProjectStore = {
   list(): ProjectRow[];
   /** One client's projects, newest first. */
   listFor(organizationId: Id): Project[];
+  /** Its task key. */
+  keyOf(id: Id): string | null;
+  /** Changes its key; the old one still finds it. */
+  setKey(id: Id, key: string, at: string): void;
+  /** The project a key is, or was, for. */
+  byKey(key: string): Id | null;
+  /** Whether a key is, or was, another project's. */
+  keyTaken(key: string, exceptProjectId: Id): boolean;
 };
 
 export type PhaseStore = {
@@ -41,7 +49,7 @@ export type MilestoneStore = {
   listOpen(): (Milestone & { readonly projectName: string })[];
 };
 
-export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null };
+export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null; /** "BDW-12", or "TODO-7" for a to-do (decision 0008, section 1). */ readonly ref: string };
 
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
 export type TaskOrigin = { readonly organizationId?: Id | null; readonly opportunityId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
@@ -143,6 +151,8 @@ export type TaskStore = {
   get(id: Id): Task | null;
   /** One task with its project's and assignee's names. A to-do's project name is empty. */
   row(id: Id): TaskRow | null;
+  /** The task with this number in a project, or among to-dos when the project is null. */
+  byNumber(projectId: Id | null, number: number): Id | null;
   listFor(projectId: Id): TaskRow[];
   /** Tasks of active projects: every open one, and those finished at or after `doneSince`. */
   listBoard(doneSince: string): TaskRow[];
@@ -207,6 +217,8 @@ export type WorkRow = Task & {
   readonly organizationId: Id | null;
   readonly clientName: string;
   readonly assigneeName: string;
+  /** "BDW-12" (decision 0008, section 1). */
+  readonly ref: string;
 };
 
 /** The work table's reads, and the saved filters and column choices behind it (decision 0007, section 3). */

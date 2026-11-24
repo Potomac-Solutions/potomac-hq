@@ -14,7 +14,7 @@ let mikeyId: Id;
 let samId: Id;
 let website: Id;
 const day = (days: number) => Temporal.Now.plainDateISO("America/New_York").add({ days }).toString();
-const order = (html: string) => [...html.matchAll(/<td><a href="\/tasks\/[0-9a-f-]{36}">([^<]+)<\/a><\/td>/g)].map((m) => m[1]);
+const order = (html: string) => [...html.matchAll(/<td><span class="hq-ref">[A-Z0-9]+-\d+<\/span> <a href="\/tasks\/[0-9a-f-]{36}">([^<]+)<\/a><\/td>/g)].map((m) => m[1]);
 
 before(async () => {
   t = await testApp();

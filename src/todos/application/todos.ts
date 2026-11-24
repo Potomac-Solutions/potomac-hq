@@ -81,6 +81,7 @@ export type TodoLine = {
   readonly projectId: string;
   readonly projectName: string;
   readonly labels: readonly TodoLabel[];
+  readonly ref: string;
   readonly title: string;
   readonly dueOn: string;
   readonly when: string;
@@ -102,6 +103,7 @@ function lineOf(deps: TodosDeps, actorId: Id, todo: TodoRow, today: string, labe
     projectId: todo.projectId ?? "",
     projectName: todo.projectName,
     labels,
+    ref: todo.ref,
     title: todo.title,
     dueOn: todo.dueOn ?? "",
     when: todo.dueOn ? dueText(todo.dueOn, today) : "Whenever",

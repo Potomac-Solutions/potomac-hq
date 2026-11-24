@@ -72,8 +72,8 @@ test("blocking: across projects and to-dos, never itself or in a circle; moving 
 
   const page = await mikey.page(`/tasks/${homepage}`);
   const said = textOf(page);
-  assert.match(said, /Waits on Get the truck photos Better Days website To do/);
-  assert.match(said, /Holds up Set up the shop Tailgate shop To do/);
+  assert.match(said, /Waits on BDW-2 Get the truck photos Better Days website To do/);
+  assert.match(said, /Holds up TS-1 Set up the shop Tailgate shop To do/);
   assert.match(said, /Waiting on 1 unfinished task/);
   const choices = /<select id="blocker"[\s\S]*?<\/select>/.exec(page)?.[0] ?? "";
   assert.match(choices, /<optgroup label="Better Days website">[\s\S]*<optgroup label="To-dos">[\s\S]*Ask Dale for the photos/, "to-dos come last");

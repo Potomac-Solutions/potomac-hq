@@ -12,7 +12,7 @@ import { carriedTiming, firesAt, isReminderDue, noticesFromEvent, readReminder, 
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, friendlyDay, ok, recordActivity, type ActivityDeps, type ActivityLog, type Clock, type Id, type IdSource, type Result, type Transact } from "../../shared/index.ts";
 
-export type NoticeRow = Notice & { readonly taskTitle: string; readonly actorName: string; readonly dueOn: string | null };
+export type NoticeRow = Notice & { readonly taskTitle: string; /** "BDW-12" (decision 0008, section 1). */ readonly taskRef: string; readonly actorName: string; readonly dueOn: string | null };
 
 export type NoticeStore = {
   insert(notice: Notice): void;
@@ -93,10 +93,13 @@ export function withNotices(log: ActivityLog, deps: { readonly notices: NoticeSt
   };
 }
 
+/** The task as a notice names it: BDW-12 “Build the homepage”. */
+const named = (row: NoticeRow) => `${row.taskRef ? `${row.taskRef} ` : ""}“${row.taskTitle}”`;
+
 const KIND_TEXT: Record<NoticeKind, (row: NoticeRow) => string> = {
-  assigned: (row) => `${row.actorName || "Someone"} gave you “${row.taskTitle}”`,
-  mentioned: (row) => `${row.actorName || "Someone"} mentioned you on “${row.taskTitle}”`,
-  reminder: (row) => `Reminder: “${row.taskTitle}”`,
+  assigned: (row) => `${row.actorName || "Someone"} gave you ${named(row)}`,
+  mentioned: (row) => `${row.actorName || "Someone"} mentioned you on ${named(row)}`,
+  reminder: (row) => `Reminder: ${named(row)}`,
 };
 
 export type NoticeLine = { readonly id: string; readonly kind: string; readonly text: string; readonly detail: string; readonly href: string; readonly when: string; readonly unread: boolean };

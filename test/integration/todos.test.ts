@@ -36,21 +36,21 @@ test("your to-dos sort into overdue, today, coming up and whenever", async () =>
   await mikey.post("/todos", { title: "Order business cards", dueOn: day(5) });
   await mikey.post("/todos", { title: "Read the insurance policy" });
   const page = textOf(await mikey.page("/todos"));
-  assert.match(page, /Overdue Done: Renew the business license Renew the business license .* Today Done: Call the bank .* Coming up Done: Order business cards .* Whenever Done: Read the insurance policy Read the insurance policy Whenever/);
+  assert.match(page, /Overdue Done: Renew the business license TODO-\d+ Renew the business license .* Today Done: Call the bank .* Coming up Done: Order business cards .* Whenever Done: Read the insurance policy TODO-\d+ Read the insurance policy Whenever/);
 });
 
 test("a to-do for someone else is theirs; Everyone's shows whose it is", async () => {
   const samId = t.db.prepare("select id from user where email = 'sam@example.com'").get()?.["id"] as string;
   await mikey.post("/todos", { title: "Photograph the diner", assigneeId: samId, clientId });
   assert.doesNotMatch(textOf(await mikey.page("/todos")), /Photograph the diner/);
-  assert.match(textOf(await sam.page("/todos")), /Whenever Done: Photograph the diner Photograph the diner Whenever · Elk Diner/);
+  assert.match(textOf(await sam.page("/todos")), /Whenever Done: Photograph the diner TODO-\d+ Photograph the diner Whenever · Elk Diner/);
   assert.match(textOf(await mikey.page("/todos?everyone=1")), /Photograph the diner Whenever · Sam Rivers · Elk Diner/);
 });
 
 test("a to-do on an opportunity shows there and on its client, and lands back where it was added", async () => {
   const res = await mikey.post("/todos", { title: "Send the quote", dueOn: day(1), opportunityId, back: "opportunity", backId: opportunityId });
   assert.equal(where(res).split("?")[0], `/opportunities/${opportunityId}`);
-  assert.match(textOf(await mikey.page(`/opportunities/${opportunityId}`)), /To-dos Done: Send the quote Send the quote /);
+  assert.match(textOf(await mikey.page(`/opportunities/${opportunityId}`)), /To-dos Done: Send the quote TODO-\d+ Send the quote /);
   assert.match(textOf(await mikey.page(`/clients/${clientId}`)), /To-dos .*Send the quote .*· Online orders/);
 });
 

@@ -9,6 +9,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "name-too-long": "That name is too long.",
   "description-too-long": "That description is too long.",
   "invalid-health": "Choose how it is going from the list.",
+  "invalid-key": "Use 2 to 6 letters or digits, starting with a letter, like BDW. TODO and INV are taken by to-dos and invoices.",
+  "key-taken": "Another project has that key, or had it before.",
   "invalid-date": "Enter a date.",
   "target-before-start": "The target date is before the start date.",
   "invalid-status": "Choose a status from the list.",

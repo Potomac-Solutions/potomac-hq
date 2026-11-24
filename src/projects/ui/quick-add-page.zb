@@ -9,9 +9,13 @@
 <script>
   'use route /add'
   import '../../shared/ui/zubra/alert-banner.zb'
+  import { redirect } from '@zubra/router'
   export async function load({ context, url }) {
     const stop = context.guard()
     if (stop) return stop
+    // Typing just a task's key, like BDW-12, opens that task (decision 0008, section 1).
+    const task = context.taskByRef(url.searchParams.get('text') || '')
+    if (task) return redirect(task)
     const quick = context.projects.quickAdd((name) => url.searchParams.getAll(name))
     if (!quick.view.ok) return context.forbidden()
     return { title: 'Quick add', view: quick.view.value, added: quick.added, done: context.notice.done, problem: context.notice.problem }

@@ -53,6 +53,7 @@
           <span zb-else class="hq-muted">None set</span>
         </dd>
         <dt>Owner</dt><dd>{p.ownerName}</dd>
+        <dt>Key</dt><dd><span class="hq-ref">{p.key}</span> <span class="hq-muted hq-small">Tasks are {p.key}-1, {p.key}-2.</span></dd>
         <dt>Kind</dt><dd>{p.kindLabel}</dd>
         <dt>Starts</dt><dd>{p.startOn || "Not set"}</dd>
         <dt>Target</dt><dd>{p.targetOn || "Not set"}</dd>
@@ -72,6 +73,10 @@
           <text-field label="Target date" name="targetOn" type="date" value={p.targetOn}></text-field>
           <text-field label="About" name="description" rows={3} value={p.description}></text-field>
           <div><button class="hq-button" type="submit">Save project</button></div>
+        </form>
+        <form method="post" action="/projects/{p.id}/key" class="hq-form-row">
+          <text-field label="Key" name="key" value={p.key} required={true} maxlength={6} description="2 to 6 letters or digits. Tasks keep their numbers, and the old key still finds them."></text-field>
+          <button class="hq-button secondary" type="submit">Change key</button>
         </form>
       </details>
       <div class="hq-actions" data-spaced>

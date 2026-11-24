@@ -5,7 +5,8 @@ import type { TodoRow, TodoStore } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-const COLUMNS = `t.id, t.title, t.due_on, t.assignee_id, coalesce(t.organization_id, p.organization_id) as organization_id, t.opportunity_id,
+// ref is the task's key, BDW-12 or TODO-7 (decision 0008, section 1).
+const COLUMNS = `t.id, case when t.number is null then '' else coalesce(p.key, 'TODO') || '-' || t.number end as ref, t.title, t.due_on, t.assignee_id, coalesce(t.organization_id, p.organization_id) as organization_id, t.opportunity_id,
   t.done_at, t.created_by, t.project_id, coalesce(p.name, '') as project_name`;
 const FROM = "from task t left join project p on p.id = t.project_id";
 /** Open: not done, and either a to-do or a task of an active project. */
@@ -24,12 +25,14 @@ function toRow(row: Record<string, unknown>): TodoRow {
     createdBy: (row["created_by"] as Id | null) ?? null,
     projectId: (row["project_id"] as Id | null) ?? null,
     projectName: String(row["project_name"] ?? ""),
+    ref: String(row["ref"] ?? ""),
   };
 }
 
 export function sqliteTodoStore(db: Database): TodoStore {
-  const insert = db.prepare(`insert into task (id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at, organization_id, opportunity_id, created_by, created_at, updated_at)
-    values (?, null, null, ?, '', ?, 'normal', ?, null, ?, ?, ?, ?, ?, ?, ?)`);
+  // A to-do's number is the next across to-dos, so it's TODO-7 (decision 0008, section 1).
+  const insert = db.prepare(`insert into task (id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at, organization_id, opportunity_id, created_by, created_at, updated_at, number)
+    values (?, null, null, ?, '', ?, 'normal', ?, null, ?, ?, ?, ?, ?, ?, ?, (select coalesce(max(number), 0) + 1 from task where project_id is null))`);
   // Only a to-do's own fields; a project task is changed through the projects module.
   const update = db.prepare("update task set title = ?, due_on = ?, assignee_id = ?, status = ?, done_at = ?, updated_at = ? where id = ? and project_id is null");
   const get = db.prepare(`select ${COLUMNS} ${FROM} where t.id = ?`);

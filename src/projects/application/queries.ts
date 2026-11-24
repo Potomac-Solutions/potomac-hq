@@ -87,6 +87,8 @@ export type ProjectView = {
   readonly project: {
     readonly id: string;
     readonly name: string;
+    /** Its tasks are KEY-1, KEY-2 (decision 0008, section 1). */
+    readonly key: string;
     readonly description: string;
     readonly kindLabel: string;
     readonly status: string;
@@ -183,6 +185,7 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
       id: project.id,
       name: project.name,
       description: project.description,
+      key: project.key,
       kindLabel: KIND_LABELS[project.kind] ?? project.kind,
       status: project.status,
       statusLabel: STATUS_LABELS[project.status] ?? project.status,
@@ -234,6 +237,8 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
 
 export type TaskCard = {
   readonly id: string;
+  /** "BDW-12" (decision 0008, section 1). */
+  readonly ref: string;
   readonly title: string;
   readonly projectId: string;
   readonly projectName: string;
@@ -281,6 +286,7 @@ function card(task: TaskRow, today: string, labels: readonly Label[] = [], links
     waiting: links.waiting ?? 0,
     labels: labels.map(chip),
     id: task.id,
+    ref: task.ref,
     title: task.title,
     projectId: task.projectId ?? "",
     projectName: task.projectName,
@@ -408,9 +414,9 @@ function linkTo(deps: ProjectsDeps, id: Id | null): TaskLink | null {
 }
 
 /** Another task, as a link: "Swap the photos · Better Days website · Done". */
-export type TaskLink = { readonly id: string; readonly title: string; readonly href: string; readonly where: string; readonly statusLabel: string; readonly done: boolean };
+export type TaskLink = { readonly id: string; readonly ref: string; readonly title: string; readonly href: string; readonly where: string; readonly statusLabel: string; readonly done: boolean };
 
-const taskLink = (row: TaskRow): TaskLink => ({ id: row.id, title: row.title, href: `/tasks/${row.id}`, where: row.projectName || "To-do", statusLabel: TASK_STATUS_LABELS[row.status] ?? row.status, done: row.status === "done" });
+const taskLink = (row: TaskRow): TaskLink => ({ id: row.id, ref: row.ref, title: row.title, href: `/tasks/${row.id}`, where: row.projectName || "To-do", statusLabel: TASK_STATUS_LABELS[row.status] ?? row.status, done: row.status === "done" });
 
 /** Open tasks this one could wait on, grouped by project, to-dos last. */
 function blockerChoices(deps: ProjectsDeps, taskId: Id): { label: string; options: Option[] }[] {

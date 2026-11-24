@@ -19,8 +19,8 @@ const toNotice = (r: Row): Notice => ({
 });
 
 export function sqliteNoticeStore(db: Database): NoticeStore {
-  const cols = "n.id, n.user_id, n.kind, n.task_id, n.actor_id, n.detail, n.created_at, n.read_at, t.title as task_title, t.due_on, coalesce(u.name, '') as actor_name";
-  const from = "from notice n join task t on t.id = n.task_id left join user u on u.id = n.actor_id";
+  const cols = "n.id, n.user_id, n.kind, n.task_id, n.actor_id, n.detail, n.created_at, n.read_at, t.title as task_title, case when t.number is null then '' else coalesce(p.key, 'TODO') || '-' || t.number end as task_ref, t.due_on, coalesce(u.name, '') as actor_name";
+  const from = "from notice n join task t on t.id = n.task_id left join project p on p.id = t.project_id left join user u on u.id = n.actor_id";
   const insert = db.prepare("insert into notice (id, user_id, kind, task_id, actor_id, detail, created_at, read_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
   const forUser = db.prepare(`select ${cols} ${from} where n.user_id = ? order by n.created_at desc, n.rowid desc limit ?`);
   const unreadFor = db.prepare(`select ${cols} ${from} where n.user_id = ? and n.read_at is null order by n.created_at desc, n.rowid desc limit ?`);
@@ -31,7 +31,7 @@ export function sqliteNoticeStore(db: Database): NoticeStore {
   const toEmail = db.prepare(`select ${cols} ${from} join notice_setting s on s.user_id = n.user_id and s.email = 1 where n.emailed_at is null and n.read_at is null order by n.created_at, n.rowid`);
   const markEmailed = db.prepare("update notice set emailed_at = ? where id in (select value from json_each(?))");
   const markAllEmailed = db.prepare("update notice set emailed_at = ? where user_id = ? and emailed_at is null");
-  const row = (r: Row): NoticeRow => ({ ...toNotice(r), taskTitle: text(r, "task_title"), actorName: text(r, "actor_name"), dueOn: maybe(r, "due_on") });
+  const row = (r: Row): NoticeRow => ({ ...toNotice(r), taskTitle: text(r, "task_title"), taskRef: text(r, "task_ref"), actorName: text(r, "actor_name"), dueOn: maybe(r, "due_on") });
   return {
     insert: (n) => void insert.run(n.id, n.userId, n.kind, n.taskId, n.actorId, n.detail.slice(0, 200), n.createdAt, n.readAt),
     forUser: (userId, limit) => (forUser.all(userId, limit) as Row[]).map(row),
