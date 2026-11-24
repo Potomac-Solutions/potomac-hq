@@ -1,11 +1,12 @@
 import type { SiteContent } from "../domain/content.ts";
 import type { LaunchMode } from "../domain/launch.ts";
+import type { ServiceArea } from "../domain/service-area.ts";
 import type { ContentSite, DraftState } from "../domain/site.ts";
 import type { ContentSiteStore, PhotoStore, StoredPhoto } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-const COLUMNS = "id, organization_id, name, repo_owner, repo_name, branch, content_path, photo_dir, published, published_at, published_commit, draft, draft_state, submitted_at, submitted_by, note, site_url, launch_mode, opens_at, launch_message, preview_key";
+const COLUMNS = "id, organization_id, name, repo_owner, repo_name, branch, content_path, photo_dir, published, published_at, published_commit, draft, draft_state, submitted_at, submitted_by, note, site_url, launch_mode, opens_at, launch_message, preview_key, service_area";
 const maybe = (value: unknown) => (value === null || value === undefined ? null : String(value));
 
 function toSite(row: Record<string, unknown>): ContentSite {
@@ -27,16 +28,17 @@ function toSite(row: Record<string, unknown>): ContentSite {
     siteUrl: String(row["site_url"]),
     launch: { mode: row["launch_mode"] as LaunchMode, opensAt: maybe(row["opens_at"]), message: String(row["launch_message"]) },
     previewKey: maybe(row["preview_key"]),
+    serviceArea: row["service_area"] === null || row["service_area"] === undefined ? null : (JSON.parse(String(row["service_area"])) as ServiceArea),
   };
 }
 
 export function sqliteContentSiteStore(db: Database): ContentSiteStore {
-  const insert = db.prepare(`insert into content_site (${COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const save = db.prepare("update content_site set name = ?, repo_owner = ?, repo_name = ?, branch = ?, content_path = ?, photo_dir = ?, published = ?, published_at = ?, published_commit = ?, draft = ?, draft_state = ?, submitted_at = ?, submitted_by = ?, note = ?, site_url = ?, launch_mode = ?, opens_at = ?, launch_message = ?, preview_key = ?, updated_at = ? where id = ?");
+  const insert = db.prepare(`insert into content_site (${COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const save = db.prepare("update content_site set name = ?, repo_owner = ?, repo_name = ?, branch = ?, content_path = ?, photo_dir = ?, published = ?, published_at = ?, published_commit = ?, draft = ?, draft_state = ?, submitted_at = ?, submitted_by = ?, note = ?, site_url = ?, launch_mode = ?, opens_at = ?, launch_message = ?, preview_key = ?, service_area = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${COLUMNS} from content_site where id = ?`);
   const forClient = db.prepare(`select ${COLUMNS} from content_site where organization_id = ?`);
   const list = db.prepare(`select ${COLUMNS} from content_site order by case draft_state when 'submitted' then 0 when 'editing' then 1 else 2 end, name`);
-  const fields = (s: ContentSite) => [s.name, s.repo.owner, s.repo.name, s.repo.branch, s.contentPath, s.photoDir, JSON.stringify(s.published), s.publishedAt, s.publishedCommit, s.draft ? JSON.stringify(s.draft) : null, s.draftState, s.submittedAt, s.submittedBy, s.note, s.siteUrl, s.launch.mode, s.launch.opensAt, s.launch.message, s.previewKey] as const;
+  const fields = (s: ContentSite) => [s.name, s.repo.owner, s.repo.name, s.repo.branch, s.contentPath, s.photoDir, JSON.stringify(s.published), s.publishedAt, s.publishedCommit, s.draft ? JSON.stringify(s.draft) : null, s.draftState, s.submittedAt, s.submittedBy, s.note, s.siteUrl, s.launch.mode, s.launch.opensAt, s.launch.message, s.previewKey, s.serviceArea ? JSON.stringify(s.serviceArea) : null] as const;
   return {
     insert(site, at) {
       insert.run(site.id, site.organizationId, ...fields(site), at, at);

@@ -1,0 +1,187 @@
+<!--
+  Where a business goes, on a map: whole counties picked by a click, and
+  areas drawn by hand, point by point. Used in the client's portal and on the
+  site's page in HQ: `base` is where its form posts and `page` is the page
+  itself, for "Show a wider map". Saving changes the site at once.
+
+  Each county on the map is also a checkbox in the list below it, so the
+  counties work with a keyboard, a screen reader and with scripts off.
+  Drawing needs a pointer and scripts. With scripts on, the form sends the
+  map's areas as JSON in `areas`; with them off, `areas` is left out and the
+  ticked counties are sent, and drawn areas stay as they were.
+
+  `area` is a ServiceAreaView (src/websites/application/websites.ts).
+-->
+<script>
+  import { onMount } from '@zubra/runtime'
+
+  let ready = false
+  let mode = 'counties'
+  let picked = area.counties.filter((county) => county.picked).map((county) => county.fips)
+  let drawn = area.drawn.map((one) => ({ name: one.name, ring: one.ring }))
+  let points = []
+  let naming = ''
+
+  onMount(() => {
+    ready = true
+  })
+
+  // The same projection as src/websites/domain/service-area.ts, with the numbers it sends.
+  const xy = (point) => [Math.round((area.frame.offsetX + (point[0] - area.frame.west) * area.frame.stretch * area.frame.scale) * 10) / 10, Math.round((area.frame.offsetY + (area.frame.north - point[1]) * area.frame.scale) * 10) / 10]
+  const pathFor = (ring) => (ring.length > 1 ? 'M' + ring.map((point) => xy(point).join(',')).join('L') + 'Z' : '')
+  const lineFor = (ring) => ring.map((point) => xy(point).join(',')).join(' ')
+  const total = picked.length + drawn.length
+
+  // On saving, the map's areas go in `areas`. Without scripts this never runs, `areas` stays
+  // out of the form, and HQ saves the ticked counties instead.
+  function send(event) {
+    const field = event.currentTarget.elements.namedItem('areas')
+    if (!field) return
+    field.value = JSON.stringify([...picked.map((fips) => ({ county: fips })), ...drawn.map((one) => ({ name: one.name, ring: one.ring }))])
+    field.disabled = false
+  }
+  function setMode(next) {
+    mode = next
+    points = []
+  }
+  function toggle(fips) {
+    picked = picked.includes(fips) ? picked.filter((one) => one !== fips) : [...picked, fips]
+  }
+  function clickCounty(fips) {
+    if (mode === 'counties') toggle(fips)
+  }
+  function place(event) {
+    if (mode !== 'draw') return
+    const svg = event.currentTarget
+    const matrix = svg.getScreenCTM()
+    if (!matrix) return
+    const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse())
+    const lon = area.frame.west + (at.x - area.frame.offsetX) / (area.frame.stretch * area.frame.scale)
+    const lat = area.frame.north - (at.y - area.frame.offsetY) / area.frame.scale
+    points = [...points, [Math.round(lon * 1e4) / 1e4, Math.round(lat * 1e4) / 1e4]]
+  }
+  function setNaming(event) {
+    naming = event.currentTarget.value
+  }
+  function finish() {
+    if (points.length < 3) return
+    drawn = [...drawn, { name: naming.trim() || 'Area ' + (drawn.length + 1), ring: points }]
+    points = []
+    naming = ''
+  }
+  function undo() {
+    points = points.slice(0, -1)
+  }
+  function startOver() {
+    points = []
+  }
+  function rename(index, event) {
+    const name = event.currentTarget.value
+    drawn = drawn.map((one, at) => (at === index ? { name, ring: one.ring } : one))
+  }
+  function remove(index) {
+    drawn = drawn.filter((_, at) => at !== index)
+  }
+</script>
+<style>
+  :host { display: block; }
+  .sa-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
+  .sa-tools a { margin-left: auto; }
+  .sa-tools button[aria-pressed='true'] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .sa-how { margin: 0 0 0.5rem; }
+  .sa-map { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--muted) 60%, var(--background)); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .sa-map.drawing { cursor: crosshair; }
+  .sa-county { fill: var(--card); stroke: var(--border); stroke-width: 0.8; cursor: pointer; }
+  .sa-map.drawing .sa-county { cursor: crosshair; }
+  .sa-county:hover { fill: color-mix(in srgb, var(--primary) 12%, var(--card)); }
+  .sa-county.picked { fill: color-mix(in srgb, var(--primary) 55%, var(--card)); stroke: var(--primary); }
+  .sa-label { fill: var(--muted-foreground); font-size: 11px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+  .sa-label.picked { fill: var(--foreground); font-weight: 600; stroke: color-mix(in srgb, var(--primary) 55%, var(--card)); }
+  @media (max-width: 40rem) { .sa-label { font-size: 17px; } }
+  .sa-drawn { fill: color-mix(in srgb, #f47b20 45%, transparent); stroke: #c75f10; stroke-width: 2; pointer-events: none; }
+  .sa-line { fill: color-mix(in srgb, #f47b20 20%, transparent); stroke: #c75f10; stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }
+  .sa-dot { fill: #c75f10; stroke: #fff; stroke-width: 1.5; pointer-events: none; }
+  .sa-finish { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; margin: 0.75rem 0 0; }
+  .sa-finish .hq-field { flex: 1 1 14rem; margin: 0; }
+  .sa-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+  .sa-list li { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+  .sa-list .hq-field { flex: 1 1 14rem; margin: 0; }
+  .sa-counties { margin: 0; padding: 0; border: 0; min-width: 0; columns: 14rem; column-gap: 1.5rem; }
+  .sa-counties legend { padding: 0; margin-bottom: 0.35rem; font-weight: 600; font-size: 0.9rem; }
+  .sa-counties label { display: flex; align-items: baseline; gap: 0.5rem; break-inside: avoid; font-weight: 400; padding: 0.2rem 0; }
+  .sa-counties input { width: 1.1rem; height: 1.1rem; min-height: 0; flex: none; accent-color: var(--primary); position: relative; top: 0.15rem; }
+  .sa-save { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+</style>
+<service-area-editor area={{ summary: '', count: 0, frame: { west: 0, north: 0, scale: 1, stretch: 1, offsetX: 0, offsetY: 0 }, wider: 0, canWiden: false, counties: [], drawn: [], maxAreas: 20, maxName: 60 }} base="" page="" staff={false}>
+  <section class="hq-panel" id="service-area" aria-labelledby="sa-heading">
+    <h2 id="sa-heading">{staff ? 'Service area' : 'Where you go'}</h2>
+    <p>{area.summary} {staff ? 'Shown on the website as a map.' : 'Your website shows these on a map, so customers can see if you come out to them.'}</p>
+
+    <form method="post" action="{base}/service-area" class="hq-form" onsubmit={send}>
+      <div class="sa-tools" role="group" aria-label="How to change the map">
+        <button class="hq-button secondary" type="button" aria-pressed={mode === 'counties' ? 'true' : 'false'} disabled={!ready} onclick={() => setMode('counties')}>Pick counties</button>
+        <button class="hq-button secondary" type="button" aria-pressed={mode === 'draw' ? 'true' : 'false'} disabled={!ready} onclick={() => setMode('draw')}>Draw an area</button>
+        <a zb-if={area.canWiden} href="{page}?wider={area.wider + 1}#service-area">Show a wider map</a>
+        <a zb-if={area.wider > 0 && !area.canWiden} href="{page}#service-area">Closer in</a>
+      </div>
+      <p class="sa-how hq-small hq-muted">{mode === 'counties' ? 'Click a county to add it, and again to take it away. Or tick counties in the list below the map.' : 'Click on the map around the area you go to, one point at a time. When it’s outlined, name it and finish it.'}</p>
+
+      <svg class="sa-map" class:drawing={mode === 'draw'} viewBox="0 0 640 440" role="img" aria-label="Map of {staff ? 'the' : 'your'} service area. {area.summary}" onclick={place}>
+        <zb-each items={area.counties} as="county" key={county.fips}>
+          <path class="sa-county" class:picked={picked.includes(county.fips)} d={county.d} onclick={() => clickCounty(county.fips)}><title>{county.label}</title></path>
+        </zb-each>
+        <zb-each items={area.counties} as="county" key={county.fips}>
+          <text class="sa-label" class:picked={picked.includes(county.fips)} x={county.x} y={county.y} aria-hidden="true">{county.short}</text>
+        </zb-each>
+        <zb-each items={drawn} as="one" index="i" key={i}>
+          <path class="sa-drawn" d={pathFor(one.ring)}><title>{one.name}</title></path>
+        </zb-each>
+        <polygon zb-if={points.length > 1} class="sa-line" points={lineFor(points)}></polygon>
+        <zb-each items={points} as="point" index="p" key={p}>
+          <circle class="sa-dot" cx={xy(point)[0]} cy={xy(point)[1]} r="4"></circle>
+        </zb-each>
+      </svg>
+
+      <div zb-if={mode === 'draw'} class="sa-finish">
+        <div class="hq-field">
+          <label for="sa-naming">Name this area</label>
+          <input id="sa-naming" value={naming} maxlength={area.maxName} placeholder="Like: Deep Creek Lake and around" oninput={setNaming}>
+        </div>
+        <button class="hq-button" type="button" disabled={points.length < 3} onclick={() => finish()}>Finish this area</button>
+        <button class="hq-button secondary" type="button" disabled={points.length === 0} onclick={() => undo()}>Undo last point</button>
+        <button class="hq-button secondary" type="button" disabled={points.length === 0} onclick={() => startOver()}>Start over</button>
+      </div>
+
+      <div zb-if={drawn.length > 0}>
+        <h3>Areas drawn by hand</h3>
+        <ul class="sa-list">
+          <zb-each items={drawn} as="one" index="i" key={i}>
+            <li>
+              <div class="hq-field">
+                <label for="sa-drawn-{i}">Name</label>
+                <input id="sa-drawn-{i}" value={one.name} maxlength={area.maxName} required oninput={(event) => rename(i, event)}>
+              </div>
+              <button class="hq-button secondary" type="button" disabled={!ready} onclick={() => remove(i)}>Remove {one.name}</button>
+            </li>
+          </zb-each>
+        </ul>
+      </div>
+
+      <details class="hq-more">
+        <summary>Pick counties from a list</summary>
+        <fieldset class="sa-counties">
+          <legend>Counties on the map</legend>
+          <zb-each items={area.counties} as="county" key={county.fips}>
+            <label><input type="checkbox" name="county-{county.fips}" value="1" checked={picked.includes(county.fips)} onchange={() => toggle(county.fips)}> {county.label}</label>
+          </zb-each>
+        </fieldset>
+      </details>
+
+      <input type="hidden" name="areas" value="" disabled>
+      <div class="sa-save">
+        <button class="hq-button portal-big" type="submit" disabled={total > area.maxAreas}>{staff ? 'Save the service area' : 'Save where you go'}</button>
+        <span class="hq-small hq-muted">{total > area.maxAreas ? 'Up to ' + area.maxAreas + ' areas. Remove some first.' : total === 1 ? '1 area.' : total + ' areas.'} The website’s map changes a minute or two after you save.</span>
+      </div>
+    </form>
+  </section>
+</service-area-editor>

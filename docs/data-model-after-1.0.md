@@ -237,6 +237,29 @@ made the first time a site is closed).
   `site-content.preview-link-renewed`, `site-content.address-changed`. A
   client's status change is emailed to admins and shows on the dashboard.
 
+## Service area
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0005-service-area.md`.
+
+On `content_site`: `service_area` (migration 0037), the areas as JSON, as
+last written to the site, or null for a site whose file has no service
+area.
+
+- Saving is one commit of the content file as it is on the site, with a new
+  `serviceArea` block, like the status. A draft waiting to be checked is not
+  in it. The record is saved after the commit succeeds. Changing the status,
+  and publishing, write the service area back as it is.
+- A county's outline comes from HQ's county file, never from the request.
+- A client user sets their own organization's site's service area, and it
+  takes effect at once. Potomac's people need `site.publish`.
+- Event: `site-content.service-area-changed` (with the number of areas and
+  of counties, and the commit). A client's change is emailed to admins and
+  shows on the dashboard.
+- A content file without a `gallery` is allowed when it holds a
+  `serviceArea` or a `launch` block: the site has no photos, notice or
+  reviews, and changes to them are refused (`no-gallery`).
+
 ## Referral links
 
 Decided 2026-11-23 at Mikey's request ("a referral code for business cards

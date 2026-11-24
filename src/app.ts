@@ -247,10 +247,10 @@ export type PageContext = {
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
   /** Website content: a client's own site in the portal, and every site for Potomac's people. */
   readonly websites: {
-    /** The signed-in client's site, or null when they have none. */
-    mine(): ReturnType<typeof portalWebsite>;
+    /** The signed-in client's site, or null when they have none. `wider` steps the service area map out. */
+    mine(wider?: number): ReturnType<typeof portalWebsite>;
     all(): ReturnType<typeof allWebsites>;
-    site(id: string): ReturnType<typeof staffWebsite>;
+    site(id: string, wider?: number): ReturnType<typeof staffWebsite>;
     forClient(id: string): ClientWebsiteView | null;
   };
   readonly monitor: {
@@ -323,6 +323,9 @@ export type PageContext = {
 const NOT_ALLOWED = "You don’t have permission to do that.";
 
 /** An id from an address. Anything that is not one is simply not found. */
+/** How far out a service area map is: 0 to 3, from a page's `?wider=`. */
+const widerOf = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? Math.max(0, Math.min(3, value)) : 0);
+
 function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-found">): Result<T, "forbidden" | "not-found"> {
   const id = parseId(text);
   return id.ok ? read(id.value) : err("not-found");
@@ -573,9 +576,9 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok },
         websites: {
-          mine: () => portalWebsite(services.websites, client),
+          mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
           all: () => allWebsites(services.websites, actor),
-          site: (id) => withId(id, (parsed) => staffWebsite(services.websites, actor, parsed)),
+          site: (id, wider) => withId(id, (parsed) => staffWebsite(services.websites, actor, parsed, widerOf(wider))),
           forClient: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? clientWebsite(services.websites, actor, parsed.value) : null;

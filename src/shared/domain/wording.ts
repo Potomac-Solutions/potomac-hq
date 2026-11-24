@@ -32,6 +32,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "site-content.sent-back": "sent website changes back to the client",
   "site-content.published": "published changes to a website",
   "site-content.status-changed": "changed whether a website is open",
+  "site-content.service-area-changed": "changed the service area on a website",
   "site-content.preview-link-renewed": "made a new preview link for a website",
   "site-content.address-changed": "changed a website’s address",
   "referral-link.created": "made a referral link",

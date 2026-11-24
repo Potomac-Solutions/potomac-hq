@@ -1,5 +1,7 @@
 // What a client may change on their own website: the photo gallery, a short
 // notice, and customer reviews. The rules here decide what a change may be.
+// A site with no gallery has none of the three: its file is read and written
+// back as it was, for its status and service area alone.
 // Nothing here knows where the site lives or how it is published.
 import type { Id } from "../../shared/domain/id.ts";
 import { parseId } from "../../shared/domain/id.ts";
@@ -22,6 +24,8 @@ export type Photo = {
 export type Review = { readonly quote: string; readonly by: string };
 
 export type SiteContent = {
+  /** True for a site whose file has no gallery: it has no photos, notice or reviews to change. */
+  readonly noGallery?: true;
   /** One short line shown at the top of the site. Empty for none. */
   readonly notice: string;
   readonly gallery: readonly Photo[];
@@ -141,10 +145,16 @@ export function isPhotoSrc(src: string): boolean {
   return /^\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.(?:jpe?g|png|webp|avif|gif)$/i.test(src) && !src.includes("..") && src.length <= 200;
 }
 
+/** True when the site has photos, a notice and reviews to change. */
+export const hasGallery = (content: SiteContent): boolean => content.noGallery !== true;
+
 /**
- * The site's content file, read. It must hold a `gallery` list; `notice`
- * and `testimonials` may be missing. A photo with no id of its own is
- * given one. Anything else in the file is kept and written back as it was.
+ * The site's content file, read. A `gallery` list, when there is one, must
+ * hold at least one photo; `notice` and `testimonials` may be missing. A
+ * photo with no id of its own is given one. A file with no `gallery` is a
+ * site with no photos, notice or reviews to change: it must hold a
+ * `serviceArea` or a `launch` block, and no notice or reviews. Anything else
+ * in the file is kept and written back as it was.
  */
 export function readContent(json: string, newId: () => Id): Result<SiteContent, "content-invalid"> {
   let parsed: unknown;
@@ -153,9 +163,17 @@ export function readContent(json: string, newId: () => Id): Result<SiteContent, 
   } catch {
     return err("content-invalid");
   }
-  if (!isRecord(parsed) || !Array.isArray(parsed["gallery"]) || parsed["gallery"].length === 0 || parsed["gallery"].length > MAX_PHOTOS) return err("content-invalid");
-  // `launch` is the site's status, read and written on its own (launch.ts).
-  const { notice, gallery, testimonials, launch: _launch, ...extra } = parsed;
+  if (!isRecord(parsed)) return err("content-invalid");
+  // `launch` is the site's status and `serviceArea` where it goes: each read and written on its own (launch.ts, service-area.ts).
+  if (!("gallery" in parsed)) {
+    // Without a gallery the file must be for a status or a service area, and can't half-hold the rest: an empty or stray file is more likely the wrong file.
+    if (!isRecord(parsed["serviceArea"]) && !isRecord(parsed["launch"])) return err("content-invalid");
+    if ("notice" in parsed || "testimonials" in parsed) return err("content-invalid");
+    const { launch: _launch, serviceArea: _area, ...rest } = parsed;
+    return ok({ noGallery: true, notice: "", gallery: [], reviews: [], extra: rest });
+  }
+  if (!Array.isArray(parsed["gallery"]) || parsed["gallery"].length === 0 || parsed["gallery"].length > MAX_PHOTOS) return err("content-invalid");
+  const { notice, gallery, testimonials, launch: _launch, serviceArea: _area, ...extra } = parsed;
   const seen = new Set<string>();
   const photos: Photo[] = [];
   for (const item of gallery as unknown[]) {
@@ -179,13 +197,15 @@ export function readContent(json: string, newId: () => Id): Result<SiteContent, 
 
 /**
  * The content as the site's file: what `readContent` reads back unchanged.
- * `launch` is the site's status block, when the file is being written for
- * the site and not only compared.
+ * `blocks` are the site's status and service area, when the file is being
+ * written for the site and not only compared.
  */
-export function writeContent(content: SiteContent, launch?: Record<string, unknown>): string {
+export function writeContent(content: SiteContent, blocks: { readonly launch?: Record<string, unknown>; readonly serviceArea?: Record<string, unknown> | null } = {}): string {
+  const written = { ...(blocks.launch ? { launch: blocks.launch } : {}), ...(blocks.serviceArea ? { serviceArea: blocks.serviceArea } : {}) };
+  if (content.noGallery) return `${JSON.stringify({ ...content.extra, ...written }, null, 2)}\n`;
   const file = {
     ...content.extra,
-    ...(launch ? { launch } : {}),
+    ...written,
     notice: content.notice,
     gallery: content.gallery.map((photo) => ({ id: photo.id, src: photo.src, alt: photo.alt, title: photo.title, ...(photo.caption ? { caption: photo.caption } : {}), ...photo.extra })),
     testimonials: content.reviews.map((review) => ({ quote: review.quote, by: review.by })),

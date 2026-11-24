@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { changesBetween, isPhotoSrc, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, type SiteContent } from "./content.ts";
+import { changesBetween, hasGallery, isPhotoSrc, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, type SiteContent } from "./content.ts";
 
 const id = (n: number) => `0190a000-0000-7000-8000-${String(n).padStart(12, "0")}` as Id;
 let next = 100;
@@ -113,4 +113,17 @@ test("what changed reads as sentences someone can check", () => {
   assert.deepEqual(changesBetween(live, value(withoutPhoto(live, first))), ["Photo removed: Paint Booth", "A different photo comes first"]);
   assert.deepEqual(changesBetween(value(withNotice(live, "Closed")), live), ["Notice taken down"]);
   assert.deepEqual(changesBetween(live, live), []);
+});
+
+test("a file with no gallery is a site with nothing but its status and service area: written back as it was", () => {
+  const json = JSON.stringify({ serviceArea: { areas: [] }, launch: { mode: "live" }, theme: "dark" });
+  const read = readContent(json, () => "0190a000-0000-7000-8000-000000000001" as Id);
+  assert.ok(read.ok);
+  assert.equal(hasGallery(read.value), false);
+  assert.deepEqual(read.value.extra, { theme: "dark" }, "the status and the service area are read on their own");
+  assert.deepEqual(JSON.parse(writeContent(read.value, { launch: { mode: "live" }, serviceArea: { areas: [] } })), { theme: "dark", launch: { mode: "live" }, serviceArea: { areas: [] } });
+  assert.deepEqual(readContent(JSON.stringify({ gallery: [] }), () => "x" as Id), { ok: false, error: "content-invalid" }, "a gallery, when there is one, still needs a photo");
+  assert.deepEqual(readContent("[]", () => "x" as Id), { ok: false, error: "content-invalid" });
+  assert.deepEqual(readContent(JSON.stringify({ serviceArea: { areas: [] }, notice: "Hi" }), () => "x" as Id), { ok: false, error: "content-invalid" }, "a notice needs the gallery that comes with it");
+  assert.ok(readContent(JSON.stringify({ launch: { mode: "live" } }), () => "x" as Id).ok, "a status alone is enough");
 });

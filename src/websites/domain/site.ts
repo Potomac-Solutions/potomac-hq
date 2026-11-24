@@ -5,6 +5,7 @@ import type { Id } from "../../shared/domain/id.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 import { sameContent, type SiteContent } from "./content.ts";
 import { cleanSiteAddress, type Launch } from "./launch.ts";
+import type { ServiceArea } from "./service-area.ts";
 
 /** Where the site's code lives on GitHub. */
 export type Repo = { readonly owner: string; readonly name: string; readonly branch: string };
@@ -43,6 +44,8 @@ export type ContentSite = {
   readonly launch: Launch;
   /** The key in the site's preview link. Null until the site is first closed. */
   readonly previewKey: string | null;
+  /** Where the business goes, as last written to the site. Null for a site with no service area. */
+  readonly serviceArea: ServiceArea | null;
 };
 
 export type SetupError = "name-missing" | "name-too-long" | "repo-invalid" | "branch-invalid" | "content-path-invalid" | "photo-dir-invalid" | "address-invalid";
