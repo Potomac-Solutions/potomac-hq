@@ -1,7 +1,7 @@
 <!--
   One task: where it stands, its subtasks, what it waits on and holds up
-  (decision 0007, section 5), its files and comments (section 6), its labels,
-  and the form that edits it.
+  (decision 0007, section 5), its files and comments (section 6), how it
+  repeats (section 7), its labels, and the form that edits it.
 -->
 <script>
   'use route /tasks/:id'
@@ -31,7 +31,7 @@
   .comment summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
   .comment-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 </style>
-<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false }} timer={{ can: false }} done="" problem="">
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -50,6 +50,9 @@
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
         <dt zb-if={!t.projectId}>Kind</dt><dd zb-if={!t.projectId}>A to-do, not on a project</dd>
         <dt zb-if={view.parent}>Subtask of</dt><dd zb-if={view.parent}><a href={view.parent ? view.parent.href : ''}>{view.parent ? view.parent.title : ''}</a></dd>
+        <dt zb-if={t.repeats}>Repeats</dt><dd zb-if={t.repeats}><a href="#repeat">{t.repeats}</a></dd>
+        <dt zb-if={view.previous}>Before this</dt><dd zb-if={view.previous}><a href={view.previous ? view.previous.href : ''}>{view.previous ? view.previous.title : ''}</a> <span class="hq-muted hq-small">{view.previous ? view.previous.statusLabel : ''}</span></dd>
+        <dt zb-if={view.next}>Next one</dt><dd zb-if={view.next}><a href={view.next ? view.next.href : ''}>{view.next ? view.next.title : ''}</a> <span class="hq-muted hq-small">{view.next ? view.next.statusLabel : ''}</span></dd>
         <dt zb-if={t.subtasks}>Subtasks</dt><dd zb-if={t.subtasks}><a href="#subtasks">{t.subtasks}</a></dd>
         <dt zb-if={t.waiting > 0}>Waiting on</dt><dd zb-if={t.waiting > 0}><a href="#waiting">{t.waiting === 1 ? '1 unfinished task' : t.waiting + ' unfinished tasks'}</a></dd>
         <dt zb-if={timer.can && t.projectId}>Time logged</dt><dd zb-if={timer.can && t.projectId}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
@@ -132,6 +135,33 @@
         </zb-each>
       </ul>
       <p zb-if={view.holdsUp.length === 0} class="hq-muted">Nothing waits on this.</p>
+    </section>
+    <section zb-if={view.canEdit && view.canRepeat} id="repeat" class="hq-panel" aria-labelledby="task-repeat">
+      <h2 id="task-repeat">Repeat</h2>
+      <p class="hq-muted">{t.repeats ? t.repeats + '. Finishing it makes the next one, with the same details, labels and subtasks.' : 'It happens once. Make it repeat, and finishing it makes the next one.'}</p>
+      <form method="post" action="/tasks/{t.id}/repeat" class="hq-form-row">
+        <div class="hq-field">
+          <label for="repeat-every">Every</label>
+          <input id="repeat-every" name="every" type="number" min="1" max="365" inputmode="numeric" value={view.repeat ? view.repeat.every : 1} required>
+        </div>
+        <div class="hq-field">
+          <label for="repeat-unit">Unit</label>
+          <select id="repeat-unit" name="unit">
+            <zb-each items={view.repeatUnits} as="unit" key={unit.value}><option value={unit.value} selected={view.repeat ? unit.value === view.repeat.unit : unit.value === 'week'}>{unit.label}</option></zb-each>
+          </select>
+        </div>
+        <div class="hq-field">
+          <label for="repeat-from">Counted from</label>
+          <select id="repeat-from" name="from">
+            <option value="due" selected={!view.repeat || view.repeat.from === 'due'}>The due date</option>
+            <option value="done" selected={!!view.repeat && view.repeat.from === 'done'}>The day it’s done</option>
+          </select>
+        </div>
+        <button class="hq-button" type="submit">{view.repeat ? 'Save repeat' : 'Make it repeat'}</button>
+      </form>
+      <form zb-if={view.repeat} method="post" action="/tasks/{t.id}/repeat/stop" data-spaced>
+        <button class="hq-button secondary" type="submit">Stop repeating</button>
+      </form>
     </section>
     <section id="files" class="hq-panel" aria-labelledby="task-files">
       <h2 id="task-files">Files</h2>
