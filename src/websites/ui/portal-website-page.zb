@@ -1,6 +1,7 @@
 <!--
   A client's own website: its photos, notice and reviews, to change. Nothing
-  changed here is on the site until they send it and Potomac publishes it.
+  changed there is on the site until they send it and Potomac publishes it.
+  Whether it's open, and where they go, change the site as soon as they save.
 -->
 <script>
   'use route /portal/website'
@@ -8,10 +9,11 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import './site-editor.zb'
   import './site-status.zb'
-  export async function load({ context }) {
+  import './service-area-editor.zb'
+  export async function load({ context, url }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    const view = context.websites.mine()
+    const view = context.websites.mine(Number(url.searchParams.get('wider') ?? 0))
     if (!view) return notFound()
     return { title: view.name, view, done: context.notice.done, problem: context.notice.problem }
   }
@@ -21,7 +23,7 @@
   .pw-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
   .pw-actions form { margin: 0; }
 </style>
-<hq-portal-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {} }} done="" problem="">
+<hq-portal-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {}, hasGallery: true, serviceArea: null }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{view.name}</h1>
@@ -30,9 +32,11 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
 
+    <service-area-editor zb-if={view.serviceArea} area={view.serviceArea} base="/portal/website" page="/portal/website"></service-area-editor>
+
     <site-status status={view.status} base="/portal/website"></site-status>
 
-    <section class="hq-panel" id="waiting" aria-labelledby="pw-waiting">
+    <section zb-if={view.hasGallery} class="hq-panel" id="waiting" aria-labelledby="pw-waiting">
       <h2 id="pw-waiting">{view.state === 'submitted' ? 'Sent to Potomac Solutions' : view.state === 'editing' ? 'Your changes aren’t on your website yet' : 'This is what’s on your website now'}</h2>
       <p zb-if={view.state === 'none'} class="hq-muted">Change the photos, the notice or the reviews below. When you’re done, send your changes to Potomac Solutions. We check them and put them on your website, usually within a business day.</p>
       <alert-banner zb-if={view.note} variant="warning" heading="Potomac Solutions asked for a change">{view.note}</alert-banner>
@@ -49,6 +53,6 @@
       </div>
     </section>
 
-    <site-editor view={view} base="/portal/website" photos="/portal/website/photos"></site-editor>
+    <site-editor zb-if={view.hasGallery} view={view} base="/portal/website" photos="/portal/website/photos"></site-editor>
   </div>
 </hq-portal-website>

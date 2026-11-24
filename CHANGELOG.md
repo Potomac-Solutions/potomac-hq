@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Service areas. A business that goes out to customers can show where it
+  goes on its website, and change it in the portal under "Where you go":
+  pick whole counties on a map (or tick them in a list), or draw an area
+  point by point and name it. It takes effect as soon as it is saved, by the
+  client or by Potomac, as one commit of the site's content file; changes
+  waiting to be checked stay waiting. County outlines are HQ's own, for
+  Maryland, West Virginia, Virginia, Pennsylvania, Delaware and DC. A site
+  with no photo gallery can now be set up, for a site that has only a
+  service area or a status. Needs the site's code to draw the
+  `serviceArea` block (`docs/decisions/0005-service-area.md`). Migration 0037.
 - Zubra packages upgraded from 6.0.3 to 6.0.5. All four move together and
   stay pinned to the exact version. Nothing in HQ needed to change: the type
   check, the Zubra regression suite and every integration test pass as

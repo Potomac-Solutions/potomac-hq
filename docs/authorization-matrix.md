@@ -173,8 +173,11 @@ change the content of their own organization's website and send the changes
 in: the organization comes from their session and from nothing they send.
 Nothing they change in its content reaches the site until someone with
 `site.publish` publishes it. Whether the site is open, coming soon or
-closed for maintenance is the exception: a client sets that for their own
-site and it takes effect at once (`docs/decisions/0004-site-launch.md`). The list of sites and what is waiting on each is seen with
+closed for maintenance is an exception: a client sets that for their own
+site and it takes effect at once (`docs/decisions/0004-site-launch.md`).
+Where the business goes, its service area, is the other: a client sets it
+for their own site and it takes effect at once
+(`docs/decisions/0005-service-area.md`). The list of sites and what is waiting on each is seen with
 `client.view`.
 
 ### Platform (v1.0)

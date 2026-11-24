@@ -2,15 +2,18 @@
 // the client in the portal or by Potomac in HQ, checked by Potomac, then
 // committed to the site's repository so the site rebuilds with it.
 //
-// Nothing a client does here reaches their site by itself. Their changes
-// wait until someone with `site.publish` publishes them.
-import { changesBetween, isMove, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, LIMITS, MAX_PHOTOS, MAX_REVIEWS, type ContentError, type SiteContent } from "../domain/content.ts";
+// Nothing a client does to those reaches their site by itself. Their changes
+// wait until someone with `site.publish` publishes them. Two things are the
+// exception and take effect at once, as one commit each: whether the site is
+// open (decision 0004) and where the business goes (decision 0005).
+import { changesBetween, hasGallery, isMove, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, LIMITS, MAX_PHOTOS, MAX_REVIEWS, type ContentError, type SiteContent } from "../domain/content.ts";
 import { cleanSiteAddress, describeLaunch, isOpen, launchBlock, launchFrom, opensFields, previewLink, readLaunch, type Launch, type LaunchError, type LaunchInput } from "../domain/launch.ts";
 import { checkPhoto, contentTypeOf, photoFileName, MAX_PHOTO_BYTES, type PhotoError } from "../domain/photo.ts";
+import { areaNames, frameFor, MAX_AREAS, MAX_NAME, pathOf, project, readServiceArea, sameServiceArea, serviceAreaBlock, serviceAreaFrom, viewFor, type AreaError, type Frame, type ServiceArea } from "../domain/service-area.ts";
 import { discarded, publishedAs, repoPathFor, sentBack, siteSetup, srcFor, submitted, withDraft, working, type ContentSite, type SetupError, type SetupInput } from "../domain/site.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { ContentSiteStore, PhotoStore, RepoError, SitePublisher, StoredPhoto } from "./ports.ts";
+import type { ContentSiteStore, CountyAtlas, PhotoStore, RepoError, SitePublisher, StoredPhoto } from "./ports.ts";
 
 export type { ContentSite, Repo } from "../domain/site.ts";
 
@@ -29,11 +32,13 @@ export type WebsitesDeps = ActivityDeps & {
   readonly digest: (text: string) => string;
   /** Random bytes, for a preview key. */
   readonly random: (length: number) => Uint8Array;
+  /** The counties a service area can be picked from, with their outlines. */
+  readonly counties: CountyAtlas;
 };
 
-/** The site's content file as it is written to its repository: the content, and the site's status. */
-function fileFor(deps: WebsitesDeps, site: Pick<ContentSite, "launch" | "previewKey">, content: SiteContent): Uint8Array {
-  return new TextEncoder().encode(writeContent(content, launchBlock(site.launch, deps.timeZone, site.previewKey ? deps.digest(site.previewKey) : null)));
+/** The site's content file as it is written to its repository: the content, the site's status, and its service area. */
+function fileFor(deps: WebsitesDeps, site: Pick<ContentSite, "launch" | "previewKey" | "serviceArea">, content: SiteContent): Uint8Array {
+  return new TextEncoder().encode(writeContent(content, { launch: launchBlock(site.launch, deps.timeZone, site.previewKey ? deps.digest(site.previewKey) : null), serviceArea: site.serviceArea ? serviceAreaBlock(site.serviceArea) : null }));
 }
 
 /** A client signed in to the portal. The same shape as the portal's session. */
@@ -75,10 +80,11 @@ function note(deps: WebsitesDeps, editor: Editor, action: string, site: ContentS
 }
 
 /** Makes one change to a site's waiting content, saves it and writes its event. */
-function change(deps: WebsitesDeps, editor: Editor, siteId: Id | null, action: string, make: (content: SiteContent, site: ContentSite) => Result<{ content: SiteContent; context?: Record<string, string | number | boolean> }, ContentError | PhotoError>): Result<ContentSite, Refused | ContentError | PhotoError> {
+function change(deps: WebsitesDeps, editor: Editor, siteId: Id | null, action: string, make: (content: SiteContent, site: ContentSite) => Result<{ content: SiteContent; context?: Record<string, string | number | boolean> }, ContentError | PhotoError>): Result<ContentSite, Refused | ContentError | PhotoError | "no-gallery"> {
   return deps.transact(() => {
     const site = siteFor(deps, editor, siteId);
     if (!site.ok) return site;
+    if (!hasGallery(site.value.published)) return err("no-gallery");
     const made = make(working(site.value), site.value);
     if (!made.ok) return made;
     const next = withDraft(site.value, made.value.content, by(editor));
@@ -94,7 +100,7 @@ function change(deps: WebsitesDeps, editor: Editor, siteId: Id | null, action: s
 type ReadError = "github-not-set-up" | RepoError | "content-invalid" | "photo-unreadable";
 
 /** Reads a site's content file and every photo it names. */
-async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">, siteId: Id | null): Promise<Result<{ content: SiteContent; launch: Launch; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
+async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "contentPath" | "photoDir">, siteId: Id | null): Promise<Result<{ content: SiteContent; launch: Launch; serviceArea: ServiceArea | null; photos: { id: Id; path: string; body: Uint8Array }[] }, ReadError>> {
   if (!deps.publisher) return err("github-not-set-up");
   const file = await deps.publisher.read(setup.repo, setup.contentPath);
   if (!file.ok) return file;
@@ -119,7 +125,7 @@ async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "c
     if (!body.ok) return err(body.error === "repo-missing" ? "photo-unreadable" : body.error);
     photos.push({ id: photo.id, path, body: body.value });
   }
-  return ok({ content: content.value, launch: readLaunch(text), photos });
+  return ok({ content: content.value, launch: readLaunch(text), serviceArea: readServiceArea(text), photos });
 }
 
 /**
@@ -140,7 +146,7 @@ export async function setUpSite(deps: WebsitesDeps, actorId: Id | null, organiza
   return deps.transact(() => {
     if (deps.sites.forOrganization(organizationId)) return err("already-set-up");
     const at = deps.clock();
-    const site: ContentSite = { id: deps.newId(), organizationId, ...setup.value, published: read.value.content, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", launch: read.value.launch, previewKey: null };
+    const site: ContentSite = { id: deps.newId(), organizationId, ...setup.value, published: read.value.content, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", launch: read.value.launch, previewKey: null, serviceArea: read.value.serviceArea };
     deps.sites.insert(site, at);
     for (const photo of read.value.photos) deps.photos.put({ id: photo.id, siteId: site.id, path: photo.path, contentType: contentTypeOf(photo.path), inRepo: true }, photo.body, at);
     recordActivity(deps, { actorId, action: "site-content.set-up", recordType: "content-site", recordId: site.id, context: { organizationId, repo: `${site.repo.owner}/${site.repo.name}`, branch: site.repo.branch, photos: read.value.photos.length } });
@@ -164,7 +170,7 @@ export async function readSiteAgain(deps: WebsitesDeps, actorId: Id | null, site
     if (!site) return err("not-found");
     if (site.draft) return err("changes-waiting");
     const at = deps.clock();
-    const next: ContentSite = { ...site, published: read.value.content, launch: read.value.launch };
+    const next: ContentSite = { ...site, published: read.value.content, launch: read.value.launch, serviceArea: read.value.serviceArea };
     deps.sites.save(next, at);
     deps.photos.removeAllFor(site.id);
     for (const photo of read.value.photos) deps.photos.put({ id: photo.id, siteId: site.id, path: photo.path, contentType: contentTypeOf(photo.path), inRepo: true }, photo.body, at);
@@ -191,7 +197,7 @@ export function addPhoto(deps: WebsitesDeps, editor: Editor, siteId: Id | null, 
 }
 
 /** Runs a change on the site a photo belongs to. A photo that is not theirs is "not found". */
-function onPhoto(deps: WebsitesDeps, editor: Editor, photoId: Id, action: string, make: (content: SiteContent) => Result<SiteContent, ContentError>): Result<ContentSite, Refused | ContentError | PhotoError> {
+function onPhoto(deps: WebsitesDeps, editor: Editor, photoId: Id, action: string, make: (content: SiteContent) => Result<SiteContent, ContentError>): Result<ContentSite, Refused | ContentError | PhotoError | "no-gallery"> {
   if (editor.kind === "staff" && !may(deps, editor.actorId, "site.publish")) return err("forbidden");
   const photo = deps.photos.get(photoId);
   if (!photo) return err("not-found");
@@ -336,7 +342,7 @@ const sameLaunch = (a: Launch, b: Launch) => a.mode === b.mode && a.opensAt === 
 const newPreviewKey = (deps: WebsitesDeps) => [...deps.random(16)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
 /** Commits the site's content file as it is on the site, with a new status block. */
-async function commitStatus(deps: WebsitesDeps, site: ContentSite, next: Pick<ContentSite, "launch" | "previewKey">, message: string): Promise<Result<{ readonly commit: string }, "github-not-set-up" | "busy" | RepoError>> {
+async function commitStatus(deps: WebsitesDeps, site: ContentSite, next: Pick<ContentSite, "launch" | "previewKey" | "serviceArea">, message: string): Promise<Result<{ readonly commit: string }, "github-not-set-up" | "busy" | RepoError>> {
   if (!deps.publisher) return err("github-not-set-up");
   if (publishing.has(site.id)) return err("busy");
   publishing.add(site.id);
@@ -366,7 +372,7 @@ export async function setSiteStatus(deps: WebsitesDeps, editor: Editor, siteId: 
   if (sameLaunch(launch.value, site.launch)) return err("unchanged");
   const previewKey = site.previewKey ?? (launch.value.mode === "live" ? null : newPreviewKey(deps));
   const words = launch.value.mode === "live" ? "open to everyone" : `${launch.value.mode === "coming-soon" ? "coming soon" : "closed for maintenance"}${launch.value.opensAt ? `, opens ${launch.value.opensAt}` : ""}`;
-  const committed = await commitStatus(deps, site, { launch: launch.value, previewKey }, `Site status: ${words}`);
+  const committed = await commitStatus(deps, site, { launch: launch.value, previewKey, serviceArea: site.serviceArea }, `Site status: ${words}`);
   if (!committed.ok) return committed;
   return deps.transact(() => {
     const next: ContentSite = { ...(deps.sites.get(site.id) ?? site), launch: launch.value, previewKey };
@@ -387,13 +393,61 @@ export async function newPreviewLink(deps: WebsitesDeps, editor: Editor, siteId:
   const site = found.value;
   const previewKey = newPreviewKey(deps);
   if (site.launch.mode !== "live") {
-    const committed = await commitStatus(deps, site, { launch: site.launch, previewKey }, "Site status: new preview link");
+    const committed = await commitStatus(deps, site, { launch: site.launch, previewKey, serviceArea: site.serviceArea }, "Site status: new preview link");
     if (!committed.ok) return committed;
   }
   return deps.transact(() => {
     const next: ContentSite = { ...(deps.sites.get(site.id) ?? site), previewKey };
     deps.sites.save(next, deps.clock());
     note(deps, editor, "site-content.preview-link-renewed", next);
+    return ok(next);
+  });
+}
+
+// ── Where the business goes ──────────────────────────────────────────────
+
+export type ServiceAreaInput = {
+  /** The areas as the map sends them: `[{ county }, { name, ring }]`, as JSON. Null when scripts were off. */
+  readonly areas: string | null;
+  /** Counties ticked in the list. Used when `areas` is null: drawn areas are then kept as they are. */
+  readonly counties: readonly string[];
+};
+
+/**
+ * Sets where the business goes. Takes effect at once, like the site's
+ * status: one commit of the content file as it is on the site, with the new
+ * service area, so changes waiting to be checked stay waiting. A client does
+ * this for their own site; Potomac's people need `site.publish`. A site whose
+ * file has no service area has none to set.
+ */
+export async function setServiceArea(deps: WebsitesDeps, editor: Editor, siteId: Id | null, input: ServiceAreaInput): Promise<Result<ContentSite, Refused | AreaError | "no-service-area" | "unchanged" | "github-not-set-up" | "busy" | RepoError>> {
+  const found = siteFor(deps, editor, siteId);
+  if (!found.ok) return found;
+  const site = found.value;
+  if (!site.serviceArea) return err("no-service-area");
+  let chosen: unknown;
+  if (input.areas !== null) {
+    try {
+      chosen = JSON.parse(input.areas);
+    } catch {
+      return err("areas-invalid");
+    }
+  } else {
+    // Scripts off: the ticked counties, and the areas drawn before, as they were.
+    chosen = [...input.counties.map((county) => ({ county })), ...site.serviceArea.areas.filter((one) => !one.county).map((one) => ({ name: one.name, ring: one.ring }))];
+  }
+  const area = serviceAreaFrom(chosen, (fips) => {
+    const county = deps.counties.get(fips);
+    return county && county.rings[0] ? { name: county.name, ring: county.rings[0] } : null;
+  });
+  if (!area.ok) return area;
+  if (sameServiceArea(area.value, site.serviceArea)) return err("unchanged");
+  const committed = await commitStatus(deps, site, { launch: site.launch, previewKey: site.previewKey, serviceArea: area.value }, `Service area: ${areaNames(area.value)}`);
+  if (!committed.ok) return committed;
+  return deps.transact(() => {
+    const next: ContentSite = { ...(deps.sites.get(site.id) ?? site), serviceArea: area.value };
+    deps.sites.save(next, deps.clock());
+    note(deps, editor, "site-content.service-area-changed", next, { areas: area.value.areas.length, counties: area.value.areas.filter((one) => one.county).length, commit: committed.value.commit });
     return ok(next);
   });
 }
@@ -455,6 +509,53 @@ function statusView(deps: WebsitesDeps, site: ContentSite): StatusView {
   };
 }
 
+/** Where the map looks when a site has no areas yet: Maryland and West Virginia. */
+const HOME_REGION = { west: -82.7, south: 37.2, east: -75.0, north: 39.75 };
+
+export type ServiceAreaView = {
+  /** The areas, in a sentence. */
+  readonly summary: string;
+  readonly count: number;
+  /** The three numbers the browser needs to turn a click on the map into a place. */
+  readonly frame: Frame;
+  /** How far out the map is, from 0; and whether it can go further. */
+  readonly wider: number;
+  readonly canWiden: boolean;
+  /** The counties on the map, each a checkbox: picked ones are part of the area. */
+  readonly counties: readonly { readonly fips: string; readonly name: string; readonly label: string; readonly short: string; readonly d: string; readonly x: number; readonly y: number; readonly picked: boolean }[];
+  /** The areas drawn by hand, with their outlines, for the map to draw and change. */
+  readonly drawn: readonly { readonly name: string; readonly ring: readonly (readonly [number, number])[] }[];
+  readonly maxAreas: number;
+  readonly maxName: number;
+};
+
+function serviceAreaView(deps: WebsitesDeps, area: ServiceArea, wider: number): ServiceAreaView {
+  const view = viewFor(area, HOME_REGION, wider);
+  const frame = frameFor(view);
+  const near = deps.counties.within(view);
+  const shown = new Set(near.map((county) => county.fips));
+  const picked = new Set(area.areas.flatMap((one) => (one.county ? [one.county] : [])));
+  return {
+    summary: area.areas.length === 0 ? "No areas yet." : `${areaNames(area)}.`,
+    count: area.areas.length,
+    frame,
+    wider,
+    canWiden: wider < 3,
+    counties: near
+      .map((county) => {
+        // Its name goes at the middle of its largest piece's points: near enough the middle for a label.
+        const ring = county.rings[0] ?? [];
+        const [x, y] = project(frame, [ring.reduce((sum, point) => sum + point[0], 0) / Math.max(1, ring.length), ring.reduce((sum, point) => sum + point[1], 0) / Math.max(1, ring.length)]);
+        return { fips: county.fips, name: county.name, label: `${county.name}, ${county.state}`, short: county.name.replace(/ County$/, ""), d: pathOf(frame, county.rings), x, y, picked: picked.has(county.fips) };
+      })
+      .sort((a, b) => Number(b.picked) - Number(a.picked) || a.label.localeCompare(b.label)),
+    // A county HQ can't draw is kept as the outline it has.
+    drawn: area.areas.filter((one) => !one.county || !shown.has(one.county)).map((one) => ({ name: one.name, ring: one.ring.map(([lon, lat]) => [lon, lat] as [number, number]) })),
+    maxAreas: MAX_AREAS,
+    maxName: MAX_NAME,
+  };
+}
+
 export type PhotoLine = { readonly id: string; readonly title: string; readonly alt: string; readonly caption: string; readonly isNew: boolean; readonly first: boolean; readonly last: boolean; readonly position: number };
 
 export type EditorView = {
@@ -477,9 +578,13 @@ export type EditorView = {
   readonly photoRule: string;
   /** Whether the site is open to everyone. */
   readonly status: StatusView;
+  /** False for a site with no photos, notice or reviews to change. */
+  readonly hasGallery: boolean;
+  /** Where the business goes. Null for a site with no service area. */
+  readonly serviceArea: ServiceAreaView | null;
 };
 
-function editorView(deps: WebsitesDeps, site: ContentSite): EditorView {
+function editorView(deps: WebsitesDeps, site: ContentSite, wider = 0): EditorView {
   const content = working(site);
   const live = new Set(site.published.gallery.map((photo) => photo.id));
   return {
@@ -497,25 +602,27 @@ function editorView(deps: WebsitesDeps, site: ContentSite): EditorView {
     note: site.note,
     limits: LIMITS,
     status: statusView(deps, site),
+    hasGallery: hasGallery(site.published),
+    serviceArea: site.serviceArea ? serviceAreaView(deps, site.serviceArea, wider) : null,
     photoRule: `A JPEG, PNG or WebP photo. Up to ${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))} MB after HQ shrinks it for the web.`,
   };
 }
 
 /** A client's own site, to change. Null when they have none set up, or are signed out. */
-export function portalWebsite(deps: WebsitesDeps, session: ClientEditor | null): EditorView | null {
+export function portalWebsite(deps: WebsitesDeps, session: ClientEditor | null, wider = 0): EditorView | null {
   const site = siteFor(deps, { kind: "client", session }, null);
-  return site.ok ? editorView(deps, site.value) : null;
+  return site.ok ? editorView(deps, site.value, wider) : null;
 }
 
 export type StaffSiteView = EditorView & { readonly organizationId: string; readonly clientName: string; readonly repo: string; readonly branch: string; readonly contentPath: string; readonly photoDir: string; readonly lastPublished: string; readonly canPublish: boolean; readonly githubSetUp: boolean };
 
 /** A site as Potomac's people see it: the same editor, with where it lives and what is waiting. Permission: `site.publish`. */
-export function staffWebsite(deps: WebsitesDeps, actorId: Id | null, siteId: Id): Result<StaffSiteView, Refused> {
+export function staffWebsite(deps: WebsitesDeps, actorId: Id | null, siteId: Id, wider = 0): Result<StaffSiteView, Refused> {
   const site = siteFor(deps, { kind: "staff", actorId }, siteId);
   if (!site.ok) return site;
   const s = site.value;
   return ok({
-    ...editorView(deps, s),
+    ...editorView(deps, s, wider),
     organizationId: s.organizationId,
     clientName: deps.clientName(s.organizationId) ?? "A removed client",
     repo: `${s.repo.owner}/${s.repo.name}`,

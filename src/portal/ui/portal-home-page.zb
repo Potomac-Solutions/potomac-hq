@@ -64,7 +64,7 @@
           <div>
             <p><strong>{website.name}</strong></p>
             <p>{website.status.summary}</p>
-            <p class="hq-muted">{website.state === 'submitted' ? 'Your changes are with Potomac Solutions to check.' : website.state === 'editing' ? 'You have changes you haven’t sent yet.' : 'Change the photos, post a notice, or add a review.'}</p>
+            <p class="hq-muted">{website.state === 'submitted' ? 'Your changes are with Potomac Solutions to check.' : website.state === 'editing' ? 'You have changes you haven’t sent yet.' : website.hasGallery ? 'Change the photos, post a notice, or add a review.' : website.serviceArea ? 'Change where you go, on the map.' : 'Open it, or close it for a while.'}</p>
           </div>
           <a class="hq-button portal-big" href="/portal/website">Update your website</a>
         </li>

@@ -1,4 +1,5 @@
 import type { ContentSite, Repo } from "../domain/site.ts";
+import type { Point } from "../domain/service-area.ts";
 import type { Id, Result } from "../../shared/index.ts";
 
 export type ContentSiteStore = {
@@ -43,4 +44,14 @@ export type SitePublisher = {
   read(repo: Repo, path: string): Promise<Result<Uint8Array, RepoError>>;
   /** One commit that writes and removes the files given. Answers the commit's id. */
   commit(repo: Repo, change: { readonly message: string; readonly write: readonly { readonly path: string; readonly bytes: Uint8Array }[]; readonly remove: readonly string[] }): Promise<Result<{ readonly commit: string }, RepoError>>;
+};
+
+/** A county a service area can be picked from, with its outline: the largest piece first. */
+export type County = { readonly fips: string; readonly name: string; readonly state: string; readonly rings: readonly (readonly Point[])[] };
+
+/** The counties HQ knows the outlines of. */
+export type CountyAtlas = {
+  get(fips: string): County | null;
+  /** Those that reach into a box of longitudes and latitudes. */
+  within(box: { readonly west: number; readonly south: number; readonly east: number; readonly north: number }): County[];
 };

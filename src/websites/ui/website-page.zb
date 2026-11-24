@@ -10,10 +10,11 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import './site-editor.zb'
   import './site-status.zb'
-  export async function load({ context, params }) {
+  import './service-area-editor.zb'
+  export async function load({ context, params, url }) {
     const stop = context.guard()
     if (stop) return stop
-    const view = context.websites.site(params.id)
+    const view = context.websites.site(params.id, Number(url.searchParams.get('wider') ?? 0))
     if (!view.ok) return view.error === 'forbidden' ? context.forbidden() : notFound()
     return { title: view.value.name, view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
@@ -26,7 +27,7 @@
   .ws-where dt { color: var(--muted-foreground); }
   .ws-where dd { margin: 0; overflow-wrap: anywhere; }
 </style>
-<hq-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {} }} done="" problem="">
+<hq-website view={{ photos: [], reviews: [], changes: [], limits: {}, state: 'none', status: {}, hasGallery: true, serviceArea: null }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/websites">Site content</a> / <a href="/clients/{view.organizationId}#website">{view.clientName}</a></p>
     <h1>{view.name}</h1>
@@ -38,7 +39,9 @@
 
     <site-status status={view.status} base="/websites/{view.siteId}" staff={true}></site-status>
 
-    <section class="hq-panel" id="waiting" aria-labelledby="ws-waiting">
+    <service-area-editor zb-if={view.serviceArea} area={view.serviceArea} base="/websites/{view.siteId}" page="/websites/{view.siteId}" staff={true}></service-area-editor>
+
+    <section zb-if={view.hasGallery} class="hq-panel" id="waiting" aria-labelledby="ws-waiting">
       <h2 id="ws-waiting">{view.state === 'submitted' ? 'Changes to check' : view.state === 'editing' ? 'Changes not sent in yet' : 'Nothing is waiting'}</h2>
       <p zb-if={view.state === 'none'} class="hq-muted">What’s below is on the site. A change made here, or by the client in their portal, waits until it is published.</p>
       <p zb-if={view.sent}>{view.sent}.</p>
@@ -66,14 +69,14 @@
       </div>
     </section>
 
-    <site-editor view={view} base="/websites/{view.siteId}" photos="/websites/photos"></site-editor>
+    <site-editor zb-if={view.hasGallery} view={view} base="/websites/{view.siteId}" photos="/websites/photos"></site-editor>
 
     <section class="hq-panel" id="site" aria-labelledby="ws-site">
       <h2 id="ws-site">Where it lives</h2>
       <dl class="ws-where">
         <dt>Repository</dt><dd><a href="https://github.com/{view.repo}" rel="noopener noreferrer">{view.repo}</a>, branch {view.branch}</dd>
         <dt>Content file</dt><dd>{view.contentPath}</dd>
-        <dt>New photos go in</dt><dd>{view.photoDir}</dd>
+        <dt zb-if={view.hasGallery}>New photos go in</dt><dd zb-if={view.hasGallery}>{view.photoDir}</dd>
         <dt>Last published</dt><dd>{view.lastPublished || 'Not from HQ yet'}</dd>
       </dl>
       <form method="post" action="/websites/{view.siteId}/address" class="hq-form-row" data-spaced>

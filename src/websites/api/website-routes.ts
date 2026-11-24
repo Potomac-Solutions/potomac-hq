@@ -49,7 +49,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "repo-missing": "GitHub has no such repository, branch or file, or HQ’s token can’t see it. Check all three.",
   "repo-changed": "The site’s repository changed while HQ was publishing. Try again. If a photo was removed there by hand, read the site again first.",
   "repo-failed": "HQ couldn’t reach GitHub. Try again in a minute.",
-  "content-invalid": "The site’s content file isn’t in the shape HQ reads: a JSON object with a gallery list of photos.",
+  "content-invalid": "The site’s content file isn’t in the shape HQ reads: a JSON object with a gallery list of photos, or with a service area.",
   "photo-unreadable": "A photo named in the content file isn’t in the repository where HQ looked. Check the photo folder.",
   "photo-lost": "A new photo’s file is missing in HQ. Remove that photo and add it again.",
   busy: "This site is being published right now. Wait a moment.",
@@ -59,12 +59,24 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "opens-past": "That time has already passed. Choose a later one, or choose “The website” to open it now.",
   "status-message-too-long": "Keep your line under 200 characters.",
   "address-invalid": "Enter the site’s address, like nufinishcollision.com. It must be an https address.",
+  "no-gallery": "This website has no photos, notice or reviews to change.",
+  "no-service-area": "This website doesn’t show a service area, so there is none to change.",
+  "areas-invalid": "The map sent something HQ couldn’t read. Reload the page and try again.",
+  "too-many-areas": "A service area holds up to 20 areas. Remove one first.",
+  "area-name-missing": "Give each area you drew a name, like Deep Creek Lake and around.",
+  "area-name-too-long": "Keep each area’s name under 60 characters.",
+  "area-too-few-points": "An area needs at least three points. Click around it on the map, then finish it.",
+  "area-too-many-points": "That area has too many points. Draw it again with fewer clicks.",
+  "area-too-big": "That area stretches hundreds of miles. Draw it again, closer in.",
+  "county-unknown": "HQ doesn’t have the outline of one of those counties. Draw that area instead.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
 const photoInput = (f: FormFields, files: FormFiles) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "", bytes: files["photo"]?.bytes ?? null });
 const words = (f: FormFields) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "" });
 const status = (f: FormFields) => ({ mode: f["mode"] ?? "", opensOn: f["opensOn"] ?? "", opensTime: f["opensTime"] ?? "", message: f["message"] ?? "" });
+/** The service area form: the map's areas when scripts ran, or the ticked counties when they didn't. */
+const areaInput = (f: FormFields) => ({ areas: f["areas"] ?? null, counties: Object.keys(f).filter((key) => /^county-\d{5}$/.test(key) && f[key] === "1").map((key) => key.slice("county-".length)) });
 const indexOf = (f: FormFields) => (/^\d{1,3}$/.test(f["index"] ?? "") ? Number(f["index"]) : -1);
 
 export type WebsiteRoutesDeps = {
@@ -102,6 +114,7 @@ export function websiteStaffRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/websites/:id/send-back", (actor, f, id) => websites.sendChangesBack(deps.websites, actor, id as Id, f["note"] ?? ""), { done: (site) => `/websites/${site.id}`, back: back("waiting"), message: "Sent back. The client sees your note in their portal." });
   post("/websites/:id/status", (actor, f, id) => websites.setSiteStatus(deps.websites, staff(actor), id as Id, status(f)), { done: (site) => page(site, "status"), back: back("status"), message: "Saved. The website updates in a minute or two." });
   post("/websites/:id/preview-link", (actor, _f, id) => websites.newPreviewLink(deps.websites, staff(actor), id as Id), { done: (site) => page(site, "status"), back: back("status"), message: "New preview link made. The old one no longer works." });
+  post("/websites/:id/service-area", (actor, f, id) => websites.setServiceArea(deps.websites, staff(actor), id as Id, areaInput(f)), { done: (site) => page(site, "service-area"), back: back("service-area"), message: "Saved. The website’s map updates in a minute or two." });
   post("/websites/:id/address", (actor, f, id) => websites.setSiteAddress(deps.websites, actor, id as Id, f["siteUrl"] ?? ""), { done: (site) => page(site, "site"), back: back("site"), message: "Saved." });
   post("/websites/:id/publish", (actor, _f, id) => websites.publishChanges(deps.websites, actor, id as Id), { done: (site) => `/websites/${site.id}`, back: back("waiting"), message: "Published. The site rebuilds with the changes in a minute or two." });
   return app;
@@ -123,6 +136,7 @@ export function websitePortalRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/portal/website/reviews", (session, f) => websites.addReview(deps.websites, client(session), null, { quote: f["quote"] ?? "", by: f["by"] ?? "" }), { done: at("reviews"), back: at("reviews"), message: `Review added.${NOT_ON_SITE}` });
   post("/portal/website/reviews/remove", (session, f) => websites.removeReview(deps.websites, client(session), null, indexOf(f)), { done: at("reviews"), back: at("reviews"), message: `Review removed.${NOT_ON_SITE}` });
   post("/portal/website/status", (session, f) => websites.setSiteStatus(deps.websites, client(session), null, status(f)), { done: at("status"), back: at("status"), message: "Saved. Your website updates in a minute or two." });
+  post("/portal/website/service-area", (session, f) => websites.setServiceArea(deps.websites, client(session), null, areaInput(f)), { done: at("service-area"), back: at("service-area"), message: "Saved. The map on your website updates in a minute or two." });
   post("/portal/website/preview-link", (session) => websites.newPreviewLink(deps.websites, client(session), null), { done: at("status"), back: at("status"), message: "New preview link made. The old one no longer works." });
   post("/portal/website/discard", (session) => websites.discardChanges(deps.websites, client(session), null), { done: () => "/portal/website", back: () => "/portal/website", message: "Your changes are undone. Your website is as it was." });
   post("/portal/website/submit", (session) => websites.submitChanges(deps.websites, session), { done: () => "/portal/website", back: () => "/portal/website", message: "Sent to Potomac Solutions. We’ll check your changes and put them on your website." });

@@ -6,7 +6,7 @@ import { cleanRepo, discarded, publishedAs, repoPathFor, sentBack, siteSetup, sr
 
 const live: SiteContent = { notice: "", gallery: [{ id: "0190a000-0000-7000-8000-000000000001" as Id, src: "/gallery/a.webp", alt: "A", title: "A", caption: "", extra: {} }], reviews: [], extra: {} };
 const changed: SiteContent = { ...live, notice: "Closed Friday." };
-const site: ContentSite = { id: "0190a000-0000-7000-8000-00000000000a" as Id, organizationId: "0190a000-0000-7000-8000-00000000000b" as Id, name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "nu-finish-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", published: live, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", siteUrl: "", launch: { mode: "live", opensAt: null, message: "" }, previewKey: null };
+const site: ContentSite = { id: "0190a000-0000-7000-8000-00000000000a" as Id, organizationId: "0190a000-0000-7000-8000-00000000000b" as Id, name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "nu-finish-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", published: live, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", siteUrl: "", launch: { mode: "live", opensAt: null, message: "" }, previewKey: null, serviceArea: null };
 
 test("a repository is owner/name, or its address on GitHub", () => {
   assert.deepEqual(cleanRepo("Potomac-Solutions/nu-finish-site"), { ok: true, value: { owner: "Potomac-Solutions", name: "nu-finish-site" } });

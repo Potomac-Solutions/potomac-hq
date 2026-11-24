@@ -73,6 +73,10 @@ function describe(deps: PortalDeps, event: LoggedEvent): Described | null {
       const did = mode === "live" ? "opened their website to everyone" : mode === "coming-soon" ? "set their website to “Coming soon”" : "closed their website for maintenance";
       return id ? { who, organization, did, path: `/websites/${id}#status`, ownerId: null } : null;
     }
+    case "site-content.service-area-changed": {
+      const id = asId(event.recordId);
+      return id ? { who, organization, did: "changed the service area on their website", path: `/websites/${id}#service-area`, ownerId: null } : null;
+    }
     case "call.requested":
       return { who, organization, did: "asked for a call", path: `/clients/${user.organizationId}#portal`, ownerId: null };
     default:
