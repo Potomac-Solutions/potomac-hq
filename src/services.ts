@@ -21,6 +21,8 @@ import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
 import type { TodosDeps } from "./todos/index.ts";
+import { withNotices, type NoticesDeps } from "./notices/index.ts";
+import { sqliteNoticeSettings, sqliteNoticeStore, sqliteTaskReminderStore } from "./notices/adapters.ts";
 import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
@@ -71,6 +73,8 @@ export type Services = {
   readonly websites: WebsitesDeps;
   readonly touches: TouchDeps;
   readonly todos: TodosDeps;
+  /** Notices and reminders: what's new for each person. */
+  readonly notices: NoticesDeps;
   /** The day's list, across HQ. */
   readonly day: TodayDeps;
   /** Scheduling invites: someone paints the times they could do, and a call is confirmed. */
@@ -105,6 +109,8 @@ export type ServiceOptions = {
   readonly secure?: boolean;
   /** A cheaper password hash, for tests only. */
   readonly passwordCost?: { N: number; r: number; p: number };
+  /** Outbound email is set up, so notices can be emailed. */
+  readonly emailReady?: boolean;
 };
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -116,6 +122,10 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);
+  // Tasks, to-dos and comments are recorded through this log, so each event makes its notices (decision 0007, section 8).
+  const noticeStore = sqliteNoticeStore(db);
+  const reminderStore = sqliteTaskReminderStore(db);
+  const noticingLog = withNotices(sqliteActivityLog(db), { notices: noticeStore, reminders: reminderStore, newId, clock, zone: BUSINESS_TIME_ZONE });
   const crm: CrmDeps = {
     ...session,
     clients: sqliteClientStore(db),
@@ -129,6 +139,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
   const projects: ProjectsDeps = {
     ...session,
+    activityLog: noticingLog,
     files: sqliteFileRecordStore(db),
     blobs: sqliteBlobStore(db),
     digest: sha256Hex,
@@ -182,7 +193,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
-    activityLog: sqliteActivityLog(db),
+    activityLog: noticingLog,
     clock,
     newId,
     today,
@@ -254,5 +265,21 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const notices: NoticesDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    notices: noticeStore,
+    reminders: reminderStore,
+    settings: sqliteNoticeSettings(db),
+    task: (taskId) => {
+      const task = projects.tasks.get(taskId);
+      return task ? { title: task.title, dueOn: task.dueOn, done: task.status === "done", assigneeId: task.assigneeId } : null;
+    },
+    zone: BUSINESS_TIME_ZONE,
+    emailReady: options.emailReady ?? false,
+  };
+  return { notices, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

@@ -1,7 +1,7 @@
 <!--
   One task: where it stands, its subtasks, what it waits on and holds up
   (decision 0007, section 5), its files and comments (section 6), how it
-  repeats (section 7), its labels, and the form that edits it.
+  repeats (section 7), your reminders (section 8), its labels, and the form that edits it.
 -->
 <script>
   'use route /tasks/:id'
@@ -16,7 +16,7 @@
     if (stop) return stop
     const view = context.projects.task(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), reminders: context.bell.reminders(params.id), done: context.notice.done, problem: context.notice.problem }
   }
   const t = view.task
 </script>
@@ -31,7 +31,7 @@
   .comment summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
   .comment-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 </style>
-<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} done="" problem="">
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} reminders={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -161,6 +161,50 @@
       </form>
       <form zb-if={view.repeat} method="post" action="/tasks/{t.id}/repeat/stop" data-spaced>
         <button class="hq-button secondary" type="submit">Stop repeating</button>
+      </form>
+    </section>
+    <section id="reminders" class="hq-panel" aria-labelledby="task-reminders">
+      <h2 id="task-reminders">Reminders</h2>
+      <ul zb-if={reminders.length > 0} class="hq-links">
+        <zb-each items={reminders} as="one" key={one.id}>
+          <li>
+            <span>{one.text} <span class="hq-muted hq-small">{one.who}{one.who ? '. ' : ''}{one.fires}{one.carry ? '. Kept on each repeat' : ''}</span></span>
+            <form zb-if={one.canRemove} method="post" action="/reminders/{one.id}/remove" class="hq-inline">
+              <button class="hq-button secondary small" type="submit" aria-label="Remove the reminder: {one.text}">Remove</button>
+            </form>
+          </li>
+        </zb-each>
+      </ul>
+      <p zb-if={reminders.length === 0} class="hq-muted">None. A reminder shows under the bell of whoever it's for: you, or whoever has the task when it comes due.</p>
+      <form method="post" action="/tasks/{t.id}/reminders" class="hq-form-row" data-spaced>
+        <input type="hidden" name="kind" value="before">
+        <div class="hq-field">
+          <label for="remind-days">Days before it's due</label>
+          <input id="remind-days" name="daysBefore" type="number" min="0" max="30" inputmode="numeric" value="1" required>
+        </div>
+        <div class="hq-field">
+          <label for="remind-time">At</label>
+          <input id="remind-time" name="time" type="time" value="09:00" required>
+        </div>
+        <div class="hq-field">
+          <label for="remind-before-for">For</label>
+          <select id="remind-before-for" name="forWhom"><option value="me">Me</option><option value="assignee">Whoever has it</option></select>
+        </div>
+        <label class="hq-check"><input type="checkbox" name="carry" value="1" checked={!!t.repeats}> Keep it on each repeat</label>
+        <button class="hq-button secondary" type="submit">Remind before it's due</button>
+      </form>
+      <form method="post" action="/tasks/{t.id}/reminders" class="hq-form-row" data-spaced>
+        <input type="hidden" name="kind" value="at">
+        <div class="hq-field">
+          <label for="remind-when">Or on</label>
+          <input id="remind-when" name="when" type="datetime-local" required>
+        </div>
+        <div class="hq-field">
+          <label for="remind-at-for">For</label>
+          <select id="remind-at-for" name="forWhom"><option value="me">Me</option><option value="assignee">Whoever has it</option></select>
+        </div>
+        <label class="hq-check"><input type="checkbox" name="carry" value="1"> Keep it on each repeat, moved with the due date</label>
+        <button class="hq-button secondary" type="submit">Remind then</button>
       </form>
     </section>
     <section id="files" class="hq-panel" aria-labelledby="task-files">

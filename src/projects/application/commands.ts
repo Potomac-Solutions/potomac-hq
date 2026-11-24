@@ -225,7 +225,7 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
       action: "task.edited",
       recordType: "task",
       recordId: taskId,
-      context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
+      context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, assigneeWas: task.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
     });
     return ok(edited.value);
   });
@@ -433,6 +433,6 @@ export function repeatAfterDone(deps: ProjectsDeps, actorId: Id, taskId: Id): Ta
       if (labels(sub.id).length > 0) deps.labels.setForTask(copy.id, labels(sub.id));
     }
   }
-  recordActivity(deps, { actorId, action: "task.repeated", recordType: "task", recordId: next.id, context: { projectId: task.projectId, title: task.title, previousId: taskId, dueOn } });
+  recordActivity(deps, { actorId, action: "task.repeated", recordType: "task", recordId: next.id, context: { projectId: task.projectId, title: task.title, previousId: taskId, previousDueOn: task.dueOn, dueOn } });
   return next;
 }
