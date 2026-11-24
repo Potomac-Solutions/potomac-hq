@@ -195,3 +195,33 @@ or, following a filter, the tasks that filter finds for them. Calendars are
 asked to check back hourly. Nothing comes back from a calendar. Events:
 `calendar.feed-made`, `calendar.feed-stopped`.
 
+## Share links
+
+Added by decision 0007, section 11 (migration 0049). `project_share` is one
+link to one project, for someone without an account:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `token_hash` | text | SHA-256 of its 32-byte secret. The link (`/s/<secret>`) is shown once, on the answer to making it |
+| `label` | text | Who it's for, 1 to 80 characters |
+| `rights` | `see`, `comment` | See the project, or see it and comment on tasks |
+| `expires_on` | date | Its last day, in the business time zone; empty for until stopped |
+| `stopped_at`, `stopped_by` | | Set when it's stopped; it stays listed |
+| `visits`, `last_visited_at` | | Counted on each visit |
+
+A working link shows the project's phases, milestones, tasks with their
+status and due dates, and its shared (not draft) deliverables, which it can
+download. It never shows internal notes, time, estimates, money, task
+details or who has a task, the team's own comments, or any other project. A
+stopped, expired or unknown link is "not found" everywhere.
+
+A comment through a link is a `task_comment` with no `author_id`, the
+`share_id` it came through and the `guest_name` the visitor typed (1 to 60
+characters); it can't be edited, and anyone with `project.share` may delete
+it. On the shared page, a link with comment rights sees the comments made
+through the project's links, not the team's. In HQ they're marked with the
+link's name. Through-link comments are limited to 30 an hour per link.
+
+Events: `project.share-made`, `project.share-stopped`,
+`project.share-visited` (each visit), `comment.added` (with no actor, and
+`shareId` and `guestName`), `file.downloaded` (with `by: "share-link"`).

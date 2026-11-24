@@ -242,6 +242,7 @@ Decided 2026-11-24 by Mikey. Each key is added in the slice that uses it.
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | Rename, recolour and delete labels | `label.manage` | Yes | Yes | No | No |
+| Make and stop share links | `project.share` | Yes | Yes | No | No |
 
 Making a label and putting labels on a task need `task.edit`, so anyone
 who edits tasks can label them. The Labels page is seen with `task.view`.
@@ -257,6 +258,11 @@ The timelines need `project.view` and `task.view`, as the boards do. So does
 a calendar address: each person makes and stops their own, and the feed is
 served only while they still have both. A feed may follow only a filter its
 person may use (their own, or a shared one).
+
+Making and stopping share links needs `project.share`, and so does seeing a
+project's links. A link is not a user: it sees only its own project, as its
+rights say, and needs no account. Anyone with `project.share` may delete a
+comment that came through a link.
 
 Notices are each person's own: anyone with `task.view` has them, and no one
 sees or opens anyone else's. A reminder can be set on any task you can see, for
