@@ -1,5 +1,5 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeed, CalendarFeedStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
@@ -358,6 +358,29 @@ export function sqliteLabelStore(db: Database): LabelStore {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
     },
+  };
+}
+
+export function sqliteCalendarFeedStore(db: Database): CalendarFeedStore {
+  const cols = "user_id, token_hash, filter_id, created_at, last_used_at";
+  const forUser = db.prepare(`select ${cols} from calendar_feed where user_id = ?`);
+  const byHash = db.prepare(`select ${cols} from calendar_feed where token_hash = ?`);
+  const save = db.prepare(`insert into calendar_feed (${cols}) values (?, ?, ?, ?, ?) on conflict (user_id) do update set token_hash = excluded.token_hash, filter_id = excluded.filter_id, created_at = excluded.created_at, last_used_at = excluded.last_used_at`);
+  const remove = db.prepare("delete from calendar_feed where user_id = ?");
+  const used = db.prepare("update calendar_feed set last_used_at = ? where user_id = ?");
+  const toFeed = (r: Row): CalendarFeed => ({ userId: text(r, "user_id") as Id, tokenHash: text(r, "token_hash"), filterId: maybe(r, "filter_id") as Id | null, createdAt: text(r, "created_at"), lastUsedAt: maybe(r, "last_used_at") });
+  return {
+    forUser(userId) {
+      const found = forUser.get(userId) as Row | undefined;
+      return found ? toFeed(found) : null;
+    },
+    byHash(tokenHash) {
+      const found = byHash.get(tokenHash) as Row | undefined;
+      return found ? toFeed(found) : null;
+    },
+    save: (f) => void save.run(f.userId, f.tokenHash, f.filterId, f.createdAt, f.lastUsedAt),
+    remove: (userId) => void remove.run(userId),
+    used: (userId, at) => void used.run(at, userId),
   };
 }
 
