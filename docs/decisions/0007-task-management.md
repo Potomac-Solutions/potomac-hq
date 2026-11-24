@@ -35,7 +35,10 @@ becomes **My work**: every open task assigned to you, from any project or
 none, grouped as overdue, today, upcoming and someday. A task without a
 project has no phase and no board column; it is `todo` or `done`.
 
-The `todo.*` events stay readable in history; new ones are `task.*`.
+A to-do keeps its `todo.*` events. Ticking off a project task from My work
+moves it as the board does (`task.moved`), so its timer stops. Today, the
+morning email and the client and opportunity panels go on listing only
+to-dos, because Today already shows project tasks as deadlines.
 
 ### 2. Labels
 
