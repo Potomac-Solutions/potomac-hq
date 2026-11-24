@@ -78,6 +78,8 @@ export function stopTimer(deps: FinanceDeps, actorId: Id | null): Result<TimeEnt
  * the move's. Someone who may not log time simply gets no timer.
  */
 export function applyTaskMove(deps: FinanceDeps, actorId: Id, task: Task, from: string): void {
+  // A to-do belongs to no project, so no time is kept on it.
+  if (task.projectId === null) return;
   if (from === "doing" && task.status !== "doing") {
     for (const entry of deps.time.runningOnTask(task.id)) stop(deps, actorId, entry);
     return;

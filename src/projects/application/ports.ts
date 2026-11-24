@@ -42,6 +42,8 @@ export type TaskStore = {
   insert(task: Task, at: string): void;
   update(task: Task, at: string): void;
   get(id: Id): Task | null;
+  /** One task with its project's and assignee's names. A to-do's project name is empty. */
+  row(id: Id): TaskRow | null;
   listFor(projectId: Id): TaskRow[];
   /** Tasks of active projects: every open one, and those finished at or after `doneSince`. */
   listBoard(doneSince: string): TaskRow[];

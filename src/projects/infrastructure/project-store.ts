@@ -131,7 +131,7 @@ export function sqliteMilestoneStore(db: Database): MilestoneStore {
 
 const toTask = (r: Row): Task => ({
   id: text(r, "id") as Id,
-  projectId: text(r, "project_id") as Id,
+  projectId: maybe(r, "project_id") as Id | null,
   phaseId: maybe(r, "phase_id") as Id | null,
   title: text(r, "title"),
   description: text(r, "description"),
@@ -152,6 +152,8 @@ export function sqliteTaskStore(db: Database): TaskStore {
   const get = db.prepare(`select ${columns} from task where id = ?`);
   const joined = `select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, u.name as assignee_name
        from task t join project p on p.id = t.project_id left join user u on u.id = t.assignee_id`;
+  const one = db.prepare(`select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, coalesce(p.name, '') as project_name, u.name as assignee_name
+       from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id where t.id = ?`);
   const listFor = db.prepare(`${joined} where t.project_id = ? order by t.rowid`);
   const listBoard = db.prepare(`${joined} where p.status = 'active' and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
@@ -165,6 +167,10 @@ export function sqliteTaskStore(db: Database): TaskStore {
     get(id) {
       const found = get.get(id) as Row | undefined;
       return found ? toTask(found) : null;
+    },
+    row(id) {
+      const found = one.get(id) as Row | undefined;
+      return found ? row(found) : null;
     },
     listFor(projectId) {
       return (listFor.all(projectId) as Row[]).map(row);

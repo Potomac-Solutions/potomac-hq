@@ -127,9 +127,9 @@ export function addPhase(deps: ProjectsDeps, actorId: Id | null, projectId: Id, 
 }
 
 /** A phase id from a form must name a phase of this project. */
-function phaseOf(deps: ProjectsDeps, projectId: Id, phaseId: Id | null | undefined): Result<Id | null, "phase-not-in-project"> {
+function phaseOf(deps: ProjectsDeps, projectId: Id | null, phaseId: Id | null | undefined): Result<Id | null, "phase-not-in-project"> {
   if (!phaseId) return ok(null);
-  return deps.phases.get(phaseId)?.projectId === projectId ? ok(phaseId) : err("phase-not-in-project");
+  return projectId !== null && deps.phases.get(phaseId)?.projectId === projectId ? ok(phaseId) : err("phase-not-in-project");
 }
 
 export function addMilestone(

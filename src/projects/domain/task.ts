@@ -14,7 +14,8 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
 export type Task = {
   readonly id: Id;
-  readonly projectId: Id;
+  /** Null for a to-do: a task that belongs to no project (decision 0007, section 1). */
+  readonly projectId: Id | null;
   readonly phaseId: Id | null;
   readonly title: string;
   readonly description: string;
@@ -88,9 +89,11 @@ export function editTask(task: Task, input: TaskInput): Result<Task, TaskError> 
   return ok({ ...task, ...checked.value });
 }
 
-/** Any status may follow any other. Moving to done stamps the time; moving away clears it. */
+/** Any status may follow any other, except that a to-do is only to do or done. Moving to done stamps the time; moving away clears it. */
 export function moveTask(task: Task, to: string, at: string): Result<Task, "invalid-status" | "unchanged"> {
   if (!isTaskStatus(to)) return err("invalid-status");
+  // A to-do has no board: it is to do or done.
+  if (task.projectId === null && to !== "todo" && to !== "done") return err("invalid-status");
   if (to === task.status) return err("unchanged");
   return ok({ ...task, status: to, doneAt: to === "done" ? at : null });
 }

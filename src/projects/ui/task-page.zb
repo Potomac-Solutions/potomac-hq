@@ -20,7 +20,7 @@
 </script>
 <hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [] }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
-    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }]}></breadcrumb-trail>
+    <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
@@ -35,7 +35,8 @@
         <dt>Labels</dt><dd><label-chips zb-if={t.labels.length > 0} labels={t.labels}></label-chips><span zb-if={t.labels.length === 0}>None</span></dd>
         <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <status-badge zb-if={t.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
-        <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
+        <dt zb-if={!t.projectId}>Kind</dt><dd zb-if={!t.projectId}>A to-do, not on a project</dd>
+        <dt zb-if={timer.can && t.projectId}>Time logged</dt><dd zb-if={timer.can && t.projectId}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
         <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>
       </dl>
       <div class="hq-actions" data-spaced>
@@ -54,7 +55,7 @@
           <button class="hq-button secondary" type="submit">Stop the timer</button>
         </form>
       </div>
-      <p zb-if={timer.can && view.canEdit && !timer.running} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
+      <p zb-if={timer.can && view.canEdit && !timer.running && t.projectId} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
     </section>
     <section zb-if={view.canEdit} id="labels" class="hq-panel" aria-labelledby="task-labels">
       <h2 id="task-labels">Labels</h2>

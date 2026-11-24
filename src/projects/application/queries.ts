@@ -264,7 +264,7 @@ function card(task: TaskRow, today: string, labels: readonly Label[] = []): Task
     labels: labels.map(chip),
     id: task.id,
     title: task.title,
-    projectId: task.projectId,
+    projectId: task.projectId ?? "",
     projectName: task.projectName,
     assigneeName: task.assigneeName ?? "",
     status: task.status,
@@ -281,12 +281,13 @@ function card(task: TaskRow, today: string, labels: readonly Label[] = []): Task
 
 export type TaskFormOptions = { readonly people: readonly Option[]; readonly phases: readonly Option[]; readonly priorities: readonly Option[]; readonly statuses: readonly Option[] };
 
-function formOptions(deps: ProjectsDeps, projectId: Id): TaskFormOptions {
+function formOptions(deps: ProjectsDeps, projectId: Id | null): TaskFormOptions {
   return {
     people: people(deps),
-    phases: deps.phases.listFor(projectId).map((phase) => ({ value: phase.id, label: phase.name })),
+    phases: (projectId === null ? [] : deps.phases.listFor(projectId)).map((phase) => ({ value: phase.id, label: phase.name })),
     priorities: options(PRIORITY_LABELS),
-    statuses: options(TASK_STATUS_LABELS),
+    // A to-do is only to do or done.
+    statuses: options(TASK_STATUS_LABELS).filter((one) => projectId !== null || one.value === "todo" || one.value === "done"),
   };
 }
 
@@ -328,8 +329,7 @@ export type TaskDetailView = {
 
 export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): Result<TaskDetailView, Refused> {
   if (!may(deps, actorId, "task.view")) return err("forbidden");
-  const found = deps.tasks.get(taskId);
-  const task = found ? deps.tasks.listFor(found.projectId).find((row) => row.id === taskId) : undefined;
+  const task = deps.tasks.row(taskId);
   if (!task) return err("not-found");
   const onTask = new Set<string>(deps.labels.forTask(taskId).map((label) => label.id));
   return ok({
@@ -441,7 +441,7 @@ export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days =
   const tasks = may(deps, actorId, "task.view")
     ? deps.tasks
         .listBoard("9999")
-        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId))
+        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId ?? ""))
         .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "", overdue: isTaskOverdue(task, today) }))
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
@@ -468,7 +468,7 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
     .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "" }));
   const lateTasks = deps.tasks
     .listBoard("9999")
-    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId))
+    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId ?? ""))
     .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "" }));
   return ok({
     statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),
