@@ -83,3 +83,24 @@ test("files attach to a task with the deliverable rules, and download with file.
   assert.match(problemOf(bad.headers.get("location")), /can’t be uploaded/);
   assert.match(textOf(await mikey.page(`/tasks/${task}`)), /homepage-proof\.pdf \d+ bytes Mikey Nichols, /);
 });
+
+test("a task's file can be removed, bytes and all; only through its own task", async () => {
+  const projectId = t.db.prepare("select project_id from task where id = ?").get(task)?.["project_id"] as Id;
+  const deliverable = unwrap(projects.addDeliverable(t.services.projects, mikeyId, projectId, { title: "Homepage mockup", file: { name: "mockup.pdf", bytes: PDF } }));
+  const page = await mikey.page(`/tasks/${task}`);
+  assert.match(page, /aria-label="Remove homepage-proof\.pdf">Remove<\/button>/);
+  const fileId = t.db.prepare("select id from file where name = 'homepage-proof.pdf'").get()?.["id"] as Id;
+
+  const wrong = await mikey.post(`/tasks/${task}/files/remove`, { fileId: deliverable.fileId });
+  assert.match(problemOf(wrong.headers.get("location")), /doesn’t exist/);
+  assert.equal(t.db.prepare("select count(*) as n from file where id = ?").get(deliverable.fileId)?.["n"], 1, "a deliverable's file stays");
+
+  const removed = await mikey.submit(`/tasks/${task}/files/remove`, { fileId });
+  assert.match(removed.html, /Removed “homepage-proof\.pdf”\./);
+  assert.match(removed.html, /No files yet\./);
+  assert.equal(t.db.prepare("select count(*) as n from file where id = ?").get(fileId)?.["n"], 0);
+  assert.equal(t.db.prepare("select count(*) as n from file_blob where file_id = ?").get(fileId)?.["n"], 0);
+  assert.equal((await sam.get(`/files/${fileId}`)).status, 404);
+  assert.equal(events("file.removed").at(-1)?.["name"], "homepage-proof.pdf");
+  assert.equal(events("task.file-removed").length, 1);
+});

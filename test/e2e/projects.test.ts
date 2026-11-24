@@ -221,6 +221,8 @@ test("subtasks and blocking on a task's page", async () => {
   await page.getByText("Comment saved.").waitFor();
   await page.getByText("Edit your comment", { exact: true }).click();
   await assertAccessible(page, "a task with a comment, a file and the edit form open");
+  await page.getByRole("button", { name: "Remove menu-proof.pdf" }).click();
+  await page.getByText("Removed “menu-proof.pdf”.").waitFor();
   assert.deepEqual(problems, []);
   await page.close();
 });
