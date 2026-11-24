@@ -313,6 +313,22 @@ says what it still waits on. This is separate from the "Blocked" status,
 which is still set by hand. Events: `task.added` (with `parentId`),
 `task.blocked`, `task.unblocked`.
 
+### The timeline
+
+Added by decision 0007, section 9 (migration 0047). `task.start_on` is the
+day work starts, optional and never after `due_on`. An edit that doesn't send
+a start date keeps the one the task had; the task form sends it, so it can be
+cleared there. A repeat moves it with the due date.
+
+Nothing else is stored. A project's timeline (`/projects/:id/timeline`)
+draws the project from its start to its target date, then a group per phase
+(its span is its tasks' and milestones'), with tasks as bars from start to
+due, or points with only a due date, and milestones as points. Every active
+project's timeline (`/timeline`) draws each from its start to its target
+date, or across its tasks' and milestones' dates when those aren't set, with
+its milestones marked; demo clients' are left out. Both are drawn by the
+server, with today marked; things with no dates are counted, not drawn.
+
 ### Notices and reminders
 
 Added by decision 0007, section 8 (migration 0046), in the `notices` module.

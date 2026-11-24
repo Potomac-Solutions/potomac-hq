@@ -253,6 +253,8 @@ pin, share or delete it, and no role key overrides that.
 Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
+The timelines need `project.view` and `task.view`, as the boards do.
+
 Notices are each person's own: anyone with `task.view` has them, and no one
 sees or opens anyone else's. A reminder can be set on any task you can see, for
 you alone or for whoever has the task. Yours only you see and remove; one

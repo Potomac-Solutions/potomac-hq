@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The timeline (decision 0007, slice 9). Tasks can have a start date. Each
+  project has a Timeline tab: the project from start to target, its phases,
+  and its tasks and milestones as bars and points, with today marked and
+  late work in red. Timeline in the sidebar shows every active project the
+  same way. Drawn by the server, so it needs no script.
+
 - Notices and reminders (decision 0007, slice 8). A bell in the header counts
   what's new for you: tasks and to-dos given to you, comments that
   @mention you, and reminders on a task, at a time or so many days before
