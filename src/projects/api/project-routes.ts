@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import * as projects from "../application/commands.ts";
 import * as work from "../application/work.ts";
 import * as quick from "../application/quick-add.ts";
+import * as links from "../application/dependencies.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -95,7 +96,24 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
   post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
     done: (_, id, f) => back(id, f),
     back,
-    message: "Task moved.",
+    // Blocked tasks may be worked on; this says what they are still waiting on.
+    message: (task) => (task.status === "doing" && task.waitingOn.length > 0 ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.` : "Task moved."),
+  });
+  // Subtasks and blocking, from the task page.
+  post("/tasks/:id/subtasks", (actor, f, id) => links.addSubtask(deps.projects, actor, id as Id, { title: f["title"] ?? "", assigneeId: optionalId(f["assigneeId"]), dueOn: f["dueOn"] ?? null }), {
+    done: (_, id) => `/tasks/${id}#subtasks`,
+    back: (id) => `/tasks/${id}#subtasks`,
+    message: "Subtask added.",
+  });
+  post("/tasks/:id/blockers", (actor, f, id) => links.blockTask(deps.projects, actor, id as Id, optionalId(f["blockerId"]) ?? ("" as Id)), {
+    done: (_, id) => `/tasks/${id}#waiting`,
+    back: (id) => `/tasks/${id}#waiting`,
+    message: "It now waits on that task.",
+  });
+  post("/tasks/:id/blockers/remove", (actor, f, id) => links.unblockTask(deps.projects, actor, id as Id, optionalId(f["blockerId"]) ?? ("" as Id)), {
+    done: (_, id) => `/tasks/${id}#waiting`,
+    back: (id) => `/tasks/${id}#waiting`,
+    message: "It no longer waits on that task.",
   });
   // Each label on the task page is a checkbox named label-<id>, so the ticked ones arrive as separate fields.
   const ticked = (f: FormFields): Id[] =>

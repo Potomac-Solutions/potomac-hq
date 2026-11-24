@@ -38,7 +38,8 @@ export type Places<V> = {
   readonly done: (value: V, id: Id | null, form: FormFields) => string;
   /** Where to go when it was refused. */
   readonly back: (id: Id | null, form: FormFields) => string;
-  readonly message: string;
+  /** What to say when it worked; a function to say something about what happened. */
+  readonly message: string | ((value: V) => string);
 };
 
 /** Adds `name=value` to a location that may already have a query. */
@@ -82,7 +83,7 @@ export function formPosts<A = Id | null>(app: PostApp, deps: FormPostDeps<A>) {
       if (param !== undefined && id === null) return c.redirect(deps.sign(withMessage(deps.home, "problem", deps.messageFor("not-found"))), 303);
       const answer = await run(deps.actorOf(c.req.header("cookie") ?? ""), fields, id, files);
       const to = answer.ok
-        ? withMessage(places.done(answer.value, id, fields), "done", places.message)
+        ? withMessage(places.done(answer.value, id, fields), "done", typeof places.message === "function" ? places.message(answer.value) : places.message)
         : withMessage(answer.error === "not-found" ? deps.home : places.back(id, fields), "problem", deps.messageFor(answer.error));
       return c.redirect(deps.sign(to), 303);
     }) as never);

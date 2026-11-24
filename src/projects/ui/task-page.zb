@@ -1,5 +1,6 @@
 <!--
-  One task: where it stands, and the form that edits it.
+  One task: where it stands, its subtasks, what it waits on and holds up
+  (decision 0007, section 5), its labels, and the form that edits it.
 -->
 <script>
   'use route /tasks/:id'
@@ -18,7 +19,7 @@
   }
   const t = view.task
 </script>
-<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [] }} timer={{ can: false }} done="" problem="">
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [] }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -36,6 +37,9 @@
         <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <status-badge zb-if={t.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
         <dt zb-if={!t.projectId}>Kind</dt><dd zb-if={!t.projectId}>A to-do, not on a project</dd>
+        <dt zb-if={view.parent}>Subtask of</dt><dd zb-if={view.parent}><a href={view.parent ? view.parent.href : ''}>{view.parent ? view.parent.title : ''}</a></dd>
+        <dt zb-if={t.subtasks}>Subtasks</dt><dd zb-if={t.subtasks}><a href="#subtasks">{t.subtasks}</a></dd>
+        <dt zb-if={t.waiting > 0}>Waiting on</dt><dd zb-if={t.waiting > 0}><a href="#waiting">{t.waiting === 1 ? '1 unfinished task' : t.waiting + ' unfinished tasks'}</a></dd>
         <dt zb-if={timer.can && t.projectId}>Time logged</dt><dd zb-if={timer.can && t.projectId}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
         <dt zb-if={t.description}>Details</dt><dd zb-if={t.description} class="hq-prose">{t.description}</dd>
       </dl>
@@ -55,7 +59,67 @@
           <button class="hq-button secondary" type="submit">Stop the timer</button>
         </form>
       </div>
+      <p zb-if={view.canEdit && t.waiting > 0 && t.status !== 'done'} class="hq-small" data-spaced>It still waits on {t.waiting === 1 ? 'a task' : t.waiting + ' tasks'} that aren’t done. You can work on it anyway.</p>
       <p zb-if={timer.can && view.canEdit && !timer.running && t.projectId} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
+    </section>
+    <section zb-if={view.canAddSubtasks || view.subtasks.length > 0} id="subtasks" class="hq-panel" aria-labelledby="task-subtasks">
+      <h2 id="task-subtasks">Subtasks <span zb-if={t.subtasks} class="hq-muted hq-small">{t.subtasks}</span></h2>
+      <ul zb-if={view.subtasks.length > 0} class="hq-links">
+        <zb-each items={view.subtasks} as="sub" key={sub.id}>
+          <li><span><a href="/tasks/{sub.id}">{sub.title}</a> <span zb-if={sub.assigneeName} class="hq-muted hq-small">{sub.assigneeName}</span></span> <status-badge variant={sub.status === 'done' ? 'success' : sub.status === 'doing' ? 'primary' : 'neutral'}>{sub.statusLabel}</status-badge></li>
+        </zb-each>
+      </ul>
+      <p zb-if={view.subtasks.length === 0} class="hq-muted">No subtasks yet. Break the work into steps here; each one is a task of its own.</p>
+      <p zb-if={view.subtasks.length > 0} class="hq-muted hq-small">Finishing this task doesn’t finish its subtasks.</p>
+      <form zb-if={view.canEdit && view.canAddSubtasks} method="post" action="/tasks/{t.id}/subtasks" class="hq-form-row" data-spaced>
+        <text-field label="New subtask" name="title" required={true}></text-field>
+        <div class="hq-field">
+          <label for="subtask-who">Who</label>
+          <select id="subtask-who" name="assigneeId">
+            <option value="">Nobody yet</option>
+            <zb-each items={view.form.people} as="person" key={person.value}><option value={person.value}>{person.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Due" name="dueOn" type="date"></text-field>
+        <button class="hq-button" type="submit">Add subtask</button>
+      </form>
+    </section>
+    <section zb-if={view.canEdit || view.waitingOn.length > 0 || view.holdsUp.length > 0} id="waiting" class="hq-panel" aria-labelledby="task-waiting">
+      <h2 id="task-waiting">Waiting on and holding up</h2>
+      <h3 class="hq-small">Waits on</h3>
+      <ul zb-if={view.waitingOn.length > 0} class="hq-links">
+        <zb-each items={view.waitingOn} as="one" key={one.id}>
+          <li>
+            <span><a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span> <status-badge variant={one.done ? 'success' : 'warning'}>{one.statusLabel}</status-badge></span>
+            <form zb-if={view.canEdit} method="post" action="/tasks/{t.id}/blockers/remove" class="hq-inline">
+              <input type="hidden" name="blockerId" value={one.id}>
+              <button class="hq-button secondary small" type="submit" aria-label="Stop waiting on {one.title}">Stop waiting</button>
+            </form>
+          </li>
+        </zb-each>
+      </ul>
+      <p zb-if={view.waitingOn.length === 0} class="hq-muted">Nothing. It can start whenever.</p>
+      <form zb-if={view.canEdit && view.blockerChoices.length > 0} method="post" action="/tasks/{t.id}/blockers" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="blocker">It waits on</label>
+          <select id="blocker" name="blockerId" required>
+            <option value="">Choose a task</option>
+            <zb-each items={view.blockerChoices} as="group" key={group.label}>
+              <optgroup label={group.label}>
+                <zb-each items={group.options} as="choice" key={choice.value}><option value={choice.value}>{choice.label}</option></zb-each>
+              </optgroup>
+            </zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Add</button>
+      </form>
+      <h3 class="hq-small">Holds up</h3>
+      <ul zb-if={view.holdsUp.length > 0} class="hq-links">
+        <zb-each items={view.holdsUp} as="one" key={one.id}>
+          <li><span><a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.where}</span></span> <status-badge variant={one.done ? 'success' : 'neutral'}>{one.statusLabel}</status-badge></li>
+        </zb-each>
+      </ul>
+      <p zb-if={view.holdsUp.length === 0} class="hq-muted">Nothing waits on this.</p>
     </section>
     <section zb-if={view.canEdit} id="labels" class="hq-panel" aria-labelledby="task-labels">
       <h2 id="task-labels">Labels</h2>

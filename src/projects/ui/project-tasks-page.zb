@@ -41,7 +41,7 @@
         <tbody>
           <zb-each items={view.tasks} as="task" key={task.id}>
             <tr>
-              <td><a href="/tasks/{task.id}">{task.title}</a> <label-chips labels={task.labels}></label-chips></td>
+              <td><a href="/tasks/{task.id}">{task.title}</a> <label-chips labels={task.labels}></label-chips><span zb-if={task.subtasks} class="hq-muted hq-small"> Subtasks {task.subtasks}.</span><span zb-if={task.waiting > 0} class="hq-muted hq-small"> Waiting on {task.waiting}.</span></td>
               <td>{task.statusLabel}</td>
               <td>{task.assigneeName || "Nobody yet"}</td>
               <td>{task.priorityLabel}</td>

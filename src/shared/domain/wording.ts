@@ -80,6 +80,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "task.edited": "edited a task",
   "task.moved": "moved a task",
   "task.labelled": "changed a task’s labels",
+  "task.blocked": "marked a task as waiting on another",
+  "task.unblocked": "stopped a task waiting on another",
   "label.added": "made a label",
   "label.edited": "renamed or recoloured a label",
   "label.removed": "deleted a label",

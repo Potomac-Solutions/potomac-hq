@@ -290,6 +290,29 @@ row means the default: project, who, status, priority, due and labels.
 Events: `filter.saved`, `filter.changed`, `filter.removed`,
 `work.columns-chosen`.
 
+### Subtasks and blocking
+
+Added by decision 0007, section 5 (migration 0043).
+
+`task.parent_id` points at the task a subtask belongs to. Subtasks go one
+level deep, under project tasks only (to-dos have no project to share), and
+are made in their parent's project and phase. A parent shows "3 of 5 done";
+finishing it doesn't finish its subtasks.
+
+`task_block` says one task waits on another:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `blocked_id` | Task id | The task that waits |
+| `blocker_id` | Task id | What it waits on, in any project or none. Never the same task |
+| `created_by` | User id | Who said so |
+
+No circles: a task can't wait on anything that already waits on it, however
+far back. Waiting never stops a move; moving a waiting task to "working on"
+says what it still waits on. This is separate from the "Blocked" status,
+which is still set by hand. Events: `task.added` (with `parentId`),
+`task.blocked`, `task.unblocked`.
+
 ### Quick add
 
 Added by decision 0007, section 4. No table of its own: a line typed at

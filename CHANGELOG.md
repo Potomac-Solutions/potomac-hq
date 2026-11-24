@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Subtasks and blocking (decision 0007, slice 5). A project task's page adds
+  subtasks, each a task of its own in the same project, and shows "3 of 5
+  done" there, on the task list and on the board. A task can wait on any
+  other, in any project or a to-do; its page says what it waits on and what
+  it holds up, and refuses circles. Moving a waiting task to "working on"
+  goes ahead and says what it is still waiting on.
+
 - Booking from the website. potomac.solutions can now show open times and
   book a call for someone new in one step: HQ makes their client account,
   books the call, and emails a link to their dashboard where they set a

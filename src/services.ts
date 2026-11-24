@@ -35,7 +35,7 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore } from "./projects/adapters.ts";
 import { moveTaskStatus, type ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
@@ -138,6 +138,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     tasks: sqliteTaskStore(db),
     labels: sqliteLabelStore(db),
     work: sqliteWorkStore(db),
+    taskLinks: sqliteTaskLinkStore(db),
     deliverables: sqliteDeliverableStore(db),
     links: sqliteProjectLinkStore(db),
     baselines: sqliteBaselineStore(db),

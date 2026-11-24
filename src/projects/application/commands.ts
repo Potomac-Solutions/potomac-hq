@@ -12,7 +12,7 @@ import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -21,6 +21,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly tasks: TaskStore;
   readonly labels: LabelStore;
   readonly work: WorkStore;
+  readonly taskLinks: TaskLinkStore;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
   readonly baselines: BaselineStore;
@@ -226,7 +227,8 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
   });
 }
 
-export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: Id, to: string): Result<Task, Refused | "invalid-status" | "unchanged"> {
+/** Moves a task. Being blocked by another task never stops it; `waitingOn` names the unfinished ones, so the screen can warn. */
+export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: Id, to: string): Result<Task & { readonly waitingOn: readonly string[] }, Refused | "invalid-status" | "unchanged"> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);
@@ -237,7 +239,8 @@ export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: I
     deps.tasks.update(moved.value, at);
     recordActivity(deps, { actorId, action: "task.moved", recordType: "task", recordId: taskId, context: { projectId: task.projectId, from: task.status, to: moved.value.status } });
     deps.onTaskMoved?.(actorId, moved.value, task.status);
-    return ok(moved.value);
+    const waitingOn = deps.taskLinks.waitingOn(taskId).filter((row) => row.status !== "done").map((row) => row.title);
+    return ok({ ...moved.value, waitingOn });
   });
 }
 

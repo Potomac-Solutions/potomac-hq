@@ -6,6 +6,7 @@ import { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone } 
 import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
 import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
+import { mayBlock, mayHaveSubtasks, progressText, type Progress } from "../domain/dependencies.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
@@ -246,6 +247,10 @@ export type TaskCard = {
   readonly estimate: string;
   /** By name. */
   readonly labels: readonly LabelChip[];
+  /** "3 of 5 done" for a task with subtasks, or empty. */
+  readonly subtasks: string;
+  /** How many unfinished tasks it waits on. */
+  readonly waiting: number;
 };
 
 /** A label as the screens draw it: its name, in its colour. */
@@ -255,12 +260,17 @@ const chip = (label: Label): LabelChip => ({ id: label.id, name: label.name, col
 
 /** Cards for many tasks, with their labels read in one go. */
 function cards(deps: ProjectsDeps, tasks: readonly TaskRow[], today: string): TaskCard[] {
-  const labels = deps.labels.forTasks(tasks.map((task) => task.id));
-  return tasks.map((task) => card(task, today, labels.get(task.id) ?? []));
+  const ids = tasks.map((task) => task.id);
+  const labels = deps.labels.forTasks(ids);
+  const progress = deps.taskLinks.progress(ids);
+  const waiting = deps.taskLinks.openBlockers(ids);
+  return tasks.map((task) => card(task, today, labels.get(task.id) ?? [], { progress: progress.get(task.id), waiting: waiting.get(task.id) ?? 0 }));
 }
 
-function card(task: TaskRow, today: string, labels: readonly Label[] = []): TaskCard {
+function card(task: TaskRow, today: string, labels: readonly Label[] = [], links: { readonly progress?: Progress | undefined; readonly waiting?: number } = {}): TaskCard {
   return {
+    subtasks: progressText(links.progress),
+    waiting: links.waiting ?? 0,
     labels: labels.map(chip),
     id: task.id,
     title: task.title,
@@ -325,16 +335,55 @@ export type TaskDetailView = {
   /** Every label, each marked if the task has it, for the picker. */
   readonly labelChoices: readonly (LabelChip & { readonly on: boolean })[];
   readonly colours: readonly Option[];
+  /** The task this is a subtask of. */
+  readonly parent: TaskLink | null;
+  readonly subtasks: readonly TaskCard[];
+  /** May take subtasks: a project task that isn't one. */
+  readonly canAddSubtasks: boolean;
+  /** What it waits on, unfinished first. */
+  readonly waitingOn: readonly TaskLink[];
+  /** What waits on it, unfinished first. */
+  readonly holdsUp: readonly TaskLink[];
+  /** Tasks it could wait on, by project: open, not already, and not ones waiting on it. */
+  readonly blockerChoices: readonly { readonly label: string; readonly options: readonly Option[] }[];
 };
+
+/** Another task, as a link: "Swap the photos · Better Days website · Done". */
+export type TaskLink = { readonly id: string; readonly title: string; readonly href: string; readonly where: string; readonly statusLabel: string; readonly done: boolean };
+
+const taskLink = (row: TaskRow): TaskLink => ({ id: row.id, title: row.title, href: `/tasks/${row.id}`, where: row.projectName || "To-do", statusLabel: TASK_STATUS_LABELS[row.status] ?? row.status, done: row.status === "done" });
+
+/** Open tasks this one could wait on, grouped by project, to-dos last. */
+function blockerChoices(deps: ProjectsDeps, taskId: Id): { label: string; options: Option[] }[] {
+  const groups = new Map<string, Option[]>();
+  const blockersOf = (id: Id) => deps.taskLinks.blockersOf(id);
+  for (const row of deps.work.rows()) {
+    if (row.status === "done" || !mayBlock(taskId, row.id, blockersOf).ok) continue;
+    const group = row.projectName || "To-dos";
+    groups.set(group, [...(groups.get(group) ?? []), { value: row.id, label: row.title }]);
+  }
+  const byName = (a: string, b: string) => (a === "To-dos" ? 1 : b === "To-dos" ? -1 : a.localeCompare(b));
+  return [...groups].sort(([a], [b]) => byName(a, b)).map(([label, options]) => ({ label, options: options.sort((a, b) => a.label.localeCompare(b.label)) }));
+}
 
 export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): Result<TaskDetailView, Refused> {
   if (!may(deps, actorId, "task.view")) return err("forbidden");
   const task = deps.tasks.row(taskId);
   if (!task) return err("not-found");
   const onTask = new Set<string>(deps.labels.forTask(taskId).map((label) => label.id));
+  const parentId = deps.taskLinks.parentOf(taskId);
+  const parent = parentId ? deps.tasks.row(parentId) : null;
+  const subtasks = cards(deps, deps.taskLinks.subtasks(taskId), deps.today());
+  const canEdit = may(deps, actorId, "task.edit");
   return ok({
-    task: { ...card(task, deps.today(), deps.labels.forTask(taskId)), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
-    canEdit: may(deps, actorId, "task.edit"),
+    parent: parent ? taskLink(parent) : null,
+    subtasks,
+    canAddSubtasks: mayHaveSubtasks({ projectId: task.projectId, parentId }).ok,
+    waitingOn: deps.taskLinks.waitingOn(taskId).map(taskLink),
+    holdsUp: deps.taskLinks.holdingUp(taskId).map(taskLink),
+    blockerChoices: canEdit ? blockerChoices(deps, taskId) : [],
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0 }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
+    canEdit,
     form: formOptions(deps, task.projectId),
     labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),
     colours: colourOptions(),
