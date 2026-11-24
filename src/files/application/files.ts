@@ -9,6 +9,7 @@ export type FileRecordStore = {
   insert(record: FileRecord, at: string): void;
   get(id: Id): FileRecord | null;
   setClientVisible(id: Id, visible: boolean): void;
+  remove(id: Id): void;
   /** The files filed under one owner, newest first, with when each was stored and who at the client sent it. */
   listForOwner(ownerType: string, ownerId: Id): (FileRecord & { readonly createdAt: string; readonly clientUserName: string | null })[];
 };
@@ -16,6 +17,7 @@ export type FileRecordStore = {
 export type BlobStore = {
   put(fileId: Id, body: Uint8Array): void;
   get(fileId: Id): Uint8Array | null;
+  remove(fileId: Id): void;
 };
 
 export type FilesDeps = ActivityDeps & {
@@ -66,6 +68,25 @@ export function saveFile(deps: FilesDeps, actorId: Id | null, input: NewFile | n
     recordType: "file",
     recordId: record.id,
     context: { name: record.name, sizeBytes: record.sizeBytes, ownerType: record.ownerType, ownerId: record.ownerId, ...(input.projectId ? { projectId: input.projectId } : {}) },
+  });
+  return ok(record);
+}
+
+/**
+ * Deletes one file, its bytes and its record. Like saveFile, call it inside
+ * the transaction of the use case that owns the file, after that use case has
+ * checked the file is its own. The event keeps its name, size and hash.
+ */
+export function removeFile(deps: FilesDeps, actorId: Id | null, record: FileRecord, projectId: Id | null = null): Result<FileRecord, "forbidden"> {
+  if (actorId === null || !authorize(deps, actorId, "file.upload").ok) return err("forbidden");
+  deps.blobs.remove(record.id);
+  deps.files.remove(record.id);
+  recordActivity(deps, {
+    actorId,
+    action: "file.removed",
+    recordType: "file",
+    recordId: record.id,
+    context: { name: record.name, sizeBytes: record.sizeBytes, sha256: record.sha256, ownerType: record.ownerType, ownerId: record.ownerId, ...(projectId ? { projectId } : {}) },
   });
   return ok(record);
 }

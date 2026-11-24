@@ -42,6 +42,7 @@ export function sqliteFileRecordStore(db: Database): FileRecordStore {
   );
   const get = db.prepare(`select ${cols} from file where id = ?`);
   const visible = db.prepare("update file set client_visible = ? where id = ?");
+  const remove = db.prepare("delete from file where id = ?");
   return {
     insert(f, at) {
       insert.run(f.id, f.name, f.contentType, f.sizeBytes, f.sha256, f.ownerType, f.ownerId, f.organizationId, f.clientVisible ? 1 : 0, f.uploadedBy, f.uploadedByClient ?? null, at);
@@ -56,6 +57,9 @@ export function sqliteFileRecordStore(db: Database): FileRecordStore {
     setClientVisible(id, on) {
       visible.run(on ? 1 : 0, id);
     },
+    remove(id) {
+      remove.run(id);
+    },
   };
 }
 
@@ -66,6 +70,7 @@ export function sqliteFileRecordStore(db: Database): FileRecordStore {
 export function sqliteBlobStore(db: Database): BlobStore {
   const put = db.prepare("insert into file_blob (file_id, body) values (?, ?)");
   const get = db.prepare("select body from file_blob where file_id = ?");
+  const remove = db.prepare("delete from file_blob where file_id = ?");
   return {
     put(fileId, body) {
       put.run(fileId, body);
@@ -73,6 +78,9 @@ export function sqliteBlobStore(db: Database): BlobStore {
     get(fileId) {
       const row = get.get(fileId) as { body: Uint8Array } | undefined;
       return row ? new Uint8Array(row.body) : null;
+    },
+    remove(fileId) {
+      remove.run(fileId);
     },
   };
 }
