@@ -166,6 +166,15 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
 | Set the hours for booked calls, days off, and who can book; link calendars; paint days from Timeful or Calendly; make and withdraw booking links | `booking.manage` | Yes | Yes | No | No |
 
+### The public website (after 0.13.0)
+
+Decided 2026-11-23. Needs Mikey's approval. Admins only, because it decides whether the company's front door is open.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See the website's mode, message, banner and preview link | `website.view` | Yes | No | No | No |
+| Open or close the website, change its message and banner, make a new preview link | `website.edit` | Yes | No | No | No |
+
 ### Platform (v1.0)
 
 Decided 2026-11-16 while Mikey was away. Needs his approval.

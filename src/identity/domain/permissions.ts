@@ -64,6 +64,9 @@ export const PERMISSIONS = [
   "report.view",
   // After 0.11.0
   "booking.manage",
+  // After 0.13.0
+  "website.view",
+  "website.edit",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -76,6 +79,8 @@ const ADMIN_ONLY: readonly Permission[] = [
   "user.set-roles",
   "user.reset",
   "activity.view-all",
+  "website.view",
+  "website.edit",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

@@ -1,0 +1,76 @@
+<!--
+  The public website: open it, close it with a "coming soon" or "maintenance"
+  page, put an announcement on top, and make a private link to see it while
+  it is closed. Admins only.
+-->
+<script>
+  'use route /website'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.website.view()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Website', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .site-form { display: grid; gap: 1rem; max-width: 40rem; }
+  .site-link { overflow-wrap: anywhere; user-select: all; }
+</style>
+<hq-website view={{ settings: {}, modes: [], previewLink: '', connected: false, canEdit: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Website</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.connected} variant="warning">The website is not connected to HQ yet, so these settings do nothing until it is. On the HQ server run <code>npm run site:token</code>, and give the website service that token as <code>HQ_SITE_TOKEN</code> (and this address as <code>HQ_URL</code>).</alert-banner>
+    <p class="hq-muted">potomac.solutions asks HQ for these settings every half minute. If HQ cannot be reached it keeps the last ones it had.</p>
+    <form method="post" action="/website" class="hq-panel site-form" aria-labelledby="site-mode">
+      <h2 id="site-mode">Is the website open?</h2>
+      <div class="hq-field">
+        <label for="site-mode-select">Mode</label>
+        <select id="site-mode-select" name="mode" disabled={!view.canEdit}>
+          <zb-each items={view.modes} as="one" key={one.value}>
+            <option value={one.value} selected={view.settings.mode === one.value}>{one.label}</option>
+          </zb-each>
+        </select>
+      </div>
+      <p class="hq-small hq-muted">When it is not open, visitors see one plain page with the heading and message below. Search engines are told to come back later.</p>
+      <div class="hq-field">
+        <label for="site-title">Heading</label>
+        <input id="site-title" name="title" maxlength="80" value={view.settings.title} placeholder="Coming soon" disabled={!view.canEdit}>
+      </div>
+      <div class="hq-field">
+        <label for="site-message">Message</label>
+        <textarea id="site-message" name="message" rows="3" maxlength="400" disabled={!view.canEdit}>{view.settings.message}</textarea>
+      </div>
+      <div class="hq-field">
+        <label for="site-eta">When it is back (optional)</label>
+        <input id="site-eta" name="eta" maxlength="80" value={view.settings.eta} placeholder="Opening January 1" disabled={!view.canEdit}>
+      </div>
+      <h2 id="site-banner">Announcement on every page</h2>
+      <p class="hq-small hq-muted">Shown across the top while the website is open. Leave it empty for none.</p>
+      <div class="hq-field">
+        <label for="site-banner-text">Announcement</label>
+        <input id="site-banner-text" name="bannerText" maxlength="200" value={view.settings.bannerText} disabled={!view.canEdit}>
+      </div>
+      <div class="hq-field">
+        <label for="site-banner-link-text">Link words (optional)</label>
+        <input id="site-banner-link-text" name="bannerLinkText" maxlength="40" value={view.settings.bannerLinkText} disabled={!view.canEdit}>
+      </div>
+      <div class="hq-field">
+        <label for="site-banner-href">Link address (optional)</label>
+        <input id="site-banner-href" name="bannerHref" maxlength="300" value={view.settings.bannerHref} placeholder="/book/ or https://…" disabled={!view.canEdit}>
+      </div>
+      <button zb-if={view.canEdit} class="hq-button" type="submit">Save</button>
+    </form>
+    <section class="hq-panel" aria-labelledby="site-preview">
+      <h2 id="site-preview">See the website while it is closed</h2>
+      <p class="hq-small hq-muted">Open this private link once in a browser and that browser sees the real website for 12 hours. Anyone with the link can, so keep it to yourselves.</p>
+      <p zb-if={view.previewLink} class="site-link"><code>{view.previewLink}</code></p>
+      <form zb-if={view.canEdit} method="post" action="/website/preview"><button class="hq-button secondary" type="submit">{view.previewLink ? 'Make a new link' : 'Make a preview link'}</button></form>
+    </section>
+  </div>
+</hq-website>

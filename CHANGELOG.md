@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Website. A new admin-only page, Company → Website, controls
+  potomac.solutions: open it, put up a "coming soon" or "maintenance" page
+  with your own heading, message and time note, and put an announcement on
+  top of every page. A private preview link lets you and Jayanti see the real
+  site while it is closed. The website asks HQ for these settings every half
+  minute and keeps the last ones if HQ is down. Connect it with
+  `npm run site:token` on the HQ server, then give the website service that
+  token as `HQ_SITE_TOKEN` and HQ's address as `HQ_URL`. Two new permissions,
+  `website.view` and `website.edit`, for admins only. Migration 0034.
+
 ## [0.13.0] - 2026-11-23
 
 - Fixed: "Open HQ in your app", while turning on two-factor sign-in on a

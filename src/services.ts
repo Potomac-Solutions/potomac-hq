@@ -11,6 +11,9 @@ import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, 
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { RenewalsDeps } from "./renewals/index.ts";
+import type { WebsiteDeps } from "./website/index.ts";
+import { sqliteSiteSettings } from "./website/index.ts";
+import { siteTokens } from "./website/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
@@ -56,6 +59,8 @@ export type Services = {
   readonly booking: BookingDeps;
   readonly invoiceReminders: RemindersDeps;
   readonly renewals: RenewalsDeps;
+  /** The public website's mode, message and banner. */
+  readonly website: WebsiteDeps;
   readonly monitor: MonitorDeps;
   readonly touches: TouchDeps;
   readonly todos: TodosDeps;
@@ -84,6 +89,8 @@ export type ServiceOptions = {
   /** How addresses people type are read. Tests give their own. */
   readonly outsideFetch?: OutsideFetch;
   readonly clock?: Clock;
+  /** The public website's address, for its preview link. */
+  readonly siteUrl?: string;
   readonly today?: () => string;
   /** True when served over https: the portal's cookie is then bound to this host. */
   readonly secure?: boolean;
@@ -176,6 +183,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today, timeZone: BUSINESS_TIME_ZONE };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
+  const website: WebsiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
@@ -207,5 +215,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { website, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
