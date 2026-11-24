@@ -36,7 +36,7 @@ import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
-import type { ProjectsDeps } from "./projects/index.ts";
+import { moveTaskStatus, type ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
 
@@ -182,6 +182,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     newId,
     today,
     todos: sqliteTodoStore(db),
+    moveProjectTask: (actorId, taskId, to) => moveTaskStatus(projects, actorId, taskId, to),
+    labelsFor: (taskIds) => projects.labels.forTasks(taskIds),
     crm: {
       clientName: (id) => crm.clients.get(id)?.name ?? null,
       opportunity: (id) => {
