@@ -19,6 +19,42 @@ moves those lines under a version heading. See `docs/conventions.md`.
   client. Emails match without "+tags", Gmail dots or case, and phones
   on their last ten digits. The portal's own sign-up follows the same rule.
   New `GET`/`POST /api/site/booking`, behind the website's token.
+- Quick add (decision 0007, slice 4). A box in the top bar (or the N key)
+  takes one line, like "Send the proof +better-days @sam !high *website
+  fri", shows what it understood with a way to keep any part in the title,
+  and adds it as a project task or a to-do. Dates, labels (new ones made),
+  people, priority and a project or client are read from the words.
+
+- The work table (decision 0007, slice 3). All work (`/work`, under
+  Delivery) lists every task and to-do you may see, filtered by project,
+  client, person ("me", "nobody"), label, status, priority, when it's due
+  and words in the title, and sorted by any column either way. Each person
+  chooses their columns. A filter can be saved, shared with everyone and
+  pinned to your sidebar, and the table downloads as CSV.
+
+- One inbox (decision 0007, slice 2). A to-do is now a task without a
+  project: migration 0041 moves every to-do into the task table, keeping its
+  id. To-dos become My work (`/todos`, in the sidebar under Today): your
+  to-dos and project tasks together by when they're due, with each one's
+  project and labels. Ticking off a project task there stops its timer, as
+  the board does. Every to-do has its own page, where it takes labels, and
+  can only be to do or done.
+
+- Labels on tasks (decision 0007, slice 1). Twelve colours, each readable
+  in light and dark. Put them on from a task's page, making a new one on the
+  way; they show on the task list and the boards. A Labels page lists them
+  with how many tasks have each, and admins and managers rename, recolour
+  and delete them there (`label.manage`).
+- Decision 0007, task management after Vikunja: labels, one inbox for
+  tasks and to-dos, filters and a table, quick add, subtasks and blocking,
+  comments and attachments, repeats, reminders, a timeline, a calendar
+  feed, sharing a project by link, webhooks, and import from Trello and
+  Todoist, in thirteen slices.
+
+## [0.14.0] - 2026-11-24
+
+- Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
+  18.7.2 to 18.8.0. (Its TypeScript 7 bump was undone; see below.)
 
 - Our website. A new admin-only page, Company → Our website, controls
   potomac.solutions itself: open it, put up a "coming soon" or

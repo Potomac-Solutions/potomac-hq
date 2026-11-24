@@ -235,7 +235,7 @@ soonest, with undated ones after every dated one.
 | Field | Type | Rule |
 | --- | --- | --- |
 | `id` | id | |
-| `project_id` | id | Required |
+| `project_id` | id | Required, except for a to-do (decision 0007): see "To-dos" in `data-model-after-1.0.md` |
 | `phase_id` | id | Optional. Must be a phase of the same project |
 | `title` | text | Required |
 | `description` | text | Optional |
@@ -248,6 +248,58 @@ soonest, with undated ones after every dated one.
 
 Tasks have no dependencies on each other, as the roadmap says. A finished
 task stays on the board for two weeks.
+
+### Label
+
+Added by decision 0007, section 2.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `name` | text | Required, at most 40 characters. Inner runs of spaces become one |
+| `name_key` | text | The name in lower case. Unique: "Website" and "website" are one label |
+| `colour` | `slate`, `red`, `orange`, `amber`, `green`, `teal`, `sky`, `blue`, `indigo`, `violet`, `pink`, `brown` | Picked from the name when none is chosen |
+
+`task_label` joins a task to each of its labels. Deleting a label takes it
+off every task. Events: `label.added`, `label.edited` (with the old name),
+`label.removed` (with how many tasks had it), and `task.labelled` (the names
+put on and taken off).
+
+### Saved filter and work view
+
+Added by decision 0007, section 3. The work table (`/work`) reads every task
+of an active project and every to-do; a filter is the page's address, made
+only of fields (projects or "none" for to-dos, clients, people or "me" and
+"nobody", labels, statuses, priorities, due windows, a due range, words in
+the title, and open, finished or both). Within a field any choice matches;
+across fields every field must. Weeks run Monday to Sunday.
+
+`saved_filter`:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `owner_id` | User id | Who saved it. Only they pin, share or delete it |
+| `name` | text | Required, at most 60 characters |
+| `query` | text | The filter's address, read and written again so only filter fields are kept. Never empty |
+| `shared` | yes or no | Everyone sees it on the work page. Starts no |
+| `pinned` | yes or no | On its owner's sidebar. Starts no |
+
+`work_view` keeps each person's chosen columns (`user_id`, `columns`). No
+row means the default: project, who, status, priority, due and labels.
+Events: `filter.saved`, `filter.changed`, `filter.removed`,
+`work.columns-chosen`.
+
+### Quick add
+
+Added by decision 0007, section 4. No table of its own: a line typed at
+`/add` (or in the top bar's box, or after pressing N) becomes a row in
+`task`, with `created_by` set to whoever added it. `+handle` names an open
+project, which makes a project task, or else a client, which makes a to-do
+with `organization_id` set. A to-do with no `@person` is the adder's; a
+project task with none is no one's, as on the project page. New `*labels`
+are made on the way. Events are the usual ones (`task.added` or
+`todo.added`, with `quick: true`, then `label.added` and `task.labelled`).
 
 ### Note
 

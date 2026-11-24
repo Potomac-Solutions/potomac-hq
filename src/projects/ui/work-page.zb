@@ -1,0 +1,203 @@
+<!--
+  All work (decision 0007, section 3): every task you may see, from any
+  project or none, filtered by fields in the address, sorted by any column,
+  with the columns you choose. Filters can be saved, shared and pinned to the
+  sidebar, and the table downloads as CSV. Works with JavaScript off: the
+  filter is a plain GET form and every sort is a link.
+-->
+<script>
+  'use route /work'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import './label-chips.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.work((name) => url.searchParams.getAll(name))
+    if (!view.ok) return context.forbidden()
+    const sort = url.searchParams.get('sort') || ''
+    const dir = url.searchParams.get('dir') || ''
+    return { title: view.value.savedName || 'All work', view: view.value, sort, dir, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .work-saved { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .work-saved a { display: inline-block; padding: 0.3rem 0.75rem; border: 1px solid var(--border); border-radius: 999px; color: var(--foreground); background: var(--card); font-size: 0.875rem; font-weight: 600; text-decoration: none; }
+  .work-saved a[aria-current=page] { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+  .work-filter summary { cursor: pointer; font-weight: 700; font-size: 1.05rem; }
+  .work-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: 1rem 1.5rem; margin: 1rem 0; }
+  .work-fields fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 0.3rem; align-content: start; }
+  .work-fields legend { padding: 0; margin-bottom: 0.3rem; font-weight: 600; font-size: 0.9rem; }
+  .work-fields .work-scroll { max-height: 11rem; overflow-y: auto; display: grid; gap: 0.3rem; padding-right: 0.25rem; }
+  .work-fields label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+  .work-fields input[type=checkbox], .work-fields input[type=radio] { width: 1rem; height: 1rem; accent-color: var(--primary); }
+  .work-bar { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; margin: 0 0 0.75rem; }
+  .work-table th a { color: inherit; text-decoration: none; white-space: nowrap; }
+  .work-table th a:hover, .work-table th a:focus-visible { text-decoration: underline; }
+  .work-table th[aria-sort=ascending] a::after { content: " ↑"; }
+  .work-table th[aria-sort=descending] a::after { content: " ↓"; }
+  .work-small-form { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; }
+</style>
+<hq-work view={{ form: { projects: [], clients: [], people: [], labels: [], statuses: [], priorities: [], due: [], shows: [], dueFrom: '', dueTo: '', words: '' }, filtering: false, query: '', headers: [], show: {}, columns: [], rows: [], csvHref: '', saved: [], savedName: '' }} sort="" dir="" done="" problem="">
+  <div class="hq-page">
+    <h1>{view.savedName || 'All work'}</h1>
+    <p class="hq-muted">Every task and to-do, from any project. Filter, sort by any column, and save the views you use.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <nav zb-if={view.saved.length > 0} aria-label="Saved filters">
+      <ul class="work-saved">
+        <li><a href="/work" aria-current={view.filtering ? null : 'page'}>All work</a></li>
+        <zb-each items={view.saved} as="one" key={one.id}>
+          <li><a href={one.href} aria-current={one.current ? 'page' : null}>{one.name}</a></li>
+        </zb-each>
+      </ul>
+    </nav>
+
+    <details class="hq-panel work-filter" open={view.filtering}>
+      <summary>Filter</summary>
+      <form method="get" action="/work">
+        <input zb-if={sort} type="hidden" name="sort" value={sort}>
+        <input zb-if={dir} type="hidden" name="dir" value={dir}>
+        <div class="work-fields">
+          <fieldset>
+            <legend>Show</legend>
+            <zb-each items={view.form.shows} as="one" key={one.value}><label><input type="radio" name="show" value={one.value} checked={one.on}> {one.label}</label></zb-each>
+          </fieldset>
+          <fieldset>
+            <legend>Who</legend>
+            <div class="work-scroll"><zb-each items={view.form.people} as="one" key={one.value}><label><input type="checkbox" name="who" value={one.value} checked={one.on}> {one.label}</label></zb-each></div>
+          </fieldset>
+          <fieldset>
+            <legend>Due</legend>
+            <zb-each items={view.form.due} as="one" key={one.value}><label><input type="checkbox" name="due" value={one.value} checked={one.on}> {one.label}</label></zb-each>
+          </fieldset>
+          <fieldset>
+            <legend>Status</legend>
+            <zb-each items={view.form.statuses} as="one" key={one.value}><label><input type="checkbox" name="status" value={one.value} checked={one.on}> {one.label}</label></zb-each>
+          </fieldset>
+          <fieldset>
+            <legend>Priority</legend>
+            <zb-each items={view.form.priorities} as="one" key={one.value}><label><input type="checkbox" name="priority" value={one.value} checked={one.on}> {one.label}</label></zb-each>
+          </fieldset>
+          <fieldset zb-if={view.form.labels.length > 0}>
+            <legend>Labels</legend>
+            <div class="work-scroll"><zb-each items={view.form.labels} as="one" key={one.value}><label><input type="checkbox" name="label" value={one.value} checked={one.on}> <label-chips labels={[{ id: one.value, name: one.label, colour: one.colour }]}></label-chips></label></zb-each></div>
+          </fieldset>
+          <fieldset>
+            <legend>Project</legend>
+            <div class="work-scroll"><zb-each items={view.form.projects} as="one" key={one.value}><label><input type="checkbox" name="project" value={one.value} checked={one.on}> {one.label}</label></zb-each></div>
+          </fieldset>
+          <fieldset zb-if={view.form.clients.length > 0}>
+            <legend>Client</legend>
+            <div class="work-scroll"><zb-each items={view.form.clients} as="one" key={one.value}><label><input type="checkbox" name="client" value={one.value} checked={one.on}> {one.label}</label></zb-each></div>
+          </fieldset>
+          <div class="hq-field">
+            <label for="work-from">Due from</label>
+            <input id="work-from" name="from" type="date" value={view.form.dueFrom}>
+          </div>
+          <div class="hq-field">
+            <label for="work-to">Due by</label>
+            <input id="work-to" name="to" type="date" value={view.form.dueTo}>
+          </div>
+          <div class="hq-field">
+            <label for="work-words">Words in the title</label>
+            <input id="work-words" name="q" type="search" maxlength="100" value={view.form.words}>
+          </div>
+        </div>
+        <div class="hq-actions"><button class="hq-button" type="submit">Apply filter</button> <a zb-if={view.filtering} href="/work">Clear it</a></div>
+      </form>
+      <form zb-if={view.filtering} method="post" action="/work/filters" class="hq-form-row" data-spaced>
+        <input type="hidden" name="query" value={view.query}>
+        <div class="hq-field">
+          <label for="filter-name">Save this filter as</label>
+          <input id="filter-name" name="name" maxlength="60" required placeholder="Like: Waiting on clients">
+        </div>
+        <label class="work-small-form"><input type="checkbox" name="pinned" value="1"> Pin to my sidebar</label>
+        <label class="work-small-form"><input type="checkbox" name="shared" value="1"> Share with everyone</label>
+        <button class="hq-button secondary" type="submit">Save filter</button>
+      </form>
+    </details>
+
+    <section class="hq-panel" aria-labelledby="work-results">
+      <div class="work-bar">
+        <h2 id="work-results">{view.rows.length === 1 ? '1 task' : view.rows.length + ' tasks'}</h2>
+        <a href={view.csvHref}>Download as CSV</a>
+      </div>
+      <empty-state zb-if={view.rows.length === 0} heading="Nothing matches">{view.filtering ? 'Try fewer choices, or clear the filter.' : 'No open tasks or to-dos. Add one from a project or My work.'}</empty-state>
+      <div zb-if={view.rows.length > 0} class="hq-scroll">
+        <table tabindex="0" class="hq-table work-table">
+          <thead>
+            <tr>
+              <zb-each items={view.headers} as="header" key={header.key}><th scope="col" aria-sort={header.sorted}><a href={header.href}>{header.label}</a></th></zb-each>
+            </tr>
+          </thead>
+          <tbody>
+            <zb-each items={view.rows} as="row" key={row.id}>
+              <tr>
+                <td><a href={row.href}>{row.title}</a></td>
+                <td zb-if={view.show.project}><a zb-if={row.projectId} href="/projects/{row.projectId}">{row.projectName}</a><span zb-if={!row.projectId} class="hq-muted">To-do</span></td>
+                <td zb-if={view.show.client}>{row.clientName}</td>
+                <td zb-if={view.show.who}>{row.who || 'Nobody yet'}</td>
+                <td zb-if={view.show.status}>{row.statusLabel}</td>
+                <td zb-if={view.show.priority}><status-badge zb-if={row.pressing}>{row.priorityLabel}</status-badge><span zb-if={!row.pressing}>{row.priorityLabel}</span></td>
+                <td zb-if={view.show.due}><time zb-if={row.dueOn} datetime={row.dueOn}>{row.dueText}</time> <status-badge zb-if={row.overdue} variant="danger">Overdue</status-badge></td>
+                <td zb-if={view.show.labels}><label-chips labels={row.labels}></label-chips></td>
+                <td zb-if={view.show.estimate} class="hq-number">{row.estimate ? row.estimate + ' h' : ''}</td>
+              </tr>
+            </zb-each>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="work-options">
+      <h2 id="work-options">Columns and saved filters</h2>
+      <form method="post" action="/work/columns" class="hq-form-row">
+        <input type="hidden" name="query" value={view.query}>
+        <fieldset class="hq-checks">
+          <legend>Columns to show</legend>
+          <zb-each items={view.columns} as="column" key={column.value}><label><input type="checkbox" name="column-{column.value}" value="1" checked={column.on}> {column.label}</label></zb-each>
+        </fieldset>
+        <button class="hq-button secondary" type="submit">Save columns</button>
+      </form>
+      <table zb-if={view.saved.length > 0} tabindex="0" class="hq-table" data-spaced>
+        <caption class="hq-caption">Saved filters</caption>
+        <thead><tr><th scope="col">Name</th><th scope="col">Whose</th><th scope="col">Sidebar</th><th scope="col">Shared</th><th scope="col"><span class="sr-only">Delete</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.saved} as="one" key={one.id}>
+            <tr>
+              <td><a href={one.href}>{one.name}</a></td>
+              <td>{one.mine ? 'Mine' : one.owner}</td>
+              <td>
+                <form zb-if={one.mine} method="post" action="/work/filters/{one.id}" class="work-small-form">
+                  <input type="hidden" name="query" value={view.query}>
+                  <input type="hidden" name="pinned" value={one.pinned ? '0' : '1'}>
+                  <button class="hq-button secondary" type="submit" aria-label="{one.pinned ? 'Unpin' : 'Pin'} {one.name}">{one.pinned ? 'Unpin' : 'Pin'}</button>
+                </form>
+                <span zb-if={!one.mine} class="hq-muted">Not yours</span>
+              </td>
+              <td>
+                <form zb-if={one.mine} method="post" action="/work/filters/{one.id}" class="work-small-form">
+                  <input type="hidden" name="query" value={view.query}>
+                  <input type="hidden" name="shared" value={one.shared ? '0' : '1'}>
+                  <button class="hq-button secondary" type="submit" aria-label="{one.shared ? 'Stop sharing' : 'Share'} {one.name}">{one.shared ? 'Stop sharing' : 'Share'}</button>
+                </form>
+                <span zb-if={!one.mine}>Shared</span>
+              </td>
+              <td>
+                <form zb-if={one.mine} method="post" action="/work/filters/{one.id}/remove" class="work-small-form">
+                  <input type="hidden" name="query" value={view.query}>
+                  <button class="hq-button secondary" type="submit" aria-label="Delete {one.name}">Delete</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-work>

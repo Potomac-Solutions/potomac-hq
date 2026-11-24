@@ -1,6 +1,8 @@
 import type { ProjectLink } from "../domain/link.ts";
 import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
+import type { Label } from "../domain/label.ts";
+import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
 import type { Task } from "../domain/task.ts";
@@ -37,10 +39,15 @@ export type MilestoneStore = {
 
 export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null };
 
+/** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
+export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null };
+
 export type TaskStore = {
-  insert(task: Task, at: string): void;
+  insert(task: Task, at: string, origin?: TaskOrigin): void;
   update(task: Task, at: string): void;
   get(id: Id): Task | null;
+  /** One task with its project's and assignee's names. A to-do's project name is empty. */
+  row(id: Id): TaskRow | null;
   listFor(projectId: Id): TaskRow[];
   /** Tasks of active projects: every open one, and those finished at or after `doneSince`. */
   listBoard(doneSince: string): TaskRow[];
@@ -76,4 +83,49 @@ export type BaselineStore = {
   /** Sets a project's baseline, replacing any it had. */
   set(baseline: Baseline, at: string): void;
   get(projectId: Id): Baseline | null;
+};
+
+export type LabelRow = Label & { /** How many tasks have it. */ readonly tasks: number };
+
+export type LabelStore = {
+  insert(label: Label, at: string): void;
+  update(label: Label, at: string): void;
+  /** Deletes a label and takes it off every task. */
+  remove(id: Id): void;
+  get(id: Id): Label | null;
+  /** The label with this name, whatever its capitals and spaces. */
+  byName(name: string): Label | null;
+  /** Every label, with how many tasks have it, by name. */
+  list(): LabelRow[];
+  /** One task's labels, by name. */
+  forTask(taskId: Id): Label[];
+  /** Several tasks' labels at once, by task id. A task with none is missing from the map. */
+  forTasks(taskIds: readonly Id[]): Map<Id, Label[]>;
+  /** Replaces a task's labels with these. */
+  setForTask(taskId: Id, labelIds: readonly Id[]): void;
+};
+
+/** One task as the work table shows it: every task of an active project, and every to-do. */
+export type WorkRow = Task & {
+  readonly projectName: string;
+  /** The project's client, or the to-do's. */
+  readonly organizationId: Id | null;
+  readonly clientName: string;
+  readonly assigneeName: string;
+};
+
+/** The work table's reads, and the saved filters and column choices behind it (decision 0007, section 3). */
+export type WorkStore = {
+  rows(): WorkRow[];
+  /** Clients that aren't former ones, by name, for quick add's "+client". */
+  clients(): { readonly id: Id; readonly name: string }[];
+  insertFilter(filter: SavedFilter, at: string): void;
+  updateFilter(filter: SavedFilter, at: string): void;
+  removeFilter(id: Id): void;
+  getFilter(id: Id): SavedFilter | null;
+  /** Someone's own filters and everyone's shared ones, by name. */
+  filtersFor(personId: Id): SavedFilter[];
+  /** Someone's chosen columns, comma separated, or "" for the default. */
+  columns(personId: Id): string;
+  setColumns(personId: Id, columns: string, at: string): void;
 };

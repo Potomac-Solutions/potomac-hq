@@ -5,6 +5,7 @@ import { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, options, PRIORIT
 import { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone } from "../domain/plan.ts";
 import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
+import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
@@ -243,13 +244,27 @@ export type TaskCard = {
   readonly dueText: string;
   readonly overdue: boolean;
   readonly estimate: string;
+  /** By name. */
+  readonly labels: readonly LabelChip[];
 };
 
-function card(task: TaskRow, today: string): TaskCard {
+/** A label as the screens draw it: its name, in its colour. */
+export type LabelChip = { readonly id: string; readonly name: string; readonly colour: string };
+
+const chip = (label: Label): LabelChip => ({ id: label.id, name: label.name, colour: label.colour });
+
+/** Cards for many tasks, with their labels read in one go. */
+function cards(deps: ProjectsDeps, tasks: readonly TaskRow[], today: string): TaskCard[] {
+  const labels = deps.labels.forTasks(tasks.map((task) => task.id));
+  return tasks.map((task) => card(task, today, labels.get(task.id) ?? []));
+}
+
+function card(task: TaskRow, today: string, labels: readonly Label[] = []): TaskCard {
   return {
+    labels: labels.map(chip),
     id: task.id,
     title: task.title,
-    projectId: task.projectId,
+    projectId: task.projectId ?? "",
     projectName: task.projectName,
     assigneeName: task.assigneeName ?? "",
     status: task.status,
@@ -266,12 +281,13 @@ function card(task: TaskRow, today: string): TaskCard {
 
 export type TaskFormOptions = { readonly people: readonly Option[]; readonly phases: readonly Option[]; readonly priorities: readonly Option[]; readonly statuses: readonly Option[] };
 
-function formOptions(deps: ProjectsDeps, projectId: Id): TaskFormOptions {
+function formOptions(deps: ProjectsDeps, projectId: Id | null): TaskFormOptions {
   return {
     people: people(deps),
-    phases: deps.phases.listFor(projectId).map((phase) => ({ value: phase.id, label: phase.name })),
+    phases: (projectId === null ? [] : deps.phases.listFor(projectId)).map((phase) => ({ value: phase.id, label: phase.name })),
     priorities: options(PRIORITY_LABELS),
-    statuses: options(TASK_STATUS_LABELS),
+    // A to-do is only to do or done.
+    statuses: options(TASK_STATUS_LABELS).filter((one) => projectId !== null || one.value === "todo" || one.value === "done"),
   };
 }
 
@@ -295,7 +311,7 @@ export function projectTasks(deps: ProjectsDeps, actorId: Id | null, projectId: 
   const canEdit = may(deps, actorId, "task.edit");
   return ok({
     project: { id: project.id, name: project.name, active: project.status === "active" },
-    tasks: [...open, ...done].map((task) => card(task, today)),
+    tasks: cards(deps, [...open, ...done], today),
     canEdit,
     canAdd: canEdit && project.status === "active",
     form: formOptions(deps, projectId),
@@ -306,17 +322,44 @@ export type TaskDetailView = {
   readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string };
   readonly canEdit: boolean;
   readonly form: TaskFormOptions;
+  /** Every label, each marked if the task has it, for the picker. */
+  readonly labelChoices: readonly (LabelChip & { readonly on: boolean })[];
+  readonly colours: readonly Option[];
 };
 
 export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): Result<TaskDetailView, Refused> {
   if (!may(deps, actorId, "task.view")) return err("forbidden");
-  const found = deps.tasks.get(taskId);
-  const task = found ? deps.tasks.listFor(found.projectId).find((row) => row.id === taskId) : undefined;
+  const task = deps.tasks.row(taskId);
   if (!task) return err("not-found");
+  const onTask = new Set<string>(deps.labels.forTask(taskId).map((label) => label.id));
   return ok({
-    task: { ...card(task, deps.today()), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId)), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
     canEdit: may(deps, actorId, "task.edit"),
     form: formOptions(deps, task.projectId),
+    labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),
+    colours: colourOptions(),
+  });
+}
+
+const colourOptions = (): Option[] => LABEL_COLOURS.map((colour) => ({ value: colour, label: LABEL_COLOUR_NAMES[colour] }));
+
+export type LabelsView = {
+  readonly labels: readonly (LabelChip & { readonly colourName: string; readonly tasks: number })[];
+  readonly colours: readonly Option[];
+  /** May make a label. */
+  readonly canAdd: boolean;
+  /** May rename, recolour and delete. */
+  readonly canManage: boolean;
+};
+
+/** Every label, with how many tasks have it. */
+export function labelsPage(deps: ProjectsDeps, actorId: Id | null): Result<LabelsView, "forbidden"> {
+  if (!may(deps, actorId, "task.view")) return err("forbidden");
+  return ok({
+    labels: deps.labels.list().map((label) => ({ ...chip(label), colourName: LABEL_COLOUR_NAMES[label.colour], tasks: label.tasks })),
+    colours: colourOptions(),
+    canAdd: may(deps, actorId, "task.edit"),
+    canManage: may(deps, actorId, "label.manage"),
   });
 }
 
@@ -356,10 +399,11 @@ export function board(deps: ProjectsDeps, actorId: Id | null, filter: { readonly
     columns: TASK_STATUSES.map((status) => ({
       status,
       label: TASK_STATUS_LABELS[status] ?? status,
-      cards: rows
-        .filter((task) => task.status === status)
-        .sort(byUrgency)
-        .map((task) => card(task, today)),
+      cards: cards(
+        deps,
+        rows.filter((task) => task.status === status).sort(byUrgency),
+        today,
+      ),
     })),
     total: rows.length,
     canMove: may(deps, actorId, "task.edit"),
@@ -397,7 +441,7 @@ export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days =
   const tasks = may(deps, actorId, "task.view")
     ? deps.tasks
         .listBoard("9999")
-        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId))
+        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId ?? ""))
         .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "", overdue: isTaskOverdue(task, today) }))
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
@@ -424,7 +468,7 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
     .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "" }));
   const lateTasks = deps.tasks
     .listBoard("9999")
-    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId))
+    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId ?? ""))
     .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "" }));
   return ok({
     statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),

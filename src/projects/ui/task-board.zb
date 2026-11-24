@@ -5,6 +5,7 @@
 -->
 <script>
   import '../../shared/ui/zubra/status-badge.zb'
+  import './label-chips.zb'
   let over = ''
   let dragged = ''
 
@@ -52,6 +53,7 @@
           <zb-each items={column.cards} as="card" key={card.id}>
             <li class="board-card" draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id)}>
               <p><a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
+              <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={!board.project} class="board-meta">{card.projectName}</p>
               <p class="board-meta">{card.assigneeName || "Nobody yet"}<span zb-if={card.estimate}> · {card.estimate} h</span></p>
               <p zb-if={card.pressing || card.dueOn}>

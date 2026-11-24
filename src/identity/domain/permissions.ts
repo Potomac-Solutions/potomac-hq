@@ -70,6 +70,8 @@ export const PERMISSIONS = [
   // Potomac's own website
   "public-site.view",
   "public-site.edit",
+  // Task management (decision 0007)
+  "label.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -109,6 +111,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "booking.manage",
   "referral.manage",
   "site.publish",
+  "label.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {
