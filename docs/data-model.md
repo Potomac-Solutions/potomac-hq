@@ -325,18 +325,25 @@ the same transaction, by the activity log they're given; no one is told
 about their own actions, and a repeat's next task isn't news. A notice has
 `read_at`, set when it's opened or all are marked read, and `emailed_at`.
 
-`task_reminder` is one person's own reminder on a task: either at a time
-(`at`, fired once), or `days_before` its due date (0 to 30) at a
-`time_of_day` in the business time zone, which fires again for a new due
-date. Nothing fires for a task that's done. A job fires them every minute.
+`task_reminder` is a reminder on a task: either at a time (`at`, fired
+once), or `days_before` its due date (0 to 30) at a `time_of_day` in the
+business time zone, which fires again for a new due date. `for_whom` is `me`
+(its setter, and only they see it) or `assignee` (whoever has the task when
+it fires, or its setter if no one does; everyone who sees the task sees it,
+and anyone with `task.edit` may remove it). With `carry`, finishing a
+repeating task copies it to the next one: one before the due date as it is,
+one at a time moved as many days as the due date moved (in the business
+time zone). Nothing fires for a task that's done. A job fires them every
+minute.
 
 `notice_setting` holds whether a person has their notices emailed (off until
-they turn it on). When email is set up, a job emails each of them their new,
+they turn it on; turning it on covers what comes from then, not what's
+already there). When email is set up, a job emails each of them their new,
 unread notices every minute, one email per person, each notice once.
 
 Events: `reminder.added`, `reminder.removed`, `reminder.fired`,
 `user.notice-email-on`, `user.notice-email-off`. `task.edited` now also
-records `assigneeWas`.
+records `assigneeWas`, and `task.repeated` records `previousDueOn`.
 
 ### Repeating tasks
 

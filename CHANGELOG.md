@@ -11,8 +11,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 - Notices and reminders (decision 0007, slice 8). A bell in the header counts
   what's new for you: tasks and to-dos given to you, comments that
-  @mention you, and reminders you set on a task, at a time or so many days
-  before it's due. They're listed on the Notices page and at the top of
+  @mention you, and reminders on a task, at a time or so many days before
+  it's due, for you or for whoever has the task, and kept on each repeat if
+  you like. They're listed on the Notices page and at the top of
   Today. Anyone can have theirs emailed once email is set up.
 
 - Repeating tasks (decision 0007, slice 7). A task or to-do can repeat every

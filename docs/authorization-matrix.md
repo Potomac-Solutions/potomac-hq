@@ -254,8 +254,10 @@ Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
 Notices are each person's own: anyone with `task.view` has them, and no one
-sees or opens anyone else's. A reminder is also its setter's own, on any task
-they can see.
+sees or opens anyone else's. A reminder can be set on any task you can see, for
+you alone or for whoever has the task. Yours only you see and remove; one
+for whoever has it, everyone who sees the task sees, and anyone with
+`task.edit` may remove.
 
 Making a task repeat, or stopping it, needs `task.edit`. The next one is
 made by whoever finishes the task, under the permission that let them.
