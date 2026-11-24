@@ -26,7 +26,7 @@ import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
-import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
@@ -270,6 +270,8 @@ export type PageContext = {
     /** A client's, or null when this person may not see them. */
     forClient(id: string): ClientRenewalsView | null;
     comingUp(): ReturnType<typeof renewalsComingUp>;
+    /** The signed-in client's renewals that Potomac bills them for. Empty when signed out. */
+    mine(): ReturnType<typeof portalRenewals>;
   };
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
@@ -622,6 +624,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           comingUp: () => renewalsComingUp(services.renewals, actor),
+          mine: () => (client ? portalRenewals(services.renewals, client.organizationId) : []),
         },
         booking: {
           calls: () => callsView(services.booking, actor),

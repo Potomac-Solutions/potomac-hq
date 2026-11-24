@@ -270,6 +270,18 @@
             <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <status-badge zb-if={one.state === 'overdue'} variant="danger">Overdue</status-badge></p>
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
+            <form zb-if={one.canBill && renewals.projects.length > 0} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
+              <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
+              <div class="hq-field">
+                <label for="bill-project-{one.id}">Invoice it on</label>
+                <select id="bill-project-{one.id}" name="projectId" required>
+                  <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
+                </select>
+              </div>
+              <button class="hq-button" type="submit">Bill the client {one.price}<span class="sr-only"> for {one.name}</span></button>
+            </form>
+            <p zb-if={one.canBill && renewals.projects.length === 0} class="hq-small hq-muted">To bill this, the client needs a project for the invoice to go on. An ongoing one for their plan works.</p>
             <div zb-if={renewals.canEdit} class="hq-form-row">
               <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>

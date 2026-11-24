@@ -7,10 +7,10 @@ import type { CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyDepositDraft, applyTaskMove, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
-import type { RenewalsDeps } from "./renewals/index.ts";
+import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -24,7 +24,7 @@ import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
 import { linkedBusyCalendar, manageTokens, noBusyCalendar, outsideFetch, sqliteBookingLinkStore, sqliteBookingStore, sqliteCalendarLinkStore, sqliteScheduleInviteStore } from "./booking/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRateLimit, sqliteRefusedLog, sqliteTwoFactorStore, sqlitePasskeyStore, passkeyCrypto, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
-import type { RefusedDeps, SessionDeps, TwoFactorDeps } from "./identity/index.ts";
+import { authorize, type RefusedDeps, type SessionDeps, type TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
@@ -36,7 +36,7 @@ import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
 import type { ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
-import type { Clock } from "./shared/index.ts";
+import type { Clock, Id } from "./shared/index.ts";
 
 /** "Due today" and the times people read are worked out here (docs/data-model.md). */
 export const BUSINESS_TIME_ZONE = "America/New_York";
@@ -188,7 +188,26 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), qr: symbologyQr, opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   const websites: WebsitesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, sites: sqliteContentSiteStore(db), photos: sqlitePhotoStore(db), counties: countyAtlas(), clientName: (id) => crm.clients.get(id)?.name ?? null, publisher: options.sitePublisher ?? null, timeZone: BUSINESS_TIME_ZONE, digest: (text) => sha256Hex(new TextEncoder().encode(text)), random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
-  const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
+  // Renewals bill a client through finance: an invoice with one line on one of their projects, sent.
+  const billedOf = (id: Id): BilledInvoice | null => {
+    const row = finance.invoices.get(id);
+    return row ? { id: row.id, label: invoiceLabel(row.number), status: row.status, owedMinor: row.total.minor - row.paidMinor } : null;
+  };
+  const renewalBilling: RenewalBilling = {
+    projectsFor: (organizationId) => projectStore.listFor(organizationId).map((project) => ({ id: project.id, name: project.name })),
+    send(actorId, organizationId, projectId, line) {
+      if (projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const made = createInvoice(finance, actorId, projectId, { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn });
+      if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      const sent = sendInvoiceNow(finance, actorId, made.value.id);
+      if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
+      const row = billedOf(sent.value.id);
+      return row ? { ok: true, value: row } : { ok: false, error: "not-found" };
+    },
+    invoice: billedOf,
+    mayBill: (actorId) => authorize({ users }, actorId, "invoice.edit").ok,
+  };
+  const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
   const booking: BookingDeps = {

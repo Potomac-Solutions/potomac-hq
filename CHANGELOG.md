@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Billing a client for a renewal. On a client's page under Renewals, "Bill
+  the client" makes and sends an invoice for a renewal's coming term, due a
+  week before it renews, so there's time to renew it or let it lapse. Each
+  renewal says whether it is billed, paid, or wasn't paid in time. The
+  client sees it in their portal under "Coming up for renewal", with the day
+  to pay by, two months ahead and while it is owed. Paying by card in the
+  portal waits on the card gateway being chosen
+  (`docs/decisions/0006-renewal-billing.md`). Migration 0038.
+
 - Service areas. A business that goes out to customers can show where it
   goes on its website, and change it in the portal under "Where you go":
   pick whole counties on a map (or tick them in a list), or draw an area

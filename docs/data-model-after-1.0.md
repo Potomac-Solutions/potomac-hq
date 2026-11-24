@@ -315,6 +315,16 @@ and whether it is still kept. Seen with `client.view`, changed with
 `client.edit`. "Renewed" moves the date on one term from when it was due.
 Events: `renewal.added`, `renewal.renewed`, `renewal.retired`.
 
+Billing a renewal (decided 2026-11-23, `docs/decisions/0006-renewal-billing.md`,
+migration 0038): `renewal.invoice_id` is the invoice last sent for it and
+`renewal.billed_for` the renewal date that invoice was for, so a term is
+billed once and "renewed" leaves the next one unbilled. The invoice is due a
+week before it renews. Billing needs `client.edit` and `invoice.edit`, and
+makes the invoice through finance (`RenewalBilling` port). Event:
+`renewal.billed`, with the invoice, the date it renews, the due date and the
+amount. The client's portal lists renewals billed to them two months ahead,
+and while owed; never what they cost Potomac.
+
 ## Invoice reminders
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
