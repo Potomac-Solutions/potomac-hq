@@ -245,6 +245,18 @@ puts back what HQ had.
   **Refused attempts** page lists wrong passwords, wrong two-factor codes
   and forms someone tried without permission, for the last 30 days.
 
+## Our own website (potomac.solutions)
+
+Company → Our website (admins only). Pick **Coming soon** or **Down for maintenance**
+and visitors to potomac.solutions see one plain page with your heading and
+message, while search engines are told to come back later. Switch to **Open to
+everyone** to put the site back. It follows within a minute.
+
+To see the real site while it is closed, open the private preview link on that
+page once; that browser sees the site for 12 hours. Make a new link any time
+and the old one stops working. An announcement, if you write one, shows across
+the top of every page while the site is open.
+
 ## Habits that keep HQ worth using
 
 1. If a client said it, it goes in a note the same day.

@@ -369,3 +369,27 @@ together.
 | You are locked out | In Railway's shell: `npm run reset-link -- you@example.com` prints a one-time link |
 | No backup last night | The log at 3:17 AM Eastern, and the audit history filtered to `backup.` |
 | A deploy did nothing | The Deploy job in GitHub Actions. "Skipped" means a secret or the service name is missing |
+
+## Our own website (potomac.solutions)
+
+Company → Our website controls potomac.solutions: whether it is open, the
+"coming soon" or "maintenance" page, an announcement across the top, and a
+private preview link. Admins only (`public-site.view`, `public-site.edit`).
+
+To connect the website (once):
+
+1. On HQ's server, run `npm run site:token`. It prints a token once and keeps
+   only its hash. Run it again any time to replace the token; the old one stops
+   working.
+2. On the website's Railway service, set `HQ_URL` to HQ's address and
+   `HQ_SITE_TOKEN` to that token. Before it is connected, or if HQ cannot be
+   reached the first time, the website uses its `SITE_MODE` variable.
+3. HQ's `HQ_FORM_ORIGINS` should list the website's address
+   (`https://potomac.solutions`). The first one is used to build the preview
+   link.
+
+The website asks `GET /api/site/settings` with `Authorization: Bearer <token>`
+about every 30 seconds and keeps the last answer if HQ is down, so an HQ outage
+never opens or closes the site by itself. The address is limited to 120 requests
+a minute per caller and answers 401, with no reason, to anything without the
+right token.
