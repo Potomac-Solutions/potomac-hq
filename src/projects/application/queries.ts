@@ -8,6 +8,7 @@ import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/
 import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
 import { mayBlock, mayHaveSubtasks, progressText, type Progress } from "../domain/dependencies.ts";
 import { commentPieces, type CommentPiece } from "../domain/comment.ts";
+import { REPEAT_UNITS, repeatText } from "../domain/repeat.ts";
 import { handleOf } from "../domain/quick-add.ts";
 import { mentionNames } from "./comments.ts";
 import { formatSize } from "../../files/index.ts";
@@ -254,6 +255,8 @@ export type TaskCard = {
   readonly subtasks: string;
   /** How many unfinished tasks it waits on. */
   readonly waiting: number;
+  /** "Every week, from the due date", or empty. */
+  readonly repeats: string;
 };
 
 /** A label as the screens draw it: its name, in its colour. */
@@ -267,11 +270,13 @@ function cards(deps: ProjectsDeps, tasks: readonly TaskRow[], today: string): Ta
   const labels = deps.labels.forTasks(ids);
   const progress = deps.taskLinks.progress(ids);
   const waiting = deps.taskLinks.openBlockers(ids);
-  return tasks.map((task) => card(task, today, labels.get(task.id) ?? [], { progress: progress.get(task.id), waiting: waiting.get(task.id) ?? 0 }));
+  const repeats = deps.repeats.forTasks(ids);
+  return tasks.map((task) => card(task, today, labels.get(task.id) ?? [], { progress: progress.get(task.id), waiting: waiting.get(task.id) ?? 0, repeats: repeatText(repeats.get(task.id) ?? null) }));
 }
 
-function card(task: TaskRow, today: string, labels: readonly Label[] = [], links: { readonly progress?: Progress | undefined; readonly waiting?: number } = {}): TaskCard {
+function card(task: TaskRow, today: string, labels: readonly Label[] = [], links: { readonly progress?: Progress | undefined; readonly waiting?: number; readonly repeats?: string } = {}): TaskCard {
   return {
+    repeats: links.repeats ?? "",
     subtasks: progressText(links.progress),
     waiting: links.waiting ?? 0,
     labels: labels.map(chip),
@@ -355,6 +360,14 @@ export type TaskDetailView = {
   readonly files: readonly { readonly id: string; readonly name: string; readonly size: string; readonly href: string; readonly who: string; readonly when: string }[];
   /** May attach a file: `task.edit` and `file.upload`. */
   readonly canAttach: boolean;
+  /** How it repeats, for the form. Null when it doesn't. */
+  readonly repeat: { readonly every: number; readonly unit: string; readonly from: string } | null;
+  /** May repeat: not a subtask. */
+  readonly canRepeat: boolean;
+  readonly repeatUnits: readonly Option[];
+  /** The task whose finishing made this one, and the one this one's finishing made. */
+  readonly previous: TaskLink | null;
+  readonly next: TaskLink | null;
 };
 
 export type TaskComment = {
@@ -381,6 +394,11 @@ function taskComments(deps: ProjectsDeps, viewerId: Id, taskId: Id): TaskComment
     pieces: commentPieces(comment.body, known),
     mine: comment.authorId === viewerId,
   }));
+}
+
+function linkTo(deps: ProjectsDeps, id: Id | null): TaskLink | null {
+  const row = id ? deps.tasks.row(id) : null;
+  return row ? taskLink(row) : null;
 }
 
 /** Another task, as a link: "Swap the photos · Better Days website · Done". */
@@ -420,7 +438,12 @@ export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): 
     comments: taskComments(deps, actorId as Id, taskId),
     files: deps.files.listForOwner("task", taskId).map((file) => ({ id: file.id, name: file.name, size: formatSize(file.sizeBytes), href: `/files/${file.id}`, who: (file.uploadedBy ? deps.users.get(file.uploadedBy)?.name : null) ?? (file.clientUserName ? `${file.clientUserName}, at the client` : ""), when: deps.formatWhen(file.createdAt) })),
     canAttach: canEdit && may(deps, actorId, "file.upload"),
-    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0 }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
+    repeat: deps.repeats.get(taskId),
+    canRepeat: parentId === null,
+    repeatUnits: REPEAT_UNITS.map((unit) => ({ value: unit, label: `${unit[0]?.toUpperCase()}${unit.slice(1)}s` })),
+    previous: linkTo(deps, deps.repeats.previousOf(taskId)),
+    next: linkTo(deps, deps.repeats.nextOf(taskId)),
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0, repeats: repeatText(deps.repeats.get(taskId)) }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
     canEdit,
     form: formOptions(deps, task.projectId),
     labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),

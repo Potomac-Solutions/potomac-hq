@@ -10,9 +10,11 @@ import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput 
 import { editLabel, labelChanges, newLabel, type Label, type LabelError, type LabelInput } from "../domain/label.ts";
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, friendlyDay, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import { mayHaveSubtasks } from "../domain/dependencies.ts";
+import { nextDue, shiftBy } from "../domain/repeat.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, RepeatStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -23,6 +25,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly work: WorkStore;
   readonly taskLinks: TaskLinkStore;
   readonly comments: CommentStore;
+  readonly repeats: RepeatStore;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
   readonly baselines: BaselineStore;
@@ -229,7 +232,7 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
 }
 
 /** Moves a task. Being blocked by another task never stops it; `waitingOn` names the unfinished ones, so the screen can warn. */
-export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: Id, to: string): Result<Task & { readonly waitingOn: readonly string[] }, Refused | "invalid-status" | "unchanged"> {
+export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: Id, to: string): Result<Task & { readonly waitingOn: readonly string[]; /** The next one, when finishing a repeating task made it. */ readonly next: Task | null; /** Its due date in words. */ readonly nextDue: string }, Refused | "invalid-status" | "unchanged"> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);
@@ -241,7 +244,8 @@ export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: I
     recordActivity(deps, { actorId, action: "task.moved", recordType: "task", recordId: taskId, context: { projectId: task.projectId, from: task.status, to: moved.value.status } });
     deps.onTaskMoved?.(actorId, moved.value, task.status);
     const waitingOn = deps.taskLinks.waitingOn(taskId).filter((row) => row.status !== "done").map((row) => row.title);
-    return ok({ ...moved.value, waitingOn });
+    const next = moved.value.status === "done" ? repeatAfterDone(deps, actorId, taskId) : null;
+    return ok({ ...moved.value, waitingOn, next, nextDue: next?.dueOn ? friendlyDay(next.dueOn, deps.today()) : "" });
   });
 }
 
@@ -400,4 +404,35 @@ export function setTaskLabels(deps: ProjectsDeps, actorId: Id | null, taskId: Id
     });
     return ok(task);
   });
+}
+
+/**
+ * After a task is finished: if it repeats, makes the next one and returns it.
+ * No permission check and no transaction of its own: call it inside the
+ * transaction of the use case that finished the task, after its own check.
+ */
+export function repeatAfterDone(deps: ProjectsDeps, actorId: Id, taskId: Id): Task | null {
+  const task = deps.tasks.get(taskId);
+  const repeat = deps.repeats.get(taskId);
+  if (!task || !repeat || task.status !== "done") return null;
+  if (deps.repeats.nextOf(taskId) !== null) return null;
+  if (task.projectId !== null && deps.projects.get(task.projectId)?.status !== "active") return null;
+  const at = deps.clock();
+  const dueOn = nextDue(repeat, task.dueOn, deps.today());
+  const place = task.projectId === null ? deps.repeats.todoPlace(taskId) : { organizationId: null, opportunityId: null };
+  const next: Task = { ...task, id: deps.newId(), dueOn, status: "todo", doneAt: null };
+  deps.tasks.insert(next, at, { ...place, createdBy: actorId });
+  deps.repeats.set(next.id, repeat, at);
+  deps.repeats.setPrevious(next.id, taskId);
+  const labels = (id: Id) => deps.labels.forTask(id).map((label) => label.id);
+  if (labels(taskId).length > 0) deps.labels.setForTask(next.id, labels(taskId));
+  if (mayHaveSubtasks({ projectId: task.projectId, parentId: null }).ok) {
+    for (const sub of deps.taskLinks.subtasks(taskId)) {
+      const copy: Task = { id: deps.newId(), projectId: sub.projectId, phaseId: sub.phaseId, title: sub.title, description: sub.description, assigneeId: sub.assigneeId, priority: sub.priority, dueOn: shiftBy(task.dueOn, dueOn, sub.dueOn), estimateMinutes: sub.estimateMinutes, status: "todo", doneAt: null };
+      deps.tasks.insert(copy, at, { parentId: next.id, createdBy: actorId });
+      if (labels(sub.id).length > 0) deps.labels.setForTask(copy.id, labels(sub.id));
+    }
+  }
+  recordActivity(deps, { actorId, action: "task.repeated", recordType: "task", recordId: next.id, context: { projectId: task.projectId, title: task.title, previousId: taskId, dueOn } });
+  return next;
 }

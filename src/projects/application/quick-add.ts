@@ -12,6 +12,7 @@
 import { PRIORITY_LABELS } from "../domain/labels.ts";
 import { handleOf, matchHandle, parseQuickAdd, QUICK_ADD_MAX, type QuickPart } from "../domain/quick-add.ts";
 import { newTask, type TaskError } from "../domain/task.ts";
+import { repeatText, type Repeat } from "../domain/repeat.ts";
 import { authorize } from "../../identity/index.ts";
 import { dueText, err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { makeLabel, type ProjectsDeps, type Refused } from "./commands.ts";
@@ -59,6 +60,7 @@ type Understood = {
   readonly dueOn: string | null;
   readonly labelIds: readonly Id[];
   readonly newLabels: readonly string[];
+  readonly repeat: Repeat | null;
 };
 
 const allowed = (deps: ProjectsDeps, actorId: Id | null): actorId is Id => actorId !== null && authorize(deps, actorId, "task.edit").ok;
@@ -77,6 +79,7 @@ function understand(deps: ProjectsDeps, actorId: Id, input: QuickAddInput): Unde
   let assigneeId: Id | null = null;
   let priority: string | null = null;
   let dueOn: string | null = null;
+  let repeat: Repeat | null = null;
   const labelIds: Id[] = [];
   const newLabels: string[] = [];
   const parts = read.parts.map((part) => {
@@ -84,6 +87,9 @@ function understand(deps: ProjectsDeps, actorId: Id, input: QuickAddInput): Unde
       case "due":
         dueOn = part.on;
         return { ...part, says: `Due ${dueText(part.on, today)}`, problem: "" };
+      case "repeat":
+        repeat = part.repeat;
+        return { ...part, says: `Repeats ${repeatText(part.repeat).replace(/^Every/, "every")}`, problem: "" };
       case "priority":
         priority = part.priority;
         return { ...part, says: `${PRIORITY_LABELS[part.priority]} priority`, problem: "" };
@@ -125,7 +131,7 @@ function understand(deps: ProjectsDeps, actorId: Id, input: QuickAddInput): Unde
     }
   });
   if (projectId === null) assigneeId ??= actorId;
-  return { title: read.title, parts, projectId, organizationId, assigneeId, priority, dueOn, labelIds, newLabels };
+  return { title: read.title, parts, projectId, organizationId, assigneeId, priority, dueOn, labelIds, newLabels, repeat };
 }
 
 const address = (text: string, skip: readonly number[]) => {
@@ -183,6 +189,7 @@ export function quickAdd(deps: ProjectsDeps, actorId: Id | null, input: QuickAdd
         context: { assigneeId: task.assigneeId, ...(task.dueOn ? { dueOn: task.dueOn } : {}), ...(seen.organizationId ? { clientId: seen.organizationId } : {}), quick: true },
       });
     }
+    if (seen.repeat) deps.repeats.set(task.id, seen.repeat, deps.clock());
     const labelIds = [...seen.labelIds];
     for (const name of seen.newLabels) {
       const label = makeLabel(deps, actorId, { name, colour: null });

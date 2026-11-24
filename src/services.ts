@@ -35,8 +35,8 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore } from "./projects/adapters.ts";
-import { moveTaskStatus, type ProjectsDeps } from "./projects/index.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore } from "./projects/adapters.ts";
+import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
 
@@ -140,6 +140,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     work: sqliteWorkStore(db),
     taskLinks: sqliteTaskLinkStore(db),
     comments: sqliteCommentStore(db),
+    repeats: sqliteRepeatStore(db),
     deliverables: sqliteDeliverableStore(db),
     links: sqliteProjectLinkStore(db),
     baselines: sqliteBaselineStore(db),
@@ -187,6 +188,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     today,
     todos: sqliteTodoStore(db),
     moveProjectTask: (actorId, taskId, to) => moveTaskStatus(projects, actorId, taskId, to),
+    afterTodoDone: (actorId, todoId) => void repeatAfterDone(projects, actorId, todoId),
     labelsFor: (taskIds) => projects.labels.forTasks(taskIds),
     crm: {
       clientName: (id) => crm.clients.get(id)?.name ?? null,

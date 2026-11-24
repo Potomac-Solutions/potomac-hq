@@ -6,6 +6,7 @@ import * as work from "../application/work.ts";
 import * as quick from "../application/quick-add.ts";
 import * as links from "../application/dependencies.ts";
 import * as talk from "../application/comments.ts";
+import * as repeating from "../application/repeating.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -98,7 +99,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id, f) => back(id, f),
     back,
     // Blocked tasks may be worked on; this says what they are still waiting on.
-    message: (task) => (task.status === "doing" && task.waitingOn.length > 0 ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.` : "Task moved."),
+    message: (task) =>
+      task.status === "doing" && task.waitingOn.length > 0
+        ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.`
+        : task.next
+          ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
+          : "Task moved.",
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
@@ -126,6 +132,17 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => `/tasks/${id}#files`,
     back: (id) => `/tasks/${id}#files`,
     message: (removed) => `Removed “${removed.name}”.`,
+  });
+  // Repeating, from the task page.
+  post("/tasks/:id/repeat", (actor, f, id) => repeating.setTaskRepeat(deps.projects, actor, id as Id, { every: f["every"] ?? null, unit: f["unit"] ?? null, from: f["from"] ?? null }), {
+    done: (_, id) => `/tasks/${id}#repeat`,
+    back: (id) => `/tasks/${id}#repeat`,
+    message: "It repeats now.",
+  });
+  post("/tasks/:id/repeat/stop", (actor, _f, id) => repeating.setTaskRepeat(deps.projects, actor, id as Id, null), {
+    done: (_, id) => `/tasks/${id}#repeat`,
+    back: (id) => `/tasks/${id}#repeat`,
+    message: "It no longer repeats.",
   });
   // Subtasks and blocking, from the task page.
   post("/tasks/:id/subtasks", (actor, f, id) => links.addSubtask(deps.projects, actor, id as Id, { title: f["title"] ?? "", assigneeId: optionalId(f["assigneeId"]), dueOn: f["dueOn"] ?? null }), {

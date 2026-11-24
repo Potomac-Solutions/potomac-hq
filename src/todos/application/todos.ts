@@ -18,6 +18,8 @@ export type TodosDeps = ActivityDeps & {
   readonly today: () => string;
   /** Moves a project task to done or back to to-do, with the projects module's own checks, event and timer. */
   readonly moveProjectTask: (actorId: Id, taskId: Id, to: "done" | "todo") => Result<unknown, string>;
+  /** Told when a to-do is ticked off, inside that transaction: a repeating one makes the next. */
+  readonly afterTodoDone?: (actorId: Id, todoId: Id) => void;
   /** Several tasks' labels at once. */
   readonly labelsFor: (taskIds: readonly Id[]) => ReadonlyMap<Id, readonly TodoLabel[]>;
 };
@@ -61,6 +63,7 @@ function setDone(deps: TodosDeps, actorId: Id | null, id: Id, done: boolean): Re
     const next = { ...found, doneAt: done ? deps.clock() : null };
     deps.todos.update(next, deps.clock());
     recordActivity(deps, { actorId, action: done ? "todo.done" : "todo.reopened", recordType: "todo", recordId: id, context: { assigneeId: found.assigneeId } });
+    if (done) deps.afterTodoDone?.(actorId, id);
     return ok(next);
   });
 }
