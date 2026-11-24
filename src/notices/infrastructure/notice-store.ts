@@ -30,6 +30,7 @@ export function sqliteNoticeStore(db: Database): NoticeStore {
   const markAll = db.prepare("update notice set read_at = ? where user_id = ? and read_at is null");
   const toEmail = db.prepare(`select ${cols} ${from} join notice_setting s on s.user_id = n.user_id and s.email = 1 where n.emailed_at is null and n.read_at is null order by n.created_at, n.rowid`);
   const markEmailed = db.prepare("update notice set emailed_at = ? where id in (select value from json_each(?))");
+  const markAllEmailed = db.prepare("update notice set emailed_at = ? where user_id = ? and emailed_at is null");
   const row = (r: Row): NoticeRow => ({ ...toNotice(r), taskTitle: text(r, "task_title"), actorName: text(r, "actor_name"), dueOn: maybe(r, "due_on") });
   return {
     insert: (n) => void insert.run(n.id, n.userId, n.kind, n.taskId, n.actorId, n.detail.slice(0, 200), n.createdAt, n.readAt),
@@ -44,6 +45,7 @@ export function sqliteNoticeStore(db: Database): NoticeStore {
     markAllRead: (userId, at) => Number(markAll.run(at, userId).changes),
     toEmail: () => (toEmail.all() as Row[]).map(row),
     markEmailed: (ids, at) => void markEmailed.run(at, JSON.stringify(ids)),
+    markAllEmailed: (userId, at) => void markAllEmailed.run(at, userId),
   };
 }
 
@@ -54,20 +56,24 @@ const toReminder = (r: Row): Reminder => ({
   at: maybe(r, "at"),
   daysBefore: r["days_before"] === null || r["days_before"] === undefined ? null : Number(r["days_before"]),
   time: maybe(r, "time_of_day"),
+  forWhom: text(r, "for_whom") === "assignee" ? "assignee" : "me",
+  carry: r["carry"] === 1,
   sentAt: maybe(r, "sent_at"),
   sentForDue: maybe(r, "sent_for_due"),
 });
 
 export function sqliteTaskReminderStore(db: Database): ReminderStore {
-  const cols = "id, task_id, user_id, at, days_before, time_of_day, sent_at, sent_for_due";
-  const insert = db.prepare(`insert into task_reminder (${cols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const cols = "id, task_id, user_id, at, days_before, time_of_day, for_whom, carry, sent_at, sent_for_due";
+  const insert = db.prepare(`insert into task_reminder (${cols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const get = db.prepare(`select ${cols} from task_reminder where id = ?`);
   const remove = db.prepare("delete from task_reminder where id = ?");
-  const forTask = db.prepare(`select ${cols} from task_reminder where task_id = ? and user_id = ? order by created_at, rowid`);
-  const pending = db.prepare(`select r.id, r.task_id, r.user_id, r.at, r.days_before, r.time_of_day, r.sent_at, r.sent_for_due from task_reminder r join task t on t.id = r.task_id where t.status <> 'done' and ((r.at is not null and r.sent_at is null) or r.days_before is not null)`);
+  const forTask = db.prepare(`select ${cols} from task_reminder where task_id = ? and (user_id = ? or for_whom = 'assignee') order by created_at, rowid`);
+  const carried = db.prepare(`select ${cols} from task_reminder where task_id = ? and carry = 1 order by created_at, rowid`);
+  const pending = db.prepare(`select r.id, r.task_id, r.user_id, r.at, r.days_before, r.time_of_day, r.for_whom, r.carry, r.sent_at, r.sent_for_due from task_reminder r join task t on t.id = r.task_id where t.status <> 'done' and ((r.at is not null and r.sent_at is null) or r.days_before is not null)`);
   const markSent = db.prepare("update task_reminder set sent_at = ?, sent_for_due = ? where id = ?");
   return {
-    insert: (r, at) => void insert.run(r.id, r.taskId, r.userId, r.at, r.daysBefore, r.time, r.sentAt, r.sentForDue, at),
+    insert: (r, at) => void insert.run(r.id, r.taskId, r.userId, r.at, r.daysBefore, r.time, r.forWhom, r.carry ? 1 : 0, r.sentAt, r.sentForDue, at),
+    carried: (taskId) => (carried.all(taskId) as Row[]).map(toReminder),
     get(id) {
       const found = get.get(id) as Row | undefined;
       return found ? toReminder(found) : null;

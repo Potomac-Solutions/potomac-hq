@@ -124,7 +124,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const projectStore = sqliteProjectStore(db);
   // Tasks, to-dos and comments are recorded through this log, so each event makes its notices (decision 0007, section 8).
   const noticeStore = sqliteNoticeStore(db);
-  const noticingLog = withNotices(sqliteActivityLog(db), { notices: noticeStore, newId, clock });
+  const reminderStore = sqliteTaskReminderStore(db);
+  const noticingLog = withNotices(sqliteActivityLog(db), { notices: noticeStore, reminders: reminderStore, newId, clock, zone: BUSINESS_TIME_ZONE });
   const crm: CrmDeps = {
     ...session,
     clients: sqliteClientStore(db),
@@ -271,11 +272,11 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     clock,
     newId,
     notices: noticeStore,
-    reminders: sqliteTaskReminderStore(db),
+    reminders: reminderStore,
     settings: sqliteNoticeSettings(db),
     task: (taskId) => {
       const task = projects.tasks.get(taskId);
-      return task ? { title: task.title, dueOn: task.dueOn, done: task.status === "done" } : null;
+      return task ? { title: task.title, dueOn: task.dueOn, done: task.status === "done", assigneeId: task.assigneeId } : null;
     },
     zone: BUSINESS_TIME_ZONE,
     emailReady: options.emailReady ?? false,

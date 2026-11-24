@@ -29,7 +29,11 @@ export function noticeRoutes(deps: Deps): Hono {
   post(
     "/tasks/:id/reminders",
     (actor, f, id) =>
-      addReminder(deps.notices, actor, id as Id, f["kind"] === "at" ? { kind: "at", when: f["when"] ?? "" } : { kind: "before", daysBefore: f["daysBefore"] ?? "", time: f["time"] ?? "" }),
+      addReminder(deps.notices, actor, id as Id, {
+        ...(f["kind"] === "at" ? { kind: "at" as const, when: f["when"] ?? "" } : { kind: "before" as const, daysBefore: f["daysBefore"] ?? "", time: f["time"] ?? "" }),
+        forWhom: f["forWhom"] ?? "me",
+        carry: f["carry"] === "1",
+      }),
     { done: (_, id) => task(id), back: (id) => task(id), message: "Reminder set." },
   );
   post("/reminders/:id/remove", (actor, _f, id) => removeReminder(deps.notices, actor, id as Id), {

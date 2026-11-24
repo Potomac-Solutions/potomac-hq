@@ -16,8 +16,10 @@ create table notice (
 create index notice_by_user on notice (user_id, created_at);
 create index notice_unread on notice (user_id) where read_at is null;
 
--- A reminder is the person's own. One at a time fires once; one a number of
--- days before the due date fires again when the due date moves.
+-- A reminder is for whoever set it ('me') or whoever has the task when it
+-- fires ('assignee'). One at a time fires once; one a number of days before
+-- the due date fires again when the due date moves. `carry` copies it to the
+-- next task when a repeating task is finished.
 create table task_reminder (
   id            text primary key,
   task_id       text not null references task (id),
@@ -25,6 +27,8 @@ create table task_reminder (
   at            text,
   days_before   integer check (days_before is null or days_before between 0 and 30),
   time_of_day   text check (time_of_day is null or time_of_day glob '[0-2][0-9]:[0-5][0-9]'),
+  for_whom      text not null default 'me' check (for_whom in ('me', 'assignee')),
+  carry         integer not null default 0 check (carry in (0, 1)),
   sent_at       text,
   sent_for_due  text,
   created_at    text not null,

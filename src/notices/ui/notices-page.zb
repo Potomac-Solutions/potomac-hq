@@ -50,7 +50,7 @@
     <section id="email" class="hq-panel" aria-labelledby="notices-email">
       <h2 id="notices-email">By email</h2>
       <p zb-if={!view.emailReady} class="hq-muted">Email isn't set up for HQ yet, so notices stay here. You can still turn this on, and they'll be emailed once it is.</p>
-      <p>{view.email ? 'Your new notices are emailed to you, a minute or so after they come.' : 'Your notices stay in HQ.'}</p>
+      <p>{view.email ? 'New notices are emailed to you, a minute or so after they come.' : 'Your notices stay in HQ.'}</p>
       <form method="post" action="/notices/email">
         <input type="hidden" name="on" value={view.email ? '0' : '1'}>
         <button class="hq-button secondary" type="submit">{view.email ? 'Stop emailing them' : 'Email them to me'}</button>
