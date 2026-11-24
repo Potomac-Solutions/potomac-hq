@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-24
+
 - Import tasks from Trello and Todoist (decision 0007, slice 13). From a
   project's task list, upload a Trello board's JSON export or a Todoist
   project's CSV export, see what it would make, then import it all at once:
