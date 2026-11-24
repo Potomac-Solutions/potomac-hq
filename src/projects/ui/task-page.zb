@@ -59,7 +59,7 @@
     <section zb-if={view.canEdit} id="labels" class="hq-panel" aria-labelledby="task-labels">
       <h2 id="task-labels">Labels</h2>
       <form method="post" action="/tasks/{t.id}/labels" class="hq-form">
-        <fieldset zb-if={view.labelChoices.length > 0} class="hq-choice hq-checks">
+        <fieldset zb-if={view.labelChoices.length > 0} class="hq-checks">
           <legend>Tick the ones this task has</legend>
           <zb-each items={view.labelChoices} as="choice" key={choice.id}>
             <label><input type="checkbox" name="label-{choice.id}" value="1" checked={choice.on}> <label-chips labels={[choice]}></label-chips></label>
