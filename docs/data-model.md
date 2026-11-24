@@ -313,6 +313,31 @@ says what it still waits on. This is separate from the "Blocked" status,
 which is still set by hand. Events: `task.added` (with `parentId`),
 `task.blocked`, `task.unblocked`.
 
+### Notices and reminders
+
+Added by decision 0007, section 8 (migration 0046), in the `notices` module.
+
+`notice` is something new for one person: `assigned` (a task or to-do given
+to them by someone else, when added or reassigned), `mentioned` (an
+`@mention` in a comment, new or edited in) or `reminder`. Assignments and
+mentions are made from the events the projects and todos modules record, in
+the same transaction, by the activity log they're given; no one is told
+about their own actions, and a repeat's next task isn't news. A notice has
+`read_at`, set when it's opened or all are marked read, and `emailed_at`.
+
+`task_reminder` is one person's own reminder on a task: either at a time
+(`at`, fired once), or `days_before` its due date (0 to 30) at a
+`time_of_day` in the business time zone, which fires again for a new due
+date. Nothing fires for a task that's done. A job fires them every minute.
+
+`notice_setting` holds whether a person has their notices emailed (off until
+they turn it on). When email is set up, a job emails each of them their new,
+unread notices every minute, one email per person, each notice once.
+
+Events: `reminder.added`, `reminder.removed`, `reminder.fired`,
+`user.notice-email-on`, `user.notice-email-off`. `task.edited` now also
+records `assigneeWas`.
+
 ### Repeating tasks
 
 Added by decision 0007, section 7 (migration 0045). Four columns on `task`:

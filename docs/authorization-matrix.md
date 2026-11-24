@@ -253,6 +253,10 @@ pin, share or delete it, and no role key overrides that.
 Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
+Notices are each person's own: anyone with `task.view` has them, and no one
+sees or opens anyone else's. A reminder is also its setter's own, on any task
+they can see.
+
 Making a task repeat, or stopping it, needs `task.edit`. The next one is
 made by whoever finishes the task, under the permission that let them.
 
