@@ -170,6 +170,139 @@ its certificate's expiry and the expiry already warned about.
 - Seen with `client.view`, changed with `client.edit`. Events:
   `site.watched`, `site.unwatched`, `site.down`, `site.up` (by HQ).
 
+## Site content
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0003-site-content.md` for the choices and what needs his
+approval.
+
+`content_site`: a client (one site each), a name, the repository, branch,
+content file and photo folder, what is on the site (`published`, as JSON),
+when and at which commit HQ last published, the content with the waiting
+changes made (`draft`), its state (none, editing, submitted), who sent it
+in and when, and Potomac's note when sending it back.
+`content_photo`: a photo's bytes, its path in the repository, and whether
+it is in the repository yet.
+
+- A client's change makes or updates the draft and sets it to "editing".
+  Sending it in sets "submitted". A further change by the client takes it
+  back to "editing"; Potomac's own change leaves it as it is. A change that
+  puts things back as they are on the site clears the draft.
+- Publishing makes one commit through the `SitePublisher` port, then, in
+  one transaction, makes the draft the published content, marks new photos
+  as in the repository and deletes the bytes of removed ones. A change made
+  while the commit was on its way stays waiting.
+- One publish at a time for a site.
+- A photo uploaded and then not used (removed again, or the changes
+  discarded) is deleted.
+- Setting up, changing, sending back and publishing need `site.publish`.
+  The list is seen with `client.view`. A client user changes their own
+  organization's site only.
+- Events, all on record type `content-site`: `site-content.set-up`,
+  `site-content.read-again`, `site-content.photo-added`,
+  `site-content.photo-changed`, `site-content.photo-removed`,
+  `site-content.photos-reordered`, `site-content.notice-changed`,
+  `site-content.review-added`, `site-content.review-removed`,
+  `site-content.changes-discarded`, `site-content.submitted`,
+  `site-content.sent-back`, `site-content.published`. A client's carry
+  `clientUserId`.
+- Notices: `site-content.submitted` is emailed to admins and shows on the
+  dashboard under what clients did. `site-content.published` and
+  `site-content.sent-back` are emailed to the client when client notices
+  are on.
+
+## Site status
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0004-site-launch.md`.
+
+On `content_site`: `launch_mode` (live, coming-soon, maintenance),
+`opens_at` (the instant it opens by itself, or null), `launch_message`,
+`site_url` (the site's own address) and `preview_key` (32 hex characters,
+made the first time a site is closed).
+
+- Changing the status is one commit of the content file as it is on the
+  site, with a new `launch` block. A draft waiting to be checked is not in
+  it. The record is saved after the commit succeeds.
+- An opening time is a day and a time in the business time zone, stored as
+  an instant. One already gone is refused.
+- A site whose opening time has come is open, and HQ says so. Nothing is
+  committed at that moment: the site switches by itself.
+- The file holds the SHA-256 of the preview key, never the key. A new key
+  is a commit while the site is closed.
+- A client user sets the status of their own organization's site, and it
+  takes effect at once. Potomac's people need `site.publish`, which also
+  sets the site's address.
+- Events: `site-content.status-changed` (with the mode and opening time),
+  `site-content.preview-link-renewed`, `site-content.address-changed`. A
+  client's status change is emailed to admins and shows on the dashboard.
+
+## Service area
+
+Decided 2026-11-23 at Mikey's request. See
+`docs/decisions/0005-service-area.md`.
+
+On `content_site`: `service_area` (migration 0037), the areas as JSON, as
+last written to the site, or null for a site whose file has no service
+area.
+
+- Saving is one commit of the content file as it is on the site, with a new
+  `serviceArea` block, like the status. A draft waiting to be checked is not
+  in it. The record is saved after the commit succeeds. Changing the status,
+  and publishing, write the service area back as it is.
+- A county's outline comes from HQ's county file, never from the request.
+- A client user sets their own organization's site's service area, and it
+  takes effect at once. Potomac's people need `site.publish`.
+- Event: `site-content.service-area-changed` (with the number of areas and
+  of counties, and the commit). A client's change is emailed to admins and
+  shows on the dashboard.
+- A content file without a `gallery` is allowed when it holds a
+  `serviceArea` or a `launch` block: the site has no photos, notice or
+  reviews, and changes to them are refused (`no-gallery`).
+
+## Referral links
+
+Decided 2026-11-23 at Mikey's request ("a referral code for business cards
+that scan a QR code, to a special link that tracks the success rate").
+Needs his approval of the choices below.
+
+`referral_link`: a code (the end of `/r/<code>`), a label saying what it is
+printed on, and where a scan goes. `referral_scan`: one row a scan, holding
+the link and the time. `referral_inquiry`: an opportunity credited to a
+link, once.
+
+- `/r/<code>` answers anyone. It counts the visit, then redirects to the
+  destination with `?ref=<code>` added. The answer is never cached, so
+  every scan reaches HQ.
+- **A scan keeps a time and nothing else**: no address, no device, no
+  cookie. So the count is of scans, not of people: someone who scans twice
+  counts twice.
+- Link previews, crawlers and HEAD requests are sent on and not counted.
+  They are told apart by their User-Agent, which is a guess: a program that
+  claims to be a phone is counted.
+- The inquiry form takes a `ref` field. When it names a link, the new
+  opportunity is credited to it. HQ's own `/contact` fills the field in
+  from its address; a form on another site must do the same
+  (`docs/operations.md`, "The inquiry form"). A `ref` that names no link is
+  ignored. **Only inquiries are credited**: a call booked at `/book`, or a
+  phone call, is not.
+- The success rate is inquiries over scans.
+- **QR codes are drawn by symbology** (`@journey-to-code/symbology`, pinned
+  to an exact version), behind a `QrMaker` port with one adapter. Its Rust
+  encoder ships as WebAssembly inside the package, so nothing is fetched.
+  Two-factor setup still draws its code with HQ's own
+  `src/shared/domain/qr.ts`; both are byte mode, level M, up to 213 bytes.
+- A destination is an https address or one of HQ's own pages. A link's
+  code never changes, because it is printed; its label and destination
+  can. A link that has been scanned cannot be removed.
+- **The printed code depends on HQ's address.** It holds
+  `HQ_PUBLIC_URL/r/<code>`. If HQ moves to another address, the old one
+  must keep redirecting, or the printed codes stop working.
+- Made, changed and seen with `referral.manage` (admins and managers).
+  Events: `referral-link.created`, `referral-link.edited`,
+  `referral-link.removed`, `referral-link.inquiry` (by HQ). A scan writes no
+  event: its row is the record.
+
 ## Renewals
 
 Decided 2026-11-22 while Mikey was away. Needs his approval.
@@ -181,6 +314,16 @@ bills (each optional), whether the provider renews it by itself, a note,
 and whether it is still kept. Seen with `client.view`, changed with
 `client.edit`. "Renewed" moves the date on one term from when it was due.
 Events: `renewal.added`, `renewal.renewed`, `renewal.retired`.
+
+Billing a renewal (decided 2026-11-23, `docs/decisions/0006-renewal-billing.md`,
+migration 0038): `renewal.invoice_id` is the invoice last sent for it and
+`renewal.billed_for` the renewal date that invoice was for, so a term is
+billed once and "renewed" leaves the next one unbilled. The invoice is due a
+week before it renews. Billing needs `client.edit` and `invoice.edit`, and
+makes the invoice through finance (`RenewalBilling` port). Event:
+`renewal.billed`, with the invoice, the date it renews, the due date and the
+amount. The client's portal lists renewals billed to them two months ahead,
+and while owed; never what they cost Potomac.
 
 ## Invoice reminders
 

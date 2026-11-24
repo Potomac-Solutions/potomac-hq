@@ -101,6 +101,42 @@ they gave one. They can also send files on a project: photos, a menu, a
 price list. Those show on the project under "Files from the client". Open
 one only if you were expecting it.
 
+### Their website
+
+A client can change their own site's gallery photos, a notice line and
+their reviews, if you set it up. On the client's page, under Website
+editing, say where the site's code lives. HQ reads what is on the site.
+
+From then on, anyone with portal access at that client sees "Your website"
+in their portal. What they change waits: nothing reaches the site until
+you publish it.
+
+1. They make changes and press "Send to Potomac Solutions". Admins are
+   emailed, and it shows on the dashboard and under Delivery → Site
+   content.
+2. Open the site there. Read the list of changes. Look at each new photo
+   and at what it says the photo shows: that sentence is read aloud to
+   people who can't see the photo, so fix it if it is thin. You can change
+   anything yourself before publishing.
+3. "Publish to the site" commits the changes to the site's repository.
+   The site rebuilds in a minute or two. Or "Send back to the client" with
+   a note saying what to fix; it shows first in their portal.
+
+**Opening and closing the site.** At the top of the site's page, and of
+the client's "Your website" page, "Is the website open?" chooses what
+visitors see: the website, a "Coming soon" page, or a "Closed for
+maintenance" page. Give a day and a time and it opens by itself then.
+Unlike photos and words, this takes effect as soon as it is saved, by you
+or by the client; you are emailed when they change it. While the site is
+closed, "Preview the website" opens the real site for whoever has that
+link. It needs the site's own address, which you set under "Where it
+lives". The holding page keeps people out of the way, not out: don't put
+anything on a site that must stay secret until launch.
+
+If you change the site's content file in the repository by hand, press
+"Read the site again" on the site's page afterwards, or the next publish
+puts back what HQ had.
+
 ## Knowing what is going on
 
 - **Calls.** Managers and admins set the hours for booked calls under
@@ -121,6 +157,12 @@ one only if you were expecting it.
 - **Sites.** On a client's page, add their website. HQ checks it every five
   minutes, shows it on the dashboard when it's down or its certificate is
   running out, and emails the alert address. Sites lists them all.
+- **Referral links.** Under Sales → Referral links, make a link for each
+  thing you print: a batch of business cards, a flyer, a sign. Say where a
+  scan should go (your website, or `/contact` or `/book` here), then
+  download its QR code and put it in the design. HQ counts each scan and
+  each inquiry that follows, and shows the rate. You can change where a
+  link goes later; the printed code stays the same.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
   ahead. Press "Renewed" when it is done, and its date moves on.
@@ -202,6 +244,18 @@ one only if you were expecting it.
 - **Audit history** (admins): everything anyone did, with filters. Its
   **Refused attempts** page lists wrong passwords, wrong two-factor codes
   and forms someone tried without permission, for the last 30 days.
+
+## Our own website (potomac.solutions)
+
+Company → Our website (admins only). Pick **Coming soon** or **Down for maintenance**
+and visitors to potomac.solutions see one plain page with your heading and
+message, while search engines are told to come back later. Switch to **Open to
+everyone** to put the site back. It follows within a minute.
+
+To see the real site while it is closed, open the private preview link on that
+page once; that browser sees the site for 12 hours. Make a new link any time
+and the old one stops working. An announcement, if you write one, shows across
+the top of every page while the site is open.
 
 ## Habits that keep HQ worth using
 

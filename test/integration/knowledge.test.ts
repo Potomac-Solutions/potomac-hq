@@ -11,6 +11,8 @@ let t: TestApp;
 let admin: Client;
 let member: Client;
 const docs = join(import.meta.dirname, "..", "..", "docs");
+/** How many decisions HQ's own docs hold: each decision record added to docs/decisions/ is one more. */
+const decisions = () => readDocuments(docs).filter((document) => document.kind === "decision").length;
 const problemOf = (res: Response) => new URL(t.origin + (res.headers.get("location") ?? "")).searchParams.get("problem") ?? "";
 
 before(async () => {
@@ -36,7 +38,7 @@ test("HQ's own documents are put in once, and never over an edit", async () => {
   assert.match(page, new RegExp(`<h2 id="kb-results">${documents.length} results</h2>`));
   assert.match(page, /href="\/knowledge\/workflow"/);
   const log = textOf(await member.page("/knowledge?kind=decision"));
-  assert.match(log, /2 results/);
+  assert.match(log, new RegExp(`${decisions()} results`));
   assert.match(log, /Decision .* Decisions · Decided 2026-11-\d\d/);
 
   // A real document renders as headings, tables and lists, with no Markdown marks left in tables.
@@ -52,7 +54,7 @@ test("search finds words in the title, text and tags, and treats % and _ as writ
   assert.match(textOf(await member.page("/knowledge?q=zzzz-nothing")), /0 results Nothing found Try other words/);
   assert.match(textOf(await member.page("/knowledge?q=%25")), /^(?!.*\b1[0-9] results).*$/s, "a % is not a wildcard");
   assert.match(textOf(await member.page("/knowledge?tag=roles")), /Tagged “roles”\. 1 result Authorization matrix/);
-  assert.match(textOf(await member.page("/knowledge?category=Decisions")), /2 results/);
+  assert.match(textOf(await member.page("/knowledge?category=Decisions")), new RegExp(`${decisions()} results`));
 });
 
 test("an article is written, edited with every revision kept, and archived", async () => {
@@ -92,7 +94,7 @@ test("a decision is logged with its day", async () => {
   assert.match(problemOf(await admin.post("/knowledge", { kind: "decision", title: "Use Brevo", category: "Decisions", tags: "", body: "Because.", decidedOn: "2099-01-01" })), /today or earlier/);
   const made = await admin.submit("/knowledge", { kind: "decision", title: "Use Brevo for email", category: "Decisions", tags: "email", body: "It has a free tier and an API.", decidedOn: "2026-11-10" });
   assert.match(textOf(made.html), /Decision · Decisions · Decided 2026-11-10 · Revision 1 · email/);
-  assert.match(textOf(await member.page("/knowledge?kind=decision")), /3 results/);
+  assert.match(textOf(await member.page("/knowledge?kind=decision")), new RegExp(`${decisions() + 1} results`));
   assert.equal(events(t.db).at(-1)?.action, "decision.recorded");
 });
 

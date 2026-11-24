@@ -28,12 +28,14 @@
         { label: 'Clients', href: '/clients', current: at('/clients') },
         ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: at('/proposals') }] : []),
         ...(can.calls ? [{ label: 'Calls', href: '/calls', current: at('/calls') }] : []),
+        ...(can.referrals ? [{ label: 'Referral links', href: '/referrals', current: at('/referrals') }] : []),
       ] },
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
         { label: 'Board', href: '/board', current: at('/board') },
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
+        { label: 'Site content', href: '/websites', current: at('/websites') },
       ] },
       { label: 'Finance', links: [
         ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),
@@ -42,6 +44,7 @@
       ] },
       { label: 'Company', links: [
         { label: 'Knowledge', href: '/knowledge', current: at('/knowledge') },
+        ...(can.publicSite ? [{ label: 'Our website', href: '/our-website', current: at('/our-website') }] : []),
         ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
         ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
       ] },

@@ -13,6 +13,7 @@
 //   HQ_ALERT_EMAIL     where errors are emailed; needs email set up; off when unset
 //   HQ_CLIENT_NOTICES  "on" to email clients when something is waiting in the portal; needs email
 //   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
+//   HQ_GITHUB_TOKEN    reads and publishes client sites' content on GitHub; off when unset
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
@@ -29,6 +30,7 @@ import { sendMorningEmails } from "../src/today/index.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
+import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -92,8 +94,13 @@ const formOrigins = (process.env["HQ_FORM_ORIGINS"] ?? "")
   });
 const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo || "";
 
+// Client sites' content: read from and committed to their repositories on GitHub, if a token is set.
+const github = githubConfigFrom(process.env);
+console.log(github ? "Client sites' content is published to GitHub." : "Site content can't be set up or published: HQ_GITHUB_TOKEN is not set.");
+
 const app = await createApp({
   db,
+  sitePublisher: github ? githubPublisher(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
   ...(busyCalendar ? { busyCalendar } : {}),

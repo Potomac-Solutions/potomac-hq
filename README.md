@@ -49,7 +49,7 @@ test/zubra/                    what HQ relies on Zubra to do
 tools/                         boundary self-test and release scripts
 ```
 
-Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`, `proposals`, `finance`, `portal`, `knowledge`. The import rules are in
+Modules so far: `shared`, `identity`, `dashboard`, `crm`, `projects`, `files`, `notes`, `proposals`, `finance`, `portal`, `knowledge`, `booking`, `renewals`, `monitor`, `todos`, `today`, `referrals`, `websites`. The import rules are in
 `.dependency-cruiser.cjs`, with `tools/boundaries/zb-check.mjs` holding `.zb`
 files to the same rule. CI fails when one is broken.
 

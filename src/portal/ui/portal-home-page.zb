@@ -14,10 +14,13 @@
     if (stop) return stop
     const home = context.portal.home()
     const picks = context.booking.invitesForMe().map((invite) => ({ key: 'i-' + invite.id, text: 'Pick times for a call: ' + invite.title, detail: invite.length + ', ' + invite.days + (invite.answered ? '. You picked times; Potomac Solutions will confirm one.' : '. Mark every time you could do.'), href: '/portal/invites/' + invite.id, action: invite.answered ? 'Change times' : 'Pick times' }))
-    return { title: 'Your portal', view: { ...home, attention: [...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    const website = context.websites.mine()
+    // Changes Potomac sent back come first: the client is the one being waited on.
+    const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
+    return { title: 'Your portal', renewals: context.renewals.mine(), website, view: { ...home, attention: [...fixes, ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -54,6 +57,20 @@
       </ul>
     </section>
 
+    <section zb-if={website} class="hq-panel" id="website" aria-labelledby="portal-website">
+      <h2 id="portal-website">Your website</h2>
+      <ul class="portal-cards">
+        <li>
+          <div>
+            <p><strong>{website.name}</strong></p>
+            <p>{website.status.summary}</p>
+            <p class="hq-muted">{website.state === 'submitted' ? 'Your changes are with Potomac Solutions to check.' : website.state === 'editing' ? 'You have changes you haven’t sent yet.' : website.hasGallery ? 'Change the photos, post a notice, or add a review.' : website.serviceArea ? 'Change where you go, on the map.' : 'Open it, or close it for a while.'}</p>
+          </div>
+          <a class="hq-button portal-big" href="/portal/website">Update your website</a>
+        </li>
+      </ul>
+    </section>
+
     <section zb-if={view.latest.length > 0} class="hq-panel" aria-labelledby="portal-latest">
       <h2 id="portal-latest">Latest from Potomac Solutions</h2>
       <ol class="hq-notes">
@@ -87,6 +104,23 @@
       <ul class="portal-cards">
         <zb-each items={view.proposals} as="proposal" key={proposal.id}>
           <li><div><a class="portal-title" href="/portal/proposals/{proposal.id}">{proposal.title}</a><p class="hq-muted">{proposal.waiting ? "Waiting for your answer" : proposal.statusLabel}</p></div></li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={renewals.length > 0} class="hq-panel" id="renewals" aria-labelledby="portal-renewals">
+      <h2 id="portal-renewals">Coming up for renewal</h2>
+      <p class="hq-muted">What your website depends on that runs out on a date, which we renew for you. We ask for payment a week before, so we know whether to renew it or let it go.</p>
+      <ul class="portal-cards">
+        <zb-each items={renewals} as="one" key={one.id}>
+          <li>
+            <div>
+              <p><strong>{one.name}</strong> · {one.kindLabel}</p>
+              <p>Renews <time datetime={one.renewsOn}>{one.renews}</time>. {one.price}.</p>
+              <p class={one.state === 'late' ? '' : 'hq-muted'}>{one.say}</p>
+            </div>
+            <a zb-if={one.owing} class="hq-button portal-big" href="#invoices">How to pay</a>
+          </li>
         </zb-each>
       </ul>
     </section>

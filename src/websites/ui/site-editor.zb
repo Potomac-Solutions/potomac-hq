@@ -1,0 +1,148 @@
+<!--
+  The photos, notice and reviews of one website, with the forms that change
+  them. Used in the client's portal and on the site's page in HQ: `base` is
+  where the site's own forms post ("/portal/website" or "/websites/<id>")
+  and `photos` is where its photos live ("/portal/website/photos" or
+  "/websites/photos").
+
+  Before a new photo is sent it is shrunk in the browser to 1,600 pixels on
+  its long side and saved as a JPEG: a phone's photo is far too big for a
+  web page, and this also drops where and when it was taken. Without
+  scripts the photo is sent as it is, and HQ refuses one that is too big.
+-->
+<script>
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+
+  const LONG_SIDE = 1600
+
+  async function shrink(event) {
+    const form = event.currentTarget
+    const input = form.querySelector('input[type=file]')
+    const file = input && input.files && input.files[0]
+    // Nothing to shrink, or a browser that can't: send the form as it is.
+    if (!file || form.dataset.ready === 'yes' || !window.createImageBitmap || !window.DataTransfer || !form.reportValidity()) return
+    event.preventDefault()
+    const button = form.querySelector('button[type=submit]')
+    if (button) button.disabled = true
+    try {
+      const picture = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      const scale = Math.min(1, LONG_SIDE / Math.max(picture.width, picture.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(picture.width * scale))
+      canvas.height = Math.max(1, Math.round(picture.height * scale))
+      const pen = canvas.getContext('2d')
+      // White behind a see-through PNG, which a JPEG would otherwise turn black.
+      pen.fillStyle = '#fff'
+      pen.fillRect(0, 0, canvas.width, canvas.height)
+      pen.drawImage(picture, 0, 0, canvas.width, canvas.height)
+      const small = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
+      if (small) {
+        const files = new DataTransfer()
+        files.items.add(new File([small], 'photo.jpg', { type: 'image/jpeg' }))
+        input.files = files.files
+      }
+    } catch {
+      // Not a picture the browser can read. HQ says so when it arrives.
+    }
+    form.dataset.ready = 'yes'
+    if (button) button.disabled = false
+    form.submit()
+  }
+</script>
+<style>
+  :host { display: grid; gap: 1.25rem; }
+  .se-photos { list-style: none; margin: 0; padding: 0; }
+  .se-photos > li { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: 0.75rem 1rem; padding: 1rem 0; border-top: 1px solid var(--border); }
+  .se-photos > li:first-child { border-top: 0; }
+  .se-photos p { margin: 0 0 0.3rem; overflow-wrap: anywhere; }
+  .se-thumb { width: 10rem; height: 7.5rem; object-fit: cover; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--muted); }
+  .se-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .se-actions form { margin: 0; }
+  .se-reviews { list-style: none; margin: 0; padding: 0; }
+  .se-reviews > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .se-reviews > li:first-child { border-top: 0; }
+  .se-reviews form { margin: 0.5rem 0 0; }
+  @media (max-width: 34rem) { .se-photos > li { grid-template-columns: minmax(0, 1fr); } .se-thumb { width: 100%; height: auto; aspect-ratio: 4 / 3; } }
+</style>
+<site-editor view={{ siteId: "", photos: [], reviews: [], changes: [], limits: {}, notice: "", photoRule: "", canAddPhoto: false, canRemovePhoto: false, canAddReview: false }} base="" photos="">
+  <section class="hq-panel" id="photos" aria-labelledby="se-photos-heading">
+    <h2 id="se-photos-heading">Photos</h2>
+    <p class="hq-muted">The gallery, in the order it shows. The first photo is shown largest.</p>
+    <ol class="se-photos">
+      <zb-each items={view.photos} as="photo" key={photo.id}>
+        <li>
+          <img class="se-thumb" src="{photos}/{photo.id}" alt={photo.alt} width="160" height="120" loading="lazy">
+          <div>
+            <p><strong>{photo.position}. {photo.title}</strong> <status-badge zb-if={photo.isNew} variant="warning">New</status-badge></p>
+            <p zb-if={photo.caption}>{photo.caption}</p>
+            <p class="hq-small hq-muted">For someone who can’t see it: {photo.alt}</p>
+            <div class="se-actions">
+              <form zb-if={!photo.first} method="post" action="{photos}/{photo.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="first"><button class="hq-button secondary" type="submit">Make first<span class="sr-only">: {photo.title}</span></button></form>
+              <form zb-if={!photo.first} method="post" action="{photos}/{photo.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="up"><button class="hq-button secondary" type="submit">Move up<span class="sr-only">: {photo.title}</span></button></form>
+              <form zb-if={!photo.last} method="post" action="{photos}/{photo.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="down"><button class="hq-button secondary" type="submit">Move down<span class="sr-only">: {photo.title}</span></button></form>
+              <form zb-if={view.canRemovePhoto} method="post" action="{photos}/{photo.id}/remove"><input type="hidden" name="siteId" value={view.siteId}><button class="hq-button secondary" type="submit">Remove<span class="sr-only">: {photo.title}</span></button></form>
+            </div>
+            <details class="hq-more">
+              <summary>Change the words<span class="sr-only">: {photo.title}</span></summary>
+              <form method="post" action="{photos}/{photo.id}" class="hq-form">
+                <input type="hidden" name="siteId" value={view.siteId}>
+                <text-field label="Title" name="title" value={photo.title} required={true} maxlength={view.limits.title}></text-field>
+                <text-field label="What the photo shows" name="alt" value={photo.alt} required={true} maxlength={view.limits.alt} description="Read aloud to someone who can’t see the photo."></text-field>
+                <text-field label="Caption" name="caption" value={photo.caption} maxlength={view.limits.caption} rows={2}></text-field>
+                <div><button class="hq-button" type="submit">Save<span class="sr-only">: {photo.title}</span></button></div>
+              </form>
+            </details>
+          </div>
+        </li>
+      </zb-each>
+    </ol>
+    <div id="add-photo" data-spaced>
+      <h3>Add a photo</h3>
+      <form zb-if={view.canAddPhoto} method="post" action="{base}/photos" enctype="multipart/form-data" class="hq-form" onsubmit={shrink}>
+        <div class="hq-field">
+          <label for="se-photo">Choose a photo, or take one</label>
+          <input id="se-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="se-photo-rule">
+          <p id="se-photo-rule" class="hq-muted hq-small">{view.photoRule}</p>
+        </div>
+        <text-field label="Title" name="title" required={true} maxlength={view.limits.title} description="A few words, like: Paint Booth"></text-field>
+        <text-field label="What the photo shows" name="alt" required={true} maxlength={view.limits.alt} description="Read aloud to someone who can’t see the photo. Like: A red pickup with its front fender repaired"></text-field>
+        <text-field label="Caption" name="caption" maxlength={view.limits.caption} rows={2} description="A sentence shown under the photo."></text-field>
+        <div><button class="hq-button portal-big" type="submit">Add photo</button></div>
+      </form>
+      <p zb-else class="hq-muted">The gallery is full. Remove a photo to add another.</p>
+    </div>
+  </section>
+
+  <section class="hq-panel" id="notice" aria-labelledby="se-notice-heading">
+    <h2 id="se-notice-heading">Notice</h2>
+    <p class="hq-muted">One short line across the top of the site, like a holiday closure. Leave it empty for no notice.</p>
+    <form method="post" action="{base}/notice" class="hq-form">
+      <text-field label="What the notice says" name="notice" value={view.notice} maxlength={view.limits.notice} description="Like: Closed Thursday and Friday for Thanksgiving. Back Monday at 9."></text-field>
+      <div><button class="hq-button portal-big" type="submit">Save notice</button></div>
+    </form>
+  </section>
+
+  <section class="hq-panel" id="reviews" aria-labelledby="se-reviews-heading">
+    <h2 id="se-reviews-heading">Reviews</h2>
+    <p zb-if={view.reviews.length === 0} class="hq-muted">No reviews on the site yet.</p>
+    <ul zb-else class="se-reviews">
+      <zb-each items={view.reviews} as="review" key={review.index}>
+        <li>
+          <p class="hq-prose">“{review.quote}”</p>
+          <p class="hq-small hq-muted">{review.by}</p>
+          <form method="post" action="{base}/reviews/remove"><input type="hidden" name="index" value={review.index}><button class="hq-button secondary" type="submit">Remove<span class="sr-only"> the review from {review.by}</span></button></form>
+        </li>
+      </zb-each>
+    </ul>
+    <div data-spaced>
+      <h3>Add a review</h3>
+      <form zb-if={view.canAddReview} method="post" action="{base}/reviews" class="hq-form">
+        <text-field label="What the customer said" name="quote" required={true} maxlength={view.limits.quote} rows={4} description="In their words, with their permission to share it."></text-field>
+        <text-field label="Who said it" name="by" required={true} maxlength={view.limits.by} description="Like: Evelyn S. · via Yelp"></text-field>
+        <div><button class="hq-button portal-big" type="submit">Add review</button></div>
+      </form>
+      <p zb-else class="hq-muted">The site holds 12 reviews. Remove one to add another.</p>
+    </div>
+  </section>
+</site-editor>

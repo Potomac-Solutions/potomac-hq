@@ -30,6 +30,11 @@ it needs the client sign-in.
 | Contract signing | Printed, signed and scanned | v0.4: typed acceptance recording name, time and proposal version | Nothing |
 | File storage | n/a | v0.3: file service with authorized downloads | Cloudflare R2 holds the bytes. *Built differently, pending approval: see decision 0002* |
 
+Added 2026-11-23, pending approval (decision 0003): **client site
+content**. HQ holds what a client wants changed on their site and commits
+it to the site's repository. GitHub holds the site's code and history, and
+the site's host builds it. HQ never serves a client's public site.
+
 ## Rules
 
 1. **HQ never sees a card number.** The payment page sends card details

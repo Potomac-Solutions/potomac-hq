@@ -13,6 +13,11 @@ export const TERMS = [1, 3, 6, 12, 24, 36, 60, 120] as const;
 export const TERM_LABELS: Readonly<Record<number, string>> = { 1: "Every month", 3: "Every 3 months", 6: "Every 6 months", 12: "Every year", 24: "Every 2 years", 36: "Every 3 years", 60: "Every 5 years", 120: "Every 10 years" };
 /** How far ahead a renewal counts as coming up. */
 export const SOON_DAYS = 30;
+/**
+ * How long before it renews a client pays for it: a week, so there is time to
+ * know whether to renew it or let it lapse, and to renew it before it runs out.
+ */
+export const PAY_AHEAD_DAYS = 7;
 
 export type Renewal = {
   readonly id: Id;
@@ -32,6 +37,9 @@ export type Renewal = {
   readonly autoRenews: boolean;
   readonly note: string;
   readonly active: boolean;
+  /** The invoice last sent for it, and the renewal date that invoice was for. Null until it is first billed. */
+  readonly invoiceId: Id | null;
+  readonly billedFor: string | null;
 };
 
 export type RenewalInput = { readonly kind: string; readonly name: string; readonly provider?: string | null; readonly renewsOn: string; readonly termMonths: string; readonly cost?: string | null; readonly price?: string | null; readonly autoRenews?: boolean; readonly note?: string | null };
@@ -60,7 +68,7 @@ export function newRenewal(ids: { readonly id: Id; readonly organizationId: Id }
   if (!price.ok) return price;
   const note = optionalText(input.note, 500);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true });
+  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true, invoiceId: null, billedFor: null });
 }
 
 /** Renewed: its date moves on one term, from the date it was due, not from today. */
@@ -80,3 +88,28 @@ export function yearly(renewal: Renewal): { readonly cost: number; readonly pric
   const times = 12 / renewal.termMonths;
   return { cost: Math.round((renewal.cost?.minor ?? 0) * times), price: Math.round((renewal.price?.minor ?? 0) * times) };
 }
+
+/** The day the client pays by for its next renewal: a week before it renews. */
+export const payBy = (renewal: Renewal): string => Temporal.PlainDate.from(renewal.renewsOn).subtract({ days: PAY_AHEAD_DAYS }).toString();
+
+/** True when the coming term has been billed. Marking it renewed moves its date on, so the next term isn't billed yet. */
+export const billedThisTerm = (renewal: Renewal): boolean => renewal.invoiceId !== null && renewal.billedFor === renewal.renewsOn;
+
+export type BillError = "not-billed-to-client" | "already-billed";
+
+/**
+ * What the invoice for a renewal says, and when it is due: a week before it
+ * renews, or today if that has already passed. Only a renewal Potomac bills
+ * the client for, and once a term.
+ */
+export function billFor(renewal: Renewal, today: string): Result<{ readonly description: string; readonly amount: Money; readonly dueOn: string }, BillError> {
+  if (!renewal.price || renewal.price.minor <= 0) return err("not-billed-to-client");
+  if (billedThisTerm(renewal)) return err("already-billed");
+  const due = payBy(renewal);
+  const term = TERM_LABELS[renewal.termMonths] ?? `Every ${renewal.termMonths} months`;
+  const from = Temporal.PlainDate.from(renewal.renewsOn).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return ok({ description: `${renewal.name}: ${RENEWAL_KIND_LABELS[renewal.kind].toLowerCase()} renewal from ${from} (${term.toLowerCase()})`, amount: renewal.price, dueOn: Temporal.PlainDate.compare(due, today) < 0 ? today : due });
+}
+
+/** The renewal with the invoice sent for its coming term. */
+export const billed = (renewal: Renewal, invoiceId: Id): Renewal => ({ ...renewal, invoiceId, billedFor: renewal.renewsOn });

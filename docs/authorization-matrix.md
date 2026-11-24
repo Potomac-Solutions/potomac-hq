@@ -148,6 +148,7 @@ finance views need a permission a member does not hold by default.
 | Export time, expenses and summaries as CSV | `finance.export` | Yes | Yes | No | No |
 | View invoices, their payments and the PDF | `invoice.view` | Yes | Yes | No | No (v0.6: own organization's sent invoices only) |
 | Draft, send and void an invoice | `invoice.edit` | Yes | Yes | No | No |
+| Bill a client for a renewal: an invoice made and sent, due a week before it renews (`docs/decisions/0006-renewal-billing.md`) | `client.edit` and `invoice.edit` | Yes | Yes | No | No (sees their own renewals that Potomac bills them for) |
 | Record a payment received | `payment.record` | Yes | Yes | No | No |
 
 Moving a task to "working on" starts the mover's timer under `task.edit`. A
@@ -165,6 +166,30 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 | Post an update on a project for the client to read | `project.post-update` | Yes | Yes | Yes | No |
 | Confirm or decline a call a client asked for, and see, cancel or move booked calls | `call.respond` | Yes | Yes | Yes | No |
 | Set the hours for booked calls, days off, and who can book; link calendars; paint days from Timeful or Calendly; make and withdraw booking links | `booking.manage` | Yes | Yes | No | No |
+| Make, change and remove referral links, and see their scans and inquiries | `referral.manage` | Yes | Yes | No | No |
+| Set a client's website up for editing, change its content, send a client's changes back, and publish them to the site | `site.publish` | Yes | Yes | No | No (see below) |
+
+A client user holds no permission key. Signed in to the portal, they may
+change the content of their own organization's website and send the changes
+in: the organization comes from their session and from nothing they send.
+Nothing they change in its content reaches the site until someone with
+`site.publish` publishes it. Whether the site is open, coming soon or
+
+### Potomac's own website
+
+Decided 2026-11-23. Needs Mikey's approval. Admins only, because it decides whether the company's front door is open. Clients' sites are `site.publish`, above.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See potomac.solutions' mode, message, banner and preview link | `public-site.view` | Yes | No | No | No |
+| Open or close potomac.solutions, change its message and banner, make a new preview link | `public-site.edit` | Yes | No | No | No |
+closed for maintenance is an exception: a client sets that for their own
+site and it takes effect at once (`docs/decisions/0004-site-launch.md`).
+Where the business goes, its service area, is the other: a client sets it
+for their own site and it takes effect at once
+(`docs/decisions/0005-service-area.md`). The list of sites and what is waiting on each is seen with
+`client.view`.
+
 
 ### Platform (v1.0)
 

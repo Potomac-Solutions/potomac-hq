@@ -26,13 +26,19 @@ import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
-import { allRenewals, clientRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { publicSiteView } from "./public-site/index.ts";
+import { publicSiteRoutes, siteApiRoutes } from "./public-site/api/public-site-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
 import { todayFor, type TodayView } from "./today/index.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
+import { creditInquiry, referralLinks } from "./referrals/index.ts";
+import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
+import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
+import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
@@ -95,6 +101,8 @@ export type AppConfig = {
   readonly clientNotices?: boolean;
   /** How a client reaches Potomac, shown in the portal. Each part is left out when empty. */
   readonly contact?: PortalContact;
+  /** Reads and commits to client sites' repositories on GitHub. Without it, sites can't be set up or published. */
+  readonly sitePublisher?: SitePublisher | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
 };
@@ -206,7 +214,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly calls: boolean; readonly people: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -238,6 +246,15 @@ export type PageContext = {
     projects(): ReturnType<typeof projectHealthReport>;
     budget(): ReturnType<typeof financeOverview>;
   };
+  readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Website content: a client's own site in the portal, and every site for Potomac's people. */
+  readonly websites: {
+    /** The signed-in client's site, or null when they have none. `wider` steps the service area map out. */
+    mine(wider?: number): ReturnType<typeof portalWebsite>;
+    all(): ReturnType<typeof allWebsites>;
+    site(id: string, wider?: number): ReturnType<typeof staffWebsite>;
+    forClient(id: string): ClientWebsiteView | null;
+  };
   readonly monitor: {
     all(): ReturnType<typeof allSites>;
     forClient(id: string): SitesView | null;
@@ -250,11 +267,14 @@ export type PageContext = {
     onOpportunity(id: string): TodosPanel | null;
     due(): ReturnType<typeof todosDueFor>;
   };
+  readonly publicSite: { view(): ReturnType<typeof publicSiteView> };
   readonly renewals: {
     all(): ReturnType<typeof allRenewals>;
     /** A client's, or null when this person may not see them. */
     forClient(id: string): ClientRenewalsView | null;
     comingUp(): ReturnType<typeof renewalsComingUp>;
+    /** The signed-in client's renewals that Potomac bills them for. Empty when signed out. */
+    mine(): ReturnType<typeof portalRenewals>;
   };
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
@@ -308,6 +328,9 @@ export type PageContext = {
 const NOT_ALLOWED = "You don’t have permission to do that.";
 
 /** An id from an address. Anything that is not one is simply not found. */
+/** How far out a service area map is: 0 to 3, from a page's `?wider=`. */
+const widerOf = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? Math.max(0, Math.min(3, value)) : 0);
+
 function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-found">): Result<T, "forbidden" | "not-found"> {
   const id = parseId(text);
   return id.ok ? read(id.value) : err("not-found");
@@ -317,6 +340,9 @@ const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+// A photo for a website. Smaller than other files: it is shown on a web page.
+const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos)$/;
+const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import)$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
@@ -326,7 +352,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -553,7 +579,17 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok },
+        websites: {
+          mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
+          all: () => allWebsites(services.websites, actor),
+          site: (id, wider) => withId(id, (parsed) => staffWebsite(services.websites, actor, parsed, widerOf(wider))),
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientWebsite(services.websites, actor, parsed.value) : null;
+          },
+        },
+        referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
           projects: () => projectHealthReport(projectsDeps, actor),
@@ -583,6 +619,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
           due: () => todosDueFor(services.todos, actor),
         },
+        publicSite: { view: () => publicSiteView(services.publicSite, actor) },
         renewals: {
           all: () => allRenewals(services.renewals, actor),
           forClient: (id) => {
@@ -591,6 +628,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           comingUp: () => renewalsComingUp(services.renewals, actor),
+          mine: () => (client ? portalRenewals(services.renewals, client.organizationId) : []),
         },
         booking: {
           calls: () => callsView(services.booking, actor),
@@ -842,6 +880,8 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
       returnOrigins: formOrigins,
+      // An inquiry that came by a referral link is counted for that link.
+      credit: (code, opportunityId) => void creditInquiry(services.referrals, code, opportunityId),
       notify: async (inquiry) => {
         const to = config.inquiryEmail;
         if (!email || !to) return;
@@ -861,7 +901,11 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
@@ -896,8 +940,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     }
   }
 
+  const allowSiteApi = sqliteRateLimit(db, { name: "site-api", max: 120, windowMs: 60_000 });
   const web = new Hono();
   const ping = db.prepare("select 1 as ok");
+  web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
@@ -909,12 +955,14 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
+  downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
+  downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/api/site/settings" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
@@ -942,16 +990,17 @@ export async function createApp(config: AppConfig): Promise<App> {
       // so the size limit cannot be walked around with a streamed body.
       const length = req.headers["content-length"] === undefined ? Number.NaN : Number(req.headers["content-length"]);
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
-      const upload = type === "multipart/form-data" && UPLOAD_PATHS.test(path);
+      const photo = type === "multipart/form-data" && PHOTO_PATHS.test(path);
+      const upload = photo || (type === "multipart/form-data" && UPLOAD_PATHS.test(path));
       if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      const limit = upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
+      const limit = photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
       if (!(length >= 0 && length <= limit)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

@@ -9,6 +9,83 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-24
+
+- Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
+  18.7.2 to 18.8.0. (Its TypeScript 7 bump was undone; see below.)
+
+- Our website. A new admin-only page, Company → Our website, controls
+  potomac.solutions itself: open it, put up a "coming soon" or
+  "maintenance" page with your own heading, message and time note, and put
+  an announcement on top of every page. A private preview link lets admins
+  see the real site while it is closed. Unlike clients' static sites (Site
+  content), potomac.solutions runs its own server: it asks HQ for these
+  settings every half minute, answers a closed visit with a 503, and keeps
+  the last settings if HQ is down. Connect it with `npm run site:token` on
+  the HQ server, then give the website service that token as `HQ_SITE_TOKEN`
+  and HQ's address as `HQ_URL`. New permissions `public-site.view` and
+  `public-site.edit`, for admins only. Migration 0039.
+
+- Billing a client for a renewal. On a client's page under Renewals, "Bill
+  the client" makes and sends an invoice for a renewal's coming term, due a
+  week before it renews, so there's time to renew it or let it lapse. Each
+  renewal says whether it is billed, paid, or wasn't paid in time. The
+  client sees it in their portal under "Coming up for renewal", with the day
+  to pay by, two months ahead and while it is owed. Paying by card in the
+  portal waits on the card gateway being chosen
+  (`docs/decisions/0006-renewal-billing.md`). Migration 0038.
+
+- Service areas. A business that goes out to customers can show where it
+  goes on its website, and change it in the portal under "Where you go":
+  pick whole counties on a map (or tick them in a list), or draw an area
+  point by point and name it. It takes effect as soon as it is saved, by the
+  client or by Potomac, as one commit of the site's content file; changes
+  waiting to be checked stay waiting. County outlines are HQ's own, for
+  Maryland, West Virginia, Virginia, Pennsylvania, Delaware and DC. A site
+  with no photo gallery can now be set up, for a site that has only a
+  service area or a status. Needs the site's code to draw the
+  `serviceArea` block (`docs/decisions/0005-service-area.md`). Migration 0037.
+- Zubra packages upgraded from 6.0.3 to 6.0.5. All four move together and
+  stay pinned to the exact version. Nothing in HQ needed to change: the type
+  check, the Zubra regression suite and every integration test pass as
+  before.
+
+- TypeScript is back on 6.0.3. Dependabot's move to 7.0.2 left the boundary
+  check (dependency-cruiser) reading no files, so `lint:boundaries` passed
+  while checking nothing and its self-test failed. Dependabot now skips
+  TypeScript's major versions until dependency-cruiser supports 7.
+
+- Open, coming soon, or closed for maintenance. On a site's page in HQ and
+  in the client's portal, "Is the website open?" chooses what visitors see
+  and, if wanted, the day and time the site opens by itself. It takes
+  effect as soon as it is saved, by Potomac or by the client, as one commit
+  of the site's status. While a site is closed, a preview link shows the
+  real site to whoever holds it; a new link can be made if it gets passed
+  on. Needs the site's code to read the `launch` block of its content file
+  (`docs/decisions/0004-site-launch.md`). Migration 0036.
+
+- Clients change their own website. On a client's page, under Website
+  editing, say where their site's code lives on GitHub; HQ reads its
+  gallery, notice and reviews. In the portal, under "Your website", the
+  client adds, removes and reorders photos, changes their words, posts a
+  notice and adds reviews, then sends the changes in. Nothing reaches the
+  site until someone with the new `site.publish` permission (admins and
+  managers) publishes it under Delivery → Site content, or sends it back
+  with a note. Publishing is one commit to the site's repository; the site
+  rebuilds from it. Photos are shrunk in the browser before upload. Needs
+  `HQ_GITHUB_TOKEN` (`docs/operations.md`, "Site content"). The choices
+  are in `docs/decisions/0003-site-content.md`. Migration 0035.
+
+- Referral links. Under Sales → Referral links, make a short address for
+  each thing you print (business cards, a flyer), choose where a scan goes,
+  and download its QR code. HQ counts every scan, sends the person on, and
+  credits the inquiries that follow, so each link shows its success rate.
+  A scan keeps a time and nothing about the person. Link previews and
+  crawlers are not counted. For managers and admins (`referral.manage`).
+  The inquiry form takes a `ref` field: add it to the website's form
+  (`docs/operations.md`). QR codes are drawn by
+  `@journey-to-code/symbology` 0.2.0, a new dependency. Migration 0034.
+
 ## [0.13.0] - 2026-11-23
 
 - Fixed: "Open HQ in your app", while turning on two-factor sign-in on a

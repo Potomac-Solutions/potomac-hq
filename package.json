@@ -1,6 +1,6 @@
 {
   "name": "potomac-hq",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "description": "Internal operations platform for Potomac Solutions",
   "type": "module",
@@ -23,6 +23,7 @@
     "migrate": "node bin/migrate.ts",
     "start": "node bin/serve.ts",
     "reset-link": "node bin/reset-link.ts",
+    "site:token": "node bin/site-token.ts",
     "backup": "node bin/backup.ts",
     "backup:keygen": "node bin/backup-keygen.ts",
     "restore": "node bin/restore.ts",
@@ -33,18 +34,19 @@
     "release:notes": "node tools/release/notes.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "2.1.9",
+    "@hono/node-server": "2.1.11",
+    "@journey-to-code/symbology": "0.2.0",
     "@potomac-solutions/kit": "github:potomac-solutions/kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
-    "@zubra/compiler": "6.0.3",
-    "@zubra/router": "6.0.3",
-    "@zubra/runtime": "6.0.3",
-    "@zubra/server": "6.0.3",
+    "@zubra/compiler": "6.0.5",
+    "@zubra/router": "6.0.5",
+    "@zubra/runtime": "6.0.5",
+    "@zubra/server": "6.0.5",
     "hono": "4.13.19"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@types/node": "26.6.6",
-    "dependency-cruiser": "18.7.2",
+    "dependency-cruiser": "18.8.0",
     "playwright": "1.65.1",
     "typescript": "6.0.3"
   }

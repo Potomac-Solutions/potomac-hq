@@ -3,7 +3,7 @@
 // message text, no file. Email is not private, and the portal is.
 
 /** Things a client did that Potomac wants to hear about. */
-export const CLIENT_ACTIONS = ["project.message-received", "file.received-from-client", "deliverable.approved", "deliverable.changes-requested", "proposal.accepted-in-portal", "proposal.declined-in-portal", "call.requested", "change-request.approved", "change-request.declined", "schedule-invite.answered"] as const;
+export const CLIENT_ACTIONS = ["project.message-received", "file.received-from-client", "deliverable.approved", "deliverable.changes-requested", "proposal.accepted-in-portal", "proposal.declined-in-portal", "call.requested", "change-request.approved", "change-request.declined", "schedule-invite.answered", "site-content.submitted", "site-content.status-changed", "site-content.service-area-changed"] as const;
 
 /** Things Potomac did that leave something for the client to see or do. */
 export const FOR_CLIENT_ACTIONS: Readonly<Record<string, string>> = {
@@ -15,6 +15,8 @@ export const FOR_CLIENT_ACTIONS: Readonly<Record<string, string>> = {
   "call.confirmed": "An answer about the call you asked for",
   "call.declined": "An answer about the call you asked for",
   "milestone.given-to-client": "Something the work needs from you",
+  "site-content.published": "Your website changes are on your site",
+  "site-content.sent-back": "A note about your website changes",
 };
 
 export type StaffLine = { readonly who: string; readonly organization: string; readonly did: string; readonly path: string };

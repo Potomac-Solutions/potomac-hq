@@ -63,6 +63,20 @@ function describe(deps: PortalDeps, event: LoggedEvent): Described | null {
       const id = asId(event.recordId);
       return id ? { who, organization, did: "picked times for a call", path: `/calls/invites/${id}`, ownerId: null } : null;
     }
+    case "site-content.submitted": {
+      const id = asId(event.recordId);
+      return id ? { who, organization, did: "sent changes for their website", path: `/websites/${id}`, ownerId: null } : null;
+    }
+    case "site-content.status-changed": {
+      const id = asId(event.recordId);
+      const mode = event.context["mode"];
+      const did = mode === "live" ? "opened their website to everyone" : mode === "coming-soon" ? "set their website to “Coming soon”" : "closed their website for maintenance";
+      return id ? { who, organization, did, path: `/websites/${id}#status`, ownerId: null } : null;
+    }
+    case "site-content.service-area-changed": {
+      const id = asId(event.recordId);
+      return id ? { who, organization, did: "changed the service area on their website", path: `/websites/${id}#service-area`, ownerId: null } : null;
+    }
     case "call.requested":
       return { who, organization, did: "asked for a call", path: `/clients/${user.organizationId}#portal`, ownerId: null };
     default:
@@ -109,6 +123,8 @@ function organizationOf(deps: PortalDeps, event: LoggedEvent): Id | null {
     }
     case "call.confirmed":
     case "call.declined":
+    case "site-content.published":
+    case "site-content.sent-back":
       return idIn(event, "organizationId");
     default:
       return null;
