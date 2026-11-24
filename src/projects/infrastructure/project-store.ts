@@ -1,7 +1,9 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
+import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
+import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
 import type { Task, TaskPriority, TaskStatus } from "../domain/task.ts";
@@ -130,7 +132,7 @@ export function sqliteMilestoneStore(db: Database): MilestoneStore {
 
 const toTask = (r: Row): Task => ({
   id: text(r, "id") as Id,
-  projectId: text(r, "project_id") as Id,
+  projectId: maybe(r, "project_id") as Id | null,
   phaseId: maybe(r, "phase_id") as Id | null,
   title: text(r, "title"),
   description: text(r, "description"),
@@ -144,19 +146,21 @@ const toTask = (r: Row): Task => ({
 
 export function sqliteTaskStore(db: Database): TaskStore {
   const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into task (${columns}, organization_id, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare(
     "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
   const get = db.prepare(`select ${columns} from task where id = ?`);
   const joined = `select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, u.name as assignee_name
        from task t join project p on p.id = t.project_id left join user u on u.id = t.assignee_id`;
+  const one = db.prepare(`select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, coalesce(p.name, '') as project_name, u.name as assignee_name
+       from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id where t.id = ?`);
   const listFor = db.prepare(`${joined} where t.project_id = ? order by t.rowid`);
   const listBoard = db.prepare(`${joined} where p.status = 'active' and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
-    insert(t, at) {
-      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, at);
+    insert(t, at, origin = {}) {
+      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.createdBy ?? null, at, at);
     },
     update(t, at) {
       update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
@@ -164,6 +168,10 @@ export function sqliteTaskStore(db: Database): TaskStore {
     get(id) {
       const found = get.get(id) as Row | undefined;
       return found ? toTask(found) : null;
+    },
+    row(id) {
+      const found = one.get(id) as Row | undefined;
+      return found ? row(found) : null;
     },
     listFor(projectId) {
       return (listFor.all(projectId) as Row[]).map(row);
@@ -287,5 +295,121 @@ export function sqliteProjectLinkStore(db: Database): ProjectLinkStore {
       remove.run(id);
     },
     listFor: (projectId) => listFor.all(projectId).map(toLink),
+  };
+}
+
+export function sqliteLabelStore(db: Database): LabelStore {
+  const insert = db.prepare("insert into label (id, name, name_key, colour, created_at, updated_at) values (?, ?, ?, ?, ?, ?)");
+  const update = db.prepare("update label set name = ?, name_key = ?, colour = ?, updated_at = ? where id = ?");
+  const untag = db.prepare("delete from task_label where label_id = ?");
+  const remove = db.prepare("delete from label where id = ?");
+  const get = db.prepare("select id, name, colour from label where id = ?");
+  const byName = db.prepare("select id, name, colour from label where name_key = ?");
+  const list = db.prepare("select l.id, l.name, l.colour, (select count(*) from task_label tl where tl.label_id = l.id) as tasks from label l");
+  const forTask = db.prepare("select l.id, l.name, l.colour from task_label tl join label l on l.id = tl.label_id where tl.task_id = ?");
+  const clear = db.prepare("delete from task_label where task_id = ?");
+  const tag = db.prepare("insert or ignore into task_label (task_id, label_id) values (?, ?)");
+  const toLabel = (r: Row): Label => ({ id: text(r, "id") as Id, name: text(r, "name"), colour: text(r, "colour") as LabelColour });
+  return {
+    insert(l, at) {
+      insert.run(l.id, l.name, labelKey(l.name), l.colour, at, at);
+    },
+    update(l, at) {
+      update.run(l.name, labelKey(l.name), l.colour, at, l.id);
+    },
+    remove(id) {
+      untag.run(id);
+      remove.run(id);
+    },
+    get(id) {
+      const found = get.get(id) as Row | undefined;
+      return found ? toLabel(found) : null;
+    },
+    byName(name) {
+      const found = byName.get(labelKey(name)) as Row | undefined;
+      return found ? toLabel(found) : null;
+    },
+    list() {
+      return (list.all() as Row[]).map((r): LabelRow => ({ ...toLabel(r), tasks: r["tasks"] as number })).sort(byLabelName);
+    },
+    forTask(taskId) {
+      return (forTask.all(taskId) as Row[]).map(toLabel).sort(byLabelName);
+    },
+    forTasks(taskIds) {
+      const found = new Map<Id, Label[]>();
+      // In chunks, so a long board never passes SQLite's limit on bound values.
+      for (let at = 0; at < taskIds.length; at += 500) {
+        const chunk = taskIds.slice(at, at + 500);
+        const rows = db
+          .prepare(`select tl.task_id, l.id, l.name, l.colour from task_label tl join label l on l.id = tl.label_id where tl.task_id in (${chunk.map(() => "?").join(", ")})`)
+          .all(...chunk) as Row[];
+        for (const r of rows) {
+          const taskId = text(r, "task_id") as Id;
+          found.set(taskId, [...(found.get(taskId) ?? []), toLabel(r)]);
+        }
+      }
+      for (const labels of found.values()) labels.sort(byLabelName);
+      return found;
+    },
+    setForTask(taskId, labelIds) {
+      clear.run(taskId);
+      for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
+    },
+  };
+}
+
+export function sqliteWorkStore(db: Database): WorkStore {
+  const rows = db.prepare(`select t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.estimate_minutes, t.status, t.done_at,
+      coalesce(p.name, '') as project_name, coalesce(p.organization_id, t.organization_id) as organization_id, coalesce(c.name, '') as client_name, coalesce(u.name, '') as assignee_name
+    from task t
+    left join project p on p.id = t.project_id
+    left join client_organization c on c.id = coalesce(p.organization_id, t.organization_id)
+    left join user u on u.id = t.assignee_id
+    where t.project_id is null or p.status = 'active'
+    order by t.rowid`);
+  const insertFilter = db.prepare("insert into saved_filter (id, owner_id, name, query, shared, pinned, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateFilter = db.prepare("update saved_filter set name = ?, query = ?, shared = ?, pinned = ?, updated_at = ? where id = ?");
+  const removeFilter = db.prepare("delete from saved_filter where id = ?");
+  const clients = db.prepare("select id, name from client_organization where status <> 'former' order by name collate nocase");
+  const getFilter = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where id = ?");
+  const filtersFor = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where owner_id = ? or shared = 1 order by name collate nocase, created_at");
+  const columns = db.prepare("select columns from work_view where user_id = ?");
+  const setColumns = db.prepare("insert into work_view (user_id, columns, updated_at) values (?, ?, ?) on conflict (user_id) do update set columns = excluded.columns, updated_at = excluded.updated_at");
+  const toFilter = (r: Row): SavedFilter => ({ id: text(r, "id") as Id, ownerId: text(r, "owner_id") as Id, name: text(r, "name"), query: text(r, "query"), shared: r["shared"] === 1, pinned: r["pinned"] === 1 });
+  return {
+    clients() {
+      return (clients.all() as Row[]).map((r) => ({ id: text(r, "id") as Id, name: text(r, "name") }));
+    },
+    rows() {
+      return (rows.all() as Row[]).map((r): WorkRow => ({
+        ...toTask(r),
+        projectName: text(r, "project_name"),
+        organizationId: maybe(r, "organization_id") as Id | null,
+        clientName: text(r, "client_name"),
+        assigneeName: text(r, "assignee_name"),
+      }));
+    },
+    insertFilter(f, at) {
+      insertFilter.run(f.id, f.ownerId, f.name, f.query, f.shared ? 1 : 0, f.pinned ? 1 : 0, at, at);
+    },
+    updateFilter(f, at) {
+      updateFilter.run(f.name, f.query, f.shared ? 1 : 0, f.pinned ? 1 : 0, at, f.id);
+    },
+    removeFilter(id) {
+      removeFilter.run(id);
+    },
+    getFilter(id) {
+      const found = getFilter.get(id) as Row | undefined;
+      return found ? toFilter(found) : null;
+    },
+    filtersFor(personId) {
+      return (filtersFor.all(personId) as Row[]).map(toFilter);
+    },
+    columns(personId) {
+      return ((columns.get(personId) as Row | undefined)?.["columns"] as string | undefined) ?? "";
+    },
+    setColumns(personId, chosen, at) {
+      setColumns.run(personId, chosen, at);
+    },
   };
 }

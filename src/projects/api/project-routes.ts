@@ -2,6 +2,8 @@
 // then sends the browser back to a page with a one-line message.
 import { Hono } from "hono";
 import * as projects from "../application/commands.ts";
+import * as work from "../application/work.ts";
+import * as quick from "../application/quick-add.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -95,6 +97,61 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back,
     message: "Task moved.",
   });
+  // Each label on the task page is a checkbox named label-<id>, so the ticked ones arrive as separate fields.
+  const ticked = (f: FormFields): Id[] =>
+    Object.keys(f)
+      .filter((name) => name.startsWith("label-") && f[name] === "1")
+      .map((name) => optionalId(name.slice("label-".length)))
+      .filter((id): id is Id => id !== null);
+  post("/tasks/:id/labels", (actor, f, id) => projects.setTaskLabels(deps.projects, actor, id as Id, { labelIds: ticked(f), newName: f["newLabel"] ?? null, newColour: f["newColour"] ?? null }), {
+    done: (_, id) => `/tasks/${id}#labels`,
+    back: (id) => `/tasks/${id}#labels`,
+    message: "Labels saved.",
+  });
+  // The work table's forms. Each sends the browser back to the filter it was on, read and written again so only filter fields go back.
+  const toWork = (f: FormFields) => work.workAddress(f["query"] ?? "");
+  post("/work/filters", (actor, f) => work.saveFilter(deps.projects, actor, { name: f["name"] ?? "", query: f["query"] ?? "", shared: f["shared"] === "1", pinned: f["pinned"] === "1" }), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: "Filter saved.",
+  });
+  post("/work/filters/:id", (actor, f, id) => work.changeSavedFilter(deps.projects, actor, id as Id, { ...(f["pinned"] ? { pinned: f["pinned"] === "1" } : {}), ...(f["shared"] ? { shared: f["shared"] === "1" } : {}) }), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: "Filter saved.",
+  });
+  post("/work/filters/:id/remove", (actor, _f, id) => work.removeSavedFilter(deps.projects, actor, id as Id), { done: (_, _id, f) => toWork(f), back: (_id, f) => toWork(f), message: "Filter deleted." });
+  post(
+    "/work/columns",
+    (actor, f) =>
+      work.chooseWorkColumns(
+        deps.projects,
+        actor,
+        Object.keys(f)
+          .filter((name) => name.startsWith("column-") && f[name] === "1")
+          .map((name) => name.slice("column-".length)),
+      ),
+    { done: (_, _id, f) => toWork(f), back: (_id, f) => toWork(f), message: "Columns saved." },
+  );
+  // Quick add. On success the box is ready for the next one, with a link to what was added; on a problem, the same line comes back.
+  const quickInput = (f: FormFields) => ({ text: f["text"] ?? "", skip: quick.readSkip([f["skip"] ?? ""]) });
+  post("/add", (actor, f) => quick.quickAdd(deps.projects, actor, quickInput(f)), {
+    done: (added) => `/add?added=${added.id}`,
+    back: (_id, f) => {
+      const { text, skip } = quickInput(f);
+      const params = new URLSearchParams({ text });
+      for (const index of skip) params.append("skip", String(index));
+      return `/add?${params}`;
+    },
+    message: "Added.",
+  });
+  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), { done: () => "/labels", back: () => "/labels", message: "Label made." });
+  post("/labels/:id", (actor, f, id) => projects.editLabelDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
+    done: () => "/labels",
+    back: () => "/labels",
+    message: "Label saved.",
+  });
+  post("/labels/:id/remove", (actor, _f, id) => projects.removeLabel(deps.projects, actor, id as Id), { done: () => "/labels", back: () => "/labels", message: "Label deleted, and taken off its tasks." });
   post(
     "/projects/:id/deliverables",
     (actor, f, id, files) => projects.addDeliverable(deps.projects, actor, id as Id, { title: f["title"] ?? "", description: f["description"] ?? null, file: files["file"] ?? null }),
@@ -104,6 +161,21 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (deliverable) => `${project(deliverable.projectId)}#deliverables`,
     back: (_, f) => `${project(optionalId(f["projectId"]))}#deliverables`,
     message: "Deliverable saved.",
+  });
+  return app;
+}
+
+/** The work table as a CSV file, for the same filter and sort as the page. */
+export function workDownloads(deps: Pick<ProjectRoutesDeps, "projects" | "actorOf">): Hono {
+  const app = new Hono();
+  app.get("/work.csv", (c) => {
+    const params = new URL(c.req.url).searchParams;
+    const made = work.workCsv(deps.projects, deps.actorOf(c.req.header("cookie") ?? ""), (name) => params.getAll(name));
+    if (!made.ok) return c.text("Not found", 404);
+    return new Response(made.value.csv, {
+      status: 200,
+      headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${made.value.fileName}"`, "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
+    });
   });
   return app;
 }

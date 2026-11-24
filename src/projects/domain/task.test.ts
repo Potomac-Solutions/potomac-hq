@@ -63,3 +63,12 @@ test("tasks sort by priority, then due date, then title", () => {
   const list = [task({ title: "c" }), task({ title: "b", dueOn: "2026-12-01" }), task({ title: "a", priority: "urgent" }), task({ title: "d", dueOn: "2026-11-20" })];
   assert.deepEqual(list.sort(byUrgency).map((t) => t.title), ["a", "d", "b", "c"]);
 });
+
+test("a to-do (a task without a project) is only to do or done", () => {
+  const todo: Task = { ...task(), projectId: null };
+  assert.deepEqual(moveTask(todo, "doing", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
+  assert.deepEqual(moveTask(todo, "blocked", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
+  const done = moveTask(todo, "done", "2026-11-16T10:00:00.000Z");
+  assert.ok(done.ok);
+  assert.equal(done.value.doneAt, "2026-11-16T10:00:00.000Z");
+});

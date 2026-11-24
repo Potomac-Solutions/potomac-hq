@@ -10,6 +10,7 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
+  import './label-chips.zb'
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
@@ -40,7 +41,7 @@
         <tbody>
           <zb-each items={view.tasks} as="task" key={task.id}>
             <tr>
-              <td><a href="/tasks/{task.id}">{task.title}</a></td>
+              <td><a href="/tasks/{task.id}">{task.title}</a> <label-chips labels={task.labels}></label-chips></td>
               <td>{task.statusLabel}</td>
               <td>{task.assigneeName || "Nobody yet"}</td>
               <td>{task.priorityLabel}</td>

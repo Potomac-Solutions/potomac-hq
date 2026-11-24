@@ -41,7 +41,7 @@ test("an overdue follow-up, today's to-do and a renewal this week, in that order
 });
 
 test("a to-do ticked off on Today goes to Done today", async () => {
-  const id = t.db.prepare("select id from todo where title like 'Call the bank%'").get()?.["id"] as string;
+  const id = t.db.prepare("select id from task where title like 'Call the bank%'").get()?.["id"] as string;
   const res = await mikey.post(`/todos/${id}/done`, { back: "today" });
   assert.equal(res.headers.get("location")?.split("?")[0], "/today");
   const page = textOf(await mikey.page("/today"));

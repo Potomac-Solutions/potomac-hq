@@ -1,5 +1,6 @@
 <!--
-  A list of to-dos, each with its tick-off button. `back` and `back-id` say
+  A list of to-dos and project tasks, each with its tick-off button, a link to
+  its page, its project and its labels (decision 0007). `back` and `back-id` say
   where the button lands afterwards (see src/todos/api/todo-routes.ts).
 -->
 <style>
@@ -12,6 +13,20 @@
   .todo-tick:hover, .todo-tick:focus-visible { border-color: var(--ring); }
   .todo-done p:first-child { text-decoration: line-through; color: var(--muted-foreground); }
   .todo-overdue { color: var(--destructive); font-weight: 600; }
+  .todo-labels { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.2rem 0; padding: 0; list-style: none; vertical-align: middle; }
+  .todo-labels li { padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+  .todo-labels li[data-colour=slate] { background: var(--label-slate-bg); color: var(--label-slate-fg); }
+  .todo-labels li[data-colour=red] { background: var(--label-red-bg); color: var(--label-red-fg); }
+  .todo-labels li[data-colour=orange] { background: var(--label-orange-bg); color: var(--label-orange-fg); }
+  .todo-labels li[data-colour=amber] { background: var(--label-amber-bg); color: var(--label-amber-fg); }
+  .todo-labels li[data-colour=green] { background: var(--label-green-bg); color: var(--label-green-fg); }
+  .todo-labels li[data-colour=teal] { background: var(--label-teal-bg); color: var(--label-teal-fg); }
+  .todo-labels li[data-colour=sky] { background: var(--label-sky-bg); color: var(--label-sky-fg); }
+  .todo-labels li[data-colour=blue] { background: var(--label-blue-bg); color: var(--label-blue-fg); }
+  .todo-labels li[data-colour=indigo] { background: var(--label-indigo-bg); color: var(--label-indigo-fg); }
+  .todo-labels li[data-colour=violet] { background: var(--label-violet-bg); color: var(--label-violet-fg); }
+  .todo-labels li[data-colour=pink] { background: var(--label-pink-bg); color: var(--label-pink-fg); }
+  .todo-labels li[data-colour=brown] { background: var(--label-brown-bg); color: var(--label-brown-fg); }
 </style>
 <todo-list items={[]} can-edit={false} back="" back-id="" show-who={false} show-client={true}>
   <ul class="todos">
@@ -23,10 +38,12 @@
           <button class="todo-tick" type="submit"><span aria-hidden="true">{todo.done ? '✓' : ''}</span><span class="sr-only">{todo.done ? 'Not done' : 'Done'}: {todo.title}</span></button>
         </form>
         <div>
-          <p>{todo.title}</p>
+          <p><a href={todo.href}>{todo.title}</a></p>
+          <ul zb-if={todo.labels && todo.labels.length > 0} class="todo-labels" aria-label="Labels"><zb-each items={todo.labels} as="label" key={label.id}><li data-colour={label.colour}>{label.name}</li></zb-each></ul>
           <p class="hq-small hq-muted">
             <span class={todo.state === 'overdue' && !todo.done ? 'todo-overdue' : ''}><time zb-if={todo.dueOn} datetime={todo.dueOn}>{todo.when}</time><span zb-if={!todo.dueOn}>{todo.when}</span></span>
             <span zb-if={showWho && !todo.mine}> · {todo.assignee}</span>
+            <span zb-if={todo.projectName}> · <a href="/projects/{todo.projectId}">{todo.projectName}</a></span>
             <span zb-if={showClient && todo.clientName}> · <a href="/clients/{todo.organizationId}">{todo.clientName}</a></span>
             <span zb-if={todo.opportunityTitle}> · <a href="/opportunities/{todo.opportunityId}">{todo.opportunityTitle}</a></span>
           </p>

@@ -1,0 +1,91 @@
+<!--
+  Quick add (decision 0007, section 4). Type a line; it shows what it
+  understood (a due date, a label, a person, a priority, a project or client)
+  and what is left as the title, each part with a link that leaves it in the
+  title instead. Add it from there. The box in the top bar comes here, and
+  the N key goes to that box. Works with JavaScript off: the box is a GET
+  form and every removal is a link.
+-->
+<script>
+  'use route /add'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const quick = context.projects.quickAdd((name) => url.searchParams.getAll(name))
+    if (!quick.view.ok) return context.forbidden()
+    return { title: 'Quick add', view: quick.view.value, added: quick.added, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .quick-box { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; }
+  .quick-box .hq-field { flex: 1 1 24rem; margin: 0; }
+  .quick-box input { width: 100%; font-size: 1.05rem; }
+  .quick-heard { margin: 1.25rem 0 0; }
+  .quick-heard h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+  .quick-title { font-size: 1.15rem; font-weight: 650; margin: 0 0 0.75rem; }
+  .quick-parts { display: grid; gap: 0.4rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .quick-parts li { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; padding: 0.45rem 0.7rem; border: 1px solid var(--border); border-left-width: 4px; border-radius: calc(var(--radius) - 2px); background: var(--card); }
+  .quick-parts li[data-problem] { border-left-color: var(--destructive); }
+  .quick-parts code { font-size: 0.85rem; color: var(--muted-foreground); }
+  .quick-parts .quick-says { font-weight: 600; }
+  .quick-parts .quick-problem { color: var(--destructive); font-weight: 600; }
+  .quick-parts a { margin-left: auto; font-size: 0.875rem; }
+  .quick-key td:first-child { white-space: nowrap; }
+</style>
+<hq-quick-add view={{ text: '', skip: '', title: '', kind: '', parts: [], canSave: false, problem: '', typed: false }} added="" done="" problem="">
+  <div class="hq-page">
+    <h1>Quick add</h1>
+    <p class="hq-muted">One line for a task or a to-do. Words like <code>tomorrow</code>, <code>*website</code>, <code>@jayanti</code>, <code>!high</code> and <code>+better-days</code> set its fields.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done} <a zb-if={added} href={added}>Open it</a></alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-label="Quick add">
+      <form method="get" action="/add" class="quick-box">
+        <div class="hq-field">
+          <label for="quick-text">What needs doing?</label>
+          <input id="quick-text" name="text" value={view.text} maxlength="300" autocomplete="off" autofocus placeholder="Send the homepage proof +better-days *website !high fri">
+        </div>
+        <button class="hq-button secondary" type="submit">Check it</button>
+      </form>
+
+      <div zb-if={view.typed} class="quick-heard" aria-live="polite">
+        <h2>{view.kind}, called</h2>
+        <p class="quick-title">{view.title || '(no title yet)'}</p>
+        <ul zb-if={view.parts.length > 0} class="quick-parts">
+          <zb-each items={view.parts} as="part" key={part.words + part.kind}>
+            <li data-problem={part.problem ? '' : null}>
+              <code>{part.words}</code>
+              <span zb-if={part.says} class="quick-says">{part.says}</span>
+              <span zb-if={part.problem} class="quick-problem">{part.problem}</span>
+              <a href={part.removeHref} aria-label="Keep in title: {part.words}">Keep in title</a>
+            </li>
+          </zb-each>
+        </ul>
+        <p zb-if={view.parts.length === 0} class="hq-muted">Nothing set beyond the title. It will be a to-do for you, with no date.</p>
+        <p zb-if={view.problem} class="quick-problem">{view.problem}</p>
+        <form zb-if={view.canSave} method="post" action="/add">
+          <input type="hidden" name="text" value={view.text}>
+          <input type="hidden" name="skip" value={view.skip}>
+          <button class="hq-button" type="submit">Add it</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="quick-key">
+      <h2 id="quick-key">What the words do</h2>
+      <table tabindex="0" class="hq-table quick-key">
+        <thead><tr><th scope="col">Type</th><th scope="col">To set</th></tr></thead>
+        <tbody>
+          <tr><td><code>today</code>, <code>tomorrow</code>, <code>fri</code>, <code>next fri</code>, <code>next week</code>, <code>in 3 days</code>, <code>dec 5</code>, <code>12/5</code></td><td>When it's due. A weekday is the next one after today. "by" or "on" before a date goes with it.</td></tr>
+          <tr><td><code>*website</code></td><td>A label. One that doesn't exist yet is made. Any number of labels.</td></tr>
+          <tr><td><code>@jayanti</code></td><td>Who it's for, by first name, full name with hyphens, or email name. A to-do with no one named is yours.</td></tr>
+          <tr><td><code>!low</code>, <code>!high</code>, <code>!urgent</code></td><td>Its priority.</td></tr>
+          <tr><td><code>+better-days</code></td><td>The open project whose name starts with those words, making it a project task. If no project matches, a client, making it a to-do about them.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-quick-add>
