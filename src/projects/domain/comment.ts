@@ -12,7 +12,11 @@ export const COMMENT_MAX = 5000;
 export type Comment = {
   readonly id: Id;
   readonly taskId: Id;
-  readonly authorId: Id;
+  /** Who in HQ wrote it, or null for one that came through a share link. */
+  readonly authorId: Id | null;
+  /** The share link it came through (decision 0007, section 11), and the name its visitor typed. */
+  readonly shareId: Id | null;
+  readonly guestName: string | null;
   readonly body: string;
   readonly createdAt: string;
   /** When it was last edited, or null. */
@@ -30,7 +34,13 @@ function checkBody(text: string): Result<string, CommentError> {
 
 export function newComment(id: Id, taskId: Id, authorId: Id, text: string, at: string): Result<Comment, CommentError> {
   const body = checkBody(text);
-  return body.ok ? ok({ id, taskId, authorId, body: body.value, createdAt: at, editedAt: null }) : body;
+  return body.ok ? ok({ id, taskId, authorId, shareId: null, guestName: null, body: body.value, createdAt: at, editedAt: null }) : body;
+}
+
+/** A comment through a share link, under the name its visitor typed. It can't be edited afterwards. */
+export function newGuestComment(id: Id, taskId: Id, shareId: Id, guestName: string, text: string, at: string): Result<Comment, CommentError> {
+  const body = checkBody(text);
+  return body.ok ? ok({ id, taskId, authorId: null, shareId, guestName, body: body.value, createdAt: at, editedAt: null }) : body;
 }
 
 export function editComment(comment: Comment, text: string, at: string): Result<Comment, CommentError | "unchanged"> {
@@ -40,8 +50,8 @@ export function editComment(comment: Comment, text: string, at: string): Result<
   return ok({ ...comment, body: body.value, editedAt: at });
 }
 
-/** Only its author edits or deletes a comment. No role overrides that. */
-export const mayChangeComment = (comment: Pick<Comment, "authorId">, actorId: Id): boolean => comment.authorId === actorId;
+/** Only its author edits or deletes a comment. No role overrides that. A comment from a share link has no author in HQ. */
+export const mayChangeComment = (comment: Pick<Comment, "authorId">, actorId: Id): boolean => comment.authorId !== null && comment.authorId === actorId;
 
 /** The handles mentioned with "@", as handles, once each and in order. An email address is not a mention. */
 export function mentionsIn(body: string): string[] {
