@@ -33,9 +33,11 @@ adds sprints, story points, custom fields or a second CRM.
 
 ### 1. Task keys
 
-Each project gets a short **key** of 2 to 5 capital letters, made from its
-name when it's made ("Better Days website" is `BDW`; a key already used
-gets a digit) and changeable on the project page. Its tasks are numbered
+Each project gets a short **key** of 2 to 6 capital letters or digits,
+starting with a letter, made from its name when it's made ("Better Days
+website" is `BDW`; a key already used gets a digit) and changeable on the
+project page. `TODO` and `INV` are never keys, since `INV-0003` is an
+invoice number. Its tasks are numbered
 from 1 in the order they're made, so a task is `BDW-12`. To-dos, which have
 no project, are `TODO-7`, numbered across HQ. Existing projects and tasks
 get keys and numbers when the migration runs, in the order they were made.
@@ -48,21 +50,74 @@ and pressing Enter opens it.
 
 ### 2. GitHub
 
-A project's "repository" link (it exists since v0.6) says which GitHub
-repository is its code. HQ takes GitHub's webhook for pushes and pull
-requests at one address, checked with a secret shown once (the same
-`X-Hub-Signature-256` HMAC GitHub sends). A commit or pull request whose
-message or title names a task key (`BDW-12`) in a repository linked to that
-task's project:
+Mikey's reason for this section, added on 2026-11-24: Jira doesn't work
+with GitHub issues and Projects, and HQ should from the start. It comes in
+two parts, each its own pull request: HQ reading what happens on GitHub
+(2a), and HQ opening and keeping GitHub issues in step with tasks (2b).
+Part 2b is optional: without a GitHub token it is hidden, and 2a still
+works.
 
-- shows on the task, under "Code": the commit or pull request, its title,
-  who, when, and a link to GitHub;
+A project's "repository" link (it exists since v0.6) says which GitHub
+repository is its code. Keys in other repositories are ignored.
+
+#### 2a. Commits, pull requests and issues on the task
+
+HQ takes GitHub's webhook for pushes, pull requests and issues at one
+address, checked with a secret shown once (the same `X-Hub-Signature-256`
+HMAC GitHub sends); anything unsigned is refused. A commit, pull request or
+issue whose message, title or text names a task key (`BDW-12`), in a
+repository linked to that task's project:
+
+- shows on the task, under "Code": the commit, pull request or issue, its
+  title, who, when, its state, and a link to GitHub;
 - **Default:** a merged pull request that says `fixes BDW-12`, `closes` or
   `resolves` moves the task to done, recorded as done by GitHub. Merely
   mentioning it does nothing more.
 
-Keys in other repositories are ignored. Setting it up needs `webhook.manage`
-(admin), as webhooks do. Nothing is sent to GitHub.
+Setting up the webhook needs `webhook.manage` (admin), as webhooks do.
+
+#### 2b. GitHub issues from tasks, on demand
+
+With a GitHub token set up, a task in a project with a repository has
+**Open a GitHub issue**. One click opens an issue in that repository: the
+task's title, its details, and a line with its key and a link back to the
+task in HQ. The task and issue are then linked, and the task shows the
+issue's number, state and link. A task can instead be linked to an issue
+that exists, by its address or `#123`. Either needs `task.edit`. A task has
+at most one linked issue; unlinking leaves both as they are.
+
+Once linked, they stay in step both ways:
+
+- closing the issue as completed on GitHub moves the task to done, and
+  reopening it moves the task back to to do, recorded as done by GitHub;
+  an issue closed as "not planned" leaves the task as it is and says so on
+  the task;
+- **Default:** finishing the task in HQ closes the issue as completed, and
+  reopening the task reopens it, each with a short comment on the issue
+  saying who did it in HQ;
+- a change that came from GitHub isn't sent back to GitHub, so they never
+  bounce;
+- titles, comments and assignees aren't kept in step (**Default**): GitHub
+  people aren't HQ people, and the conversation stays where it was had.
+
+**GitHub Projects.** A project can name a GitHub Project (its address, like
+`github.com/orgs/Potomac-Solutions/projects/3`), set with `project.edit`.
+Each issue HQ opens for that project is added to it. The GitHub Project's
+own workflows then move it, since closing the issue is what they watch for.
+
+**Bringing in issues.** From a project with a repository, its open issues
+can be brought in as tasks, linked as they arrive: previewed first, like a
+Trello import (decision 0007, section 13), labels matched by name. Issues
+that are already linked, and pull requests, are left out. It needs
+`task.edit` and `project.edit`.
+
+**The token.** **Default:** a fine-grained GitHub token, set in
+`HQ_GITHUB_TOKEN` and never stored in the database, allowed to read and
+write issues on Potomac Solutions' repositories and to write its Projects.
+HQ acts on GitHub as that token's owner, so every comment says who did it
+in HQ. If GitHub refuses or can't be reached, the change in HQ still
+stands, and the task says what didn't reach GitHub, with a button to try
+again.
 
 ### 3. Workload by week
 
@@ -194,7 +249,9 @@ description) are skipped. Needs `time.log` for one's own time and
 | Write and pause automation rules, and set up check-ins | `automation.manage` | Yes | Yes | No | No |
 | Approve proposals over the limits | `proposal.approve` | Yes | No | No | No |
 
-Everything else uses keys that exist: `webhook.manage` for GitHub,
+Everything else uses keys that exist: `webhook.manage` for GitHub's
+webhook, `task.edit` for opening and linking issues, `project.edit` for
+naming a GitHub Project,
 `user.set-roles` for capacity, `finance.view` for retainers,
 `opportunity.view-value` for the forecast, `client.create` and
 `contact.edit` for duplicates, `time.log` and `finance.edit` for time.
@@ -202,7 +259,8 @@ Everything else uses keys that exist: `webhook.manage` for GitHub,
 ## Slices
 
 1. Task keys
-2. GitHub
+2. GitHub: commits, pull requests and issues on the task (2a), then
+   GitHub issues from tasks, kept in step, with GitHub Projects (2b)
 3. Workload by week
 4. Tasks from any CSV
 5. Retainers
@@ -220,6 +278,12 @@ Everything else uses keys that exist: `webhook.manage` for GitHub,
 - GitHub is the second thing (after the website's booking API) that sends
   HQ requests from outside without a person signed in. Its secret is shown
   once and checked on every request; anything unsigned is refused.
+- HQ changes things on GitHub for the first time: issues opened, closed,
+  reopened and added to Projects, as the token's owner. Each change is
+  written to the activity log like any other, and only happens because a
+  person did something in HQ.
+- Turning GitHub off is taking the token away: links and history stay, and
+  nothing more is sent.
 - Rules can change tasks without a person doing so directly. They act as
   the person whose action started them, under that person's permissions,
   and every change says which rule made it.
