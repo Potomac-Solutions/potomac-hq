@@ -205,6 +205,24 @@ test("subtasks and blocking on a task's page", async () => {
   await page.getByRole("link", { name: "Proofread the prices" }).click();
   await page.getByText("Subtask of").waitFor();
   await assertAccessible(page, "a subtask");
+
+  // Comments and files on the same page.
+  await page.getByLabel("Add a comment").fill("Prices checked against the paper menu. @mikey");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await page.getByText("Comment added.").waitFor();
+  const proof = join(scratch, "menu-proof.pdf");
+  writeFileSync(proof, PDF);
+  await page.getByLabel("Attach a file").setInputFiles(proof);
+  await page.getByRole("button", { name: "Attach", exact: true }).click();
+  await page.getByText("File attached.").waitFor();
+  await page.getByText("Edit your comment", { exact: true }).click();
+  await page.getByLabel("Your comment", { exact: true }).fill("Prices checked against the paper menu and the website. @mikey");
+  await page.getByRole("button", { name: "Save comment" }).click();
+  await page.getByText("Comment saved.").waitFor();
+  await page.getByText("Edit your comment", { exact: true }).click();
+  await assertAccessible(page, "a task with a comment, a file and the edit form open");
+  await page.getByRole("button", { name: "Remove menu-proof.pdf" }).click();
+  await page.getByText("Removed “menu-proof.pdf”.").waitFor();
   assert.deepEqual(problems, []);
   await page.close();
 });

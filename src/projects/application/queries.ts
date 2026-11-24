@@ -7,6 +7,9 @@ import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
 import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
 import { mayBlock, mayHaveSubtasks, progressText, type Progress } from "../domain/dependencies.ts";
+import { commentPieces, type CommentPiece } from "../domain/comment.ts";
+import { handleOf } from "../domain/quick-add.ts";
+import { mentionNames } from "./comments.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
@@ -346,7 +349,39 @@ export type TaskDetailView = {
   readonly holdsUp: readonly TaskLink[];
   /** Tasks it could wait on, by project: open, not already, and not ones waiting on it. */
   readonly blockerChoices: readonly { readonly label: string; readonly options: readonly Option[] }[];
+  /** Oldest first. */
+  readonly comments: readonly TaskComment[];
+  /** Files attached to the task, newest first. */
+  readonly files: readonly { readonly id: string; readonly name: string; readonly size: string; readonly href: string; readonly who: string; readonly when: string }[];
+  /** May attach a file: `task.edit` and `file.upload`. */
+  readonly canAttach: boolean;
 };
+
+export type TaskComment = {
+  readonly id: string;
+  readonly authorName: string;
+  readonly when: string;
+  /** When it was edited, or empty. */
+  readonly editedWhen: string;
+  readonly body: string;
+  /** The body with known people's mentions marked. */
+  readonly pieces: readonly CommentPiece[];
+  /** The viewer wrote it, so may edit or delete it. */
+  readonly mine: boolean;
+};
+
+function taskComments(deps: ProjectsDeps, viewerId: Id, taskId: Id): TaskComment[] {
+  const known = new Set(deps.users.list().filter((user) => user.status === "active").flatMap((user) => mentionNames(user).map(handleOf)).filter(Boolean));
+  return deps.comments.forTask(taskId).map((comment) => ({
+    id: comment.id,
+    authorName: comment.authorName,
+    when: deps.formatWhen(comment.createdAt),
+    editedWhen: comment.editedAt ? deps.formatWhen(comment.editedAt) : "",
+    body: comment.body,
+    pieces: commentPieces(comment.body, known),
+    mine: comment.authorId === viewerId,
+  }));
+}
 
 /** Another task, as a link: "Swap the photos · Better Days website · Done". */
 export type TaskLink = { readonly id: string; readonly title: string; readonly href: string; readonly where: string; readonly statusLabel: string; readonly done: boolean };
@@ -382,6 +417,9 @@ export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): 
     waitingOn: deps.taskLinks.waitingOn(taskId).map(taskLink),
     holdsUp: deps.taskLinks.holdingUp(taskId).map(taskLink),
     blockerChoices: canEdit ? blockerChoices(deps, taskId) : [],
+    comments: taskComments(deps, actorId as Id, taskId),
+    files: deps.files.listForOwner("task", taskId).map((file) => ({ id: file.id, name: file.name, size: formatSize(file.sizeBytes), href: `/files/${file.id}`, who: (file.uploadedBy ? deps.users.get(file.uploadedBy)?.name : null) ?? (file.clientUserName ? `${file.clientUserName}, at the client` : ""), when: deps.formatWhen(file.createdAt) })),
+    canAttach: canEdit && may(deps, actorId, "file.upload"),
     task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0 }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
     canEdit,
     form: formOptions(deps, task.projectId),

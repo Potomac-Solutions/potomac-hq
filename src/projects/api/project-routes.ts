@@ -5,6 +5,7 @@ import * as projects from "../application/commands.ts";
 import * as work from "../application/work.ts";
 import * as quick from "../application/quick-add.ts";
 import * as links from "../application/dependencies.ts";
+import * as talk from "../application/comments.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -98,6 +99,33 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back,
     // Blocked tasks may be worked on; this says what they are still waiting on.
     message: (task) => (task.status === "doing" && task.waitingOn.length > 0 ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.` : "Task moved."),
+  });
+  // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
+  post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
+    done: (comment, id) => `/tasks/${id}#comment-${comment.id}`,
+    back: (id) => `/tasks/${id}#comments`,
+    message: "Comment added.",
+  });
+  const onTask = (f: FormFields) => `/tasks/${optionalId(f["taskId"]) ?? ""}#comments`;
+  post("/comments/:id", (actor, f, id) => talk.editTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
+    done: (comment) => `/tasks/${comment.taskId}#comment-${comment.id}`,
+    back: (_id, f) => onTask(f),
+    message: "Comment saved.",
+  });
+  post("/comments/:id/remove", (actor, _f, id) => talk.removeTaskComment(deps.projects, actor, id as Id), {
+    done: (comment) => `/tasks/${comment.taskId}#comments`,
+    back: (_id, f) => onTask(f),
+    message: "Comment deleted.",
+  });
+  post("/tasks/:id/files", (actor, _f, id, files) => talk.attachToTask(deps.projects, actor, id as Id, files["file"] ?? null), {
+    done: (_, id) => `/tasks/${id}#files`,
+    back: (id) => `/tasks/${id}#files`,
+    message: "File attached.",
+  });
+  post("/tasks/:id/files/remove", (actor, f, id) => talk.removeTaskFile(deps.projects, actor, id as Id, optionalId(f["fileId"]) ?? ("" as Id)), {
+    done: (_, id) => `/tasks/${id}#files`,
+    back: (id) => `/tasks/${id}#files`,
+    message: (removed) => `Removed “${removed.name}”.`,
   });
   // Subtasks and blocking, from the task page.
   post("/tasks/:id/subtasks", (actor, f, id) => links.addSubtask(deps.projects, actor, id as Id, { title: f["title"] ?? "", assigneeId: optionalId(f["assigneeId"]), dueOn: f["dueOn"] ?? null }), {

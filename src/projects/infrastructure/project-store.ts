@@ -1,8 +1,9 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
+import type { Comment } from "../domain/comment.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
@@ -355,6 +356,27 @@ export function sqliteLabelStore(db: Database): LabelStore {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
     },
+  };
+}
+
+export function sqliteCommentStore(db: Database): CommentStore {
+  const insert = db.prepare("insert into task_comment (id, task_id, author_id, body, created_at, edited_at) values (?, ?, ?, ?, ?, ?)");
+  const update = db.prepare("update task_comment set body = ?, edited_at = ? where id = ?");
+  const remove = db.prepare("delete from task_comment where id = ?");
+  const get = db.prepare("select id, task_id, author_id, body, created_at, edited_at from task_comment where id = ?");
+  const forTask = db.prepare("select c.id, c.task_id, c.author_id, c.body, c.created_at, c.edited_at, coalesce(u.name, '') as author_name from task_comment c left join user u on u.id = c.author_id where c.task_id = ? order by c.created_at, c.rowid");
+  const organizationOf = db.prepare("select coalesce(p.organization_id, t.organization_id) as organization_id from task t left join project p on p.id = t.project_id where t.id = ?");
+  const toComment = (r: Row): Comment => ({ id: text(r, "id") as Id, taskId: text(r, "task_id") as Id, authorId: text(r, "author_id") as Id, body: text(r, "body"), createdAt: text(r, "created_at"), editedAt: maybe(r, "edited_at") });
+  return {
+    insert: (c) => void insert.run(c.id, c.taskId, c.authorId, c.body, c.createdAt, c.editedAt),
+    update: (c) => void update.run(c.body, c.editedAt, c.id),
+    remove: (id) => void remove.run(id),
+    get(id) {
+      const found = get.get(id) as Row | undefined;
+      return found ? toComment(found) : null;
+    },
+    forTask: (taskId) => (forTask.all(taskId) as Row[]).map((r) => ({ ...toComment(r), authorName: text(r, "author_name") })),
+    organizationOf: (taskId) => ((organizationOf.get(taskId) as Row | undefined)?.["organization_id"] ?? null) as Id | null,
   };
 }
 

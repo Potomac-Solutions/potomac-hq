@@ -1,6 +1,7 @@
 <!--
   One task: where it stands, its subtasks, what it waits on and holds up
-  (decision 0007, section 5), its labels, and the form that edits it.
+  (decision 0007, section 5), its files and comments (section 6), its labels,
+  and the form that edits it.
 -->
 <script>
   'use route /tasks/:id'
@@ -19,7 +20,18 @@
   }
   const t = view.task
 </script>
-<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [] }} timer={{ can: false }} done="" problem="">
+<style>
+  .comments { display: grid; gap: 0.75rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .comment { padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--background); }
+  .comment header { display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: baseline; margin-bottom: 0.35rem; }
+  .comment header strong { font-size: 0.95rem; }
+  .comment .comment-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .comment .mention { font-weight: 650; color: var(--primary); }
+  .comment details { margin-top: 0.5rem; }
+  .comment summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
+  .comment-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+</style>
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -120,6 +132,60 @@
         </zb-each>
       </ul>
       <p zb-if={view.holdsUp.length === 0} class="hq-muted">Nothing waits on this.</p>
+    </section>
+    <section id="files" class="hq-panel" aria-labelledby="task-files">
+      <h2 id="task-files">Files</h2>
+      <ul zb-if={view.files.length > 0} class="hq-links">
+        <zb-each items={view.files} as="file" key={file.id}>
+          <li>
+            <span><a href={file.href}>{file.name}</a> <span class="hq-muted hq-small">{file.size}</span></span>
+            <span class="hq-muted hq-small">{file.who ? file.who + ', ' : ''}{file.when}</span>
+            <form zb-if={view.canAttach} method="post" action="/tasks/{t.id}/files/remove" class="hq-inline">
+              <input type="hidden" name="fileId" value={file.id}>
+              <button class="hq-button secondary small" type="submit" aria-label="Remove {file.name}">Remove</button>
+            </form>
+          </li>
+        </zb-each>
+      </ul>
+      <p zb-if={view.files.length === 0} class="hq-muted">No files yet.</p>
+      <form zb-if={view.canAttach} method="post" action="/tasks/{t.id}/files" enctype="multipart/form-data" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="task-file">Attach a file</label>
+          <input id="task-file" name="file" type="file" required>
+          <p class="hq-muted hq-small">A PDF, an image, a text, CSV or Office file, or a zip, up to 25 MB.</p>
+        </div>
+        <button class="hq-button secondary" type="submit">Attach</button>
+      </form>
+    </section>
+    <section id="comments" class="hq-panel" aria-labelledby="task-comments">
+      <h2 id="task-comments">Comments</h2>
+      <ol zb-if={view.comments.length > 0} class="comments">
+        <zb-each items={view.comments} as="comment" key={comment.id}>
+          <li id="comment-{comment.id}" class="comment">
+            <header><strong>{comment.authorName}</strong> <span class="hq-muted hq-small">{comment.when}</span> <span zb-if={comment.editedWhen} class="hq-muted hq-small">(edited {comment.editedWhen})</span></header>
+            <p class="comment-body"><zb-each items={comment.pieces} as="piece" key={piece.text + piece.mention}><strong zb-if={piece.mention} class="mention">{piece.text}</strong><span zb-if={!piece.mention}>{piece.text}</span></zb-each></p>
+            <div zb-if={comment.mine} class="comment-actions">
+              <details>
+                <summary>Edit your comment</summary>
+                <form method="post" action="/comments/{comment.id}" class="hq-form">
+                  <input type="hidden" name="taskId" value={t.id}>
+                  <text-field label="Your comment" name="body" rows={3} value={comment.body} required={true}></text-field>
+                  <div><button class="hq-button" type="submit">Save comment</button></div>
+                </form>
+              </details>
+              <form method="post" action="/comments/{comment.id}/remove" class="hq-inline">
+                <input type="hidden" name="taskId" value={t.id}>
+                <button class="hq-button secondary small" type="submit" aria-label="Delete your comment from {comment.when}">Delete</button>
+              </form>
+            </div>
+          </li>
+        </zb-each>
+      </ol>
+      <p zb-if={view.comments.length === 0} class="hq-muted">No comments yet.</p>
+      <form method="post" action="/tasks/{t.id}/comments" class="hq-form" data-spaced>
+        <text-field label="Add a comment" name="body" rows={3} required={true} description="Mention someone with @ and their first name, like @jayanti."></text-field>
+        <div><button class="hq-button" type="submit">Comment</button></div>
+      </form>
     </section>
     <section zb-if={view.canEdit} id="labels" class="hq-panel" aria-labelledby="task-labels">
       <h2 id="task-labels">Labels</h2>

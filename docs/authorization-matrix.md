@@ -253,6 +253,11 @@ pin, share or delete it, and no role key overrides that.
 Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
+Commenting on a task needs only `task.view`: anyone who sees a task may
+comment. Editing or deleting a comment is for its author alone, whatever
+their role. Attaching a file to a task, or removing one, needs `task.edit` and `file.upload`;
+downloading it needs `file.download`, as for a deliverable.
+
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
 

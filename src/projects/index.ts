@@ -14,3 +14,4 @@ export * from "./application/queries.ts";
 export * from "./application/work.ts";
 export * from "./application/quick-add.ts";
 export * from "./application/dependencies.ts";
+export * from "./application/comments.ts";
