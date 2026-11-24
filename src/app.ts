@@ -55,10 +55,10 @@ import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal
 import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { listNotes } from "./notes/index.ts";
-import { projectRoutes } from "./projects/api/project-routes.ts";
+import { projectRoutes, workDownloads } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, labelsPage, listProjects, pinnedFilters, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -187,6 +187,10 @@ export type PageContext = {
     board(projectId: string, mine: boolean): ReturnType<typeof board>;
     task(id: string): ReturnType<typeof taskDetail>;
     labels(): ReturnType<typeof labelsPage>;
+    /** The work table for the page's address: `params` is `url.searchParams.getAll`. */
+    work(params: (name: string) => readonly string[]): ReturnType<typeof workTable>;
+    /** Saved filters pinned to the sidebar. */
+    pinned(): ReturnType<typeof pinnedFilters>;
     active(): ReturnType<typeof activeProjects>;
     deadlines(): ReturnType<typeof upcomingDeadlines>;
   };
@@ -544,6 +548,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           board: (id, mine) => (id === "" ? board(projectsDeps, actor, { mine }) : withId(id, (projectId) => board(projectsDeps, actor, { projectId, mine }))),
           task: (id) => withId(id, (taskId) => taskDetail(projectsDeps, actor, taskId)),
           labels: () => labelsPage(projectsDeps, actor),
+          work: (params) => workTable(projectsDeps, actor, params),
+          pinned: () => pinnedFilters(projectsDeps, actor),
           active: () => activeProjects(projectsDeps, actor),
           deadlines: () => upcomingDeadlines(projectsDeps, actor),
         },
@@ -961,6 +967,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
+  downloads.route("/", workDownloads({ projects: projectsDeps, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
@@ -1002,7 +1009,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

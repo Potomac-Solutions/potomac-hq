@@ -34,6 +34,8 @@
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
         { label: 'Board', href: '/board', current: at('/board') },
+        { label: 'All work', href: '/work', current: at('/work') && url.search === '' },
+        ...context.projects.pinned().map((pin) => ({ label: pin.name, href: pin.href, current: path === '/work' && url.search === pin.href.slice('/work'.length), pinned: true })),
         { label: 'Labels', href: '/labels', current: at('/labels') },
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },

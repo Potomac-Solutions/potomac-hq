@@ -34,6 +34,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "already-approved": "The client approved that deliverable, so it stays shared.",
   "invalid-colour": "Choose a colour from the list.",
   "name-taken": "There’s already a label with that name.",
+  "filter-empty": "Choose something to filter by first, then save it.",
   "label-not-found": "One of those labels has just been deleted. Choose again.",
 };
 

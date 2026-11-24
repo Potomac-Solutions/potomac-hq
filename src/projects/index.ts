@@ -8,6 +8,7 @@ export { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label, type LabelColour } from 
 export { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, STATUS_LABELS } from "./domain/labels.ts";
 export type { Baseline, BaselineLine } from "./domain/baseline.ts";
 export { LINK_KIND_LABELS, LINK_KINDS, linkName, newProjectLink, type LinkKind, type ProjectLink } from "./domain/link.ts";
-export type { BaselineStore, DeliverableRow, DeliverableStore, LabelRow, LabelStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore } from "./application/ports.ts";
+export type { BaselineStore, DeliverableRow, DeliverableStore, LabelRow, LabelStore, WorkRow, WorkStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore } from "./application/ports.ts";
 export * from "./application/commands.ts";
 export * from "./application/queries.ts";
+export * from "./application/work.ts";
