@@ -85,6 +85,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "task.file-attached": "attached a file to a task",
   "task.repeat-set": "made a task repeat",
   "reminder.added": "set a reminder on a task",
+  "calendar.feed-made": "made a calendar address",
+  "calendar.feed-stopped": "stopped their calendar address",
   "reminder.removed": "removed a reminder from a task",
   "reminder.fired": "sent a reminder",
   "user.notice-email-on": "turned on emailed notices",
