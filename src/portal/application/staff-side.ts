@@ -7,7 +7,7 @@ import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProposalsDeps } from "../../proposals/index.ts";
 import { dueText, err, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import type { CallStore, ClientUserStore, EventReader, PortalAuth, UpdateStore } from "./ports.ts";
+import type { CallStore, ClientUserStore, EventReader, PeopleLookup, PortalAuth, UpdateStore } from "./ports.ts";
 
 export type PortalDeps = ProposalsDeps &
   FinanceDeps & {
@@ -16,6 +16,8 @@ export type PortalDeps = ProposalsDeps &
     readonly calls: CallStore;
     readonly auth: PortalAuth;
     readonly events: EventReader;
+    /** Finds someone already on file by email or phone, so one person can't sign up twice. */
+    readonly people?: PeopleLookup;
   };
 
 export type Refused = "forbidden" | "not-found";

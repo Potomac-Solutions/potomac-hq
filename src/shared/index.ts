@@ -14,3 +14,4 @@ export { csvField, toCsv, type Cell } from "./domain/csv.ts";
 export { daysUntil, dueText, friendlyDay, howSoon } from "./domain/days.ts";
 export { formatHours, parseHours, readableHours } from "./domain/hours.ts";
 export { qrCode, qrSvg, type QrCode } from "./domain/qr.ts";
+export { allDayCalendar, type AllDayEvent } from "./domain/calendar-file.ts";

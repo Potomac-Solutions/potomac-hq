@@ -4,8 +4,11 @@
 // A new person becomes a prospect in the CRM, with an opportunity, and an
 // invited portal user; the emailed link confirms the address and sets the
 // password, like an invite from Potomac. Someone who already has an account
-// is sent a link to set a new password instead.
+// is sent a link to set a new password instead. "Already" reaches past the
+// exact email: the same phone number, a "+tag" or Gmail dots all find the
+// person on file, and the link goes to the email on file, not the one typed.
 import { newClientUser } from "../domain/client-user.ts";
+import { emailKey, phoneKey } from "../domain/identity-keys.ts";
 import { recordSignUp, type SignUpError, type SignUpInput } from "../../crm/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
@@ -15,6 +18,12 @@ export type SignUpLink = { readonly email: string; readonly name: string; readon
 
 export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: SignUpInput): Promise<Result<SignUpLink, SignUpError>> {
   const email = input.email.trim().toLowerCase();
+  const match = deps.people?.match({ email: emailKey(email), phone: phoneKey(input.phone) }) ?? null;
+  if (match) {
+    // Someone on file with nowhere to send a link, or turned off: nothing is sent, and the answer stays the same.
+    if (match.disabled || !match.email) return ok(null);
+    if (match.email !== email) return signUpForPortal(deps, ownerId, { name: match.name, email: match.email });
+  }
   const existing = deps.clientUsers.byEmail(email);
   if (existing) {
     if (existing.status === "disabled") return ok(null);

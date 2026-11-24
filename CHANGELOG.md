@@ -9,6 +9,107 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-24
+
+- Import tasks from Trello and Todoist (decision 0007, slice 13). From a
+  project's task list, upload a Trello board's JSON export or a Todoist
+  project's CSV export, see what it would make, then import it all at once:
+  statuses from lists and sections, labels, checklists and indented tasks
+  as subtasks, due dates, and Todoist's priorities and repeats.
+
+- Webhooks for n8n (decision 0007, slice 12). Admins add an https address
+  (Company, then Webhooks) and pick what to send it: tasks added, assigned,
+  moved, done or commented on, and projects added or completed. Each
+  delivery is signed with a secret shown once, tried again for a day if it
+  doesn't land, and the last 200 are listed with their answers.
+
+- Sharing a project by link (decision 0007, slice 11). On a project, admins
+  and managers make links for people without an account (`project.share`),
+  to see the plan, tasks and shared deliverables, or also to comment on
+  tasks under their own name. Links can have a last day and be stopped;
+  each is shown once, and every visit is recorded. They never show notes,
+  time, estimates, money or the team's own comments.
+
+- A calendar feed (decision 0007, slice 10). Calendar feed (linked from My
+  work and Settings) makes a private address for Google Calendar, Apple
+  Calendar or Outlook: your open tasks with due dates and your projects'
+  milestones, or one saved filter, as all-day events. It's shown once;
+  making a new one stops the old. Read-only.
+
+- The timeline (decision 0007, slice 9). Tasks can have a start date. Each
+  project has a Timeline tab: the project from start to target, its phases,
+  and its tasks and milestones as bars and points, with today marked and
+  late work in red. Timeline in the sidebar shows every active project the
+  same way. Drawn by the server, so it needs no script.
+
+- Notices and reminders (decision 0007, slice 8). A bell in the header counts
+  what's new for you: tasks and to-dos given to you, comments that
+  @mention you, and reminders on a task, at a time or so many days before
+  it's due, for you or for whoever has the task, and kept on each repeat if
+  you like. They're listed on the Notices page and at the top of
+  Today. Anyone can have theirs emailed once email is set up.
+
+- Repeating tasks (decision 0007, slice 7). A task or to-do can repeat every
+  so many days, weeks, months or years, counted from its due date or from
+  the day it's done. Finishing it makes the next, with the same details,
+  labels and subtasks, linked to the one before. Quick add understands
+  "every week", "every 2 months", "every other week", "monthly" and the like.
+
+- Comments and files on tasks (decision 0007, slice 6). Anyone who can see a
+  task can comment on it, and mention people with @ and their first name.
+  Only the author edits or deletes a comment; an edited one says so, and
+  every version and deletion stays in the task's history. Files attach to a
+  task with the same checks as deliverables, and can be removed from it.
+
+- Subtasks and blocking (decision 0007, slice 5). A project task's page adds
+  subtasks, each a task of its own in the same project, and shows "3 of 5
+  done" there, on the task list and on the board. A task can wait on any
+  other, in any project or a to-do; its page says what it waits on and what
+  it holds up, and refuses circles. Moving a waiting task to "working on"
+  goes ahead and says what it is still waiting on.
+
+- Booking from the website. potomac.solutions can now show open times and
+  book a call for someone new in one step: HQ makes their client account,
+  books the call, and emails a link to their dashboard where they set a
+  password and add or change their details. Anyone whose email or phone is
+  already on file is not booked again; the sign-in link goes to the email on
+  file instead. Both emails say to call or text Potomac if it wasn't them,
+  and the website answers the same either way, so it never reveals who is a
+  client. Emails match without "+tags", Gmail dots or case, and phones
+  on their last ten digits. The portal's own sign-up follows the same rule.
+  New `GET`/`POST /api/site/booking`, behind the website's token.
+- Quick add (decision 0007, slice 4). A box in the top bar (or the N key)
+  takes one line, like "Send the proof +better-days @sam !high *website
+  fri", shows what it understood with a way to keep any part in the title,
+  and adds it as a project task or a to-do. Dates, labels (new ones made),
+  people, priority and a project or client are read from the words.
+
+- The work table (decision 0007, slice 3). All work (`/work`, under
+  Delivery) lists every task and to-do you may see, filtered by project,
+  client, person ("me", "nobody"), label, status, priority, when it's due
+  and words in the title, and sorted by any column either way. Each person
+  chooses their columns. A filter can be saved, shared with everyone and
+  pinned to your sidebar, and the table downloads as CSV.
+
+- One inbox (decision 0007, slice 2). A to-do is now a task without a
+  project: migration 0041 moves every to-do into the task table, keeping its
+  id. To-dos become My work (`/todos`, in the sidebar under Today): your
+  to-dos and project tasks together by when they're due, with each one's
+  project and labels. Ticking off a project task there stops its timer, as
+  the board does. Every to-do has its own page, where it takes labels, and
+  can only be to do or done.
+
+- Labels on tasks (decision 0007, slice 1). Twelve colours, each readable
+  in light and dark. Put them on from a task's page, making a new one on the
+  way; they show on the task list and the boards. A Labels page lists them
+  with how many tasks have each, and admins and managers rename, recolour
+  and delete them there (`label.manage`).
+- Decision 0007, task management after Vikunja: labels, one inbox for
+  tasks and to-dos, filters and a table, quick add, subtasks and blocking,
+  comments and attachments, repeats, reminders, a timeline, a calendar
+  feed, sharing a project by link, webhooks, and import from Trello and
+  Todoist, in thirteen slices.
+
 ## [0.14.0] - 2026-11-24
 
 - Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`

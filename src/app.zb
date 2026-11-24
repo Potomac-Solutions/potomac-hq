@@ -12,6 +12,7 @@
   // user-avatar is the shell's alone; the account actions are a plain link
   // and a plain button, not action-button.
   import './shared/ui/zubra/user-avatar.zb'
+  import { onMount, onUnmount } from '@zubra/runtime'
 
   export async function load({ context, url }) {
     const can = context.can
@@ -20,7 +21,8 @@
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
     const groups = [
       { label: '', links: [
-        { label: 'Today', href: '/today', current: at('/today', '/todos') },
+        { label: 'Today', href: '/today', current: at('/today') },
+        { label: 'My work', href: '/todos', current: at('/todos') },
         { label: 'Dashboard', href: '/', current: at('/') },
       ] },
       { label: 'Sales', links: [
@@ -33,6 +35,10 @@
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
         { label: 'Board', href: '/board', current: at('/board') },
+        { label: 'Timeline', href: '/timeline', current: at('/timeline') },
+        { label: 'All work', href: '/work', current: at('/work') && url.search === '' },
+        ...context.projects.pinned().map((pin) => ({ label: pin.name, href: pin.href, current: path === '/work' && url.search === pin.href.slice('/work'.length), pinned: true })),
+        { label: 'Labels', href: '/labels', current: at('/labels') },
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
         { label: 'Site content', href: '/websites', current: at('/websites') },
@@ -47,13 +53,28 @@
         ...(can.publicSite ? [{ label: 'Our website', href: '/our-website', current: at('/our-website') }] : []),
         ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
         ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
+        ...(can.webhooks ? [{ label: 'Webhooks', href: '/webhooks', current: at('/webhooks') }] : []),
       ] },
     ]
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search' }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices' }
   }
 
   let menu = false
+
+  // N goes to quick add, unless you're typing somewhere.
+  function quickKey(event) {
+    if (event.key !== 'n' && event.key !== 'N') return
+    if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return
+    const target = event.target
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+    const box = document.getElementById('hq-quick-text')
+    if (!box) return
+    event.preventDefault()
+    box.focus()
+  }
+  onMount(() => document.addEventListener('keydown', quickKey))
+  onUnmount(() => document.removeEventListener('keydown', quickKey))
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
@@ -78,11 +99,17 @@
   .hq-find { flex: 1 1 auto; max-width: 28rem; margin: 0; }
   .hq-find input { width: 100%; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--canvas); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .hq-find input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; background: var(--background); }
+  .hq-quick { flex: 1 1 auto; max-width: 22rem; margin: 0; }
+  .hq-quick input { width: 100%; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--canvas); border: 1px dashed var(--border); border-radius: calc(var(--radius) - 2px); }
+  .hq-quick input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; background: var(--background); border-style: solid; }
   .hq-account { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; white-space: nowrap; }
   .hq-who { font-size: 0.875rem; font-weight: 600; margin-right: 0.35rem; }
   .hq-account form { display: inline; margin: 0; }
   .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
+  .hq-bell { gap: 0.35rem; }
+  .hq-bell[aria-current=page] { border-color: var(--ring); }
+  .hq-bell-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; font-size: 0.75rem; font-weight: 700; line-height: 1; color: var(--primary-foreground); background: var(--primary); border-radius: 999px; }
   .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 3rem; }
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
@@ -98,7 +125,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} searching={false}>
+<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -125,7 +152,12 @@
           <label class="sr-only" for="hq-find-q">Search HQ</label>
           <input id="hq-find-q" name="q" type="search" placeholder="Search clients, projects, invoices…" autocomplete="off" maxlength="100">
         </form>
+        <form zb-if={adding} method="get" action="/add" class="hq-quick">
+          <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
+          <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">
+        </form>
         <div class="hq-account">
+          <a class="hq-account-action hq-bell" href="/notices" aria-current={atNotices ? 'page' : null}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg><span class="hq-bell-label">Notices</span><span zb-if={bell > 0} class="hq-bell-count">{bell > 99 ? '99+' : bell}<span class="sr-only"> new</span></span></a>
           <user-avatar name={who} size="sm"></user-avatar>
           <span class="hq-who">{who}</span>
           <a class="hq-account-action" href="/settings">Settings</a>

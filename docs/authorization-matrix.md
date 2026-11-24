@@ -235,6 +235,59 @@ The restore drill, the full export, the retention run and the reset-link
 command are run on the server or on Mikey's own computer. They have no
 permission key: whoever can run them already holds the database.
 
+### Task management (decision 0007)
+
+Decided 2026-11-24 by Mikey. Each key is added in the slice that uses it.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Rename, recolour and delete labels | `label.manage` | Yes | Yes | No | No |
+| Make and stop share links | `project.share` | Yes | Yes | No | No |
+| Add and change webhooks | `webhook.manage` | Yes | No | No | No |
+
+Making a label and putting labels on a task need `task.edit`, so anyone
+who edits tasks can label them. The Labels page is seen with `task.view`.
+
+The work table, its CSV and saved filters need `task.view` and
+`project.view`, as the boards do. A saved filter is its owner's: only they
+pin, share or delete it, and no role key overrides that.
+
+Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
+them needs `task.view`, like the task itself.
+
+The timelines need `project.view` and `task.view`, as the boards do. So does
+a calendar address: each person makes and stops their own, and the feed is
+served only while they still have both. A feed may follow only a filter its
+person may use (their own, or a shared one).
+
+Making and stopping share links needs `project.share`, and so does seeing a
+project's links. A link is not a user: it sees only its own project, as its
+rights say, and needs no account. Anyone with `project.share` may delete a
+comment that came through a link.
+
+Importing tasks from Trello or Todoist needs `task.edit` and `project.edit`,
+what adding them by hand takes. A preview is only its uploader's.
+
+Webhooks are admins' alone (`webhook.manage`): seeing them, adding, changing,
+pausing, testing, replacing a secret and deleting.
+
+Notices are each person's own: anyone with `task.view` has them, and no one
+sees or opens anyone else's. A reminder can be set on any task you can see, for
+you alone or for whoever has the task. Yours only you see and remove; one
+for whoever has it, everyone who sees the task sees, and anyone with
+`task.edit` may remove.
+
+Making a task repeat, or stopping it, needs `task.edit`. The next one is
+made by whoever finishes the task, under the permission that let them.
+
+Commenting on a task needs only `task.view`: anyone who sees a task may
+comment. Editing or deleting a comment is for its author alone, whatever
+their role. Attaching a file to a task, or removing one, needs `task.edit` and `file.upload`;
+downloading it needs `file.download`, as for a deliverable.
+
+Quick add needs `task.edit`, and makes any new labels it names with it,
+as putting labels on a task does. Its box shows only to people who have it.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in

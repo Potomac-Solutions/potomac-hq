@@ -5,6 +5,12 @@ import { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, options, PRIORIT
 import { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone } from "../domain/plan.ts";
 import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
+import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
+import { mayBlock, mayHaveSubtasks, progressText, type Progress } from "../domain/dependencies.ts";
+import { commentPieces, type CommentPiece } from "../domain/comment.ts";
+import { REPEAT_UNITS, repeatText } from "../domain/repeat.ts";
+import { handleOf } from "../domain/quick-add.ts";
+import { mentionNames } from "./comments.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
@@ -243,13 +249,40 @@ export type TaskCard = {
   readonly dueText: string;
   readonly overdue: boolean;
   readonly estimate: string;
+  /** By name. */
+  readonly labels: readonly LabelChip[];
+  /** "3 of 5 done" for a task with subtasks, or empty. */
+  readonly subtasks: string;
+  /** How many unfinished tasks it waits on. */
+  readonly waiting: number;
+  /** "Every week, from the due date", or empty. */
+  readonly repeats: string;
 };
 
-function card(task: TaskRow, today: string): TaskCard {
+/** A label as the screens draw it: its name, in its colour. */
+export type LabelChip = { readonly id: string; readonly name: string; readonly colour: string };
+
+const chip = (label: Label): LabelChip => ({ id: label.id, name: label.name, colour: label.colour });
+
+/** Cards for many tasks, with their labels read in one go. */
+function cards(deps: ProjectsDeps, tasks: readonly TaskRow[], today: string): TaskCard[] {
+  const ids = tasks.map((task) => task.id);
+  const labels = deps.labels.forTasks(ids);
+  const progress = deps.taskLinks.progress(ids);
+  const waiting = deps.taskLinks.openBlockers(ids);
+  const repeats = deps.repeats.forTasks(ids);
+  return tasks.map((task) => card(task, today, labels.get(task.id) ?? [], { progress: progress.get(task.id), waiting: waiting.get(task.id) ?? 0, repeats: repeatText(repeats.get(task.id) ?? null) }));
+}
+
+function card(task: TaskRow, today: string, labels: readonly Label[] = [], links: { readonly progress?: Progress | undefined; readonly waiting?: number; readonly repeats?: string } = {}): TaskCard {
   return {
+    repeats: links.repeats ?? "",
+    subtasks: progressText(links.progress),
+    waiting: links.waiting ?? 0,
+    labels: labels.map(chip),
     id: task.id,
     title: task.title,
-    projectId: task.projectId,
+    projectId: task.projectId ?? "",
     projectName: task.projectName,
     assigneeName: task.assigneeName ?? "",
     status: task.status,
@@ -266,12 +299,13 @@ function card(task: TaskRow, today: string): TaskCard {
 
 export type TaskFormOptions = { readonly people: readonly Option[]; readonly phases: readonly Option[]; readonly priorities: readonly Option[]; readonly statuses: readonly Option[] };
 
-function formOptions(deps: ProjectsDeps, projectId: Id): TaskFormOptions {
+function formOptions(deps: ProjectsDeps, projectId: Id | null): TaskFormOptions {
   return {
     people: people(deps),
-    phases: deps.phases.listFor(projectId).map((phase) => ({ value: phase.id, label: phase.name })),
+    phases: (projectId === null ? [] : deps.phases.listFor(projectId)).map((phase) => ({ value: phase.id, label: phase.name })),
     priorities: options(PRIORITY_LABELS),
-    statuses: options(TASK_STATUS_LABELS),
+    // A to-do is only to do or done.
+    statuses: options(TASK_STATUS_LABELS).filter((one) => projectId !== null || one.value === "todo" || one.value === "done"),
   };
 }
 
@@ -295,7 +329,7 @@ export function projectTasks(deps: ProjectsDeps, actorId: Id | null, projectId: 
   const canEdit = may(deps, actorId, "task.edit");
   return ok({
     project: { id: project.id, name: project.name, active: project.status === "active" },
-    tasks: [...open, ...done].map((task) => card(task, today)),
+    tasks: cards(deps, [...open, ...done], today),
     canEdit,
     canAdd: canEdit && project.status === "active",
     form: formOptions(deps, projectId),
@@ -303,20 +337,145 @@ export function projectTasks(deps: ProjectsDeps, actorId: Id | null, projectId: 
 }
 
 export type TaskDetailView = {
-  readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string };
+  readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string; readonly startOn: string; readonly startText: string };
   readonly canEdit: boolean;
   readonly form: TaskFormOptions;
+  /** Every label, each marked if the task has it, for the picker. */
+  readonly labelChoices: readonly (LabelChip & { readonly on: boolean })[];
+  readonly colours: readonly Option[];
+  /** The task this is a subtask of. */
+  readonly parent: TaskLink | null;
+  readonly subtasks: readonly TaskCard[];
+  /** May take subtasks: a project task that isn't one. */
+  readonly canAddSubtasks: boolean;
+  /** What it waits on, unfinished first. */
+  readonly waitingOn: readonly TaskLink[];
+  /** What waits on it, unfinished first. */
+  readonly holdsUp: readonly TaskLink[];
+  /** Tasks it could wait on, by project: open, not already, and not ones waiting on it. */
+  readonly blockerChoices: readonly { readonly label: string; readonly options: readonly Option[] }[];
+  /** Oldest first. */
+  readonly comments: readonly TaskComment[];
+  /** Files attached to the task, newest first. */
+  readonly files: readonly { readonly id: string; readonly name: string; readonly size: string; readonly href: string; readonly who: string; readonly when: string }[];
+  /** May attach a file: `task.edit` and `file.upload`. */
+  readonly canAttach: boolean;
+  /** How it repeats, for the form. Null when it doesn't. */
+  readonly repeat: { readonly every: number; readonly unit: string; readonly from: string } | null;
+  /** May repeat: not a subtask. */
+  readonly canRepeat: boolean;
+  readonly repeatUnits: readonly Option[];
+  /** The task whose finishing made this one, and the one this one's finishing made. */
+  readonly previous: TaskLink | null;
+  readonly next: TaskLink | null;
 };
+
+export type TaskComment = {
+  readonly id: string;
+  readonly authorName: string;
+  readonly when: string;
+  /** When it was edited, or empty. */
+  readonly editedWhen: string;
+  readonly body: string;
+  /** The body with known people's mentions marked. */
+  readonly pieces: readonly CommentPiece[];
+  /** The viewer wrote it, so may edit or delete it. */
+  readonly mine: boolean;
+  /** The share link it came through, or empty (decision 0007, section 11). */
+  readonly fromLink: string;
+  /** May delete it: their own, or one from a link if they manage links. */
+  readonly canRemove: boolean;
+};
+
+function taskComments(deps: ProjectsDeps, viewerId: Id, taskId: Id): TaskComment[] {
+  const known = new Set(deps.users.list().filter((user) => user.status === "active").flatMap((user) => mentionNames(user).map(handleOf)).filter(Boolean));
+  return deps.comments.forTask(taskId).map((comment) => ({
+    id: comment.id,
+    authorName: comment.authorName,
+    when: deps.formatWhen(comment.createdAt),
+    editedWhen: comment.editedAt ? deps.formatWhen(comment.editedAt) : "",
+    body: comment.body,
+    pieces: commentPieces(comment.body, known),
+    mine: comment.authorId === viewerId,
+    fromLink: comment.shareId ? comment.shareLabel || "a share link" : "",
+    canRemove: comment.authorId === viewerId || (comment.shareId !== null && may(deps, viewerId, "project.share")),
+  }));
+}
+
+function linkTo(deps: ProjectsDeps, id: Id | null): TaskLink | null {
+  const row = id ? deps.tasks.row(id) : null;
+  return row ? taskLink(row) : null;
+}
+
+/** Another task, as a link: "Swap the photos · Better Days website · Done". */
+export type TaskLink = { readonly id: string; readonly title: string; readonly href: string; readonly where: string; readonly statusLabel: string; readonly done: boolean };
+
+const taskLink = (row: TaskRow): TaskLink => ({ id: row.id, title: row.title, href: `/tasks/${row.id}`, where: row.projectName || "To-do", statusLabel: TASK_STATUS_LABELS[row.status] ?? row.status, done: row.status === "done" });
+
+/** Open tasks this one could wait on, grouped by project, to-dos last. */
+function blockerChoices(deps: ProjectsDeps, taskId: Id): { label: string; options: Option[] }[] {
+  const groups = new Map<string, Option[]>();
+  const blockersOf = (id: Id) => deps.taskLinks.blockersOf(id);
+  for (const row of deps.work.rows()) {
+    if (row.status === "done" || !mayBlock(taskId, row.id, blockersOf).ok) continue;
+    const group = row.projectName || "To-dos";
+    groups.set(group, [...(groups.get(group) ?? []), { value: row.id, label: row.title }]);
+  }
+  const byName = (a: string, b: string) => (a === "To-dos" ? 1 : b === "To-dos" ? -1 : a.localeCompare(b));
+  return [...groups].sort(([a], [b]) => byName(a, b)).map(([label, options]) => ({ label, options: options.sort((a, b) => a.label.localeCompare(b.label)) }));
+}
 
 export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): Result<TaskDetailView, Refused> {
   if (!may(deps, actorId, "task.view")) return err("forbidden");
-  const found = deps.tasks.get(taskId);
-  const task = found ? deps.tasks.listFor(found.projectId).find((row) => row.id === taskId) : undefined;
+  const task = deps.tasks.row(taskId);
   if (!task) return err("not-found");
+  const onTask = new Set<string>(deps.labels.forTask(taskId).map((label) => label.id));
+  const parentId = deps.taskLinks.parentOf(taskId);
+  const parent = parentId ? deps.tasks.row(parentId) : null;
+  const subtasks = cards(deps, deps.taskLinks.subtasks(taskId), deps.today());
+  const canEdit = may(deps, actorId, "task.edit");
   return ok({
-    task: { ...card(task, deps.today()), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
-    canEdit: may(deps, actorId, "task.edit"),
+    parent: parent ? taskLink(parent) : null,
+    subtasks,
+    canAddSubtasks: mayHaveSubtasks({ projectId: task.projectId, parentId }).ok,
+    waitingOn: deps.taskLinks.waitingOn(taskId).map(taskLink),
+    holdsUp: deps.taskLinks.holdingUp(taskId).map(taskLink),
+    blockerChoices: canEdit ? blockerChoices(deps, taskId) : [],
+    comments: taskComments(deps, actorId as Id, taskId),
+    files: deps.files.listForOwner("task", taskId).map((file) => ({ id: file.id, name: file.name, size: formatSize(file.sizeBytes), href: `/files/${file.id}`, who: (file.uploadedBy ? deps.users.get(file.uploadedBy)?.name : null) ?? (file.clientUserName ? `${file.clientUserName}, at the client` : ""), when: deps.formatWhen(file.createdAt) })),
+    canAttach: canEdit && may(deps, actorId, "file.upload"),
+    repeat: deps.repeats.get(taskId),
+    canRepeat: parentId === null,
+    repeatUnits: REPEAT_UNITS.map((unit) => ({ value: unit, label: `${unit[0]?.toUpperCase()}${unit.slice(1)}s` })),
+    previous: linkTo(deps, deps.repeats.previousOf(taskId)),
+    next: linkTo(deps, deps.repeats.nextOf(taskId)),
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0, repeats: repeatText(deps.repeats.get(taskId)) }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "", startOn: task.startOn ?? "", startText: task.startOn ? friendlyDay(task.startOn, deps.today()) : "" },
+    canEdit,
     form: formOptions(deps, task.projectId),
+    labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),
+    colours: colourOptions(),
+  });
+}
+
+const colourOptions = (): Option[] => LABEL_COLOURS.map((colour) => ({ value: colour, label: LABEL_COLOUR_NAMES[colour] }));
+
+export type LabelsView = {
+  readonly labels: readonly (LabelChip & { readonly colourName: string; readonly tasks: number })[];
+  readonly colours: readonly Option[];
+  /** May make a label. */
+  readonly canAdd: boolean;
+  /** May rename, recolour and delete. */
+  readonly canManage: boolean;
+};
+
+/** Every label, with how many tasks have it. */
+export function labelsPage(deps: ProjectsDeps, actorId: Id | null): Result<LabelsView, "forbidden"> {
+  if (!may(deps, actorId, "task.view")) return err("forbidden");
+  return ok({
+    labels: deps.labels.list().map((label) => ({ ...chip(label), colourName: LABEL_COLOUR_NAMES[label.colour], tasks: label.tasks })),
+    colours: colourOptions(),
+    canAdd: may(deps, actorId, "task.edit"),
+    canManage: may(deps, actorId, "label.manage"),
   });
 }
 
@@ -356,10 +515,11 @@ export function board(deps: ProjectsDeps, actorId: Id | null, filter: { readonly
     columns: TASK_STATUSES.map((status) => ({
       status,
       label: TASK_STATUS_LABELS[status] ?? status,
-      cards: rows
-        .filter((task) => task.status === status)
-        .sort(byUrgency)
-        .map((task) => card(task, today)),
+      cards: cards(
+        deps,
+        rows.filter((task) => task.status === status).sort(byUrgency),
+        today,
+      ),
     })),
     total: rows.length,
     canMove: may(deps, actorId, "task.edit"),
@@ -397,7 +557,7 @@ export function upcomingDeadlines(deps: ProjectsDeps, actorId: Id | null, days =
   const tasks = may(deps, actorId, "task.view")
     ? deps.tasks
         .listBoard("9999")
-        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId))
+        .filter((task) => task.status !== "done" && task.dueOn !== null && task.dueOn <= until && !demo.has(task.projectId ?? ""))
         .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "", overdue: isTaskOverdue(task, today) }))
     : [];
   return ok({ days, items: [...milestones, ...tasks].sort((a, b) => (a.dueOn === b.dueOn ? a.title.localeCompare(b.title) : a.dueOn < b.dueOn ? -1 : 1)) });
@@ -424,7 +584,7 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
     .map((milestone) => ({ key: `m-${milestone.id}`, kind: "Milestone", title: milestone.name, href: `/projects/${milestone.projectId}`, projectName: milestone.projectName, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "" }));
   const lateTasks = deps.tasks
     .listBoard("9999")
-    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId))
+    .filter((task) => isTaskOverdue(task, today) && !demo.has(task.projectId ?? ""))
     .map((task) => ({ key: `t-${task.id}`, kind: "Task", title: task.title, href: `/tasks/${task.id}`, projectName: task.projectName, dueOn: task.dueOn ?? "", dueText: task.dueOn ? dueText(task.dueOn, today) : "" }));
   return ok({
     statuses: PROJECT_STATUSES.map((status) => ({ label: STATUS_LABELS[status] ?? status, count: all.filter((project) => project.status === status).length })),

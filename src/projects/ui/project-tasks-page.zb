@@ -10,15 +10,16 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
+  import './label-chips.zb'
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.projects.tasks(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Tasks: ' + view.value.project.name, view: view.value, money: context.can.money, canImport: context.projects.canImport(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="">
+<hq-project-tasks view={{ project: {}, tasks: [], form: { people: [], phases: [], priorities: [], statuses: [] }, canAdd: false, canEdit: false }} money={false} done="" problem="" can-import={false}>
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Tasks', href: '' }]}></breadcrumb-trail>
     <h1>Tasks</h1>
@@ -30,8 +31,10 @@
       <a href="/projects/{view.project.id}">Overview</a>
       <a href="/projects/{view.project.id}/tasks" aria-current="page">Tasks</a>
       <a href="/projects/{view.project.id}/board">Board</a>
+      <a href="/projects/{view.project.id}/timeline">Timeline</a>
       <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
+    <p zb-if={canImport} class="hq-small"><a href="/projects/{view.project.id}/import">Import tasks from Trello or Todoist</a></p>
     <section class="hq-panel" aria-labelledby="task-list">
       <h2 id="task-list" class="sr-only">Task list</h2>
       <empty-state zb-if={view.tasks.length === 0} heading="No tasks yet">Break the work into pieces someone can pick up.</empty-state>
@@ -40,7 +43,7 @@
         <tbody>
           <zb-each items={view.tasks} as="task" key={task.id}>
             <tr>
-              <td><a href="/tasks/{task.id}">{task.title}</a></td>
+              <td><a href="/tasks/{task.id}">{task.title}</a> <label-chips labels={task.labels}></label-chips><span zb-if={task.subtasks} class="hq-muted hq-small"> Subtasks {task.subtasks}.</span><span zb-if={task.waiting > 0} class="hq-muted hq-small"> Waiting on {task.waiting}.</span><span zb-if={task.repeats} class="hq-muted hq-small"> Repeats.</span></td>
               <td>{task.statusLabel}</td>
               <td>{task.assigneeName || "Nobody yet"}</td>
               <td>{task.priorityLabel}</td>
@@ -75,6 +78,7 @@
             <zb-each items={view.form.phases} as="phase" key={phase.value}><option value={phase.value}>{phase.label}</option></zb-each>
           </select>
         </div>
+        <text-field label="Starts" name="startOn" type="date" description="Optional, for the timeline."></text-field>
         <text-field label="Due" name="dueOn" type="date"></text-field>
         <text-field label="Estimate in hours" name="estimate" inputmode="decimal" description="Like 1.5"></text-field>
         <text-field label="Details" name="description" rows={3}></text-field>

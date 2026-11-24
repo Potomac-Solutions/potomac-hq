@@ -1,0 +1,104 @@
+<!--
+  A timeline (decision 0007, section 9), drawn by the server: each row is a
+  name with its dates in words, beside a track where its bar or point sits.
+  The bars only repeat what the words say, so they're hidden from screen
+  readers. Today is a line down every track.
+
+  `scale` is a Scale and `groups` TimelineGroups (src/projects/application/timeline.ts).
+-->
+<script>
+  const pct = (value) => `${value}%`
+  // A bar is never thinner than a sliver, so a one-day task still shows.
+  const wide = (place) => `${Math.max(place.width, 0.6)}%`
+  const state = (row) => (row.done ? 'done' : row.overdue ? 'late' : row.kind)
+</script>
+<style>
+  :host { display: block; }
+  .tl-grid { --label: minmax(12rem, 18rem); display: grid; gap: 0; }
+  .tl-row { display: grid; grid-template-columns: var(--label) minmax(0, 1fr); align-items: center; gap: 0 1rem; min-height: 2.6rem; border-top: 1px solid var(--border); }
+  .tl-axis { border-top: 0; min-height: 2.5rem; }
+  .tl-label { min-width: 0; padding: 0.35rem 0; }
+  .tl-label a, .tl-label strong { overflow-wrap: anywhere; }
+  .tl-label .tl-when { display: block; font-size: 0.8125rem; color: var(--muted-foreground); }
+  .tl-sub .tl-label { padding-left: 1.1rem; }
+  .tl-group-head { background: color-mix(in srgb, var(--muted) 60%, transparent); }
+  .tl-group-head .tl-label { padding-left: 0.5rem; font-weight: 700; }
+  .tl-track { position: relative; height: 100%; min-height: 2.6rem; }
+  .tl-axis .tl-track { min-height: 2.5rem; }
+  .tl-tick { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--border); }
+  .tl-tick span { position: absolute; top: 0.15rem; left: 0.25rem; font-size: 0.75rem; color: var(--muted-foreground); white-space: nowrap; }
+  /* A tick too near the right edge keeps its line but not its label, which wouldn't fit. */
+  .tl-today { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--destructive); }
+  .tl-axis .tl-today[data-end] span { left: auto; right: 0.3rem; }
+  .tl-axis .tl-today span { position: absolute; top: 1.3rem; left: 0.3rem; font-size: 0.75rem; font-weight: 700; color: var(--destructive); white-space: nowrap; }
+  .tl-bar { position: absolute; top: 50%; height: 0.9rem; transform: translateY(-50%); border-radius: 999px; background: var(--primary); }
+  .tl-bar[data-state=phase] { height: 0.35rem; border-radius: 1px; background: color-mix(in srgb, var(--foreground) 55%, transparent); }
+  .tl-bar[data-state=project] { height: 1.1rem; }
+  .tl-bar[data-state=done] { background: transparent; border: 2px solid var(--muted-foreground); }
+  .tl-bar[data-state=late] { background: var(--destructive); }
+  .tl-point { position: absolute; top: 50%; width: 0.85rem; height: 0.85rem; transform: translate(-50%, -50%) rotate(45deg); border-radius: 2px; background: var(--primary); }
+  .tl-point[data-state=milestone] { background: var(--foreground); }
+  .tl-point[data-state=done] { background: var(--muted-foreground); }
+  .tl-point[data-state=late] { background: var(--destructive); }
+  .tl-mark { position: absolute; top: 50%; width: 0.7rem; height: 0.7rem; transform: translate(-50%, -50%) rotate(45deg); border: 2px solid var(--card); background: var(--foreground); }
+  .tl-mark[data-done] { background: var(--muted-foreground); }
+  .tl-key { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin: 0.75rem 0 0; padding: 0; list-style: none; font-size: 0.8125rem; color: var(--muted-foreground); }
+  .tl-key li { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .tl-key i { display: inline-block; width: 1.4rem; height: 0.6rem; border-radius: 999px; background: var(--primary); }
+  .tl-key i[data-state=late] { background: var(--destructive); }
+  .tl-key i[data-state=done] { background: transparent; border: 2px solid var(--muted-foreground); }
+  .tl-key i[data-state=phase] { height: 0.3rem; border-radius: 1px; background: color-mix(in srgb, var(--foreground) 55%, transparent); }
+  .tl-key i[data-state=milestone] { width: 0.7rem; height: 0.7rem; border-radius: 2px; transform: rotate(45deg); background: var(--foreground); }
+  .tl-key i[data-state=today] { width: 0; height: 0.9rem; border-radius: 0; border-left: 2px solid var(--destructive); background: none; }
+  @media (max-width: 40rem) {
+    .tl-row { grid-template-columns: minmax(0, 1fr); }
+    .tl-axis .tl-label { display: none; }
+    .tl-track { min-height: 1.4rem; }
+  }
+</style>
+<timeline-chart scale={null} groups={[]}>
+  <div zb-if={scale} class="tl-grid">
+    <div class="tl-row tl-axis" aria-hidden="true">
+      <div class="tl-label"></div>
+      <div class="tl-track">
+        <zb-each items={scale.ticks} as="tick" key={tick.day}><span class="tl-tick" style:left={pct(tick.at)}><span zb-if={tick.at <= 92}>{tick.label}</span></span></zb-each>
+        <span zb-if={scale.today !== null} class="tl-today" data-end={scale.today > 88 ? '' : null} style:left={pct(scale.today)}><span>Today</span></span>
+      </div>
+    </div>
+    <zb-each items={groups} as="group" key={group.key}>
+      <div class="tl-group">
+        <div zb-if={group.label} class="tl-row tl-group-head">
+          <div class="tl-label"><h3 class="hq-small" style="margin:0">{group.label}</h3><span zb-if={group.bar} class="tl-when">{group.bar ? group.bar.when : ''}</span></div>
+          <div class="tl-track" aria-hidden="true">
+            <span zb-if={scale.today !== null} class="tl-today" style:left={pct(scale.today)}></span>
+            <span zb-if={group.bar} class="tl-bar" data-state="phase" style:left={group.bar ? pct(group.bar.place.left) : '0%'} style:width={group.bar ? wide(group.bar.place) : '0%'}></span>
+          </div>
+        </div>
+        <ul style="margin:0;padding:0;list-style:none">
+          <zb-each items={group.rows} as="row" key={row.key}>
+            <li class={row.sub ? 'tl-row tl-sub' : 'tl-row'}>
+              <div class="tl-label">
+                <a href={row.href}>{row.title}</a>
+                <span class="tl-when">{row.when}{row.status ? '. ' + row.status : ''}{row.overdue ? '. Late' : ''}</span>
+              </div>
+              <div class="tl-track" aria-hidden="true">
+                <span zb-if={scale.today !== null} class="tl-today" style:left={pct(scale.today)}></span>
+                <span zb-if={!row.place.point} class="tl-bar" data-state={state(row)} style:left={pct(row.place.left)} style:width={wide(row.place)}></span>
+                <span zb-if={row.place.point} class="tl-point" data-state={state(row)} style:left={pct(row.place.left)}></span>
+                <zb-each items={row.marks} as="mark" key={mark.key}><span class="tl-mark" data-done={mark.done ? '' : null} style:left={pct(mark.at)} title={mark.title}></span></zb-each>
+              </div>
+            </li>
+          </zb-each>
+        </ul>
+      </div>
+    </zb-each>
+  </div>
+  <ul zb-if={scale} class="tl-key" aria-hidden="true">
+    <li><i></i> Open</li>
+    <li><i data-state="late"></i> Late</li>
+    <li><i data-state="done"></i> Done</li>
+    <li zb-if={groups.some((group) => group.bar)}><i data-state="phase"></i> A phase, start to end</li>
+    <li><i data-state="milestone"></i> Milestone, or a task with only a due date</li>
+    <li><i data-state="today"></i> Today</li>
+  </ul>
+</timeline-chart>

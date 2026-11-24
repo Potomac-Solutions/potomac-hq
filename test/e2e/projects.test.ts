@@ -146,7 +146,7 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await page.getByRole("button", { name: "Save theme" }).click();
   await page.getByText("Theme saved.").waitFor();
   assert.equal(await page.evaluate(BACKGROUND), "#101820");
-  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, "/board"]) {
+  for (const path of ["/settings", "/", "/pipeline", "/clients", "/projects", `/projects/${projectId}`, `/projects/${projectId}/tasks`, `/projects/${projectId}/timeline`, "/board", "/timeline", "/labels", "/work", "/notices", "/calendar-feed", "/webhooks", "/add?text=Proof%20%2Bnowhere%20tomorrow%20*website"]) {
     await page.goto(t.origin + path);
     await assertAccessible(page, `${path} in dark mode`);
   }
@@ -164,6 +164,148 @@ test("dark mode: chosen in Settings, and every screen still passes", async () =>
   await darkPage.goto(t.origin + "/");
   assert.equal(await darkPage.evaluate(BACKGROUND), "#101820");
   await dark.close();
+});
+
+test("quick add: N goes to the box, the line is checked, then added", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(t.origin + "/today");
+  await page.locator("h1").click();
+  await page.keyboard.press("n");
+  assert.equal(await page.evaluate("document.activeElement && document.activeElement.id"), "hq-quick-text");
+  await page.keyboard.type("Swap the truck photos *photos tomorrow");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/add\?text=/);
+  await page.getByText("New label photos").waitFor();
+  await assertAccessible(page, "quick add preview");
+  await page.getByRole("button", { name: "Add it" }).click();
+  await page.getByText("Added.").waitFor();
+  await page.getByRole("link", { name: "Open it" }).click();
+  await page.getByRole("heading", { name: "Swap the truck photos" }).waitFor();
+
+  // The calendar address: made, and shown once.
+  await page.goto(t.origin + "/calendar-feed");
+  await page.getByRole("button", { name: "Make my address" }).click();
+  await page.getByRole("heading", { name: "Your calendar address" }).waitFor();
+  assert.match(await page.getByLabel("Subscribe to this in your calendar").inputValue(), /\/calendar\/[A-Za-z0-9_-]{43}\.ics$/);
+  await assertAccessible(page, "the calendar address, shown once");
+
+  // A webhook: added, its secret shown once, then its own page.
+  await page.goto(t.origin + "/webhooks");
+  await page.getByLabel("Address", { exact: true }).fill("https://n8n.example.com/webhook/hq");
+  await page.getByLabel("A task is done").check();
+  await page.getByRole("button", { name: "Add webhook" }).click();
+  await page.getByRole("heading", { name: "Webhook added" }).waitFor();
+  await assertAccessible(page, "a webhook's secret, shown once");
+  await page.getByRole("link", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Send a test" }).click();
+  await page.getByText("A test is queued.").waitFor();
+  await assertAccessible(page, "a webhook with a delivery waiting");
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
+test("subtasks and blocking on a task's page", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(`${t.origin}/projects/${projectId}/tasks`);
+  await page.getByLabel("Title").fill("Launch the menu page");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByText("Task added.").waitFor();
+  await page.getByRole("link", { name: "Launch the menu page" }).click();
+  await page.waitForURL((url) => url.pathname.startsWith("/tasks/"));
+  await page.getByLabel("New subtask").fill("Proofread the prices");
+  await page.getByRole("button", { name: "Add subtask" }).click();
+  await page.getByText("Subtask added.").waitFor();
+  await page.getByLabel("It waits on").selectOption({ label: "Set up hosting" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByText("It now waits on that task.").waitFor();
+  await assertAccessible(page, "a task with a subtask and a blocker");
+  await page.getByRole("link", { name: "Proofread the prices" }).click();
+  await page.getByText("Subtask of").waitFor();
+  await assertAccessible(page, "a subtask");
+
+  // Comments and files on the same page.
+  await page.getByLabel("Add a comment").fill("Prices checked against the paper menu. @mikey");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await page.getByText("Comment added.").waitFor();
+  const proof = join(scratch, "menu-proof.pdf");
+  writeFileSync(proof, PDF);
+  await page.getByLabel("Attach a file").setInputFiles(proof);
+  await page.getByRole("button", { name: "Attach", exact: true }).click();
+  await page.getByText("File attached.").waitFor();
+  await page.getByText("Edit your comment", { exact: true }).click();
+  await page.getByLabel("Your comment", { exact: true }).fill("Prices checked against the paper menu and the website. @mikey");
+  await page.getByRole("button", { name: "Save comment" }).click();
+  await page.getByText("Comment saved.").waitFor();
+  await page.getByText("Edit your comment", { exact: true }).click();
+  await assertAccessible(page, "a task with a comment, a file and the edit form open");
+  await page.getByRole("button", { name: "Remove menu-proof.pdf" }).click();
+  await page.getByText("Removed “menu-proof.pdf”.").waitFor();
+
+  // Back to the parent, and make it repeat.
+  await page.getByRole("link", { name: "Launch the menu page" }).click();
+  await page.getByLabel("Every", { exact: true }).fill("2");
+  await page.getByLabel("Unit").selectOption("month");
+  await page.getByRole("button", { name: "Make it repeat" }).click();
+  await page.getByText("It repeats now.").waitFor();
+  await page.getByText("Every 2 months, from the due date").first().waitFor();
+  await assertAccessible(page, "a repeating task");
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
+test("share a project by link, and comment through it with no account", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(`${t.origin}/projects/${projectId}#share`);
+  await assertAccessible(page, "a project with its share links");
+  await page.getByLabel("Who it's for").fill("Dale at the bakery");
+  await page.getByLabel("They may").selectOption("comment");
+  await page.getByRole("button", { name: "Make the link" }).click();
+  await page.getByRole("heading", { name: "A link for Dale at the bakery" }).waitFor();
+  await assertAccessible(page, "a share link, shown once");
+  const link = await page.getByLabel("Send them this link").inputValue();
+  assert.match(link, /\/s\/[A-Za-z0-9_-]{43}$/);
+  await page.close();
+
+  const outsider = await browser.newContext();
+  const visit = await outsider.newPage();
+  const visitProblems = watch(visit);
+  await visit.goto(link);
+  await visit.getByText("Shared by Potomac Solutions with Dale at the bakery").waitFor();
+  await assertAccessible(visit, "the shared project");
+  const first = visit.locator(".shared-comment-form").first();
+  await first.locator("summary").click();
+  await first.getByLabel("Your name").fill("Dale");
+  await first.getByLabel("Your comment").fill("Looks great so far.");
+  await first.getByRole("button", { name: "Send comment" }).click();
+  await visit.getByText("Comment added. The team will see it.").waitFor();
+  await visit.getByText("Looks great so far.").waitFor();
+  await assertAccessible(visit, "the shared project with a comment");
+  assert.deepEqual(visitProblems, []);
+  await outsider.close();
+  assert.deepEqual(problems, []);
+});
+
+test("import a Trello board into a project, after a preview", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  const board = join(scratch, "board.json");
+  writeFileSync(board, JSON.stringify({ name: "Bakery board", lists: [{ id: "l", name: "Doing", closed: false }], labels: [{ id: "g", name: "Menu", color: "green" }], cards: [{ id: "c", name: "Photograph the pies", idList: "l", closed: false, idLabels: ["g"] }], checklists: [{ idCard: "c", checkItems: [{ name: "Apple", state: "incomplete" }] }] }));
+  await page.goto(`${t.origin}/projects/${projectId}/tasks`);
+  await page.getByRole("link", { name: "Import tasks from Trello or Todoist" }).click();
+  await assertAccessible(page, "the import page");
+  await page.getByLabel("Trello: the board's JSON export").check();
+  await page.getByLabel("The file").setInputFiles(board);
+  await page.getByRole("button", { name: "Show what it would make" }).click();
+  await page.getByRole("heading", { name: "Import from Trello: Bakery board" }).waitFor();
+  await assertAccessible(page, "an import preview");
+  await page.getByRole("button", { name: "Import 2 tasks" }).click();
+  await page.getByText("Imported 1 task and 1 subtask, with 1 new label.").waitFor();
+  await page.getByRole("link", { name: "Photograph the pies" }).waitFor();
+  assert.deepEqual(problems, []);
+  await page.close();
 });
 
 test("the pipeline: a card dragged to the next column moves a stage", async () => {

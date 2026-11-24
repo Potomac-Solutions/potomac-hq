@@ -140,6 +140,22 @@ project task permissions: `task.view` to see and `task.edit` to add and tick
 off, so a member can give one to anyone. Done ones are kept. Events:
 `todo.added`, `todo.done`, `todo.reopened`.
 
+Since decision 0007 (migration 0041) a to-do is a row in `task` with no
+project: `task.project_id` is empty, and `task` gained `organization_id`,
+`opportunity_id` and `created_by` for it. The `todo` table is gone; every
+to-do kept its id. A task without a project has no phase, always has
+someone, and is only `todo` or `done`. My work (`/todos`) lists to-dos and
+project tasks together; the client and opportunity panels, Today and the
+morning email list only to-dos, since Today shows project tasks as deadlines.
+A to-do keeps its `todo.*` events. Ticking off a project task from My work
+moves it as the board does (`task.moved`), so its timer stops.
+
+## Task management
+
+Labels, saved filters, quick add, subtasks, comments, repeats, notices and
+reminders, the timeline and calendar feeds (decision 0007) have their own
+page: [data-model-tasks.md](data-model-tasks.md).
+
 ## Morning email
 
 Decided 2026-11-22 at Mikey's request. Needs his approval.

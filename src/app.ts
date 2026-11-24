@@ -28,10 +28,15 @@ import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, cli
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
-import { publicSiteView } from "./public-site/index.ts";
+import { publicSiteView, settingsForSite } from "./public-site/index.ts";
 import { publicSiteRoutes, siteApiRoutes } from "./public-site/api/public-site-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
+import { noticeLinks, noticeRoutes } from "./notices/api/notice-routes.ts";
+import { webhookRoutes } from "./webhooks/api/webhook-routes.ts";
+import { webhookSecretPage } from "./webhooks/ui/views.ts";
+import { listWebhooks, webhookDetail } from "./webhooks/index.ts";
+import { listNotices, remindersOn, unreadCount, unreadNotices } from "./notices/index.ts";
 import { todayFor, type TodayView } from "./today/index.ts";
 import { allSites, clientSites, sitesNeedingAttention, type SitesView } from "./monitor/index.ts";
 import { monitorRoutes } from "./monitor/api/monitor-routes.ts";
@@ -54,11 +59,13 @@ import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
+import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
-import { projectRoutes } from "./projects/api/project-routes.ts";
+import { calendarFeeds, projectRoutes, shareFiles, shareRoutes, workDownloads } from "./projects/api/project-routes.ts";
+import { feedAddressPage, shareAddressPage } from "./projects/ui/feed-views.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, listProjects, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -186,6 +193,25 @@ export type PageContext = {
     /** One project's board, or every active project's when `projectId` is "". */
     board(projectId: string, mine: boolean): ReturnType<typeof board>;
     task(id: string): ReturnType<typeof taskDetail>;
+    labels(): ReturnType<typeof labelsPage>;
+    /** The work table for the page's address: `params` is `url.searchParams.getAll`. */
+    work(params: (name: string) => readonly string[]): ReturnType<typeof workTable>;
+    /** One project's timeline, and every active project's (decision 0007, section 9). */
+    timeline(id: string): ReturnType<typeof projectTimeline>;
+    timelines(): ReturnType<typeof projectsTimeline>;
+    /** Your calendar address: whether you have one, and the filters it could follow (decision 0007, section 10). */
+    calendar(): ReturnType<typeof calendarFeedView>;
+    /** A project's share links, for those who manage them (decision 0007, section 11). */
+    shares(projectId: string): ReturnType<typeof shareLinks>;
+    /** What a share link shows, with no one signed in; null if it isn't a working link. Records the visit. */
+    shared(token: string): ReturnType<typeof sharedProject>;
+    /** Importing tasks from Trello or Todoist (decision 0007, section 13). */
+    canImport(): boolean;
+    importPreview(id: string): ReturnType<typeof taskImportPreview>;
+    /** Saved filters pinned to the sidebar. */
+    pinned(): ReturnType<typeof pinnedFilters>;
+    /** Quick add's preview for the page's address, and the task just added, if any. `params` is `url.searchParams.getAll`. */
+    quickAdd(params: (name: string) => readonly string[]): { readonly view: ReturnType<typeof quickAddPreview>; readonly added: string };
     active(): ReturnType<typeof activeProjects>;
     deadlines(): ReturnType<typeof upcomingDeadlines>;
   };
@@ -214,7 +240,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -261,6 +287,18 @@ export type PageContext = {
     attention(): ReturnType<typeof sitesNeedingAttention>;
   };
   agenda(): TodayView;
+  /** Notices (decision 0007, section 8): the bell, the Notices page, Today's new ones, and a task's reminders. */
+  /** Webhooks, for admins (decision 0007, section 12). */
+  readonly webhooks: {
+    list(): ReturnType<typeof listWebhooks>;
+    detail(id: string): ReturnType<typeof webhookDetail>;
+  };
+  readonly bell: {
+    unread(): number;
+    list(): ReturnType<typeof listNotices>;
+    fresh(): ReturnType<typeof unreadNotices>;
+    reminders(taskId: string): ReturnType<typeof remindersOn>;
+  };
   readonly todos: {
     list(everyone: boolean): Result<TodosView, "forbidden">;
     atClient(id: string): TodosPanel | null;
@@ -339,7 +377,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(projects\/[0-9a-f-]{36}\/(deliverables|expenses)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos)$/;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
@@ -352,7 +390,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -542,6 +580,23 @@ export async function createApp(config: AppConfig): Promise<App> {
           tasks: (id) => withId(id, (projectId) => projectTasks(projectsDeps, actor, projectId)),
           board: (id, mine) => (id === "" ? board(projectsDeps, actor, { mine }) : withId(id, (projectId) => board(projectsDeps, actor, { projectId, mine }))),
           task: (id) => withId(id, (taskId) => taskDetail(projectsDeps, actor, taskId)),
+          labels: () => labelsPage(projectsDeps, actor),
+          work: (params) => workTable(projectsDeps, actor, params),
+          pinned: () => pinnedFilters(projectsDeps, actor),
+          timeline: (id) => withId(id, (projectId) => projectTimeline(projectsDeps, actor, projectId)),
+          timelines: () => projectsTimeline(projectsDeps, actor),
+          calendar: () => calendarFeedView(projectsDeps, actor),
+          shares: (projectId) => {
+            const parsed = parseId(projectId);
+            return parsed.ok ? shareLinks(projectsDeps, actor, parsed.value) : { canShare: false, links: [] };
+          },
+          shared: (token) => sharedProject(projectsDeps, token),
+          canImport: () => canImportTasks(projectsDeps, actor),
+          importPreview: (id) => withId(id, (importId) => taskImportPreview(projectsDeps, actor, importId)),
+          quickAdd: (params) => {
+            const added = parseId(params("added")[0] ?? "");
+            return { view: quickAddPreview(projectsDeps, actor, { text: params("text")[0] ?? "", skip: readSkip(params("skip")) }), added: added.ok ? `/tasks/${added.value}` : "" };
+          },
           active: () => activeProjects(projectsDeps, actor),
           deadlines: () => upcomingDeadlines(projectsDeps, actor),
         },
@@ -579,7 +634,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok },
         websites: {
           mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
           all: () => allWebsites(services.websites, actor),
@@ -605,6 +660,19 @@ export async function createApp(config: AppConfig): Promise<App> {
           attention: () => sitesNeedingAttention(services.monitor, actor),
         },
         agenda: () => todayFor(services.day, actor),
+        webhooks: {
+          list: () => listWebhooks(services.webhooks, actor, services.formatWhen),
+          detail: (id) => withId(id, (webhookId) => webhookDetail(services.webhooks, actor, webhookId, services.formatWhen)),
+        },
+        bell: {
+          unread: () => unreadCount(services.notices, actor),
+          list: () => listNotices(services.notices, actor, services.formatWhen),
+          fresh: () => unreadNotices(services.notices, actor, services.formatWhen),
+          reminders: (taskId) => {
+            const parsed = parseId(taskId);
+            return parsed.ok ? remindersOn(services.notices, actor, parsed.value, services.formatWhen) : [];
+          },
+        },
         todos: {
           list: (everyone) => listTodos(services.todos, actor, { everyone }),
           atClient: (id) => {
@@ -747,7 +815,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
@@ -765,6 +833,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   /** Anyone can sign up to book when booking for new people is on and HQ can email the confirm link. */
   const signUpOpen = (): boolean => inviteMail !== null && services.booking.bookings.settings()?.publicOpen === true && (services.booking.bookings.settings()?.hours.length ?? 0) > 0;
+  /** How someone reaches Potomac about an email they didn't expect: " by calling or texting …", or by email, or by replying. */
+  const contactLine = contact.phone ? ` by calling or texting ${contact.phone}` : contact.email ? ` at ${contact.email}` : " by replying to this email";
   const inviteMail = email
     ? createNotify({
         send: email.send,
@@ -784,6 +854,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           "sign-up-again": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nSomeone, probably you, tried to sign up with this email. You already have a client portal account. Sign in as usual, or open this link to choose a new password. It works once, for a week:\n\n${link}\n\nIf it wasn't you, ignore this email and nothing changes.\n\nPotomac Solutions`,
+          }),
+          "website-booked": ({ name, link, when }: { name: string; link: string; when: string }) => ({
+            subject: "Your call with Potomac Solutions is booked",
+            body: `Hi ${name},\n\nThanks for booking a call with us for ${when}. We also made you a client account, so everything about your call and your website lives in one place.\n\nOpen this link to choose a password and see your dashboard. There you can add or change your details, and move or cancel your call. It works once, for a week:\n\n${link}\n\nIf you didn't book this, someone used your email address on our website. Please let us know${contactLine}, and we'll cancel the call and close the account.\n\nPotomac Solutions`,
+          }),
+          "website-booking-again": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Someone tried to book a call with your details",
+            body: `Hi ${name},\n\nSomeone just tried to book a free call on the Potomac Solutions website using your email address or phone number. You already have an account with us, so we didn't book a second free call.\n\nIf it was you, open this link to sign in (or choose a new password) and book from your dashboard. It works once, for a week:\n\n${link}\n\nIf it wasn't you, please let us know${contactLine}. Nothing has been booked or changed, and nobody can use this link without access to this inbox.\n\nPotomac Solutions`,
           }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
@@ -905,6 +983,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", shareRoutes({ projects: projectsDeps, sign: (location) => notices.sign(location), allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
+  forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: (location) => notices.sign(location), secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
+  forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
@@ -943,6 +1024,23 @@ export async function createApp(config: AppConfig): Promise<App> {
   const allowSiteApi = sqliteRateLimit(db, { name: "site-api", max: 120, windowMs: 60_000 });
   const web = new Hono();
   const ping = db.prepare("select 1 as ok");
+  web.route(
+    "/",
+    siteBookingRoutes({
+      portal: portalDeps,
+      booking: services.booking,
+      emails: bookingEmails,
+      isSite: (token) => settingsForSite(services.publicSite, token) !== null,
+      open: signUpOpen,
+      ownerFor: leadOwner,
+      publicUrl,
+      mail: async (to, link, kind, when) =>
+        inviteMail !== null && "ok" in (await inviteMail.notify({ email: to.email }, kind === "booked" ? "website-booked" : "website-booking-again", { name: to.name, link, when })),
+      allowPerVisitor: sqliteRateLimit(db, { name: "site-booking-visitor", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: sqliteRateLimit(db, { name: "site-booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
+      allowApi: (incoming) => allowSiteApi(clientAddressOf(incoming as never)),
+    }),
+  );
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
@@ -959,10 +1057,14 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
+  downloads.route("/", workDownloads({ projects: projectsDeps, actorOf }));
+  downloads.route("/", shareFiles({ projects: projectsDeps }));
+  downloads.route("/", calendarFeeds({ projects: projectsDeps, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
+  downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
@@ -1000,7 +1102,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

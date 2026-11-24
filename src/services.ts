@@ -21,6 +21,10 @@ import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
 import type { TodosDeps } from "./todos/index.ts";
+import { withNotices, type NoticesDeps } from "./notices/index.ts";
+import { withWebhooks, type HookDescribe, type WebhooksDeps } from "./webhooks/index.ts";
+import { sqliteDeliveryStore, sqliteWebhookStore, webhookSigner } from "./webhooks/adapters.ts";
+import { sqliteNoticeSettings, sqliteNoticeStore, sqliteTaskReminderStore } from "./notices/adapters.ts";
 import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
@@ -31,12 +35,12 @@ import { sqliteArticleStore } from "./knowledge/adapters.ts";
 import type { KnowledgeDeps } from "./knowledge/index.ts";
 import { sqliteNoteStore } from "./notes/adapters.ts";
 import type { NotesDeps } from "./notes/index.ts";
-import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserStore, sqliteUpdateStore } from "./portal/adapters.ts";
+import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserStore, sqlitePeopleLookup, sqliteUpdateStore } from "./portal/adapters.ts";
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore } from "./projects/adapters.ts";
-import type { ProjectsDeps } from "./projects/index.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
+import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
 
@@ -71,6 +75,10 @@ export type Services = {
   readonly websites: WebsitesDeps;
   readonly touches: TouchDeps;
   readonly todos: TodosDeps;
+  /** Notices and reminders: what's new for each person. */
+  readonly notices: NoticesDeps;
+  /** Webhooks: what HQ posts to n8n and the like. */
+  readonly webhooks: WebhooksDeps;
   /** The day's list, across HQ. */
   readonly day: TodayDeps;
   /** Scheduling invites: someone paints the times they could do, and a call is confirmed. */
@@ -105,6 +113,12 @@ export type ServiceOptions = {
   readonly secure?: boolean;
   /** A cheaper password hash, for tests only. */
   readonly passwordCost?: { N: number; r: number; p: number };
+  /** Outbound email is set up, so notices can be emailed. */
+  readonly emailReady?: boolean;
+  /** HQ's own key, for signing webhooks. Without it webhooks can't be added or sent. */
+  readonly webhookKey?: string;
+  /** HQ's own address, for links in webhook payloads. */
+  readonly publicUrl?: string;
 };
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -116,8 +130,32 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const projectStore = sqliteProjectStore(db);
+  // Tasks, to-dos and comments are recorded through this log, so each event makes its notices (decision 0007, section 8).
+  const noticeStore = sqliteNoticeStore(db);
+  const reminderStore = sqliteTaskReminderStore(db);
+  const noticingLog = withNotices(sqliteActivityLog(db), { notices: noticeStore, reminders: reminderStore, newId, clock, zone: BUSINESS_TIME_ZONE });
+  // And each event a webhook is sent queues its delivery (decision 0007, section 12). The payload reads the task or project as it is then.
+  const base = (options.publicUrl ?? "").replace(/\/$/, "");
+  const webhookStores = { webhooks: sqliteWebhookStore(db), deliveries: sqliteDeliveryStore(db) };
+  const describe: HookDescribe = {
+    task(id) {
+      const task = projects.tasks.row(id);
+      if (!task) return null;
+      const assignee = task.assigneeId ? users.get(task.assigneeId) : null;
+      const project = task.projectId ? projectStore.get(task.projectId) : null;
+      const client = project ? crm.clients.get(project.organizationId) : null;
+      return { id: task.id, title: task.title, status: task.status, priority: task.priority, dueOn: task.dueOn, startOn: task.startOn, project: project ? { id: project.id, name: project.name, client: client?.name ?? null } : null, assignee: assignee ? { name: assignee.name, email: assignee.email } : null, url: `${base}/tasks/${task.id}` };
+    },
+    project(id) {
+      const project = projectStore.get(id);
+      if (!project) return null;
+      return { id: project.id, name: project.name, status: project.status, client: crm.clients.get(project.organizationId)?.name ?? null, startOn: project.startOn, targetOn: project.targetOn, url: `${base}/projects/${project.id}` };
+    },
+  };
+  const eventLog = withWebhooks(noticingLog, { ...webhookStores, describe, users, newId, clock });
   const crm: CrmDeps = {
     ...session,
+    activityLog: eventLog,
     clients: sqliteClientStore(db),
     contacts: sqliteContactStore(db),
     opportunities: sqliteOpportunityStore(db),
@@ -129,6 +167,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
   const projects: ProjectsDeps = {
     ...session,
+    activityLog: eventLog,
     files: sqliteFileRecordStore(db),
     blobs: sqliteBlobStore(db),
     digest: sha256Hex,
@@ -136,6 +175,16 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     phases: sqlitePhaseStore(db),
     milestones: sqliteMilestoneStore(db),
     tasks: sqliteTaskStore(db),
+    labels: sqliteLabelStore(db),
+    work: sqliteWorkStore(db),
+    taskLinks: sqliteTaskLinkStore(db),
+    comments: sqliteCommentStore(db),
+    repeats: sqliteRepeatStore(db),
+    feeds: sqliteCalendarFeedStore(db),
+    shares: sqliteShareStore(db),
+    imports: sqliteImportStore(db),
+    zone: BUSINESS_TIME_ZONE,
+    feedTokens: siteTokens,
     deliverables: sqliteDeliverableStore(db),
     links: sqliteProjectLinkStore(db),
     baselines: sqliteBaselineStore(db),
@@ -159,6 +208,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ...proposals,
     ...finance,
     clientUsers: sqliteClientUserStore(db),
+    people: sqlitePeopleLookup(db),
     updates: sqliteUpdateStore(db),
     calls: sqliteCallStore(db),
     events: sqliteEventReader(db),
@@ -176,11 +226,14 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
-    activityLog: sqliteActivityLog(db),
+    activityLog: eventLog,
     clock,
     newId,
     today,
     todos: sqliteTodoStore(db),
+    moveProjectTask: (actorId, taskId, to) => moveTaskStatus(projects, actorId, taskId, to),
+    afterTodoDone: (actorId, todoId) => void repeatAfterDone(projects, actorId, todoId),
+    labelsFor: (taskIds) => projects.labels.forTasks(taskIds),
     crm: {
       clientName: (id) => crm.clients.get(id)?.name ?? null,
       opportunity: (id) => {
@@ -245,5 +298,22 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
   const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
-  return { publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const notices: NoticesDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    notices: noticeStore,
+    reminders: reminderStore,
+    settings: sqliteNoticeSettings(db),
+    task: (taskId) => {
+      const task = projects.tasks.get(taskId);
+      return task ? { title: task.title, dueOn: task.dueOn, done: task.status === "done", assigneeId: task.assigneeId } : null;
+    },
+    zone: BUSINESS_TIME_ZONE,
+    emailReady: options.emailReady ?? false,
+  };
+  const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
+  return { notices, webhooks, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

@@ -1,6 +1,7 @@
 <!--
-  To-dos: yours by when (overdue, today, coming up, whenever), or everyone's,
-  and what you ticked off this week. Add one for yourself or anyone.
+  My work: your open to-dos and project tasks by when (overdue, today, coming
+  up, whenever), or everyone's, and what you finished this week. Add a to-do
+  for yourself or anyone (decision 0007, section 1).
 -->
 <script>
   'use route /todos'
@@ -14,7 +15,7 @@
     const everyone = url.searchParams.get('everyone') === '1'
     const view = context.todos.list(everyone)
     if (!view.ok) return context.forbidden()
-    return { title: 'To-dos', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.everyone ? 'Everyone’s work' : 'My work', view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -24,7 +25,8 @@
 </style>
 <hq-todos view={{ overdue: [], today: [], upcoming: [], someday: [], done: [], everyone: false, canEdit: false, people: [], clients: [] }} done="" problem="">
   <div class="hq-page">
-    <h1>To-dos</h1>
+    <h1>{view.everyone ? 'Everyone’s work' : 'My work'}</h1>
+    <p class="hq-muted">To-dos and project tasks together, by when they’re due. <a href="/calendar-feed">See them in your calendar</a></p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>

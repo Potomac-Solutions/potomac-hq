@@ -1,0 +1,25 @@
+<!--
+  A task's labels as small chips, each in its own colour (decision 0007).
+  The name is always written, so the colour is never the only signal.
+  `labels` is a list of { id, name, colour }; an empty list draws nothing.
+-->
+<style>
+  :host { display: inline; }
+  ul { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; padding: 0; list-style: none; vertical-align: middle; }
+  li { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.775rem; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+  li[data-colour=slate] { background: var(--label-slate-bg); color: var(--label-slate-fg); }
+  li[data-colour=red] { background: var(--label-red-bg); color: var(--label-red-fg); }
+  li[data-colour=orange] { background: var(--label-orange-bg); color: var(--label-orange-fg); }
+  li[data-colour=amber] { background: var(--label-amber-bg); color: var(--label-amber-fg); }
+  li[data-colour=green] { background: var(--label-green-bg); color: var(--label-green-fg); }
+  li[data-colour=teal] { background: var(--label-teal-bg); color: var(--label-teal-fg); }
+  li[data-colour=sky] { background: var(--label-sky-bg); color: var(--label-sky-fg); }
+  li[data-colour=blue] { background: var(--label-blue-bg); color: var(--label-blue-fg); }
+  li[data-colour=indigo] { background: var(--label-indigo-bg); color: var(--label-indigo-fg); }
+  li[data-colour=violet] { background: var(--label-violet-bg); color: var(--label-violet-fg); }
+  li[data-colour=pink] { background: var(--label-pink-bg); color: var(--label-pink-fg); }
+  li[data-colour=brown] { background: var(--label-brown-bg); color: var(--label-brown-fg); }
+</style>
+<label-chips labels={[]}>
+  <ul zb-if={labels.length > 0} aria-label="Labels"><zb-each items={labels} as="one" key={one.id}><li data-colour={one.colour}>{one.name}</li></zb-each></ul>
+</label-chips>

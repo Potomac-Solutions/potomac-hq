@@ -1,0 +1,57 @@
+<!--
+  Webhooks (decision 0007, section 12), for admins: the addresses HQ posts to
+  when things happen, for n8n or anything like it, and a form to add one.
+-->
+<script>
+  'use route /webhooks'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.webhooks.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Webhooks', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-webhooks view={{ ready: false, items: [], choices: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Webhooks</h1>
+    <p class="hq-muted">HQ posts to these addresses when things happen, so n8n or a similar tool can act on them. Each delivery is signed, and tried again for a day if it doesn't land.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.ready} variant="warning">HQ has no key to sign webhooks with, so none can be added or sent. Set HQ_NOTICE_SECRET on the server.</alert-banner>
+    <section class="hq-panel" aria-labelledby="hooks-list">
+      <h2 id="hooks-list">Addresses</h2>
+      <empty-state zb-if={view.items.length === 0} heading="No webhooks yet">Add an address below, like an n8n Webhook node's production URL.</empty-state>
+      <ul zb-else class="hq-links">
+        <zb-each items={view.items} as="hook" key={hook.id}>
+          <li>
+            <span><a href="/webhooks/{hook.id}">{hook.url}</a><span class="hq-muted hq-small"><br>{hook.events.join('; ')}</span></span>
+            <span class="hq-small"><status-badge zb-if={hook.paused} variant="warning">Paused</status-badge> <span class={hook.lastOk ? 'hq-muted' : ''}>{hook.last}</span></span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+    <section zb-if={view.ready} class="hq-panel" aria-labelledby="hooks-add">
+      <h2 id="hooks-add">Add a webhook</h2>
+      <form method="post" action="/webhooks" class="hq-form">
+        <div class="hq-field">
+          <label for="hook-url">Address</label>
+          <input id="hook-url" name="url" type="url" inputmode="url" maxlength="500" required placeholder="https://n8n.example.com/webhook/…">
+        </div>
+        <fieldset class="hq-checks">
+          <legend>Send it when</legend>
+          <zb-each items={view.choices} as="choice" key={choice.value}>
+            <label><input type="checkbox" name="event-{choice.value}" value="1"> {choice.label}</label>
+          </zb-each>
+        </fieldset>
+        <div><button class="hq-button" type="submit">Add webhook</button></div>
+        <p class="hq-muted hq-small">HQ shows its signing secret once, when it's added.</p>
+      </form>
+    </section>
+  </div>
+</hq-webhooks>

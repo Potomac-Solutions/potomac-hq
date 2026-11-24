@@ -12,7 +12,20 @@ function task(over: Partial<Task> = {}): Task {
 }
 
 test("a new task is to do, normal priority, with nothing else set", () => {
-  assert.deepEqual(task(), { id: id(1), projectId: id(2), phaseId: null, title: "Draft the menu page", description: "", assigneeId: null, priority: "normal", dueOn: null, estimateMinutes: null, status: "todo", doneAt: null });
+  assert.deepEqual(task(), { id: id(1), projectId: id(2), phaseId: null, title: "Draft the menu page", description: "", assigneeId: null, priority: "normal", dueOn: null, startOn: null, estimateMinutes: null, status: "todo", doneAt: null });
+});
+
+test("a start date is never after the due date, and an edit without one keeps it", () => {
+  assert.deepEqual(newTask(id(1), id(2), { title: "Build", startOn: "2026-12-05", dueOn: "2026-12-01" }), { ok: false, error: "start-after-due" });
+  const made = newTask(id(1), id(2), { title: "Build", startOn: "2026-11-24", dueOn: "2026-12-01" });
+  assert.ok(made.ok);
+  const kept = editTask(made.value, { title: "Build it", dueOn: "2026-12-02" });
+  assert.ok(kept.ok);
+  assert.equal(kept.value.startOn, "2026-11-24");
+  const cleared = editTask(made.value, { title: "Build", startOn: "", dueOn: "2026-12-01" });
+  assert.ok(cleared.ok);
+  assert.equal(cleared.value.startOn, null);
+  assert.deepEqual(editTask(made.value, { title: "Build", dueOn: "2026-11-20" }), { ok: false, error: "start-after-due" }, "moving the due date before a kept start");
 });
 
 test("a task's fields are checked", () => {
@@ -62,4 +75,13 @@ test("overdue means open and past its date", () => {
 test("tasks sort by priority, then due date, then title", () => {
   const list = [task({ title: "c" }), task({ title: "b", dueOn: "2026-12-01" }), task({ title: "a", priority: "urgent" }), task({ title: "d", dueOn: "2026-11-20" })];
   assert.deepEqual(list.sort(byUrgency).map((t) => t.title), ["a", "d", "b", "c"]);
+});
+
+test("a to-do (a task without a project) is only to do or done", () => {
+  const todo: Task = { ...task(), projectId: null };
+  assert.deepEqual(moveTask(todo, "doing", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
+  assert.deepEqual(moveTask(todo, "blocked", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
+  const done = moveTask(todo, "done", "2026-11-16T10:00:00.000Z");
+  assert.ok(done.ok);
+  assert.equal(done.value.doneAt, "2026-11-16T10:00:00.000Z");
 });

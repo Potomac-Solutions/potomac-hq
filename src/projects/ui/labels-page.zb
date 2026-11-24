@@ -1,0 +1,87 @@
+<!--
+  Every label, how many tasks have it, and (for admins and managers) the
+  forms that rename, recolour and delete one. Anyone who edits tasks can
+  make one here or from a task (decision 0007, section 2).
+-->
+<script>
+  'use route /labels'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import './label-chips.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.labels()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Labels', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-labels view={{ labels: [], colours: [], canAdd: false, canManage: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Labels</h1>
+    <p class="hq-muted">Put labels on tasks to find and group them, like “website”, “waiting on client” or “Better Days”.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="label-list">
+      <h2 id="label-list">All labels</h2>
+      <empty-state zb-if={view.labels.length === 0} heading="No labels yet">Make one below, or from any task.</empty-state>
+      <table tabindex="0" zb-if={view.labels.length > 0 && !view.canManage} class="hq-table">
+        <thead><tr><th scope="col">Label</th><th scope="col">Colour</th><th scope="col" class="hq-number">Tasks</th></tr></thead>
+        <tbody>
+          <zb-each items={view.labels} as="label" key={label.id}>
+            <tr><td><label-chips labels={[label]}></label-chips></td><td>{label.colourName}</td><td class="hq-number">{label.tasks}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <table tabindex="0" zb-if={view.labels.length > 0 && view.canManage} class="hq-table">
+        <thead><tr><th scope="col">Label</th><th scope="col" class="hq-number">Tasks</th><th scope="col">Rename or recolour</th><th scope="col"><span class="sr-only">Delete</span></th></tr></thead>
+        <tbody>
+          <zb-each items={view.labels} as="label" key={label.id}>
+            <tr>
+              <td><label-chips labels={[label]}></label-chips></td>
+              <td class="hq-number">{label.tasks}</td>
+              <td>
+                <form method="post" action="/labels/{label.id}" class="hq-form-row">
+                  <div class="hq-field">
+                    <label for="name-{label.id}" class="sr-only">Name of {label.name}</label>
+                    <input id="name-{label.id}" name="name" value={label.name} maxlength="40" required>
+                  </div>
+                  <div class="hq-field">
+                    <label for="colour-{label.id}" class="sr-only">Colour of {label.name}</label>
+                    <select id="colour-{label.id}" name="colour">
+                      <zb-each items={view.colours} as="colour" key={colour.value}><option value={colour.value} selected={colour.value === label.colour}>{colour.label}</option></zb-each>
+                    </select>
+                  </div>
+                  <button class="hq-button secondary" type="submit" aria-label="Save {label.name}">Save</button>
+                </form>
+              </td>
+              <td>
+                <form method="post" action="/labels/{label.id}/remove">
+                  <button class="hq-button secondary" type="submit" aria-label="Delete {label.name}{label.tasks > 0 ? ', and take it off ' + label.tasks + (label.tasks === 1 ? ' task' : ' tasks') : ''}">Delete</button>
+                </form>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p zb-if={view.canManage && view.labels.length > 0} class="hq-muted hq-small" data-spaced>Deleting a label takes it off every task that has it. The tasks stay.</p>
+    </section>
+    <section zb-if={view.canAdd} class="hq-panel" aria-labelledby="label-add">
+      <h2 id="label-add">Make a label</h2>
+      <form method="post" action="/labels" class="hq-form-row">
+        <text-field label="Name" name="name" required={true} description="Up to 40 characters"></text-field>
+        <div class="hq-field">
+          <label for="label-colour">Colour</label>
+          <select id="label-colour" name="colour">
+            <option value="">Pick one for me</option>
+            <zb-each items={view.colours} as="colour" key={colour.value}><option value={colour.value}>{colour.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button" type="submit">Make label</button>
+      </form>
+    </section>
+  </div>
+</hq-labels>

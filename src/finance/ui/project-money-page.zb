@@ -35,6 +35,7 @@
       <a href="/projects/{id}">Overview</a>
       <a href="/projects/{id}/tasks">Tasks</a>
       <a href="/projects/{id}/board">Board</a>
+      <a href="/projects/{id}/timeline">Timeline</a>
       <a href="/projects/{id}/money" aria-current="page">Money</a>
     </nav>
 

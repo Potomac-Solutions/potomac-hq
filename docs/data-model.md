@@ -235,7 +235,7 @@ soonest, with undated ones after every dated one.
 | Field | Type | Rule |
 | --- | --- | --- |
 | `id` | id | |
-| `project_id` | id | Required |
+| `project_id` | id | Required, except for a to-do (decision 0007): see "To-dos" in `data-model-after-1.0.md` |
 | `phase_id` | id | Optional. Must be a phase of the same project |
 | `title` | text | Required |
 | `description` | text | Optional |
@@ -246,8 +246,16 @@ soonest, with undated ones after every dated one.
 | `status` | `todo`, `doing`, `blocked`, `done` | Starts `todo`. Any status may follow any other |
 | `done_at` | time | Set when the status becomes `done`, cleared when it leaves |
 
-Tasks have no dependencies on each other, as the roadmap says. A finished
-task stays on the board for two weeks.
+A finished task stays on the board for two weeks. Since decision 0007 a task
+also has a `start_on`, a `parent_id` (a subtask's), repeat settings and a
+`previous_id`, and can wait on others: see [data-model-tasks.md](data-model-tasks.md).
+
+### Task management
+
+Labels, saved filters, quick add, subtasks and blocking, comments and files
+on tasks, repeating tasks, notices and reminders, the timeline and calendar
+feeds came with decision 0007. They're described in
+[data-model-tasks.md](data-model-tasks.md).
 
 ### Note
 

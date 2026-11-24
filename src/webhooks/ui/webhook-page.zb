@@ -1,0 +1,76 @@
+<!--
+  One webhook (decision 0007, section 12): its address and events, pausing,
+  a test, a new secret, and its last 200 deliveries with the answers they got.
+-->
+<script>
+  'use route /webhooks/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.webhooks.detail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Webhook', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .hook-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .hook-actions form { margin: 0; }
+  .hook-payload summary { cursor: pointer; font-size: 0.85rem; }
+  .hook-payload pre { max-width: 40rem; max-height: 16rem; overflow: auto; margin: 0.4rem 0 0; padding: 0.5rem; font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--muted); border-radius: calc(var(--radius) - 4px); }
+</style>
+<hq-webhook view={{ id: '', url: '', paused: false, choices: [], deliveries: [] }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Webhooks', href: '/webhooks' }, { label: view.url, href: '' }]}></breadcrumb-trail>
+    <h1 style="overflow-wrap:anywhere">{view.url} <status-badge zb-if={view.paused} variant="warning">Paused</status-badge></h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="hook-settings">
+      <h2 id="hook-settings">Address and events</h2>
+      <form method="post" action="/webhooks/{view.id}" class="hq-form">
+        <div class="hq-field">
+          <label for="hook-url">Address</label>
+          <input id="hook-url" name="url" type="url" inputmode="url" maxlength="500" required value={view.url}>
+        </div>
+        <fieldset class="hq-checks">
+          <legend>Send it when</legend>
+          <zb-each items={view.choices} as="choice" key={choice.value}>
+            <label><input type="checkbox" name="event-{choice.value}" value="1" checked={choice.on}> {choice.label}</label>
+          </zb-each>
+        </fieldset>
+        <div><button class="hq-button" type="submit">Save webhook</button></div>
+      </form>
+      <div class="hook-actions" data-spaced>
+        <form method="post" action="/webhooks/{view.id}/test"><button class="hq-button secondary" type="submit">Send a test</button></form>
+        <form method="post" action="/webhooks/{view.id}/pause"><input type="hidden" name="paused" value={view.paused ? '0' : '1'}><button class="hq-button secondary" type="submit">{view.paused ? 'Resume' : 'Pause'}</button></form>
+        <form method="post" action="/webhooks/{view.id}/secret"><button class="hq-button secondary" type="submit">Make a new secret</button></form>
+        <form method="post" action="/webhooks/{view.id}/remove"><button class="hq-button secondary" type="submit">Delete webhook</button></form>
+      </div>
+    </section>
+    <section class="hq-panel" aria-labelledby="hook-deliveries">
+      <h2 id="hook-deliveries">Deliveries</h2>
+      <p zb-if={view.deliveries.length === 0} class="hq-muted">Nothing sent yet. Send a test to check the address.</p>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">When</th><th scope="col">Event</th><th scope="col">State</th><th scope="col" class="hq-number">Tries</th><th scope="col">Last answer</th><th scope="col">Sent</th></tr></thead>
+        <tbody>
+          <zb-each items={view.deliveries} as="one" key={one.id}>
+            <tr>
+              <td>{one.when}</td>
+              <td><code>{one.event}</code></td>
+              <td><status-badge variant={one.ok ? 'success' : one.next ? 'warning' : one.attempts === 0 ? 'neutral' : 'danger'}>{one.state}</status-badge><span zb-if={one.next} class="hq-muted hq-small"><br>Next: {one.next}</span></td>
+              <td class="hq-number">{one.attempts}</td>
+              <td class="hq-small" style="overflow-wrap:anywhere">{one.answer}</td>
+              <td><details class="hook-payload"><summary>JSON</summary><pre>{one.payload}</pre></details></td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p class="hq-muted hq-small" data-spaced>The newest 200 are kept.</p>
+    </section>
+  </div>
+</hq-webhook>
