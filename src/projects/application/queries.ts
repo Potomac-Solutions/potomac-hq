@@ -337,7 +337,7 @@ export function projectTasks(deps: ProjectsDeps, actorId: Id | null, projectId: 
 }
 
 export type TaskDetailView = {
-  readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string };
+  readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string; readonly startOn: string; readonly startText: string };
   readonly canEdit: boolean;
   readonly form: TaskFormOptions;
   /** Every label, each marked if the task has it, for the picker. */
@@ -443,7 +443,7 @@ export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): 
     repeatUnits: REPEAT_UNITS.map((unit) => ({ value: unit, label: `${unit[0]?.toUpperCase()}${unit.slice(1)}s` })),
     previous: linkTo(deps, deps.repeats.previousOf(taskId)),
     next: linkTo(deps, deps.repeats.nextOf(taskId)),
-    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0, repeats: repeatText(deps.repeats.get(taskId)) }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId), { progress: deps.taskLinks.progress([taskId]).get(taskId), waiting: deps.taskLinks.openBlockers([taskId]).get(taskId) ?? 0, repeats: repeatText(deps.repeats.get(taskId)) }), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "", startOn: task.startOn ?? "", startText: task.startOn ? friendlyDay(task.startOn, deps.today()) : "" },
     canEdit,
     form: formOptions(deps, task.projectId),
     labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),

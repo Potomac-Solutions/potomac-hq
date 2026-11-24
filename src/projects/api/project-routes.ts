@@ -37,6 +37,8 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     phaseId: optionalId(f["phaseId"]),
     priority: f["priority"] ?? null,
     dueOn: f["dueOn"] ?? null,
+    // Only forms with a start field change it; others keep what the task had.
+    ...(f["startOn"] !== undefined ? { startOn: f["startOn"] } : {}),
     estimate: f["estimate"] ?? null,
   });
 

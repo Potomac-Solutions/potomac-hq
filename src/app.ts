@@ -61,7 +61,7 @@ import { listNotes } from "./notes/index.ts";
 import { projectRoutes, workDownloads } from "./projects/api/project-routes.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, pinnedFilters, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -192,6 +192,9 @@ export type PageContext = {
     labels(): ReturnType<typeof labelsPage>;
     /** The work table for the page's address: `params` is `url.searchParams.getAll`. */
     work(params: (name: string) => readonly string[]): ReturnType<typeof workTable>;
+    /** One project's timeline, and every active project's (decision 0007, section 9). */
+    timeline(id: string): ReturnType<typeof projectTimeline>;
+    timelines(): ReturnType<typeof projectsTimeline>;
     /** Saved filters pinned to the sidebar. */
     pinned(): ReturnType<typeof pinnedFilters>;
     /** Quick add's preview for the page's address, and the task just added, if any. `params` is `url.searchParams.getAll`. */
@@ -562,6 +565,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           labels: () => labelsPage(projectsDeps, actor),
           work: (params) => workTable(projectsDeps, actor, params),
           pinned: () => pinnedFilters(projectsDeps, actor),
+          timeline: (id) => withId(id, (projectId) => projectTimeline(projectsDeps, actor, projectId)),
+          timelines: () => projectsTimeline(projectsDeps, actor),
           quickAdd: (params) => {
             const added = parseId(params("added")[0] ?? "");
             return { view: quickAddPreview(projectsDeps, actor, { text: params("text")[0] ?? "", skip: readSkip(params("skip")) }), added: added.ok ? `/tasks/${added.value}` : "" };

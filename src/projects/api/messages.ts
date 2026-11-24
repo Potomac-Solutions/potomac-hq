@@ -35,6 +35,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-colour": "Choose a colour from the list.",
   "name-taken": "There’s already a label with that name.",
   "filter-empty": "Choose something to filter by first, then save it.",
+  "start-after-due": "A task can't start after it's due. Change one of the dates.",
   "invalid-repeat": "Repeat every 1 to 365 days, weeks, months or years.",
   "subtask-cannot-repeat": "A subtask repeats with its parent. Make the parent repeat instead.",
   "comment-empty": "Write something first.",
