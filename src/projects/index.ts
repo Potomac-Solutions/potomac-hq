@@ -12,3 +12,4 @@ export type { BaselineStore, DeliverableRow, DeliverableStore, LabelRow, LabelSt
 export * from "./application/commands.ts";
 export * from "./application/queries.ts";
 export * from "./application/work.ts";
+export * from "./application/quick-add.ts";

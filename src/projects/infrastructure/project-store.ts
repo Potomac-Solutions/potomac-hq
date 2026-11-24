@@ -146,7 +146,7 @@ const toTask = (r: Row): Task => ({
 
 export function sqliteTaskStore(db: Database): TaskStore {
   const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into task (${columns}, organization_id, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare(
     "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
@@ -159,8 +159,8 @@ export function sqliteTaskStore(db: Database): TaskStore {
   const listBoard = db.prepare(`${joined} where p.status = 'active' and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
-    insert(t, at) {
-      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, at);
+    insert(t, at, origin = {}) {
+      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.createdBy ?? null, at, at);
     },
     update(t, at) {
       update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
@@ -370,12 +370,16 @@ export function sqliteWorkStore(db: Database): WorkStore {
   const insertFilter = db.prepare("insert into saved_filter (id, owner_id, name, query, shared, pinned, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
   const updateFilter = db.prepare("update saved_filter set name = ?, query = ?, shared = ?, pinned = ?, updated_at = ? where id = ?");
   const removeFilter = db.prepare("delete from saved_filter where id = ?");
+  const clients = db.prepare("select id, name from client_organization where status <> 'former' order by name collate nocase");
   const getFilter = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where id = ?");
   const filtersFor = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where owner_id = ? or shared = 1 order by name collate nocase, created_at");
   const columns = db.prepare("select columns from work_view where user_id = ?");
   const setColumns = db.prepare("insert into work_view (user_id, columns, updated_at) values (?, ?, ?) on conflict (user_id) do update set columns = excluded.columns, updated_at = excluded.updated_at");
   const toFilter = (r: Row): SavedFilter => ({ id: text(r, "id") as Id, ownerId: text(r, "owner_id") as Id, name: text(r, "name"), query: text(r, "query"), shared: r["shared"] === 1, pinned: r["pinned"] === 1 });
   return {
+    clients() {
+      return (clients.all() as Row[]).map((r) => ({ id: text(r, "id") as Id, name: text(r, "name") }));
+    },
     rows() {
       return (rows.all() as Row[]).map((r): WorkRow => ({
         ...toTask(r),

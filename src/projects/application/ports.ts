@@ -39,8 +39,11 @@ export type MilestoneStore = {
 
 export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null };
 
+/** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
+export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null };
+
 export type TaskStore = {
-  insert(task: Task, at: string): void;
+  insert(task: Task, at: string, origin?: TaskOrigin): void;
   update(task: Task, at: string): void;
   get(id: Id): Task | null;
   /** One task with its project's and assignee's names. A to-do's project name is empty. */
@@ -114,6 +117,8 @@ export type WorkRow = Task & {
 /** The work table's reads, and the saved filters and column choices behind it (decision 0007, section 3). */
 export type WorkStore = {
   rows(): WorkRow[];
+  /** Clients that aren't former ones, by name, for quick add's "+client". */
+  clients(): { readonly id: Id; readonly name: string }[];
   insertFilter(filter: SavedFilter, at: string): void;
   updateFilter(filter: SavedFilter, at: string): void;
   removeFilter(id: Id): void;

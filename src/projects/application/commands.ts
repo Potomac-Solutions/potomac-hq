@@ -316,7 +316,8 @@ export function removeProjectLink(deps: ProjectsDeps, actorId: Id | null, linkId
 
 export type LabelChangeError = Refused | "name-taken" | LabelError;
 
-function makeLabel(deps: ProjectsDeps, actorId: Id, input: LabelInput): Result<Label, "name-taken" | LabelError> {
+/** Makes a label. No permission check and no transaction: call it inside a use case that has both. */
+export function makeLabel(deps: ProjectsDeps, actorId: Id, input: LabelInput): Result<Label, "name-taken" | LabelError> {
   const label = newLabel(deps.newId(), input);
   if (!label.ok) return label;
   if (deps.labels.byName(label.value.name)) return err("name-taken");
