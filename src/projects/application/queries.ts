@@ -5,6 +5,7 @@ import { DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, KIND_LABELS, options, PRIORIT
 import { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone } from "../domain/plan.ts";
 import { PROJECT_STATUSES } from "../domain/project.ts";
 import { byUrgency, formatHours, isTaskOverdue, TASK_STATUSES } from "../domain/task.ts";
+import { LABEL_COLOUR_NAMES, LABEL_COLOURS, type Label } from "../domain/label.ts";
 import { formatSize } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { describeEvent, dueText, err, formatMoney, friendlyDay, ok, type Id, type Result } from "../../shared/index.ts";
@@ -243,10 +244,24 @@ export type TaskCard = {
   readonly dueText: string;
   readonly overdue: boolean;
   readonly estimate: string;
+  /** By name. */
+  readonly labels: readonly LabelChip[];
 };
 
-function card(task: TaskRow, today: string): TaskCard {
+/** A label as the screens draw it: its name, in its colour. */
+export type LabelChip = { readonly id: string; readonly name: string; readonly colour: string };
+
+const chip = (label: Label): LabelChip => ({ id: label.id, name: label.name, colour: label.colour });
+
+/** Cards for many tasks, with their labels read in one go. */
+function cards(deps: ProjectsDeps, tasks: readonly TaskRow[], today: string): TaskCard[] {
+  const labels = deps.labels.forTasks(tasks.map((task) => task.id));
+  return tasks.map((task) => card(task, today, labels.get(task.id) ?? []));
+}
+
+function card(task: TaskRow, today: string, labels: readonly Label[] = []): TaskCard {
   return {
+    labels: labels.map(chip),
     id: task.id,
     title: task.title,
     projectId: task.projectId,
@@ -295,7 +310,7 @@ export function projectTasks(deps: ProjectsDeps, actorId: Id | null, projectId: 
   const canEdit = may(deps, actorId, "task.edit");
   return ok({
     project: { id: project.id, name: project.name, active: project.status === "active" },
-    tasks: [...open, ...done].map((task) => card(task, today)),
+    tasks: cards(deps, [...open, ...done], today),
     canEdit,
     canAdd: canEdit && project.status === "active",
     form: formOptions(deps, projectId),
@@ -306,6 +321,9 @@ export type TaskDetailView = {
   readonly task: TaskCard & { readonly description: string; readonly assigneeId: string; readonly phaseId: string; readonly doneWhen: string };
   readonly canEdit: boolean;
   readonly form: TaskFormOptions;
+  /** Every label, each marked if the task has it, for the picker. */
+  readonly labelChoices: readonly (LabelChip & { readonly on: boolean })[];
+  readonly colours: readonly Option[];
 };
 
 export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): Result<TaskDetailView, Refused> {
@@ -313,10 +331,35 @@ export function taskDetail(deps: ProjectsDeps, actorId: Id | null, taskId: Id): 
   const found = deps.tasks.get(taskId);
   const task = found ? deps.tasks.listFor(found.projectId).find((row) => row.id === taskId) : undefined;
   if (!task) return err("not-found");
+  const onTask = new Set<string>(deps.labels.forTask(taskId).map((label) => label.id));
   return ok({
-    task: { ...card(task, deps.today()), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
+    task: { ...card(task, deps.today(), deps.labels.forTask(taskId)), description: task.description, assigneeId: task.assigneeId ?? "", phaseId: task.phaseId ?? "", doneWhen: task.doneAt ? deps.formatWhen(task.doneAt) : "" },
     canEdit: may(deps, actorId, "task.edit"),
     form: formOptions(deps, task.projectId),
+    labelChoices: deps.labels.list().map((label) => ({ ...chip(label), on: onTask.has(label.id) })),
+    colours: colourOptions(),
+  });
+}
+
+const colourOptions = (): Option[] => LABEL_COLOURS.map((colour) => ({ value: colour, label: LABEL_COLOUR_NAMES[colour] }));
+
+export type LabelsView = {
+  readonly labels: readonly (LabelChip & { readonly colourName: string; readonly tasks: number })[];
+  readonly colours: readonly Option[];
+  /** May make a label. */
+  readonly canAdd: boolean;
+  /** May rename, recolour and delete. */
+  readonly canManage: boolean;
+};
+
+/** Every label, with how many tasks have it. */
+export function labelsPage(deps: ProjectsDeps, actorId: Id | null): Result<LabelsView, "forbidden"> {
+  if (!may(deps, actorId, "task.view")) return err("forbidden");
+  return ok({
+    labels: deps.labels.list().map((label) => ({ ...chip(label), colourName: LABEL_COLOUR_NAMES[label.colour], tasks: label.tasks })),
+    colours: colourOptions(),
+    canAdd: may(deps, actorId, "task.edit"),
+    canManage: may(deps, actorId, "label.manage"),
   });
 }
 
@@ -356,10 +399,11 @@ export function board(deps: ProjectsDeps, actorId: Id | null, filter: { readonly
     columns: TASK_STATUSES.map((status) => ({
       status,
       label: TASK_STATUS_LABELS[status] ?? status,
-      cards: rows
-        .filter((task) => task.status === status)
-        .sort(byUrgency)
-        .map((task) => card(task, today)),
+      cards: cards(
+        deps,
+        rows.filter((task) => task.status === status).sort(byUrgency),
+        today,
+      ),
     })),
     total: rows.length,
     canMove: may(deps, actorId, "task.edit"),

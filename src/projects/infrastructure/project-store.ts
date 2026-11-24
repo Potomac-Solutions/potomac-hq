@@ -1,7 +1,8 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
+import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
 import type { Task, TaskPriority, TaskStatus } from "../domain/task.ts";
@@ -287,5 +288,65 @@ export function sqliteProjectLinkStore(db: Database): ProjectLinkStore {
       remove.run(id);
     },
     listFor: (projectId) => listFor.all(projectId).map(toLink),
+  };
+}
+
+export function sqliteLabelStore(db: Database): LabelStore {
+  const insert = db.prepare("insert into label (id, name, name_key, colour, created_at, updated_at) values (?, ?, ?, ?, ?, ?)");
+  const update = db.prepare("update label set name = ?, name_key = ?, colour = ?, updated_at = ? where id = ?");
+  const untag = db.prepare("delete from task_label where label_id = ?");
+  const remove = db.prepare("delete from label where id = ?");
+  const get = db.prepare("select id, name, colour from label where id = ?");
+  const byName = db.prepare("select id, name, colour from label where name_key = ?");
+  const list = db.prepare("select l.id, l.name, l.colour, (select count(*) from task_label tl where tl.label_id = l.id) as tasks from label l");
+  const forTask = db.prepare("select l.id, l.name, l.colour from task_label tl join label l on l.id = tl.label_id where tl.task_id = ?");
+  const clear = db.prepare("delete from task_label where task_id = ?");
+  const tag = db.prepare("insert or ignore into task_label (task_id, label_id) values (?, ?)");
+  const toLabel = (r: Row): Label => ({ id: text(r, "id") as Id, name: text(r, "name"), colour: text(r, "colour") as LabelColour });
+  return {
+    insert(l, at) {
+      insert.run(l.id, l.name, labelKey(l.name), l.colour, at, at);
+    },
+    update(l, at) {
+      update.run(l.name, labelKey(l.name), l.colour, at, l.id);
+    },
+    remove(id) {
+      untag.run(id);
+      remove.run(id);
+    },
+    get(id) {
+      const found = get.get(id) as Row | undefined;
+      return found ? toLabel(found) : null;
+    },
+    byName(name) {
+      const found = byName.get(labelKey(name)) as Row | undefined;
+      return found ? toLabel(found) : null;
+    },
+    list() {
+      return (list.all() as Row[]).map((r): LabelRow => ({ ...toLabel(r), tasks: r["tasks"] as number })).sort(byLabelName);
+    },
+    forTask(taskId) {
+      return (forTask.all(taskId) as Row[]).map(toLabel).sort(byLabelName);
+    },
+    forTasks(taskIds) {
+      const found = new Map<Id, Label[]>();
+      // In chunks, so a long board never passes SQLite's limit on bound values.
+      for (let at = 0; at < taskIds.length; at += 500) {
+        const chunk = taskIds.slice(at, at + 500);
+        const rows = db
+          .prepare(`select tl.task_id, l.id, l.name, l.colour from task_label tl join label l on l.id = tl.label_id where tl.task_id in (${chunk.map(() => "?").join(", ")})`)
+          .all(...chunk) as Row[];
+        for (const r of rows) {
+          const taskId = text(r, "task_id") as Id;
+          found.set(taskId, [...(found.get(taskId) ?? []), toLabel(r)]);
+        }
+      }
+      for (const labels of found.values()) labels.sort(byLabelName);
+      return found;
+    },
+    setForTask(taskId, labelIds) {
+      clear.run(taskId);
+      for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
+    },
   };
 }

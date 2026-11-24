@@ -7,17 +7,19 @@ import { isClientVisible, newDeliverable, shareDeliverable, unshareDeliverable, 
 import { assignMilestone, completeMilestone, newMilestone, newPhase, reopenMilestone, type Milestone, type Phase, type PlanError } from "../domain/plan.ts";
 import { changeProjectOwner, changeProjectStatus, editProject, type Project, type ProjectEdit, type ProjectEditError } from "../domain/project.ts";
 import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput } from "../domain/task.ts";
+import { editLabel, labelChanges, newLabel, type Label, type LabelError, type LabelInput } from "../domain/label.ts";
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
   readonly phases: PhaseStore;
   readonly milestones: MilestoneStore;
   readonly tasks: TaskStore;
+  readonly labels: LabelStore;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
   readonly baselines: BaselineStore;
@@ -305,5 +307,91 @@ export function removeProjectLink(deps: ProjectsDeps, actorId: Id | null, linkId
     deps.links.remove(linkId);
     recordActivity(deps, { actorId, action: "project.link-removed", recordType: "project", recordId: found.projectId, context: { kind: found.kind, url: found.url } });
     return ok(found);
+  });
+}
+
+// Labels (decision 0007, section 2). Anyone who edits tasks makes labels and
+// puts them on; renaming, recolouring and deleting one is label.manage.
+
+export type LabelChangeError = Refused | "name-taken" | LabelError;
+
+function makeLabel(deps: ProjectsDeps, actorId: Id, input: LabelInput): Result<Label, "name-taken" | LabelError> {
+  const label = newLabel(deps.newId(), input);
+  if (!label.ok) return label;
+  if (deps.labels.byName(label.value.name)) return err("name-taken");
+  deps.labels.insert(label.value, deps.clock());
+  recordActivity(deps, { actorId, action: "label.added", recordType: "label", recordId: label.value.id, context: { name: label.value.name, colour: label.value.colour } });
+  return ok(label.value);
+}
+
+export function addLabel(deps: ProjectsDeps, actorId: Id | null, input: LabelInput): Result<Label, LabelChangeError> {
+  if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
+  return deps.transact(() => makeLabel(deps, actorId, input));
+}
+
+export function editLabelDetails(deps: ProjectsDeps, actorId: Id | null, labelId: Id, input: LabelInput): Result<Label, LabelChangeError | "unchanged"> {
+  if (!allowed(deps, actorId, "label.manage")) return err("forbidden");
+  return deps.transact(() => {
+    const label = deps.labels.get(labelId);
+    if (!label) return err("not-found");
+    const edited = editLabel(label, input);
+    if (!edited.ok) return edited;
+    if (edited.value.name === label.name && edited.value.colour === label.colour) return err("unchanged");
+    const same = deps.labels.byName(edited.value.name);
+    if (same && same.id !== labelId) return err("name-taken");
+    deps.labels.update(edited.value, deps.clock());
+    recordActivity(deps, { actorId, action: "label.edited", recordType: "label", recordId: labelId, context: { was: label.name, name: edited.value.name, colour: edited.value.colour } });
+    return ok(edited.value);
+  });
+}
+
+/** Deletes a label and takes it off every task it was on. */
+export function removeLabel(deps: ProjectsDeps, actorId: Id | null, labelId: Id): Result<Label, Refused> {
+  if (!allowed(deps, actorId, "label.manage")) return err("forbidden");
+  return deps.transact(() => {
+    const label = deps.labels.list().find((row) => row.id === labelId);
+    if (!label) return err("not-found");
+    deps.labels.remove(labelId);
+    recordActivity(deps, { actorId, action: "label.removed", recordType: "label", recordId: labelId, context: { name: label.name, tasks: label.tasks } });
+    return ok({ id: label.id, name: label.name, colour: label.colour });
+  });
+}
+
+export type TaskLabelsInput = {
+  /** The labels the task should have: every one already on it that stays, and any to add. */
+  readonly labelIds: readonly Id[];
+  /** A label to make and put on in the same step. A name that exists puts that label on instead. */
+  readonly newName?: string | null;
+  readonly newColour?: string | null;
+};
+
+/** Sets a task's labels. Making a new one on the way needs only task.edit. */
+export function setTaskLabels(deps: ProjectsDeps, actorId: Id | null, taskId: Id, input: TaskLabelsInput): Result<Task, Refused | "label-not-found" | "unchanged" | "name-taken" | LabelError> {
+  if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const task = deps.tasks.get(taskId);
+    if (!task) return err("not-found");
+    const wanted = [...new Set(input.labelIds)];
+    if (wanted.some((id) => !deps.labels.get(id))) return err("label-not-found");
+    const typed = (input.newName ?? "").trim();
+    if (typed !== "") {
+      const existing = deps.labels.byName(typed);
+      const label = existing ? ok(existing) : makeLabel(deps, actorId, { name: typed, colour: input.newColour ?? null });
+      if (!label.ok) return label;
+      if (!wanted.includes(label.value.id)) wanted.push(label.value.id);
+    }
+    const before = deps.labels.forTask(taskId);
+    const change = labelChanges(before.map((label) => label.id), wanted);
+    if (change.added.length === 0 && change.removed.length === 0) return err("unchanged");
+    deps.labels.setForTask(taskId, wanted);
+    const name = (id: Id) => deps.labels.get(id)?.name ?? before.find((label) => label.id === id)?.name ?? "";
+    recordActivity(deps, {
+      actorId,
+      action: "task.labelled",
+      recordType: "task",
+      recordId: taskId,
+      context: { projectId: task.projectId, title: task.title, added: change.added.map(name), removed: change.removed.map(name) },
+    });
+    return ok(task);
   });
 }

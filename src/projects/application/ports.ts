@@ -1,6 +1,7 @@
 import type { ProjectLink } from "../domain/link.ts";
 import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
+import type { Label } from "../domain/label.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
 import type { Task } from "../domain/task.ts";
@@ -76,4 +77,24 @@ export type BaselineStore = {
   /** Sets a project's baseline, replacing any it had. */
   set(baseline: Baseline, at: string): void;
   get(projectId: Id): Baseline | null;
+};
+
+export type LabelRow = Label & { /** How many tasks have it. */ readonly tasks: number };
+
+export type LabelStore = {
+  insert(label: Label, at: string): void;
+  update(label: Label, at: string): void;
+  /** Deletes a label and takes it off every task. */
+  remove(id: Id): void;
+  get(id: Id): Label | null;
+  /** The label with this name, whatever its capitals and spaces. */
+  byName(name: string): Label | null;
+  /** Every label, with how many tasks have it, by name. */
+  list(): LabelRow[];
+  /** One task's labels, by name. */
+  forTask(taskId: Id): Label[];
+  /** Several tasks' labels at once, by task id. A task with none is missing from the map. */
+  forTasks(taskIds: readonly Id[]): Map<Id, Label[]>;
+  /** Replaces a task's labels with these. */
+  setForTask(taskId: Id, labelIds: readonly Id[]): void;
 };
