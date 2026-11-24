@@ -14,6 +14,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   check, the Zubra regression suite and every integration test pass as
   before.
 
+- TypeScript is back on 6.0.3. Dependabot's move to 7.0.2 left the boundary
+  check (dependency-cruiser) reading no files, so `lint:boundaries` passed
+  while checking nothing and its self-test failed. Dependabot now skips
+  TypeScript's major versions until dependency-cruiser supports 7.
+
 - Open, coming soon, or closed for maintenance. On a site's page in HQ and
   in the client's portal, "Is the website open?" chooses what visitors see
   and, if wanted, the day and time the site opens by itself. It takes
