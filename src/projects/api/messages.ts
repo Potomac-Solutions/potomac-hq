@@ -32,6 +32,9 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "already-shared": "That deliverable is already shared.",
   "not-shared": "That deliverable isn’t shared.",
   "already-approved": "The client approved that deliverable, so it stays shared.",
+  "invalid-colour": "Choose a colour from the list.",
+  "name-taken": "There’s already a label with that name.",
+  "label-not-found": "One of those labels has just been deleted. Choose again.",
 };
 
 export function messageFor(code: string): string {

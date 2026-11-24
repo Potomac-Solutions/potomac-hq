@@ -95,6 +95,24 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back,
     message: "Task moved.",
   });
+  // Each label on the task page is a checkbox named label-<id>, so the ticked ones arrive as separate fields.
+  const ticked = (f: FormFields): Id[] =>
+    Object.keys(f)
+      .filter((name) => name.startsWith("label-") && f[name] === "1")
+      .map((name) => optionalId(name.slice("label-".length)))
+      .filter((id): id is Id => id !== null);
+  post("/tasks/:id/labels", (actor, f, id) => projects.setTaskLabels(deps.projects, actor, id as Id, { labelIds: ticked(f), newName: f["newLabel"] ?? null, newColour: f["newColour"] ?? null }), {
+    done: (_, id) => `/tasks/${id}#labels`,
+    back: (id) => `/tasks/${id}#labels`,
+    message: "Labels saved.",
+  });
+  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), { done: () => "/labels", back: () => "/labels", message: "Label made." });
+  post("/labels/:id", (actor, f, id) => projects.editLabelDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
+    done: () => "/labels",
+    back: () => "/labels",
+    message: "Label saved.",
+  });
+  post("/labels/:id/remove", (actor, _f, id) => projects.removeLabel(deps.projects, actor, id as Id), { done: () => "/labels", back: () => "/labels", message: "Label deleted, and taken off its tasks." });
   post(
     "/projects/:id/deliverables",
     (actor, f, id, files) => projects.addDeliverable(deps.projects, actor, id as Id, { title: f["title"] ?? "", description: f["description"] ?? null, file: files["file"] ?? null }),

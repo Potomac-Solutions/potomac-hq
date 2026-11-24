@@ -8,6 +8,7 @@
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
+  import './label-chips.zb'
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
@@ -17,7 +18,7 @@
   }
   const t = view.task
 </script>
-<hq-task view={{ task: {}, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false }} timer={{ can: false }} done="" problem="">
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [] }} timer={{ can: false }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -31,6 +32,7 @@
         <dt>Status</dt><dd><strong>{t.statusLabel}</strong><span zb-if={t.doneWhen}>, {t.doneWhen}</span></dd>
         <dt>Who</dt><dd>{t.assigneeName || "Nobody yet"}</dd>
         <dt>Priority</dt><dd>{t.priorityLabel}</dd>
+        <dt>Labels</dt><dd><label-chips zb-if={t.labels.length > 0} labels={t.labels}></label-chips><span zb-if={t.labels.length === 0}>None</span></dd>
         <dt>Due</dt><dd><time zb-if={t.dueOn} datetime={t.dueOn}>{t.dueText}</time><span zb-if={!t.dueOn}>Not set</span> <status-badge zb-if={t.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Estimate</dt><dd>{t.estimate ? t.estimate + " hours" : "Not set"}</dd>
         <dt zb-if={timer.can}>Time logged</dt><dd zb-if={timer.can}>{timer.logged}<span zb-if={timer.running}>, and your timer has been running for {timer.since}</span></dd>
@@ -53,6 +55,28 @@
         </form>
       </div>
       <p zb-if={timer.can && view.canEdit && !timer.running} class="hq-muted hq-small" data-spaced>Moving this to “Working on” starts your timer. Moving it on stops it and logs the time.</p>
+    </section>
+    <section zb-if={view.canEdit} id="labels" class="hq-panel" aria-labelledby="task-labels">
+      <h2 id="task-labels">Labels</h2>
+      <form method="post" action="/tasks/{t.id}/labels" class="hq-form">
+        <fieldset zb-if={view.labelChoices.length > 0} class="hq-choice hq-checks">
+          <legend>Tick the ones this task has</legend>
+          <zb-each items={view.labelChoices} as="choice" key={choice.id}>
+            <label><input type="checkbox" name="label-{choice.id}" value="1" checked={choice.on}> <label-chips labels={[choice]}></label-chips></label>
+          </zb-each>
+        </fieldset>
+        <div class="hq-form-row">
+          <text-field label="Or a new label" name="newLabel" description="Made and put on when you save. A name that exists puts that one on."></text-field>
+          <div class="hq-field">
+            <label for="new-label-colour">Its colour</label>
+            <select id="new-label-colour" name="newColour">
+              <option value="">Pick one for me</option>
+              <zb-each items={view.colours} as="colour" key={colour.value}><option value={colour.value}>{colour.label}</option></zb-each>
+            </select>
+          </div>
+        </div>
+        <div><button class="hq-button" type="submit">Save labels</button> <a class="hq-small" href="/labels">All labels</a></div>
+      </form>
     </section>
     <section zb-if={view.canEdit} class="hq-panel" aria-labelledby="task-edit">
       <h2 id="task-edit">Edit</h2>

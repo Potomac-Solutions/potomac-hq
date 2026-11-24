@@ -33,6 +33,7 @@
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
         { label: 'Board', href: '/board', current: at('/board') },
+        { label: 'Labels', href: '/labels', current: at('/labels') },
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
         { label: 'Site content', href: '/websites', current: at('/websites') },

@@ -47,6 +47,31 @@
   --sidebar-accent: #1d4756;
   --sidebar-border: #24424d;
   --shadow: 0 1px 2px rgb(21 43 43 / 0.06);
+  /* Label colours (decision 0007): a background and its text, each pair at least 4.5:1. */
+  --label-slate-bg: #e2e8f0;
+  --label-slate-fg: #334155;
+  --label-red-bg: #fee2e2;
+  --label-red-fg: #991b1b;
+  --label-orange-bg: #ffedd5;
+  --label-orange-fg: #9a3412;
+  --label-amber-bg: #fef3c7;
+  --label-amber-fg: #92400e;
+  --label-green-bg: #dcfce7;
+  --label-green-fg: #166534;
+  --label-teal-bg: #ccfbf1;
+  --label-teal-fg: #115e59;
+  --label-sky-bg: #e0f2fe;
+  --label-sky-fg: #075985;
+  --label-blue-bg: #dbeafe;
+  --label-blue-fg: #1e40af;
+  --label-indigo-bg: #e0e7ff;
+  --label-indigo-fg: #3730a3;
+  --label-violet-bg: #ede9fe;
+  --label-violet-fg: #5b21b6;
+  --label-pink-bg: #fce7f3;
+  --label-pink-fg: #9d174d;
+  --label-brown-bg: #efe4d6;
+  --label-brown-fg: #6b3f1d;
 }
 
 .dark {
@@ -78,6 +103,31 @@
   --sidebar-accent: #1e3a52;
   --sidebar-border: #1d2d36;
   --shadow: none;
+  /* Label colours (decision 0007): a background and its text, each pair at least 4.5:1. */
+  --label-slate-bg: #334155;
+  --label-slate-fg: #e2e8f0;
+  --label-red-bg: #5f1d1d;
+  --label-red-fg: #fecaca;
+  --label-orange-bg: #5c2a0e;
+  --label-orange-fg: #fed7aa;
+  --label-amber-bg: #533a0b;
+  --label-amber-fg: #fde68a;
+  --label-green-bg: #14532d;
+  --label-green-fg: #bbf7d0;
+  --label-teal-bg: #134e4a;
+  --label-teal-fg: #99f6e4;
+  --label-sky-bg: #0c4a6e;
+  --label-sky-fg: #bae6fd;
+  --label-blue-bg: #1e3a8a;
+  --label-blue-fg: #bfdbfe;
+  --label-indigo-bg: #312e81;
+  --label-indigo-fg: #c7d2fe;
+  --label-violet-bg: #4c1d95;
+  --label-violet-fg: #ddd6fe;
+  --label-pink-bg: #831843;
+  --label-pink-fg: #fbcfe8;
+  --label-brown-bg: #4a2e17;
+  --label-brown-fg: #ecd9c4;
 }
 
 @layer hq {
@@ -226,6 +276,11 @@ h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .hq-choice { border: 0; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .hq-choice legend { padding: 0; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
+/* Checkboxes that sit side by side, like a task's labels. */
+.hq-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.hq-checks legend { flex-basis: 100%; }
+.hq-checks label { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+.hq-checks input { width: 1rem; height: 1rem; accent-color: var(--primary); }
 .plain-page input[readonly] { font-family: ui-monospace, monospace; font-size: 0.85rem; }
 .hq-scroll { overflow-x: auto; }
 .hq-caption { caption-side: top; text-align: left; font-weight: 600; font-size: 0.9rem; padding: 0 0 0.35rem; color: var(--foreground); }
