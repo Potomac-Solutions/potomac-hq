@@ -253,6 +253,9 @@ pin, share or delete it, and no role key overrides that.
 Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
+Making a task repeat, or stopping it, needs `task.edit`. The next one is
+made by whoever finishes the task, under the permission that let them.
+
 Commenting on a task needs only `task.view`: anyone who sees a task may
 comment. Editing or deleting a comment is for its author alone, whatever
 their role. Attaching a file to a task, or removing one, needs `task.edit` and `file.upload`;

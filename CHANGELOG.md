@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Repeating tasks (decision 0007, slice 7). A task or to-do can repeat every
+  so many days, weeks, months or years, counted from its due date or from
+  the day it's done. Finishing it makes the next, with the same details,
+  labels and subtasks, linked to the one before. Quick add understands
+  "every week", "every 2 months", "every other week", "monthly" and the like.
+
 - Comments and files on tasks (decision 0007, slice 6). Anyone who can see a
   task can comment on it, and mention people with @ and their first name.
   Only the author edits or deletes a comment; an edited one says so, and
