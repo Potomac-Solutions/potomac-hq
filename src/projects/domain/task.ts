@@ -77,7 +77,7 @@ function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "
 }
 
 /** A new task starts as to do. */
-export function newTask(id: Id, projectId: Id, input: TaskInput): Result<Task, TaskError> {
+export function newTask(id: Id, projectId: Id | null, input: TaskInput): Result<Task, TaskError> {
   const checked = fields(input);
   if (!checked.ok) return checked;
   return ok({ id, projectId, ...checked.value, status: "todo", doneAt: null });
