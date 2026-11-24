@@ -40,7 +40,28 @@ export type MilestoneStore = {
 export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null };
 
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
-export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null };
+export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
+
+/** Subtasks and blocking (decision 0007, section 5). */
+export type TaskLinkStore = {
+  /** The task this one is a subtask of, or null. */
+  parentOf(taskId: Id): Id | null;
+  /** A task's subtasks, oldest first. */
+  subtasks(parentId: Id): TaskRow[];
+  /** Several tasks' subtasks counted, by parent id. A task with none is missing. */
+  progress(parentIds: readonly Id[]): Map<Id, { readonly done: number; readonly total: number }>;
+  block(blockedId: Id, blockerId: Id, by: Id, at: string): void;
+  /** False if it wasn't blocked by that task. */
+  unblock(blockedId: Id, blockerId: Id): boolean;
+  /** The ids a task waits on, done or not. */
+  blockersOf(taskId: Id): Id[];
+  /** What a task waits on, as rows. */
+  waitingOn(taskId: Id): TaskRow[];
+  /** What waits on a task, as rows. */
+  holdingUp(taskId: Id): TaskRow[];
+  /** How many unfinished tasks each of these waits on. A task waiting on none is missing. */
+  openBlockers(taskIds: readonly Id[]): Map<Id, number>;
+};
 
 export type TaskStore = {
   insert(task: Task, at: string, origin?: TaskOrigin): void;

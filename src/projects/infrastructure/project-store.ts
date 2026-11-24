@@ -1,5 +1,5 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
@@ -146,7 +146,7 @@ const toTask = (r: Row): Task => ({
 
 export function sqliteTaskStore(db: Database): TaskStore {
   const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, organization_id, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into task (${columns}, organization_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare(
     "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
@@ -160,7 +160,7 @@ export function sqliteTaskStore(db: Database): TaskStore {
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
     insert(t, at, origin = {}) {
-      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.createdBy ?? null, at, at);
+      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
     },
     update(t, at) {
       update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
@@ -354,6 +354,43 @@ export function sqliteLabelStore(db: Database): LabelStore {
     setForTask(taskId, labelIds) {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
+    },
+  };
+}
+
+export function sqliteTaskLinkStore(db: Database): TaskLinkStore {
+  const columns = "t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.estimate_minutes, t.status, t.done_at, coalesce(p.name, '') as project_name, u.name as assignee_name";
+  const from = "from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id";
+  const parentOf = db.prepare("select parent_id from task where id = ?");
+  const subtasks = db.prepare(`select ${columns} ${from} where t.parent_id = ? order by t.rowid`);
+  const block = db.prepare("insert into task_block (blocked_id, blocker_id, created_by, created_at) values (?, ?, ?, ?)");
+  const unblock = db.prepare("delete from task_block where blocked_id = ? and blocker_id = ?");
+  const blockersOf = db.prepare("select blocker_id from task_block where blocked_id = ?");
+  const waitingOn = db.prepare(`select ${columns} ${from} join task_block b on b.blocker_id = t.id where b.blocked_id = ? order by t.status = 'done', t.title collate nocase`);
+  const holdingUp = db.prepare(`select ${columns} ${from} join task_block b on b.blocked_id = t.id where b.blocker_id = ? order by t.status = 'done', t.title collate nocase`);
+  const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
+  // Counts for many tasks at once, without a query per task: the ids go in as one JSON array.
+  const progress = db.prepare("select parent_id, count(*) as total, sum(status = 'done') as done from task where parent_id in (select value from json_each(?)) group by parent_id");
+  const open = db.prepare("select b.blocked_id, count(*) as open from task_block b join task t on t.id = b.blocker_id where t.status <> 'done' and b.blocked_id in (select value from json_each(?)) group by b.blocked_id");
+  return {
+    parentOf: (taskId) => ((parentOf.get(taskId) as Row | undefined)?.["parent_id"] ?? null) as Id | null,
+    subtasks: (parentId) => (subtasks.all(parentId) as Row[]).map(row),
+    progress(parentIds) {
+      const found = new Map<Id, { done: number; total: number }>();
+      if (parentIds.length === 0) return found;
+      for (const r of progress.all(JSON.stringify(parentIds)) as Row[]) found.set(text(r, "parent_id") as Id, { done: Number(r["done"] ?? 0), total: Number(r["total"]) });
+      return found;
+    },
+    block: (blockedId, blockerId, by, at) => void block.run(blockedId, blockerId, by, at),
+    unblock: (blockedId, blockerId) => Number(unblock.run(blockedId, blockerId).changes) > 0,
+    blockersOf: (taskId) => (blockersOf.all(taskId) as Row[]).map((r) => text(r, "blocker_id") as Id),
+    waitingOn: (taskId) => (waitingOn.all(taskId) as Row[]).map(row),
+    holdingUp: (taskId) => (holdingUp.all(taskId) as Row[]).map(row),
+    openBlockers(taskIds) {
+      const found = new Map<Id, number>();
+      if (taskIds.length === 0) return found;
+      for (const r of open.all(JSON.stringify(taskIds)) as Row[]) found.set(text(r, "blocked_id") as Id, Number(r["open"]));
+      return found;
     },
   };
 }
