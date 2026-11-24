@@ -2,6 +2,7 @@ import type { ProjectLink } from "../domain/link.ts";
 import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Label } from "../domain/label.ts";
+import type { Comment } from "../domain/comment.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
@@ -41,6 +42,18 @@ export type TaskRow = Task & { readonly projectName: string; readonly assigneeNa
 
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
 export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
+
+/** Comments on tasks (decision 0007, section 6). */
+export type CommentStore = {
+  insert(comment: Comment): void;
+  update(comment: Comment): void;
+  remove(id: Id): void;
+  get(id: Id): Comment | null;
+  /** A task's comments, oldest first, with each author's name. */
+  forTask(taskId: Id): (Comment & { readonly authorName: string })[];
+  /** The client a task's files belong to: its project's, or a to-do's own. */
+  organizationOf(taskId: Id): Id | null;
+};
 
 /** Subtasks and blocking (decision 0007, section 5). */
 export type TaskLinkStore = {
