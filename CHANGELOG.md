@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The work table (decision 0007, slice 3). All work (`/work`, under
+  Delivery) lists every task and to-do you may see, filtered by project,
+  client, person ("me", "nobody"), label, status, priority, when it's due
+  and words in the title, and sorted by any column either way. Each person
+  chooses their columns. A filter can be saved, shared with everyone and
+  pinned to your sidebar, and the table downloads as CSV.
+
 - One inbox (decision 0007, slice 2). A to-do is now a task without a
   project: migration 0041 moves every to-do into the task table, keeping its
   id. To-dos become My work (`/todos`, in the sidebar under Today): your

@@ -265,6 +265,31 @@ off every task. Events: `label.added`, `label.edited` (with the old name),
 `label.removed` (with how many tasks had it), and `task.labelled` (the names
 put on and taken off).
 
+### Saved filter and work view
+
+Added by decision 0007, section 3. The work table (`/work`) reads every task
+of an active project and every to-do; a filter is the page's address, made
+only of fields (projects or "none" for to-dos, clients, people or "me" and
+"nobody", labels, statuses, priorities, due windows, a due range, words in
+the title, and open, finished or both). Within a field any choice matches;
+across fields every field must. Weeks run Monday to Sunday.
+
+`saved_filter`:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id` | id | |
+| `owner_id` | User id | Who saved it. Only they pin, share or delete it |
+| `name` | text | Required, at most 60 characters |
+| `query` | text | The filter's address, read and written again so only filter fields are kept. Never empty |
+| `shared` | yes or no | Everyone sees it on the work page. Starts no |
+| `pinned` | yes or no | On its owner's sidebar. Starts no |
+
+`work_view` keeps each person's chosen columns (`user_id`, `columns`). No
+row means the default: project, who, status, priority, due and labels.
+Events: `filter.saved`, `filter.changed`, `filter.removed`,
+`work.columns-chosen`.
+
 ### Note
 
 A note on a client organization, an opportunity or a project.

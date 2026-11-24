@@ -246,6 +246,10 @@ Decided 2026-11-24 by Mikey. Each key is added in the slice that uses it.
 Making a label and putting labels on a task need `task.edit`, so anyone
 who edits tasks can label them. The Labels page is seen with `task.view`.
 
+The work table, its CSV and saved filters need `task.view` and
+`project.view`, as the boards do. A saved filter is its owner's: only they
+pin, share or delete it, and no role key overrides that.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in
