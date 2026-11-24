@@ -186,6 +186,29 @@ test("quick add: N goes to the box, the line is checked, then added", async () =
   await page.close();
 });
 
+test("subtasks and blocking on a task's page", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(`${t.origin}/projects/${projectId}/tasks`);
+  await page.getByLabel("Title").fill("Launch the menu page");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByText("Task added.").waitFor();
+  await page.getByRole("link", { name: "Launch the menu page" }).click();
+  await page.waitForURL((url) => url.pathname.startsWith("/tasks/"));
+  await page.getByLabel("New subtask").fill("Proofread the prices");
+  await page.getByRole("button", { name: "Add subtask" }).click();
+  await page.getByText("Subtask added.").waitFor();
+  await page.getByLabel("It waits on").selectOption({ label: "Set up hosting" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByText("It now waits on that task.").waitFor();
+  await assertAccessible(page, "a task with a subtask and a blocker");
+  await page.getByRole("link", { name: "Proofread the prices" }).click();
+  await page.getByText("Subtask of").waitFor();
+  await assertAccessible(page, "a subtask");
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
 test("the pipeline: a card dragged to the next column moves a stage", async () => {
   const crm = await import("../../src/crm/index.ts");
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
