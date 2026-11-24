@@ -27,6 +27,7 @@ import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
+import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
@@ -226,6 +227,26 @@ const siteTimer = setInterval(() => {
 }, 5 * 60_000);
 siteTimer.unref();
 
+// Task reminders and people's notices (decision 0007, section 8): every
+// minute, fire the reminders that came due, and email new notices to those
+// who asked for them when email is set up. Reminders work without email.
+let busyNotices = false;
+const taskNoticeTimer = setInterval(() => {
+  if (busyNotices) return;
+  busyNotices = true;
+  (async () => {
+    const services = createServices(db, { emailReady: Boolean(email) });
+    fireReminders(services.notices);
+    if (!email) return;
+    const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+    const result = await emailNotices(services.notices, mail, { publicUrl });
+    if (result.failed > 0) log(`People's notices: ${result.failed} could not be emailed`);
+  })()
+    .catch((error: unknown) => log("People's notices: the run failed", error))
+    .finally(() => (busyNotices = false));
+}, 60_000);
+taskNoticeTimer.unref();
+
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
 if (email) {
@@ -282,6 +303,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();
+    clearInterval(taskNoticeTimer);
     stopReminders?.();
     server.close(() => {
       db.close();

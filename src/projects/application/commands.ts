@@ -225,7 +225,7 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
       action: "task.edited",
       recordType: "task",
       recordId: taskId,
-      context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
+      context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, assigneeWas: task.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
     });
     return ok(edited.value);
   });
