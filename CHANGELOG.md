@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-24
+
+- Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
+  18.7.2 to 18.8.0. (Its TypeScript 7 bump was undone; see below.)
+
 - Our website. A new admin-only page, Company → Our website, controls
   potomac.solutions itself: open it, put up a "coming soon" or
   "maintenance" page with your own heading, message and time note, and put
