@@ -12,7 +12,7 @@ import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, LabelStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -20,6 +20,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly milestones: MilestoneStore;
   readonly tasks: TaskStore;
   readonly labels: LabelStore;
+  readonly work: WorkStore;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
   readonly baselines: BaselineStore;

@@ -2,6 +2,7 @@ import type { ProjectLink } from "../domain/link.ts";
 import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Label } from "../domain/label.ts";
+import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
 import type { Task } from "../domain/task.ts";
@@ -99,4 +100,27 @@ export type LabelStore = {
   forTasks(taskIds: readonly Id[]): Map<Id, Label[]>;
   /** Replaces a task's labels with these. */
   setForTask(taskId: Id, labelIds: readonly Id[]): void;
+};
+
+/** One task as the work table shows it: every task of an active project, and every to-do. */
+export type WorkRow = Task & {
+  readonly projectName: string;
+  /** The project's client, or the to-do's. */
+  readonly organizationId: Id | null;
+  readonly clientName: string;
+  readonly assigneeName: string;
+};
+
+/** The work table's reads, and the saved filters and column choices behind it (decision 0007, section 3). */
+export type WorkStore = {
+  rows(): WorkRow[];
+  insertFilter(filter: SavedFilter, at: string): void;
+  updateFilter(filter: SavedFilter, at: string): void;
+  removeFilter(id: Id): void;
+  getFilter(id: Id): SavedFilter | null;
+  /** Someone's own filters and everyone's shared ones, by name. */
+  filtersFor(personId: Id): SavedFilter[];
+  /** Someone's chosen columns, comma separated, or "" for the default. */
+  columns(personId: Id): string;
+  setColumns(personId: Id, columns: string, at: string): void;
 };

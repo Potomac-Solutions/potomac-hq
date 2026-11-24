@@ -1,8 +1,9 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
+import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
 import type { Task, TaskPriority, TaskStatus } from "../domain/task.ts";
@@ -353,6 +354,58 @@ export function sqliteLabelStore(db: Database): LabelStore {
     setForTask(taskId, labelIds) {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
+    },
+  };
+}
+
+export function sqliteWorkStore(db: Database): WorkStore {
+  const rows = db.prepare(`select t.id, t.project_id, t.phase_id, t.title, t.description, t.assignee_id, t.priority, t.due_on, t.estimate_minutes, t.status, t.done_at,
+      coalesce(p.name, '') as project_name, coalesce(p.organization_id, t.organization_id) as organization_id, coalesce(c.name, '') as client_name, coalesce(u.name, '') as assignee_name
+    from task t
+    left join project p on p.id = t.project_id
+    left join client_organization c on c.id = coalesce(p.organization_id, t.organization_id)
+    left join user u on u.id = t.assignee_id
+    where t.project_id is null or p.status = 'active'
+    order by t.rowid`);
+  const insertFilter = db.prepare("insert into saved_filter (id, owner_id, name, query, shared, pinned, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateFilter = db.prepare("update saved_filter set name = ?, query = ?, shared = ?, pinned = ?, updated_at = ? where id = ?");
+  const removeFilter = db.prepare("delete from saved_filter where id = ?");
+  const getFilter = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where id = ?");
+  const filtersFor = db.prepare("select id, owner_id, name, query, shared, pinned from saved_filter where owner_id = ? or shared = 1 order by name collate nocase, created_at");
+  const columns = db.prepare("select columns from work_view where user_id = ?");
+  const setColumns = db.prepare("insert into work_view (user_id, columns, updated_at) values (?, ?, ?) on conflict (user_id) do update set columns = excluded.columns, updated_at = excluded.updated_at");
+  const toFilter = (r: Row): SavedFilter => ({ id: text(r, "id") as Id, ownerId: text(r, "owner_id") as Id, name: text(r, "name"), query: text(r, "query"), shared: r["shared"] === 1, pinned: r["pinned"] === 1 });
+  return {
+    rows() {
+      return (rows.all() as Row[]).map((r): WorkRow => ({
+        ...toTask(r),
+        projectName: text(r, "project_name"),
+        organizationId: maybe(r, "organization_id") as Id | null,
+        clientName: text(r, "client_name"),
+        assigneeName: text(r, "assignee_name"),
+      }));
+    },
+    insertFilter(f, at) {
+      insertFilter.run(f.id, f.ownerId, f.name, f.query, f.shared ? 1 : 0, f.pinned ? 1 : 0, at, at);
+    },
+    updateFilter(f, at) {
+      updateFilter.run(f.name, f.query, f.shared ? 1 : 0, f.pinned ? 1 : 0, at, f.id);
+    },
+    removeFilter(id) {
+      removeFilter.run(id);
+    },
+    getFilter(id) {
+      const found = getFilter.get(id) as Row | undefined;
+      return found ? toFilter(found) : null;
+    },
+    filtersFor(personId) {
+      return (filtersFor.all(personId) as Row[]).map(toFilter);
+    },
+    columns(personId) {
+      return ((columns.get(personId) as Row | undefined)?.["columns"] as string | undefined) ?? "";
+    },
+    setColumns(personId, chosen, at) {
+      setColumns.run(personId, chosen, at);
     },
   };
 }
