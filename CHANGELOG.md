@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- One inbox (decision 0007, slice 2). A to-do is now a task without a
+  project: migration 0041 moves every to-do into the task table, keeping its
+  id. To-dos become My work (`/todos`, in the sidebar under Today): your
+  to-dos and project tasks together by when they're due, with each one's
+  project and labels. Ticking off a project task there stops its timer, as
+  the board does. Every to-do has its own page, where it takes labels, and
+  can only be to do or done.
+
 - Labels on tasks (decision 0007, slice 1). Twelve colours, each readable
   in light and dark. Put them on from a task's page, making a new one on the
   way; they show on the task list and the boards. A Labels page lists them

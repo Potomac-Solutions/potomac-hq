@@ -235,7 +235,7 @@ soonest, with undated ones after every dated one.
 | Field | Type | Rule |
 | --- | --- | --- |
 | `id` | id | |
-| `project_id` | id | Required |
+| `project_id` | id | Required, except for a to-do (decision 0007): see "To-dos" in `data-model-after-1.0.md` |
 | `phase_id` | id | Optional. Must be a phase of the same project |
 | `title` | text | Required |
 | `description` | text | Optional |
