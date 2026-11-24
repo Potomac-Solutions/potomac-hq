@@ -290,6 +290,17 @@ row means the default: project, who, status, priority, due and labels.
 Events: `filter.saved`, `filter.changed`, `filter.removed`,
 `work.columns-chosen`.
 
+### Quick add
+
+Added by decision 0007, section 4. No table of its own: a line typed at
+`/add` (or in the top bar's box, or after pressing N) becomes a row in
+`task`, with `created_by` set to whoever added it. `+handle` names an open
+project, which makes a project task, or else a client, which makes a to-do
+with `organization_id` set. A to-do with no `@person` is the adder's; a
+project task with none is no one's, as on the project page. New `*labels`
+are made on the way. Events are the usual ones (`task.added` or
+`todo.added`, with `quick: true`, then `label.added` and `task.labelled`).
+
 ### Note
 
 A note on a client organization, an opportunity or a project.

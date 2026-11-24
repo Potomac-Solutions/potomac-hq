@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Quick add (decision 0007, slice 4). A box in the top bar (or the N key)
+  takes one line, like "Send the proof +better-days @sam !high *website
+  fri", shows what it understood with a way to keep any part in the title,
+  and adds it as a project task or a to-do. Dates, labels (new ones made),
+  people, priority and a project or client are read from the words.
+
 - The work table (decision 0007, slice 3). All work (`/work`, under
   Delivery) lists every task and to-do you may see, filtered by project,
   client, person ("me", "nobody"), label, status, priority, when it's due
