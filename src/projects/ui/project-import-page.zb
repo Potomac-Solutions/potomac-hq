@@ -1,0 +1,59 @@
+<!--
+  Importing tasks into a project (decision 0007, section 13), from a Trello
+  board's JSON export or a Todoist project's CSV export. The next page shows
+  what it would make; nothing is added until you say so.
+-->
+<script>
+  'use route /projects/:id/import'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    if (!context.projects.canImport()) return context.forbidden()
+    const view = context.projects.tasks(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Import tasks: ' + view.value.project.name, project: view.value.project, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-project-import project={{ id: '', name: '' }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: project.name, href: `/projects/${project.id}` }, { label: 'Tasks', href: `/projects/${project.id}/tasks` }, { label: 'Import', href: '' }]}></breadcrumb-trail>
+    <h1>Import tasks into {project.name}</h1>
+    <p class="hq-muted">From a Trello board or a Todoist project. You'll see what it would make before anything is added.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="import-file">
+      <h2 id="import-file">The export</h2>
+      <form method="post" action="/projects/{project.id}/import" enctype="multipart/form-data" class="hq-form">
+        <fieldset class="hq-checks">
+          <legend>It's from</legend>
+          <label><input type="radio" name="source" value="trello" required> Trello: the board's JSON export</label>
+          <label><input type="radio" name="source" value="todoist"> Todoist: the project's CSV export</label>
+        </fieldset>
+        <div class="hq-field">
+          <label for="import-upload">The file</label>
+          <input id="import-upload" name="file" type="file" accept=".json,.csv,application/json,text/csv" required>
+        </div>
+        <div><button class="hq-button" type="submit">Show what it would make</button></div>
+      </form>
+    </section>
+    <section class="hq-panel" aria-labelledby="import-how">
+      <h2 id="import-how">Getting the export</h2>
+      <p><strong>Trello:</strong> open the board's menu, then Print, export and share, then Export as JSON, and save the page that opens.</p>
+      <p><strong>Todoist:</strong> open the project, then its menu (the three dots), then Export as CSV.</p>
+      <h3 class="hq-small">What comes across</h3>
+      <ul>
+        <li>Each open card or task becomes a task. Archived cards stay behind.</li>
+        <li>A list's or section's name sets the status, like “Doing” or “Done”; any other name is “To do”.</li>
+        <li>Labels carry over, matched by name to labels HQ already has, or made.</li>
+        <li>Trello checklists and indented Todoist tasks become subtasks.</li>
+        <li>Due dates come across, and Todoist's priorities and repeats.</li>
+        <li>No one is assigned: people in other tools aren't people in HQ.</li>
+      </ul>
+    </section>
+  </div>
+</hq-project-import>

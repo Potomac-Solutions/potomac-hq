@@ -1,0 +1,60 @@
+<!--
+  What an import would make (decision 0007, section 13): counts, statuses,
+  labels (and which are new), and the tasks themselves. Import makes them all
+  at once; Cancel throws the plan away.
+-->
+<script>
+  'use route /imports/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.projects.importPreview(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Import preview', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-import-preview view={{ id: '', projectId: '', projectName: '', source: '', boardName: '', tasks: 0, subtasks: 0, byStatus: [], labels: [], rows: [], more: 0, skipped: [], notes: [] }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.projectName, href: `/projects/${view.projectId}` }, { label: 'Import', href: `/projects/${view.projectId}/import` }, { label: 'Preview', href: '' }]}></breadcrumb-trail>
+    <h1>Import from {view.source}{view.boardName ? ': ' + view.boardName : ''}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="preview-sum">
+      <h2 id="preview-sum">{view.tasks} {view.tasks === 1 ? 'task' : 'tasks'}{view.subtasks > 0 ? ' and ' + view.subtasks + (view.subtasks === 1 ? ' subtask' : ' subtasks') : ''} into {view.projectName}</h2>
+      <p>{view.byStatus.map((one) => one.count + ' ' + one.label.toLowerCase()).join(', ')}.</p>
+      <p zb-if={view.labels.length > 0}>Labels: {view.labels.map((one) => one.name + (one.isNew ? ' (new)' : '')).join(', ')}.</p>
+      <ul zb-if={view.skipped.length > 0 || view.notes.length > 0}>
+        <zb-each items={view.skipped} as="one" key={one}><li>Left out: {one}.</li></zb-each>
+        <zb-each items={view.notes} as="one" key={one}><li>{one}</li></zb-each>
+      </ul>
+      <div class="hq-actions" data-spaced>
+        <form method="post" action="/imports/{view.id}"><button class="hq-button" type="submit">Import {view.tasks + view.subtasks} {view.tasks + view.subtasks === 1 ? 'task' : 'tasks'}</button></form>
+        <form method="post" action="/imports/{view.id}/cancel"><button class="hq-button secondary" type="submit">Cancel</button></form>
+      </div>
+    </section>
+    <section class="hq-panel" aria-labelledby="preview-tasks">
+      <h2 id="preview-tasks">The tasks</h2>
+      <table tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Task</th><th scope="col">From</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Labels</th><th scope="col" class="hq-number">Subtasks</th></tr></thead>
+        <tbody>
+          <zb-each items={view.rows} as="row" key={row.key}>
+            <tr>
+              <td>{row.title}<span zb-if={row.priority} class="hq-muted hq-small"> {row.priority} priority.</span><span zb-if={row.repeat} class="hq-muted hq-small"> {row.repeat}.</span></td>
+              <td>{row.from}</td>
+              <td>{row.status}</td>
+              <td>{row.due}</td>
+              <td>{row.labels}</td>
+              <td class="hq-number">{row.subtasks || ''}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p zb-if={view.more > 0} class="hq-muted hq-small" data-spaced>And {view.more} more.</p>
+    </section>
+  </div>
+</hq-import-preview>
