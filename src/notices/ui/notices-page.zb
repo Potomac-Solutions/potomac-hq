@@ -1,0 +1,60 @@
+<!--
+  Notices (decision 0007, section 8): what's new for you, newest first. Tasks
+  given to you, comments that mention you, and your reminders. Opening one
+  marks it read. Under them, whether they're also emailed to you.
+-->
+<script>
+  'use route /notices'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.bell.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Notices', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .notices { list-style: none; margin: 0; padding: 0; }
+  .notices li { display: grid; gap: 0.15rem; padding: 0.7rem 0.75rem; border-top: 1px solid var(--border); border-left: 3px solid transparent; }
+  .notices li:first-child { border-top: 0; }
+  .notices li[data-unread] { border-left-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, transparent); }
+  .notices li[data-unread] a { font-weight: 650; }
+  .notices p { margin: 0; overflow-wrap: anywhere; }
+</style>
+<hq-notices view={{ items: [], unread: 0, email: false, emailReady: false }} done="" problem="">
+  <div class="hq-page">
+    <h1>Notices</h1>
+    <p class="hq-muted">Tasks given to you, comments that mention you, and the reminders you set.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="notices-list">
+      <h2 id="notices-list">{view.unread > 0 ? view.unread + ' new' : 'Nothing new'}</h2>
+      <empty-state zb-if={view.items.length === 0} heading="No notices yet">When someone gives you a task or mentions you in a comment, it shows here. Set a reminder on any task to have it show here too.</empty-state>
+      <ul zb-else class="notices">
+        <zb-each items={view.items} as="one" key={one.id}>
+          <li data-unread={one.unread ? '' : null}>
+            <p><a href={one.href}>{one.text}</a><span zb-if={one.unread} class="sr-only"> (new)</span></p>
+            <p zb-if={one.detail} class="hq-small">{one.detail}</p>
+            <p class="hq-small hq-muted">{one.when}</p>
+          </li>
+        </zb-each>
+      </ul>
+      <form zb-if={view.unread > 0} method="post" action="/notices/read-all" data-spaced>
+        <button class="hq-button secondary" type="submit">Mark all read</button>
+      </form>
+    </section>
+    <section id="email" class="hq-panel" aria-labelledby="notices-email">
+      <h2 id="notices-email">By email</h2>
+      <p zb-if={!view.emailReady} class="hq-muted">Email isn't set up for HQ yet, so notices stay here. You can still turn this on, and they'll be emailed once it is.</p>
+      <p>{view.email ? 'Your new notices are emailed to you, a minute or so after they come.' : 'Your notices stay in HQ.'}</p>
+      <form method="post" action="/notices/email">
+        <input type="hidden" name="on" value={view.email ? '0' : '1'}>
+        <button class="hq-button secondary" type="submit">{view.email ? 'Stop emailing them' : 'Email them to me'}</button>
+      </form>
+    </section>
+  </div>
+</hq-notices>

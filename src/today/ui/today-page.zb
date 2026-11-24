@@ -1,7 +1,8 @@
 <!--
   Today: one list of what wants doing today, across HQ, in the order to work
   it. Tick off to-dos right here; everything else links to where it's done.
-  Add a to-do for today without leaving the page.
+  Add a to-do for today without leaving the page. New notices (decision 0007,
+  section 8) come first.
 -->
 <script>
   'use route /today'
@@ -10,7 +11,7 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Today', view: context.agenda(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -31,7 +32,7 @@
   .today-done { list-style: none; margin: 0; padding: 0; }
   .today-done li { padding: 0.3rem 0; color: var(--muted-foreground); text-decoration: line-through; }
 </style>
-<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} can-add={false} done="" problem="">
+<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} fresh={[]} can-add={false} done="" problem="">
   <div class="hq-page">
     <h1>Today <span class="hq-muted hq-small">{view.dayLabel}</span></h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -39,6 +40,15 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <p class="hq-lead">{view.headline}</p>
+    <section zb-if={fresh.length > 0} class="hq-panel" aria-labelledby="today-new">
+      <h2 id="today-new">New for you</h2>
+      <ul class="hq-links">
+        <zb-each items={fresh} as="one" key={one.id}>
+          <li><span><a href={one.href}>{one.text}</a><span zb-if={one.detail} class="hq-muted hq-small"> {one.detail}</span></span> <span class="hq-muted hq-small">{one.when}</span></li>
+        </zb-each>
+      </ul>
+      <p class="hq-small"><a href="/notices">All notices</a></p>
+    </section>
     <section class="hq-panel" aria-labelledby="today-list">
       <h2 id="today-list">{view.items.length === 0 ? 'All clear' : 'In order'}</h2>
       <empty-state zb-if={view.items.length === 0} heading="Nothing due">Follow-ups, to-dos, booked calls and anything a client is waiting on show here on their day. <a href="/pipeline">Check the pipeline</a> for someone to call.</empty-state>
