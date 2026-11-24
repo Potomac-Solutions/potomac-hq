@@ -6,23 +6,26 @@
 //                                                    the due date
 //   *website      a label          @jayanti   who it's for
 //   !high         the priority     +better-days   the project, or a client
+//   every week, every 2 months, daily, weekly, monthly, yearly   a repeat
 //
 // Only the first of each kind counts (labels excepted: any number); later
 // ones stay in the title. Every part has the index of its first word, and a
 // part whose index is in `ignore` is left in the title, which is how a part
-// is "removed" from what was understood. Repeats ("every week") come with
-// repeating tasks (section 7); until then those words stay in the title.
+// is "removed" from what was understood. A repeat counts from the due date
+// (section 7).
 //
 // Reading names (who is @sam, which project is +better-days) is the
 // application's job; here a name is only a handle.
 import { TASK_PRIORITIES, type TaskPriority } from "./task.ts";
+import type { Repeat, RepeatUnit } from "./repeat.ts";
 
 export type QuickPart =
   | { readonly kind: "due"; readonly index: number; readonly words: string; readonly on: string }
   | { readonly kind: "label"; readonly index: number; readonly words: string; readonly handle: string; /** As typed, for a new label. */ readonly name: string }
   | { readonly kind: "person"; readonly index: number; readonly words: string; readonly handle: string }
   | { readonly kind: "priority"; readonly index: number; readonly words: string; readonly priority: TaskPriority }
-  | { readonly kind: "project"; readonly index: number; readonly words: string; readonly handle: string };
+  | { readonly kind: "project"; readonly index: number; readonly words: string; readonly handle: string }
+  | { readonly kind: "repeat"; readonly index: number; readonly words: string; readonly repeat: Repeat };
 
 export type QuickParse = { readonly title: string; readonly parts: readonly QuickPart[] };
 
@@ -33,6 +36,24 @@ const WEEKDAYS: Record<string, number> = { mon: 1, monday: 1, tue: 2, tues: 2, t
 const MONTHS: Record<string, number> = { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 };
 const UNITS: Record<string, "days" | "weeks" | "months"> = { day: "days", days: "days", week: "weeks", weeks: "weeks", month: "months", months: "months" };
 const LEAD_INS = new Set(["on", "by", "due"]);
+const REPEAT_UNIT: Record<string, RepeatUnit> = { day: "day", days: "day", week: "week", weeks: "week", month: "month", months: "month", year: "year", years: "year" };
+const REPEAT_WORDS: Record<string, RepeatUnit> = { daily: "day", weekly: "week", monthly: "month", yearly: "year", annually: "year" };
+
+/** A repeat starting at words[i], and how many words it took. */
+function repeatAt(words: readonly string[], i: number): { readonly repeat: Repeat; readonly length: number } | null {
+  const a = word(words[i]);
+  const b = word(words[i + 1]);
+  const c = word(words[i + 2]);
+  if (REPEAT_WORDS[a]) return { repeat: { every: 1, unit: REPEAT_WORDS[a] as RepeatUnit, from: "due" }, length: 1 };
+  if (a !== "every") return null;
+  if (REPEAT_UNIT[b] && !b.endsWith("s")) return { repeat: { every: 1, unit: REPEAT_UNIT[b] as RepeatUnit, from: "due" }, length: 2 };
+  if (/^\d{1,3}$/.test(b) && REPEAT_UNIT[c]) {
+    const every = Number(b);
+    if (every >= 1 && every <= 365) return { repeat: { every, unit: REPEAT_UNIT[c] as RepeatUnit, from: "due" }, length: 3 };
+  }
+  if (b === "other" && REPEAT_UNIT[c] && !c.endsWith("s")) return { repeat: { every: 2, unit: REPEAT_UNIT[c] as RepeatUnit, from: "due" }, length: 3 };
+  return null;
+}
 const HANDLE = /^([*@+])([\p{L}\p{N}][\p{L}\p{N}_.\-]*?)[.,;:]?$/u;
 const PRIORITY = /^!([a-z]+)[.,;:]?$/;
 
@@ -127,6 +148,14 @@ export function parseQuickAdd(text: string, today: string, ignore: ReadonlySet<n
       if (date) {
         parts.push({ kind: "due", index: i, words: words.slice(i, i + date.length).join(" "), on: date.on.toString() });
         i += date.length;
+        continue;
+      }
+    }
+    if (!has("repeat")) {
+      const repeat = repeatAt(words, i);
+      if (repeat) {
+        parts.push({ kind: "repeat", index: i, words: words.slice(i, i + repeat.length).join(" "), repeat: repeat.repeat });
+        i += repeat.length;
         continue;
       }
     }

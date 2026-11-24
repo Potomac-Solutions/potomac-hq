@@ -50,16 +50,26 @@ test("words that aren't a date stay in the title", () => {
   }
 });
 
-test("only the first of a kind counts, except labels; unknown priorities and repeats stay", () => {
-  const read = parseQuickAdd("Ship it today fri @sam @jo *a *b *a !high !low !someday every week", TODAY);
-  assert.equal(read.title, "Ship it fri @jo *a !low !someday every week");
-  assert.deepEqual(read.parts.map((part) => part.words), ["today", "@sam", "*a", "*b", "!high"]);
+test("only the first of a kind counts, except labels; unknown priorities stay", () => {
+  const read = parseQuickAdd("Ship it today fri @sam @jo *a *b *a !high !low !someday every week monthly", TODAY);
+  assert.equal(read.title, "Ship it fri @jo *a !low !someday monthly");
+  assert.deepEqual(read.parts.map((part) => part.words), ["today", "@sam", "*a", "*b", "!high", "every week"]);
 });
 
 test("a removed part goes back into the title, and a later one can take its place", () => {
   const read = parseQuickAdd("Ship it today @sam fri", TODAY, new Set([2]));
   assert.equal(read.title, "Ship it today");
   assert.deepEqual(read.parts.map((part) => [part.kind, part.words]), [["person", "@sam"], ["due", "fri"]]);
+});
+
+test("repeats", () => {
+  const repeat = (text: string) => parseQuickAdd(text, TODAY).parts.find((part) => part.kind === "repeat");
+  assert.deepEqual(repeat("Send the report every week")?.repeat, { every: 1, unit: "week", from: "due" });
+  assert.deepEqual(repeat("Check backups every 2 weeks")?.repeat, { every: 2, unit: "week", from: "due" });
+  assert.deepEqual(repeat("Mow every other week")?.repeat, { every: 2, unit: "week", from: "due" });
+  assert.deepEqual(repeat("Renew the card yearly")?.repeat, { every: 1, unit: "year", from: "due" });
+  assert.equal(parseQuickAdd("Invoice monthly fri", TODAY).title, "Invoice");
+  for (const text of ["Thank every client", "Every weeks", "every 0 days"]) assert.equal(repeat(text), undefined, text);
 });
 
 test("handles, and matching a handle to names", () => {

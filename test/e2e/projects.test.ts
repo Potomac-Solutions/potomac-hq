@@ -223,6 +223,15 @@ test("subtasks and blocking on a task's page", async () => {
   await assertAccessible(page, "a task with a comment, a file and the edit form open");
   await page.getByRole("button", { name: "Remove menu-proof.pdf" }).click();
   await page.getByText("Removed “menu-proof.pdf”.").waitFor();
+
+  // Back to the parent, and make it repeat.
+  await page.getByRole("link", { name: "Launch the menu page" }).click();
+  await page.getByLabel("Every", { exact: true }).fill("2");
+  await page.getByLabel("Unit").selectOption("month");
+  await page.getByRole("button", { name: "Make it repeat" }).click();
+  await page.getByText("It repeats now.").waitFor();
+  await page.getByText("Every 2 months, from the due date").first().waitFor();
+  await assertAccessible(page, "a repeating task");
   assert.deepEqual(problems, []);
   await page.close();
 });

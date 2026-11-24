@@ -313,6 +313,27 @@ says what it still waits on. This is separate from the "Blocked" status,
 which is still set by hand. Events: `task.added` (with `parentId`),
 `task.blocked`, `task.unblocked`.
 
+### Repeating tasks
+
+Added by decision 0007, section 7 (migration 0045). Four columns on `task`:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `repeat_every` | 1 to 365 | With the next two: all set, or none |
+| `repeat_unit` | `day`, `week`, `month`, `year` | |
+| `repeat_from` | `due`, `done` | Counted from the due date, or from the day it was done |
+| `previous_id` | Task id | The task whose finishing made this one. At most one task per previous |
+
+Finishing a repeating task, from the board, its page or My work, makes the
+next: the same title, details, person, priority, estimate, phase, labels,
+client (for a to-do) and subtasks (not done, with their dates moved as far
+as their parent's), due on the next date. Counted from the due date, that is
+the first one after the day it was done; with no due date, it counts from
+the day it was done. Months keep their day where they can. Finishing it again
+after reopening makes no second one, and nothing is made for a task on a
+project that isn't active. Subtasks don't repeat on their own. To-dos can.
+Events: `task.repeat-set`, `task.repeat-stopped`, `task.repeated`.
+
 ### Task comments and files
 
 Added by decision 0007, section 6 (migration 0044).

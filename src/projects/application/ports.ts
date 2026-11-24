@@ -3,6 +3,7 @@ import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Label } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
+import type { Repeat } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project } from "../domain/project.ts";
@@ -41,7 +42,23 @@ export type MilestoneStore = {
 export type TaskRow = Task & { readonly projectName: string; readonly assigneeName: string | null };
 
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
-export type TaskOrigin = { readonly organizationId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
+export type TaskOrigin = { readonly organizationId?: Id | null; readonly opportunityId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
+
+/** Repeating tasks (decision 0007, section 7). */
+export type RepeatStore = {
+  get(taskId: Id): Repeat | null;
+  /** Null stops it repeating. */
+  set(taskId: Id, repeat: Repeat | null, at: string): void;
+  /** Several tasks' repeats at once. A task that doesn't repeat is missing. */
+  forTasks(taskIds: readonly Id[]): Map<Id, Repeat>;
+  setPrevious(taskId: Id, previousId: Id): void;
+  /** The task whose finishing made this one. */
+  previousOf(taskId: Id): Id | null;
+  /** The task this one's finishing made. */
+  nextOf(taskId: Id): Id | null;
+  /** A to-do's client and opportunity, carried to the next one. */
+  todoPlace(taskId: Id): { readonly organizationId: Id | null; readonly opportunityId: Id | null };
+};
 
 /** Comments on tasks (decision 0007, section 6). */
 export type CommentStore = {

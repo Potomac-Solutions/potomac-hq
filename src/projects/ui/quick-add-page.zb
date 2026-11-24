@@ -83,6 +83,7 @@
           <tr><td><code>*website</code></td><td>A label. One that doesn't exist yet is made. Any number of labels.</td></tr>
           <tr><td><code>@jayanti</code></td><td>Who it's for, by first name, full name with hyphens, or email name. A to-do with no one named is yours.</td></tr>
           <tr><td><code>!low</code>, <code>!high</code>, <code>!urgent</code></td><td>Its priority.</td></tr>
+          <tr><td><code>every week</code>, <code>every 2 months</code>, <code>every other week</code>, <code>monthly</code></td><td>That it repeats, counted from the due date. Finishing it makes the next one.</td></tr>
           <tr><td><code>+better-days</code></td><td>The open project whose name starts with those words, making it a project task. If no project matches, a client, making it a to-do about them.</td></tr>
         </tbody>
       </table>
