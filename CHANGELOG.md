@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-24
+
+- Dependabot: `@hono/node-server` 2.1.9 to 2.1.11, and `dependency-cruiser`
+  18.7.2 to 18.8.0. (Its TypeScript 7 bump was undone; see below.)
+
 - Billing a client for a renewal. On a client's page under Renewals, "Bill
   the client" makes and sends an invoice for a renewal's coming term, due a
   week before it renews, so there's time to renew it or let it lapse. Each
