@@ -27,6 +27,7 @@
       <a href="/projects/{view.project.id}">Overview</a>
       <a href="/projects/{view.project.id}/tasks">Tasks</a>
       <a href="/projects/{view.project.id}/board" aria-current="page">Board</a>
+      <a href="/projects/{view.project.id}/timeline">Timeline</a>
       <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
     <p><a zb-if={view.mine} href="/projects/{view.project.id}/board">Show everyone’s tasks</a><a zb-else href="/projects/{view.project.id}/board?mine=1">Show only mine</a> · <a href="/projects/{view.project.id}/tasks">Add a task</a></p>

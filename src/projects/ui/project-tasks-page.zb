@@ -31,6 +31,7 @@
       <a href="/projects/{view.project.id}">Overview</a>
       <a href="/projects/{view.project.id}/tasks" aria-current="page">Tasks</a>
       <a href="/projects/{view.project.id}/board">Board</a>
+      <a href="/projects/{view.project.id}/timeline">Timeline</a>
       <a zb-if={money} href="/projects/{view.project.id}/money">Money</a>
     </nav>
     <section class="hq-panel" aria-labelledby="task-list">
@@ -76,6 +77,7 @@
             <zb-each items={view.form.phases} as="phase" key={phase.value}><option value={phase.value}>{phase.label}</option></zb-each>
           </select>
         </div>
+        <text-field label="Starts" name="startOn" type="date" description="Optional, for the timeline."></text-field>
         <text-field label="Due" name="dueOn" type="date"></text-field>
         <text-field label="Estimate in hours" name="estimate" inputmode="decimal" description="Like 1.5"></text-field>
         <text-field label="Details" name="description" rows={3}></text-field>
