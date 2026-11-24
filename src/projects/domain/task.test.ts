@@ -12,7 +12,20 @@ function task(over: Partial<Task> = {}): Task {
 }
 
 test("a new task is to do, normal priority, with nothing else set", () => {
-  assert.deepEqual(task(), { id: id(1), projectId: id(2), phaseId: null, title: "Draft the menu page", description: "", assigneeId: null, priority: "normal", dueOn: null, estimateMinutes: null, status: "todo", doneAt: null });
+  assert.deepEqual(task(), { id: id(1), projectId: id(2), phaseId: null, title: "Draft the menu page", description: "", assigneeId: null, priority: "normal", dueOn: null, startOn: null, estimateMinutes: null, status: "todo", doneAt: null });
+});
+
+test("a start date is never after the due date, and an edit without one keeps it", () => {
+  assert.deepEqual(newTask(id(1), id(2), { title: "Build", startOn: "2026-12-05", dueOn: "2026-12-01" }), { ok: false, error: "start-after-due" });
+  const made = newTask(id(1), id(2), { title: "Build", startOn: "2026-11-24", dueOn: "2026-12-01" });
+  assert.ok(made.ok);
+  const kept = editTask(made.value, { title: "Build it", dueOn: "2026-12-02" });
+  assert.ok(kept.ok);
+  assert.equal(kept.value.startOn, "2026-11-24");
+  const cleared = editTask(made.value, { title: "Build", startOn: "", dueOn: "2026-12-01" });
+  assert.ok(cleared.ok);
+  assert.equal(cleared.value.startOn, null);
+  assert.deepEqual(editTask(made.value, { title: "Build", dueOn: "2026-11-20" }), { ok: false, error: "start-after-due" }, "moving the due date before a kept start");
 });
 
 test("a task's fields are checked", () => {

@@ -23,6 +23,8 @@ export type Task = {
   readonly priority: TaskPriority;
   /** YYYY-MM-DD. */
   readonly dueOn: string | null;
+  /** When work starts, YYYY-MM-DD, for the timeline (decision 0007, section 9). Never after the due date. */
+  readonly startOn: string | null;
   readonly estimateMinutes: number | null;
   readonly status: TaskStatus;
   /** When it was moved to done, or null. */
@@ -36,11 +38,13 @@ export type TaskInput = {
   readonly phaseId?: Id | null;
   readonly priority?: string | null;
   readonly dueOn?: string | null;
+  /** Left out, an edit keeps the start date it had. */
+  readonly startOn?: string | null;
   /** Hours, as people type them: "2", "1.5", "0.25". */
   readonly estimate?: string | null;
 };
 
-export type TaskError = "title-missing" | "title-too-long" | "description-too-long" | "invalid-priority" | "invalid-date" | "invalid-estimate";
+export type TaskError = "title-missing" | "title-too-long" | "description-too-long" | "invalid-priority" | "invalid-date" | "invalid-estimate" | "start-after-due";
 
 export const isTaskStatus = (value: string): value is TaskStatus => (TASK_STATUSES as readonly string[]).includes(value);
 const isPriority = (value: string): value is TaskPriority => (TASK_PRIORITIES as readonly string[]).includes(value);
@@ -53,7 +57,7 @@ export function parseEstimate(text: string | null | undefined): Result<number | 
 
 export { formatHours, parseHours };
 
-function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "assigneeId" | "phaseId" | "priority" | "dueOn" | "estimateMinutes">, TaskError> {
+function fields(input: TaskInput, startWas: string | null = null): Result<Pick<Task, "title" | "description" | "assigneeId" | "phaseId" | "priority" | "dueOn" | "startOn" | "estimateMinutes">, TaskError> {
   const title = requiredText(input.title, 200);
   if (!title.ok) return err(title.error === "missing" ? "title-missing" : "title-too-long");
   const description = optionalText(input.description, 5000);
@@ -63,6 +67,10 @@ function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "
   const due = (input.dueOn ?? "").trim();
   const dueOn = due === "" ? ok(null) : calendarDate(due);
   if (!dueOn.ok) return dueOn;
+  const start = input.startOn === undefined ? (startWas ?? "") : (input.startOn ?? "").trim();
+  const startOn = start === "" ? ok(null) : calendarDate(start);
+  if (!startOn.ok) return startOn;
+  if (startOn.value !== null && dueOn.value !== null && startOn.value > dueOn.value) return err("start-after-due");
   const estimate = parseEstimate(input.estimate);
   if (!estimate.ok) return estimate;
   return ok({
@@ -72,6 +80,7 @@ function fields(input: TaskInput): Result<Pick<Task, "title" | "description" | "
     phaseId: input.phaseId ?? null,
     priority,
     dueOn: dueOn.value,
+    startOn: startOn.value,
     estimateMinutes: estimate.value,
   });
 }
@@ -84,7 +93,7 @@ export function newTask(id: Id, projectId: Id | null, input: TaskInput): Result<
 }
 
 export function editTask(task: Task, input: TaskInput): Result<Task, TaskError> {
-  const checked = fields(input);
+  const checked = fields(input, task.startOn);
   if (!checked.ok) return checked;
   return ok({ ...task, ...checked.value });
 }
