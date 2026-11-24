@@ -1,0 +1,90 @@
+<!--
+  A project seen through a share link (decision 0007, section 11), with no
+  account: its phases, milestones and tasks with their status and due dates,
+  and shared deliverables to download. A link with comment rights can
+  comment on tasks under the visitor's name; the comments shown are ones
+  made through links, never the team's own. A link that has stopped or
+  expired, or never was one, is "not found".
+-->
+<script>
+  'use route /s/:token'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context, params }) {
+    const view = context.projects.shared(params.token)
+    if (!view) return notFound()
+    return { title: view.projectName, view, token: params.token, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .shared-tasks { list-style: none; margin: 0; padding: 0; }
+  .shared-tasks > li { padding: 0.65rem 0; border-top: 1px solid var(--border); }
+  .shared-tasks > li:first-child { border-top: 0; }
+  .shared-line { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: baseline; justify-content: space-between; }
+  .shared-line p { margin: 0; }
+  .shared-done { color: var(--muted-foreground); }
+  .shared-comments { list-style: none; margin: 0.5rem 0 0; padding: 0 0 0 0.9rem; border-left: 3px solid var(--border); display: grid; gap: 0.4rem; }
+  .shared-comments p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .shared-comment-form { margin-top: 0.5rem; }
+  .shared-comment-form summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+</style>
+<hq-shared-project view={{ projectName: '', clientName: '', label: '', canComment: false, expires: '', groups: [], deliverables: [] }} token="" done="" problem="">
+  <div class="hq-page">
+    <p class="hq-muted hq-small">Shared by Potomac Solutions with {view.label}</p>
+    <h1>{view.projectName} <span class="hq-muted hq-small">{view.clientName}</span></h1>
+    <p zb-if={view.expires} class="hq-muted">{view.expires}</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <zb-each items={view.groups} as="group" key={group.key}>
+      <section class="hq-panel" aria-labelledby="group-{group.key}">
+        <h2 id="group-{group.key}">{group.name}</h2>
+        <ul zb-if={group.milestones.length > 0} class="hq-links">
+          <zb-each items={group.milestones} as="one" key={one.id}>
+            <li><span><strong>Milestone:</strong> {one.name}</span> <span class="hq-small">{one.done ? 'Done' : one.due}</span></li>
+          </zb-each>
+        </ul>
+        <ul zb-if={group.tasks.length > 0} class="shared-tasks">
+          <zb-each items={group.tasks} as="task" key={task.id}>
+            <li id="task-{task.id}">
+              <div class="shared-line">
+                <p class={task.done ? 'shared-done' : ''}>{task.title}</p>
+                <p class="hq-small"><status-badge variant={task.done ? 'success' : task.overdue ? 'danger' : 'neutral'}>{task.status}</status-badge> <span zb-if={task.due}>Due {task.due}</span></p>
+              </div>
+              <ul zb-if={task.comments.length > 0} class="shared-comments">
+                <zb-each items={task.comments} as="comment" key={comment.id}>
+                  <li><p class="hq-small"><strong>{comment.name}</strong> <span class="hq-muted">{comment.when}</span></p><p>{comment.body}</p></li>
+                </zb-each>
+              </ul>
+              <details zb-if={view.canComment} class="shared-comment-form">
+                <summary>Comment on “{task.title}”</summary>
+                <form method="post" action="/s/{token}/tasks/{task.id}/comments" class="hq-form">
+                  <div class="hq-field">
+                    <label for="name-{task.id}">Your name</label>
+                    <input id="name-{task.id}" name="name" type="text" maxlength="60" required autocomplete="name">
+                  </div>
+                  <div class="hq-field">
+                    <label for="body-{task.id}">Your comment</label>
+                    <textarea id="body-{task.id}" name="body" rows="3" maxlength="5000" required></textarea>
+                  </div>
+                  <div><button class="hq-button" type="submit">Send comment</button></div>
+                </form>
+              </details>
+            </li>
+          </zb-each>
+        </ul>
+      </section>
+    </zb-each>
+    <section zb-if={view.deliverables.length > 0} class="hq-panel" aria-labelledby="shared-deliverables">
+      <h2 id="shared-deliverables">Deliverables</h2>
+      <ul class="hq-links">
+        <zb-each items={view.deliverables} as="one" key={one.id}>
+          <li><span><a href={one.href}>{one.title}</a> <span class="hq-muted hq-small">{one.size}</span><span zb-if={one.description} class="hq-small"><br>{one.description}</span></span> <span class="hq-small">{one.status}</span></li>
+        </zb-each>
+      </ul>
+    </section>
+    <p class="hq-muted hq-small">This page is private to whoever was sent its link. Questions go to Potomac Solutions.</p>
+  </div>
+</hq-shared-project>

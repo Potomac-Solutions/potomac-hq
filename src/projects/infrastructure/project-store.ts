@@ -1,9 +1,10 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeed, CalendarFeedStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeed, CalendarFeedStore, ShareRow, ShareStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
+import type { ShareLink, ShareRights } from "../domain/share.ts";
 import type { Repeat, RepeatFrom, RepeatUnit } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -361,6 +362,26 @@ export function sqliteLabelStore(db: Database): LabelStore {
   };
 }
 
+export function sqliteShareStore(db: Database): ShareStore {
+  const cols = "s.id, s.project_id, s.label, s.rights, s.expires_on, s.created_by, s.created_at, s.stopped_at, s.visits, s.last_visited_at";
+  const insert = db.prepare("insert into project_share (id, project_id, token_hash, label, rights, expires_on, created_by, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+  const get = db.prepare(`select ${cols} from project_share s where s.id = ?`);
+  const byHash = db.prepare(`select ${cols} from project_share s where s.token_hash = ?`);
+  const forProject = db.prepare(`select ${cols}, coalesce(u.name, '') as created_by_name from project_share s left join user u on u.id = s.created_by where s.project_id = ? order by s.created_at desc, s.rowid desc`);
+  const stop = db.prepare("update project_share set stopped_at = ?, stopped_by = ? where id = ? and stopped_at is null");
+  const visited = db.prepare("update project_share set visits = visits + 1, last_visited_at = ? where id = ?");
+  const toLink = (r: Row): ShareLink => ({ id: text(r, "id") as Id, projectId: text(r, "project_id") as Id, label: text(r, "label"), rights: text(r, "rights") as ShareRights, expiresOn: maybe(r, "expires_on"), createdBy: text(r, "created_by") as Id, createdAt: text(r, "created_at"), stoppedAt: maybe(r, "stopped_at") });
+  const one = (r: Row | undefined) => (r ? toLink(r) : null);
+  return {
+    insert: (l, tokenHash) => void insert.run(l.id, l.projectId, tokenHash, l.label, l.rights, l.expiresOn, l.createdBy, l.createdAt),
+    get: (id) => one(get.get(id) as Row | undefined),
+    byHash: (tokenHash) => one(byHash.get(tokenHash) as Row | undefined),
+    forProject: (projectId) => (forProject.all(projectId) as Row[]).map((r): ShareRow => ({ ...toLink(r), createdByName: text(r, "created_by_name"), visits: Number(r["visits"]), lastVisitedAt: maybe(r, "last_visited_at") })),
+    stop: (id, by, at) => void stop.run(at, by, id),
+    visited: (id, at) => void visited.run(at, id),
+  };
+}
+
 export function sqliteCalendarFeedStore(db: Database): CalendarFeedStore {
   const cols = "user_id, token_hash, filter_id, created_at, last_used_at";
   const forUser = db.prepare(`select ${cols} from calendar_feed where user_id = ?`);
@@ -416,22 +437,25 @@ export function sqliteRepeatStore(db: Database): RepeatStore {
 }
 
 export function sqliteCommentStore(db: Database): CommentStore {
-  const insert = db.prepare("insert into task_comment (id, task_id, author_id, body, created_at, edited_at) values (?, ?, ?, ?, ?, ?)");
+  const insert = db.prepare("insert into task_comment (id, task_id, author_id, share_id, guest_name, body, created_at, edited_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
   const update = db.prepare("update task_comment set body = ?, edited_at = ? where id = ?");
   const remove = db.prepare("delete from task_comment where id = ?");
-  const get = db.prepare("select id, task_id, author_id, body, created_at, edited_at from task_comment where id = ?");
-  const forTask = db.prepare("select c.id, c.task_id, c.author_id, c.body, c.created_at, c.edited_at, coalesce(u.name, '') as author_name from task_comment c left join user u on u.id = c.author_id where c.task_id = ? order by c.created_at, c.rowid");
+  const get = db.prepare("select id, task_id, author_id, share_id, guest_name, body, created_at, edited_at from task_comment where id = ?");
+  const forTask = db.prepare("select c.id, c.task_id, c.author_id, c.share_id, c.guest_name, c.body, c.created_at, c.edited_at, coalesce(u.name, c.guest_name, '') as author_name, coalesce(s.label, '') as share_label from task_comment c left join user u on u.id = c.author_id left join project_share s on s.id = c.share_id where c.task_id = ? order by c.created_at, c.rowid");
+  const fromLinks = db.prepare("select c.id, c.task_id, c.author_id, c.share_id, c.guest_name, c.body, c.created_at, c.edited_at, c.guest_name as author_name, coalesce(s.label, '') as share_label from task_comment c join project_share s on s.id = c.share_id where s.project_id = ? order by c.created_at, c.rowid");
   const organizationOf = db.prepare("select coalesce(p.organization_id, t.organization_id) as organization_id from task t left join project p on p.id = t.project_id where t.id = ?");
-  const toComment = (r: Row): Comment => ({ id: text(r, "id") as Id, taskId: text(r, "task_id") as Id, authorId: text(r, "author_id") as Id, body: text(r, "body"), createdAt: text(r, "created_at"), editedAt: maybe(r, "edited_at") });
+  const toComment = (r: Row): Comment => ({ id: text(r, "id") as Id, taskId: text(r, "task_id") as Id, authorId: maybe(r, "author_id") as Id | null, shareId: maybe(r, "share_id") as Id | null, guestName: maybe(r, "guest_name"), body: text(r, "body"), createdAt: text(r, "created_at"), editedAt: maybe(r, "edited_at") });
+  const withNames = (r: Row) => ({ ...toComment(r), authorName: text(r, "author_name"), shareLabel: text(r, "share_label") });
   return {
-    insert: (c) => void insert.run(c.id, c.taskId, c.authorId, c.body, c.createdAt, c.editedAt),
+    insert: (c) => void insert.run(c.id, c.taskId, c.authorId, c.shareId, c.guestName, c.body, c.createdAt, c.editedAt),
     update: (c) => void update.run(c.body, c.editedAt, c.id),
     remove: (id) => void remove.run(id),
     get(id) {
       const found = get.get(id) as Row | undefined;
       return found ? toComment(found) : null;
     },
-    forTask: (taskId) => (forTask.all(taskId) as Row[]).map((r) => ({ ...toComment(r), authorName: text(r, "author_name") })),
+    forTask: (taskId) => (forTask.all(taskId) as Row[]).map(withNames),
+    fromLinks: (projectId) => (fromLinks.all(projectId) as Row[]).map(withNames),
     organizationOf: (taskId) => ((organizationOf.get(taskId) as Row | undefined)?.["organization_id"] ?? null) as Id | null,
   };
 }

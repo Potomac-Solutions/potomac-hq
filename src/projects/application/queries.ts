@@ -381,6 +381,10 @@ export type TaskComment = {
   readonly pieces: readonly CommentPiece[];
   /** The viewer wrote it, so may edit or delete it. */
   readonly mine: boolean;
+  /** The share link it came through, or empty (decision 0007, section 11). */
+  readonly fromLink: string;
+  /** May delete it: their own, or one from a link if they manage links. */
+  readonly canRemove: boolean;
 };
 
 function taskComments(deps: ProjectsDeps, viewerId: Id, taskId: Id): TaskComment[] {
@@ -393,6 +397,8 @@ function taskComments(deps: ProjectsDeps, viewerId: Id, taskId: Id): TaskComment
     body: comment.body,
     pieces: commentPieces(comment.body, known),
     mine: comment.authorId === viewerId,
+    fromLink: comment.shareId ? comment.shareLabel || "a share link" : "",
+    canRemove: comment.authorId === viewerId || (comment.shareId !== null && may(deps, viewerId, "project.share")),
   }));
 }
 

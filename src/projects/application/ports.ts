@@ -3,6 +3,7 @@ import type { Baseline } from "../domain/baseline.ts";
 import type { Deliverable } from "../domain/deliverable.ts";
 import type { Label } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
+import type { ShareLink } from "../domain/share.ts";
 import type { Repeat } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -44,6 +45,19 @@ export type TaskRow = Task & { readonly projectName: string; readonly assigneeNa
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
 export type TaskOrigin = { readonly organizationId?: Id | null; readonly opportunityId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
 
+/** Share links (decision 0007, section 11). */
+export type ShareRow = ShareLink & { readonly createdByName: string; readonly visits: number; readonly lastVisitedAt: string | null };
+
+export type ShareStore = {
+  insert(link: ShareLink, tokenHash: string): void;
+  get(id: Id): ShareLink | null;
+  byHash(tokenHash: string): ShareLink | null;
+  /** A project's links, newest first. */
+  forProject(projectId: Id): ShareRow[];
+  stop(id: Id, by: Id, at: string): void;
+  visited(id: Id, at: string): void;
+};
+
 /** Each person's calendar address (decision 0007, section 10). */
 export type CalendarFeed = { readonly userId: Id; readonly tokenHash: string; readonly filterId: Id | null; readonly createdAt: string; readonly lastUsedAt: string | null };
 
@@ -56,7 +70,7 @@ export type CalendarFeedStore = {
   used(userId: Id, at: string): void;
 };
 
-/** Secrets for calendar addresses: made at random, kept only as a hash. */
+/** Secrets for calendar addresses and share links: made at random, kept only as a hash. */
 export type FeedTokens = { newToken(): string; hash(token: string): string };
 
 /** Repeating tasks (decision 0007, section 7). */
@@ -81,8 +95,10 @@ export type CommentStore = {
   update(comment: Comment): void;
   remove(id: Id): void;
   get(id: Id): Comment | null;
-  /** A task's comments, oldest first, with each author's name. */
-  forTask(taskId: Id): (Comment & { readonly authorName: string })[];
+  /** A task's comments, oldest first, with each author's name (or the visitor's) and the share link it came through, if any. */
+  forTask(taskId: Id): (Comment & { readonly authorName: string; readonly shareLabel: string })[];
+  /** A project's comments that came through share links, oldest first. */
+  fromLinks(projectId: Id): (Comment & { readonly authorName: string; readonly shareLabel: string })[];
   /** The client a task's files belong to: its project's, or a to-do's own. */
   organizationOf(taskId: Id): Id | null;
 };

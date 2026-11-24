@@ -71,13 +71,14 @@ export function editTaskComment(deps: ProjectsDeps, actorId: Id | null, commentI
   });
 }
 
-/** Only the author. The words stay in the event. */
+/** Only the author; or, for a comment that came through a share link, anyone who manages links. The words stay in the event. */
 export function removeTaskComment(deps: ProjectsDeps, actorId: Id | null, commentId: Id): Result<Comment, Refused> {
   if (!allowed(deps, actorId, "task.view")) return err("forbidden");
   return deps.transact(() => {
     const comment = deps.comments.get(commentId);
     if (!comment) return err("not-found");
-    if (!mayChangeComment(comment, actorId)) return err("forbidden");
+    const fromLink = comment.shareId !== null && authorize(deps, actorId, "project.share").ok;
+    if (!mayChangeComment(comment, actorId) && !fromLink) return err("forbidden");
     deps.comments.remove(commentId);
     recordActivity(deps, { actorId, action: "comment.removed", recordType: "task", recordId: comment.taskId, context: { projectId: deps.tasks.get(comment.taskId)?.projectId ?? null, commentId, was: comment.body } });
     return ok(comment);

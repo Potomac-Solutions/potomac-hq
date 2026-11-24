@@ -18,3 +18,4 @@ export * from "./application/comments.ts";
 export * from "./application/repeating.ts";
 export * from "./application/timeline.ts";
 export * from "./application/calendar.ts";
+export * from "./application/share.ts";

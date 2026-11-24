@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Sharing a project by link (decision 0007, slice 11). On a project, admins
+  and managers make links for people without an account (`project.share`),
+  to see the plan, tasks and shared deliverables, or also to comment on
+  tasks under their own name. Links can have a last day and be stopped;
+  each is shown once, and every visit is recorded. They never show notes,
+  time, estimates, money or the team's own comments.
+
 - A calendar feed (decision 0007, slice 10). Calendar feed (linked from My
   work and Settings) makes a private address for Google Calendar, Apple
   Calendar or Outlook: your open tasks with due dates and your projects'
