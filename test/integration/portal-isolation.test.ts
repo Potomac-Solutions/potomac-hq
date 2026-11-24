@@ -219,7 +219,9 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options");
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options" && pattern !== "/api/site/booking");
+  // The website's booking address answers only to the website's token: a client's session is a plain 401.
+  assert.equal((await ann.post("/api/site/booking", { name: "x" })).status, 401);
   // The one internal post a page's script makes: it answers in JSON, and refuses the same.
   assert.equal((await ann.post("/passkeys/options", { purpose: "register" })).status, 403);
   assert.equal((await ann.post("/passkeys/options", { purpose: "verify" })).status, 403);

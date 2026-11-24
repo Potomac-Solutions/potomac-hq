@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Booking from the website. potomac.solutions can now show open times and
+  book a call for someone new in one step: HQ makes their client account,
+  books the call, and emails a link to their dashboard where they set a
+  password and add or change their details. Anyone whose email or phone is
+  already on file is not booked again; the sign-in link goes to the email on
+  file instead. Both emails say to call or text Potomac if it wasn't them,
+  and the website answers the same either way, so it never reveals who is a
+  client. Emails match without "+tags", Gmail dots or case, and phones
+  on their last ten digits. The portal's own sign-up follows the same rule.
+  New `GET`/`POST /api/site/booking`, behind the website's token.
 - Quick add (decision 0007, slice 4). A box in the top bar (or the N key)
   takes one line, like "Send the proof +better-days @sam !high *website
   fri", shows what it understood with a way to keep any part in the title,
