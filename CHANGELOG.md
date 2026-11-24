@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Webhooks for n8n (decision 0007, slice 12). Admins add an https address
+  (Company, then Webhooks) and pick what to send it: tasks added, assigned,
+  moved, done or commented on, and projects added or completed. Each
+  delivery is signed with a secret shown once, tried again for a day if it
+  doesn't land, and the last 200 are listed with their answers.
+
 - Sharing a project by link (decision 0007, slice 11). On a project, admins
   and managers make links for people without an account (`project.share`),
   to see the plan, tasks and shared deliverables, or also to comment on
