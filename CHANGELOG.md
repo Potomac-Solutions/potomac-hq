@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Our website. A new admin-only page, Company → Our website, controls
+  potomac.solutions itself: open it, put up a "coming soon" or
+  "maintenance" page with your own heading, message and time note, and put
+  an announcement on top of every page. A private preview link lets admins
+  see the real site while it is closed. Unlike clients' static sites (Site
+  content), potomac.solutions runs its own server: it asks HQ for these
+  settings every half minute, answers a closed visit with a 503, and keeps
+  the last settings if HQ is down. Connect it with `npm run site:token` on
+  the HQ server, then give the website service that token as `HQ_SITE_TOKEN`
+  and HQ's address as `HQ_URL`. New permissions `public-site.view` and
+  `public-site.edit`, for admins only. Migration 0039.
+
 - Billing a client for a renewal. On a client's page under Renewals, "Bill
   the client" makes and sends an invoice for a renewal's coming term, due a
   week before it renews, so there's time to renew it or let it lapse. Each

@@ -44,6 +44,7 @@
       ] },
       { label: 'Company', links: [
         { label: 'Knowledge', href: '/knowledge', current: at('/knowledge') },
+        ...(can.publicSite ? [{ label: 'Our website', href: '/our-website', current: at('/our-website') }] : []),
         ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
         ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
       ] },

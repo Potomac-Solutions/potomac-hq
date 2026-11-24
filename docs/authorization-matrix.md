@@ -174,12 +174,22 @@ change the content of their own organization's website and send the changes
 in: the organization comes from their session and from nothing they send.
 Nothing they change in its content reaches the site until someone with
 `site.publish` publishes it. Whether the site is open, coming soon or
+
+### Potomac's own website
+
+Decided 2026-11-23. Needs Mikey's approval. Admins only, because it decides whether the company's front door is open. Clients' sites are `site.publish`, above.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See potomac.solutions' mode, message, banner and preview link | `public-site.view` | Yes | No | No | No |
+| Open or close potomac.solutions, change its message and banner, make a new preview link | `public-site.edit` | Yes | No | No | No |
 closed for maintenance is an exception: a client sets that for their own
 site and it takes effect at once (`docs/decisions/0004-site-launch.md`).
 Where the business goes, its service area, is the other: a client sets it
 for their own site and it takes effect at once
 (`docs/decisions/0005-service-area.md`). The list of sites and what is waiting on each is seen with
 `client.view`.
+
 
 ### Platform (v1.0)
 

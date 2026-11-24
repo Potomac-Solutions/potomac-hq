@@ -23,6 +23,7 @@
     "migrate": "node bin/migrate.ts",
     "start": "node bin/serve.ts",
     "reset-link": "node bin/reset-link.ts",
+    "site:token": "node bin/site-token.ts",
     "backup": "node bin/backup.ts",
     "backup:keygen": "node bin/backup-keygen.ts",
     "restore": "node bin/restore.ts",
