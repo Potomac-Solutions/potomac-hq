@@ -265,6 +265,9 @@ project's links. A link is not a user: it sees only its own project, as its
 rights say, and needs no account. Anyone with `project.share` may delete a
 comment that came through a link.
 
+Importing tasks from Trello or Todoist needs `task.edit` and `project.edit`,
+what adding them by hand takes. A preview is only its uploader's.
+
 Webhooks are admins' alone (`webhook.manage`): seeing them, adding, changing,
 pausing, testing, replacing a secret and deleting.
 

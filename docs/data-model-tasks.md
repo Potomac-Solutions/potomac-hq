@@ -260,3 +260,32 @@ nothing, and their waiting deliveries wait. Each webhook keeps its newest
 Events about webhooks: `webhook.added`, `webhook.changed`, `webhook.paused`,
 `webhook.resumed`, `webhook.secret-replaced`, `webhook.tested`,
 `webhook.removed`.
+
+## Importing tasks
+
+Added by decision 0007, section 13 (migration 0051). Needs `task.edit` and
+`project.edit`, into an active project.
+
+An export is read into a plan and shown before anything is made. The plan
+waits in `task_import` (one per person, removed when it's used or cancelled,
+or after a day); only the person who uploaded it sees it or says yes.
+Saying yes makes everything in one transaction, with the usual `task.added`
+events (with `imported`), then `project.tasks-imported`.
+
+From a Trello board's JSON export (up to 10 MB): each open card in an open
+list becomes a task, its list's name giving the status (names like "Doing",
+"Blocked" or "Done"; anything else is to do), and a card marked complete is
+done. Its description, due date (as a day in the business time zone) and
+labels come across, the labels in HQ's nearest colour to Trello's.
+Checklist items become subtasks, done or not. Archived cards and cards in
+archived lists are left out, and the preview says how many.
+
+From a Todoist project's CSV export: each task becomes a task, its section
+giving the status the same way; "@label" words become labels; priority 1
+(Todoist's highest) is urgent, 2 high, 3 normal, 4 low; the date is read
+as quick add reads it, repeats included, and the preview says how many
+couldn't be. Indented tasks become subtasks of the task above, one level
+deep; notes go into the task's details.
+
+Labels match HQ's by name, whatever the capitals, or are made. No one is
+assigned. At most 1,000 tasks and subtasks in one import.
