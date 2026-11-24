@@ -4,6 +4,7 @@ import type { Deliverable } from "../domain/deliverable.ts";
 import type { Label } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
 import type { ShareLink } from "../domain/share.ts";
+import type { ImportPlan } from "../domain/task-import.ts";
 import type { Repeat } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
@@ -44,6 +45,18 @@ export type TaskRow = Task & { readonly projectName: string; readonly assigneeNa
 
 /** What a task row holds beyond the Task itself: a to-do's client, and who added it. */
 export type TaskOrigin = { readonly organizationId?: Id | null; readonly opportunityId?: Id | null; readonly createdBy?: Id | null; /** The task it is a subtask of. */ readonly parentId?: Id | null };
+
+/** An import waiting to be said yes to (decision 0007, section 13). One per person. */
+export type PendingImport = { readonly id: Id; readonly userId: Id; readonly projectId: Id; readonly plan: ImportPlan; readonly createdAt: string };
+
+export type ImportStore = {
+  /** Keeps it, replacing any the person had waiting. */
+  save(pending: PendingImport): void;
+  get(id: Id): PendingImport | null;
+  remove(id: Id): void;
+  /** Removes any made before this instant. */
+  removeOlderThan(at: string): void;
+};
 
 /** Share links (decision 0007, section 11). */
 export type ShareRow = ShareLink & { readonly createdByName: string; readonly visits: number; readonly lastVisitedAt: string | null };

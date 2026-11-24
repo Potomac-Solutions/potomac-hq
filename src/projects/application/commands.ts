@@ -14,7 +14,7 @@ import { err, friendlyDay, ok, recordActivity, type Id, type Result } from "../.
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
 import { mayHaveSubtasks } from "../domain/dependencies.ts";
 import { nextDue, shiftBy } from "../domain/repeat.ts";
-import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeedStore, FeedTokens, ShareStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
+import type { BaselineStore, DeliverableStore, LabelStore, WorkStore, TaskLinkStore, CommentStore, RepeatStore, CalendarFeedStore, FeedTokens, ShareStore, ImportStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectStore, TaskStore } from "./ports.ts";
 
 export type ProjectsDeps = FilesDeps & {
   readonly projects: ProjectStore;
@@ -28,6 +28,7 @@ export type ProjectsDeps = FilesDeps & {
   readonly repeats: RepeatStore;
   readonly feeds: CalendarFeedStore;
   readonly shares: ShareStore;
+  readonly imports: ImportStore;
   readonly feedTokens: FeedTokens;
   readonly deliverables: DeliverableStore;
   readonly links: ProjectLinkStore;
@@ -35,6 +36,8 @@ export type ProjectsDeps = FilesDeps & {
   readonly history: ProjectHistory;
   /** Today in the business time zone, YYYY-MM-DD. */
   readonly today: () => string;
+  /** The business time zone, for reading other tools' times as days. */
+  readonly zone: string;
   /** Formats a UTC instant for people, in the business time zone. */
   readonly formatWhen: (instant: string) => string;
   /**
