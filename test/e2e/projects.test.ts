@@ -243,6 +243,39 @@ test("subtasks and blocking on a task's page", async () => {
   await page.close();
 });
 
+test("share a project by link, and comment through it with no account", async () => {
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(`${t.origin}/projects/${projectId}#share`);
+  await assertAccessible(page, "a project with its share links");
+  await page.getByLabel("Who it's for").fill("Dale at the bakery");
+  await page.getByLabel("They may").selectOption("comment");
+  await page.getByRole("button", { name: "Make the link" }).click();
+  await page.getByRole("heading", { name: "A link for Dale at the bakery" }).waitFor();
+  await assertAccessible(page, "a share link, shown once");
+  const link = await page.getByLabel("Send them this link").inputValue();
+  assert.match(link, /\/s\/[A-Za-z0-9_-]{43}$/);
+  await page.close();
+
+  const outsider = await browser.newContext();
+  const visit = await outsider.newPage();
+  const visitProblems = watch(visit);
+  await visit.goto(link);
+  await visit.getByText("Shared by Potomac Solutions with Dale at the bakery").waitFor();
+  await assertAccessible(visit, "the shared project");
+  const first = visit.locator(".shared-comment-form").first();
+  await first.locator("summary").click();
+  await first.getByLabel("Your name").fill("Dale");
+  await first.getByLabel("Your comment").fill("Looks great so far.");
+  await first.getByRole("button", { name: "Send comment" }).click();
+  await visit.getByText("Comment added. The team will see it.").waitFor();
+  await visit.getByText("Looks great so far.").waitFor();
+  await assertAccessible(visit, "the shared project with a comment");
+  assert.deepEqual(visitProblems, []);
+  await outsider.close();
+  assert.deepEqual(problems, []);
+});
+
 test("the pipeline: a card dragged to the next column moves a stage", async () => {
   const crm = await import("../../src/crm/index.ts");
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
