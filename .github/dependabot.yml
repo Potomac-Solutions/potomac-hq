@@ -12,6 +12,11 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore
+    ignore:
+      # HQ stays on TypeScript 6 for now: dependency-cruiser, which checks the
+      # module boundaries, doesn't support TypeScript 7 (it cruises nothing).
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       zubra:
         patterns: ["@zubra/*"]
