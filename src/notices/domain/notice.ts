@@ -78,9 +78,13 @@ export function noticesFromEvent(event: NoticeEvent): NoticeDraft[] {
 }
 
 /**
- * A reminder on a task, for the person who set it. Either at a time, or a
- * number of days before the task is due, at a time of day in the business
- * time zone. One before the due date fires again if the due date moves.
+ * A reminder on a task. Either at a time, or a number of days before the task
+ * is due, at a time of day in the business time zone. One before the due date
+ * fires again if the due date moves.
+ *
+ * It is for the person who set it ("me"), or for whoever has the task when it
+ * fires ("assignee"), or its setter when no one has it. A reminder may carry
+ * over to the next task when a repeating task is finished.
  */
 export type Reminder = {
   readonly id: Id;
@@ -92,25 +96,37 @@ export type Reminder = {
   readonly daysBefore: number | null;
   /** For one before the due date: HH:MM. */
   readonly time: string | null;
+  readonly forWhom: ReminderFor;
+  /** Copied to the next task when this one repeats. */
+  readonly carry: boolean;
   /** When it last fired, and for which due date. */
   readonly sentAt: string | null;
   readonly sentForDue: string | null;
 };
 
 export const DAYS_BEFORE_MAX = 30;
+export const REMINDER_FOR = ["me", "assignee"] as const;
+export type ReminderFor = (typeof REMINDER_FOR)[number];
+
+/** Who a reminder tells when it fires. */
+export const reminderRecipient = (reminder: Pick<Reminder, "forWhom" | "userId">, assigneeId: Id | null): Id => (reminder.forWhom === "assignee" && assigneeId ? assigneeId : reminder.userId);
 
 export type ReminderError = "invalid-reminder" | "reminder-in-the-past";
 
-export type ReminderInput =
+export type ReminderInput = (
   | { readonly kind: "at"; readonly when: string }
-  | { readonly kind: "before"; readonly daysBefore: string; readonly time: string };
+  | { readonly kind: "before"; readonly daysBefore: string; readonly time: string }
+) & { readonly forWhom?: string; readonly carry?: boolean };
 
 /** Reads a reminder from the form. `when` is a local date and time, as a datetime-local field sends it. */
 export function readReminder(
   input: ReminderInput,
   zone: string,
   now: Temporal.Instant,
-): { ok: true; value: Pick<Reminder, "at" | "daysBefore" | "time"> } | { ok: false; error: ReminderError } {
+): { ok: true; value: Pick<Reminder, "at" | "daysBefore" | "time" | "forWhom" | "carry"> } | { ok: false; error: ReminderError } {
+  const forWhom = (input.forWhom || "me") as ReminderFor;
+  if (!REMINDER_FOR.includes(forWhom)) return { ok: false, error: "invalid-reminder" };
+  const carry = input.carry === true;
   if (input.kind === "at") {
     let at: Temporal.Instant;
     try {
@@ -119,12 +135,25 @@ export function readReminder(
       return { ok: false, error: "invalid-reminder" };
     }
     if (Temporal.Instant.compare(at, now) <= 0) return { ok: false, error: "reminder-in-the-past" };
-    return { ok: true, value: { at: at.toString(), daysBefore: null, time: null } };
+    return { ok: true, value: { at: at.toString(), daysBefore: null, time: null, forWhom, carry } };
   }
   const days = Number(input.daysBefore.trim() || "0");
   const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(input.time.trim()) ? input.time.trim() : null;
   if (!Number.isInteger(days) || days < 0 || days > DAYS_BEFORE_MAX || time === null) return { ok: false, error: "invalid-reminder" };
-  return { ok: true, value: { at: null, daysBefore: days, time } };
+  return { ok: true, value: { at: null, daysBefore: days, time, forWhom, carry } };
+}
+
+/**
+ * The timing a carried reminder gets on the next task. One before the due
+ * date stays as it is. One at a time moves as many days as the due date did;
+ * with no due date to measure by, it isn't carried.
+ */
+export function carriedTiming(reminder: Pick<Reminder, "at" | "daysBefore" | "time">, oldDue: string | null, newDue: string | null, zone: string): Pick<Reminder, "at" | "daysBefore" | "time"> | null {
+  if (!reminder.at) return { at: null, daysBefore: reminder.daysBefore, time: reminder.time };
+  if (oldDue === null || newDue === null) return null;
+  const days = Temporal.PlainDate.from(oldDue).until(Temporal.PlainDate.from(newDue), { largestUnit: "days" }).days;
+  // In the business time zone, so 9 AM stays 9 AM across a clock change.
+  return { at: Temporal.Instant.from(reminder.at).toZonedDateTimeISO(zone).add({ days }).toInstant().toString(), daysBefore: null, time: null };
 }
 
 /** When a reminder fires, or null if it can't yet: one before a due date needs a due date. */
