@@ -22,6 +22,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   way; they show on the task list and the boards. A Labels page lists them
   with how many tasks have each, and admins and managers rename, recolour
   and delete them there (`label.manage`).
+- Decision 0007, task management after Vikunja: labels, one inbox for
+  tasks and to-dos, filters and a table, quick add, subtasks and blocking,
+  comments and attachments, repeats, reminders, a timeline, a calendar
+  feed, sharing a project by link, webhooks, and import from Trello and
+  Todoist, in thirteen slices.
 
 ## [0.14.0] - 2026-11-24
 
