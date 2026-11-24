@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- A calendar feed (decision 0007, slice 10). Calendar feed (linked from My
+  work and Settings) makes a private address for Google Calendar, Apple
+  Calendar or Outlook: your open tasks with due dates and your projects'
+  milestones, or one saved filter, as all-day events. It's shown once;
+  making a new one stops the old. Read-only.
+
 - The timeline (decision 0007, slice 9). Tasks can have a start date. Each
   project has a Timeline tab: the project from start to target, its phases,
   and its tasks and milestones as bars and points, with today marked and

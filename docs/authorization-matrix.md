@@ -253,7 +253,10 @@ pin, share or delete it, and no role key overrides that.
 Adding a subtask, and saying what a task waits on, need `task.edit`; seeing
 them needs `task.view`, like the task itself.
 
-The timelines need `project.view` and `task.view`, as the boards do.
+The timelines need `project.view` and `task.view`, as the boards do. So does
+a calendar address: each person makes and stops their own, and the feed is
+served only while they still have both. A feed may follow only a filter its
+person may use (their own, or a shared one).
 
 Notices are each person's own: anyone with `task.view` has them, and no one
 sees or opens anyone else's. A reminder can be set on any task you can see, for
