@@ -1,9 +1,10 @@
 import type { LinkKind, ProjectLink } from "../domain/link.ts";
-import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore } from "../application/ports.ts";
+import type { BaselineStore, DeliverableStore, ProjectLinkStore, MilestoneStore, PhaseStore, ProjectHistory, ProjectRow, ProjectStore, TaskRow, TaskStore, DeliverableRow, HistoryRow, LabelRow, LabelStore, WorkRow, WorkStore, TaskLinkStore, CommentStore, RepeatStore } from "../application/ports.ts";
 import type { Baseline, BaselineLine } from "../domain/baseline.ts";
 import type { Deliverable, DeliverableStatus } from "../domain/deliverable.ts";
 import { byLabelName, labelKey, type Label, type LabelColour } from "../domain/label.ts";
 import type { Comment } from "../domain/comment.ts";
+import type { Repeat, RepeatFrom, RepeatUnit } from "../domain/repeat.ts";
 import type { SavedFilter } from "../domain/saved-filter.ts";
 import type { Milestone, Phase } from "../domain/plan.ts";
 import type { Project, ProjectHealth, ProjectKind, ProjectStatus } from "../domain/project.ts";
@@ -147,7 +148,7 @@ const toTask = (r: Row): Task => ({
 
 export function sqliteTaskStore(db: Database): TaskStore {
   const columns = "id, project_id, phase_id, title, description, assignee_id, priority, due_on, estimate_minutes, status, done_at";
-  const insert = db.prepare(`insert into task (${columns}, organization_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into task (${columns}, organization_id, opportunity_id, created_by, parent_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare(
     "update task set phase_id = ?, title = ?, description = ?, assignee_id = ?, priority = ?, due_on = ?, estimate_minutes = ?, status = ?, done_at = ?, updated_at = ? where id = ?",
   );
@@ -161,7 +162,7 @@ export function sqliteTaskStore(db: Database): TaskStore {
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
     insert(t, at, origin = {}) {
-      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
+      insert.run(t.id, t.projectId, t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, origin.organizationId ?? null, origin.opportunityId ?? null, origin.createdBy ?? null, origin.parentId ?? null, at, at);
     },
     update(t, at) {
       update.run(t.phaseId, t.title, t.description, t.assigneeId, t.priority, t.dueOn, t.estimateMinutes, t.status, t.doneAt, at, t.id);
@@ -355,6 +356,37 @@ export function sqliteLabelStore(db: Database): LabelStore {
     setForTask(taskId, labelIds) {
       clear.run(taskId);
       for (const labelId of new Set(labelIds)) tag.run(taskId, labelId);
+    },
+  };
+}
+
+export function sqliteRepeatStore(db: Database): RepeatStore {
+  const get = db.prepare("select id, repeat_every, repeat_unit, repeat_from from task where id = ? and repeat_every is not null");
+  const set = db.prepare("update task set repeat_every = ?, repeat_unit = ?, repeat_from = ?, updated_at = ? where id = ?");
+  const many = db.prepare("select id, repeat_every, repeat_unit, repeat_from from task where repeat_every is not null and id in (select value from json_each(?))");
+  const setPrevious = db.prepare("update task set previous_id = ? where id = ?");
+  const previousOf = db.prepare("select previous_id from task where id = ?");
+  const nextOf = db.prepare("select id from task where previous_id = ?");
+  const place = db.prepare("select organization_id, opportunity_id from task where id = ?");
+  const toRepeat = (r: Row): Repeat => ({ every: Number(r["repeat_every"]), unit: text(r, "repeat_unit") as RepeatUnit, from: text(r, "repeat_from") as RepeatFrom });
+  return {
+    get(taskId) {
+      const found = get.get(taskId) as Row | undefined;
+      return found ? toRepeat(found) : null;
+    },
+    set: (taskId, repeat, at) => void set.run(repeat?.every ?? null, repeat?.unit ?? null, repeat?.from ?? null, at, taskId),
+    forTasks(taskIds) {
+      const found = new Map<Id, Repeat>();
+      if (taskIds.length === 0) return found;
+      for (const r of many.all(JSON.stringify(taskIds)) as Row[]) found.set(text(r, "id") as Id, toRepeat(r));
+      return found;
+    },
+    setPrevious: (taskId, previousId) => void setPrevious.run(previousId, taskId),
+    previousOf: (taskId) => ((previousOf.get(taskId) as Row | undefined)?.["previous_id"] ?? null) as Id | null,
+    nextOf: (taskId) => ((nextOf.get(taskId) as Row | undefined)?.["id"] ?? null) as Id | null,
+    todoPlace(taskId) {
+      const found = place.get(taskId) as Row | undefined;
+      return { organizationId: (found?.["organization_id"] ?? null) as Id | null, opportunityId: (found?.["opportunity_id"] ?? null) as Id | null };
     },
   };
 }
