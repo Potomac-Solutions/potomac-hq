@@ -45,7 +45,7 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
-import { builderGithub, builderOwnerFrom, claudeApi, claudeConfigFrom, githubSitePublishing, publisherConfigFrom } from "../src/builder/adapters.ts";
+import { builderGithub, builderOwnersFrom, claudeApi, claudeConfigFrom, githubSitePublishing, publisherConfigFrom } from "../src/builder/adapters.ts";
 import { failLostRequests } from "../src/builder/index.ts";
 import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
@@ -121,8 +121,8 @@ console.log(github ? "Client sites' content is published to GitHub." : "Site con
 const claudeConfig = claudeConfigFrom(process.env);
 // Where its versions go live: a new repository (HQ_GITHUB_ADMIN_TOKEN) or a pull request to a client's own (HQ_GITHUB_TOKEN).
 const builderPublishing = publisherConfigFrom(process.env, github?.token ?? null);
-const builderOwner = builderOwnerFrom(process.env);
-console.log(claudeConfig ? `The site builder asks Claude.${builderOwner ? "" : " Nobody can change its model or cap: HQ_SITE_BUILDER_OWNER is not set."}` : "The site builder can't ask Claude: HQ_ANTHROPIC_API_KEY is not set.");
+const builderOwner = builderOwnersFrom(process.env);
+console.log(claudeConfig ? `The site builder asks Claude.${builderOwner.length > 0 ? ` ${builderOwner.length === 1 ? "Its owner changes" : `${builderOwner.length} owners change`} its model and cap.` : " Nobody can change its model or cap: HQ_SITE_BUILDER_OWNER is not set."}` : "The site builder can't ask Claude: HQ_ANTHROPIC_API_KEY is not set.");
 
 // AI drafts (decision 0012) use the same key.
 const aiModel = claudeConfig ? claudeModel(claudeConfig.key) : null;

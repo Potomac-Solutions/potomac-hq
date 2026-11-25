@@ -193,7 +193,7 @@ for their own site and it takes effect at once
 
 ### The site builder
 
-Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the one person whose email is `HQ_SITE_BUILDER_OWNER`.
+Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the admins whose emails are in `HQ_SITE_BUILDER_OWNER` (one, or several separated by commas).
 
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |

@@ -117,7 +117,7 @@ Do it for the test environment first, then again for production.
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
 | `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
 | `HQ_GITHUB_ADMIN_TOKEN` | A fine-grained GitHub token that may make repositories in the organization and write to them (see "The site builder") | For new repositories from the site builder |
-| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
+| `HQ_SITE_BUILDER_OWNER` | The founders' emails, separated by commas (one is fine): who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
@@ -360,7 +360,7 @@ Admins make client websites with Claude under Delivery → Site builder
 - `HQ_ANTHROPIC_API_KEY`: a key from platform.claude.com → API keys. Give
   it its own workspace in the Claude Console, with its own spend limit
   there too, as a second stop behind HQ's.
-- `HQ_SITE_BUILDER_OWNER`: Mikey's email, exactly as his HQ account has it.
+- `HQ_SITE_BUILDER_OWNER`: the founders' emails, separated by commas, exactly as their HQ accounts have them. Each must be an admin.
   Only he can change the model and the monthly cap, under Site builder →
   Model and cap. Every admin can see them and what's been spent.
 

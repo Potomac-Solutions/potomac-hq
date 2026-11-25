@@ -51,7 +51,7 @@ export type ClaudeCall = {
  */
 export type ClaudeAnswer =
   | { readonly ok: true; readonly input: unknown; readonly inputTokens: number; readonly outputTokens: number }
-  | { readonly ok: false; readonly error: ClaudeError; readonly inputTokens: number; readonly outputTokens: number };
+  | { readonly ok: false; readonly error: ClaudeError; readonly reason?: string; readonly inputTokens: number; readonly outputTokens: number };
 
 /** refused: the key or the request was refused (401, 403, 400). busy: rate-limited or overloaded. */
 export type ClaudeError = "refused" | "busy" | "failed" | "too-long" | "no-answer";

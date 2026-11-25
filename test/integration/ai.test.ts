@@ -62,7 +62,7 @@ async function portalUser(organizationId: string, name: string, email: string): 
 before(async () => {
   t = await testApp({
     ai: fake,
-    builderOwner: "mikey@example.com",
+    builderOwner: ["mikey@example.com", "jayanti@example.com"],
     email: { publicUrl: "https://hq.example", send: async (message) => (sent.push({ to: message.to, subject: message.subject, body: message.body }), { ok: true }) },
   });
   mikey = await signIn(t, "mikey@example.com", "Mikey Nichols", ["admin"]);
@@ -268,4 +268,14 @@ test("one budget, shared with the site builder: each counts the other, and it's 
   await turnOn([]);
   assert.equal(await triageNewLeads(jobs()), 0, "off is off");
   assert.equal((await mikey.get("/ask")).status, 200, "the last answer stays readable");
+});
+
+test("both founders may change the settings when HQ_SITE_BUILDER_OWNER lists both; other admins still can't", async () => {
+  const jayanti = await signIn(t, "jayanti@example.com", "Jayanti Nichols", ["admin"]);
+  assert.doesNotMatch(textOf(await jayanti.page("/settings/ai")), /Only the owner set in HQ_SITE_BUILDER_OWNER/);
+  assert.equal(query(await jayanti.post("/settings/ai", { model: "claude-haiku-5-5", "feature-ask": "on" }), "problem"), "");
+  assert.match(await mikey.page("/settings/ai"), /name="feature-ask" checked/);
+  assert.equal(query(await jayanti.post("/builder/settings", { model: "claude-haiku-5-5", cap: "20.00" }), "problem"), "", "and the site builder's model and cap");
+  const jo = await signIn(t, "jo2@example.com", "Jo Admin", ["admin"]);
+  assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5" }), "problem"), /permission/);
 });
