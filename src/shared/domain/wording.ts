@@ -162,7 +162,6 @@ const WORDING: Readonly<Record<string, string>> = {
   "user.notice-preferences-set": "changed when their notices are emailed",
   "task.bulk-changed": "changed several tasks at once",
   "weekly-email.sent": "Sent the weekly owner email",
-  "undo.used": "undid a change",
   "reply.added": "added a saved reply",
   "reply.changed": "changed a saved reply",
   "reply.removed": "removed a saved reply",

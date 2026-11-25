@@ -246,6 +246,10 @@ test("the command bar finds pages and records as you type, only what the person 
   assert.equal(pages.items[0]?.kind, "Page");
   const asMember = (await (await member.get("/find.json?q=audit")).json()) as { items: { label: string }[] };
   assert.ok(!asMember.items.some((one) => one.label === "Audit history"));
+  // A deal it finds can be moved on from here (decision 0014's palette, folded in).
+  const deal = (await (await admin.get("/find.json?q=menu boards")).json()) as { moves: { label: string; action: string; fields: Record<string, string> }[] };
+  assert.match(deal.moves[0]?.label ?? "", /^Move Menu boards to /);
+  assert.match(deal.moves[0]?.action ?? "", /^\/opportunities\/[0-9a-f-]{36}\/stage$/);
   const { httpClient } = await import("../support/harness.ts");
   assert.equal((await httpClient(t.origin).get("/find.json?q=elk")).status, 401);
 });

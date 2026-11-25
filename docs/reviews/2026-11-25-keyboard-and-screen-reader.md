@@ -13,15 +13,15 @@ checked, what was fixed, and what still needs a person.
 - `/` opens the command bar with focus in its search box. Tab and
   Shift+Tab stay inside it. Escape closes it from anywhere inside, and focus
   goes back to what opened it.
-- The **Undo** line after moving a task is a live region (`role=status`),
-  is reached by keyboard and works with Enter.
-- A brought-back draft says so in a live region, and the text is back in
-  its box.
+- Decision 0014's **Undo** bar after moving a task names the change in a
+  live region (`role=status`), is reached by keyboard and works with Enter.
+- Decision 0014's brought-back unsent text says so in a live region, and
+  the text is back in its box.
 - The duplicate question, its "add it anyway" checkbox (Space ticks it),
   and the merge form (a `<details>` opened with Enter, a labelled select)
   pass axe, light and dark.
 - Every new screen this round (Saved replies, the portal timeline, the
-  Undo line, the merge form) passes axe with the WCAG 2.1 A and AA rules,
+  merge form) passes axe with the WCAG 2.1 A and AA rules,
   as every screen does on each merge.
 
 ## Fixed in this pass
@@ -36,7 +36,7 @@ checked, what was fixed, and what still needs a person.
 
 - Hearing the whole of a day in HQ with a screen reader: the sidebar hubs
   (`<details>`), the assistant's drawer and its confirm cards, the board.
-- Whether the Undo line and the brought-back message are read at the right
+- Whether the Undo bar and the brought-back message are read at the right
   moment, and not too often, in each screen reader.
 - The assistant's drawer is a complementary region, not a dialog: whether
   that reads well, or whether it should trap focus too.

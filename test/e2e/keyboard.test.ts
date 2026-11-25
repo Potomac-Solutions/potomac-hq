@@ -1,6 +1,6 @@
 // The keyboard pass (Mikey, 2026-11-25), in a real browser: the skip link,
 // the command bar as a dialog (focus kept inside, Escape, focus put back),
-// Undo and a brought-back draft reached and announced, and the duplicate
+// decision 0014's Undo bar and brought-back text reached and announced, and the duplicate
 // question and merge form. Automated only: see
 // docs/reviews/2026-11-25-keyboard-and-screen-reader.md for what it can't tell.
 import assert from "node:assert/strict";
@@ -64,17 +64,19 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   await page.getByRole("dialog").waitFor({ state: "detached" });
   await page.waitForFunction(focusIs, { want: "cmd-open" }, { timeout: 2000 });
 
-  // Moving a task offers Undo, announced, and it works from the keyboard.
+  // Moving a task offers decision 0014's Undo, announced, and it works from the keyboard.
   if (!task.ok) return;
   await page.goto(`${t.origin}/tasks/${task.value.id}`);
   await page.locator("#task-status").selectOption("doing");
   await page.locator("form[action$='/status'] button[type=submit]").first().click();
-  const undo = page.locator("form.hq-undo[role=status]");
+  const undo = page.locator(".hq-undo[role=region]");
   await undo.waitFor();
-  await assertAccessible(page, "the Undo line");
-  await undo.getByRole("button").focus();
+  assert.match(await undo.locator("[role=status]").innerText(), /\S/, "the bar says what it puts back");
+  await assertAccessible(page, "the Undo bar");
+  await page.locator("#hq-undo-button").focus();
   await page.keyboard.press("Enter");
-  await page.getByText(/Undone/).waitFor();
+  await page.waitForLoadState("load");
+    for (let i = 0; i < 20 && t.services.projects.tasks.get(task.value.id)?.status !== "todo"; i += 1) await page.waitForTimeout(100);
   assert.equal(t.services.projects.tasks.get(task.value.id)?.status, "todo");
 
   // Typing in a message box survives a reload, and saying so is announced.
@@ -82,10 +84,11 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   const box = page.locator("#note-body");
   await box.focus();
   await page.keyboard.type("Rita asked for a Friday call");
+  await page.waitForTimeout(600);
   await page.reload();
-  await page.locator(".hq-restored[role=status]").waitFor();
+  await page.getByText(/Brought back text you hadn’t sent/).waitFor();
   assert.equal(await page.locator("#note-body").inputValue(), "Rita asked for a Friday call");
-  await assertAccessible(page, "a brought-back draft");
+  await assertAccessible(page, "brought-back text");
 
   // A client like one already here asks first; the merge form, light and dark.
   await page.goto(`${t.origin}/clients`);

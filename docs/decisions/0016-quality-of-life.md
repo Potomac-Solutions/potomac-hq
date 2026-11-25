@@ -28,7 +28,7 @@ history.
 On Notices, for each kind (a task given to you, a mention, a reminder):
 email it right away, in a 7 AM digest, or never. And quiet hours, when
 nothing is emailed or pushed; it waits until they end. The bell always
-shows everything. Migration 0076.
+shows everything. Migration 0075.
 
 ### 4. Many at once
 
@@ -73,7 +73,7 @@ minutes away (its host), and for each notice. Quiet hours hold them; one
 older than 12 hours is dropped. Web Push is written by hand on
 `node:crypto` (RFC 8291 and 8292), with no package. Needs
 `HQ_VAPID_PUBLIC_KEY` and `HQ_VAPID_PRIVATE_KEY` (`npm run
-push:keygen`). Migration 0077.
+push:keygen`). Migration 0076.
 
 ### 9. The portal: sign-in links and approving from email
 
@@ -88,19 +88,18 @@ still accepted in the portal, where the typed-name signature happens.
 
 ### 10. Everyday buttons (second round)
 
-- **Notes survive a dropped signal.** What's typed in a form's text box is
-  kept on the device (`localStorage`, 14 days) until it's sent, and put back
-  in the empty box with "Brought back what you were typing here before."
-  Signing out clears it. Nothing goes to the server.
+- **Notes survive a dropped signal.** Built here first, then dropped for
+  decision 0014's own "unsent text is kept", which does the same (and asks
+  before leaving a typed form) when the two met before staging.
 - **Booked calls in the calendar feed**, at their times (UTC `DTSTART`),
   for their host, from two weeks back to three months ahead, each with a
   link to Get ready.
-- **Undo** for ten minutes after moving a task or ticking off or putting
-  back a to-do: the next page has an Undo line (a live region), for the
-  person who did it, once. Migration 0078.
+- **Undo** after moving a task or ticking a to-do: also built here first,
+  then dropped for decision 0014's Undo bar, which covers these and much
+  more (one-time tokens, Ctrl+Z, Recent changes). Its migration went with it.
 - **Saved replies** (`contact.edit`): written once on Saved replies, under
   Clients, and offered beside a message to a client, with `{first name}`,
-  `{client}`, `{project}` and `{me}` filled in. Migration 0079.
+  `{client}`, `{project}` and `{me}` filled in. Migration 0077.
 - **Duplicate clients.** Adding a client whose name is close to one in HQ
   (business endings like LLC ignored, a small typo allowed) says which and
   asks again with "It's a different business: add it anyway". **Merge**, on
@@ -114,7 +113,8 @@ still accepted in the portal, where the typed-name signature happens.
   with.
 - **A keyboard pass**: the command bar is a proper dialog (focus kept
   inside, Escape from anywhere in it, focus put back on close), with
-  browser tests for that, the skip link, Undo and a brought-back draft.
+  browser tests for that, the skip link, and decision 0014's Undo bar and
+  brought-back text reached from the keyboard.
   See `docs/reviews/2026-11-25-keyboard-and-screen-reader.md`.
 
 ## Not now
@@ -122,5 +122,4 @@ still accepted in the portal, where the typed-name signature happens.
 - A true password-free sign-in (the link sets a password first).
 - Bulk reminders, and bulk actions on invoices beyond marking drafts sent.
 - A switch to turn the weekly email off.
-- Undo for more than task moves and to-dos (a deleted note, a status change).
 - Merging contacts, as opposed to whole clients.

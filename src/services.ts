@@ -70,8 +70,6 @@ import { placeAt, PLACES, search, type PinsDeps, type Place, type WeeklyDeps } f
 import { sqlitePinStore, sqliteWeekFacts, sqliteWeeklySent } from "./dashboard/adapters.ts";
 import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/adapters.ts";
 import type { PushDeps } from "./push/index.ts";
-import type { UndoDeps } from "./undo/index.ts";
-import { sqliteUndoStore } from "./undo/adapters.ts";
 import type { RepliesDeps } from "./replies/index.ts";
 import { sqliteReplyStore } from "./replies/adapters.ts";
 import { isQuiet } from "./notices/index.ts";
@@ -194,8 +192,6 @@ export type Services = {
   readonly weekly: WeeklyDeps;
   /** Phone alerts (quality of life, 2026-11-25). */
   readonly push: PushDeps;
-  /** Undo on everyday buttons (quality of life, 2026-11-25). */
-  readonly undo: UndoDeps;
   /** Saved replies (quality of life, 2026-11-25). */
   readonly replies: RepliesDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
@@ -852,18 +848,6 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
 
-  const undo: UndoDeps = {
-    users,
-    transact: sqliteTransact(db),
-    activityLog: sqliteActivityLog(db),
-    clock,
-    newId,
-    steps: sqliteUndoStore(db),
-    actions: {
-      setTaskStatus: (actorId, taskId, status) => moveTaskStatus(projects, actorId, taskId, status),
-      setTodoDone: (actorId, todoId, done) => (done ? completeTodo(todos, actorId, todoId) : reopenTodo(todos, actorId, todoId)),
-    },
-  };
   const replies: RepliesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, replies: sqliteReplyStore(db) };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
@@ -911,5 +895,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, undo, replies, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

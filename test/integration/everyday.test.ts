@@ -1,6 +1,6 @@
-// Everyday buttons (Mikey, 2026-11-25) over real HTTP: Undo after moving a
-// task or ticking a to-do, saved replies, duplicate clients and merging them,
-// and booked calls in the calendar feed.
+// Everyday buttons (Mikey, 2026-11-25) over real HTTP: saved replies,
+// duplicate clients and merging them, and booked calls in the calendar feed.
+// Undo is decision 0014's, tested with it.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as crm from "../../src/crm/index.ts";
@@ -20,30 +20,6 @@ before(async () => {
   member = await signIn(t, "sam@example.com", "Sam Rivers", ["member"]);
 });
 after(() => t.stop());
-
-test("Undo: a moved task goes back, once, and only for whoever moved it", async () => {
-  const mikey = userId("mikey@example.com");
-  const { project } = await wonProject(t.services, mikey, { client: "Undo Diner" });
-  const task = unwrap(projects.addTask(t.services.projects, mikey, project.id, { title: "Draw the menu" }));
-  const res = await admin.post(`/tasks/${task.id}/status`, { to: "doing" });
-  const undo = query(res, "undo");
-  assert.ok(undo, "the redirect offers Undo");
-  assert.match(textOf(await admin.page(res.headers.get("location") ?? "")), /Moved “Draw the menu” to Working on/);
-  assert.equal((await member.post(`/undo/${undo}`, { back: "/" })).status, 303);
-  assert.equal(t.services.projects.tasks.get(task.id)?.status, "doing", "someone else can't undo it");
-  assert.match(query(await admin.post(`/undo/${undo}`, { back: `/tasks/${task.id}` }), "done"), /Undone/);
-  assert.equal(t.services.projects.tasks.get(task.id)?.status, "todo");
-  assert.ok(query(await admin.post(`/undo/${undo}`, { back: "/" }), "problem"), "a second Undo does nothing");
-});
-
-test("Undo: a ticked to-do comes back", async () => {
-  await member.post("/todos", { title: "Call the printer" });
-  const id = t.db.prepare("select id from task where title = 'Call the printer'").get()?.["id"] as string;
-  const undo = query(await member.post(`/todos/${id}/done`, { returnTo: "/todos" }), "undo");
-  assert.ok(undo);
-  await member.post(`/undo/${undo}`, { back: "/todos" });
-  assert.equal(t.db.prepare("select status from task where id = ?").get(id)?.["status"], "todo");
-});
 
 test("saved replies: saved once, offered beside a message to a client", async () => {
   assert.match(query(await admin.post("/replies", { title: "Proof ready", body: "Hi {first name}, your proof is ready to look over." }), "done"), /Saved/);

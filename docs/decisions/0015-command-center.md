@@ -104,7 +104,12 @@ branch stacked on the first:
 5. **Command bar.** `/` or Ctrl+K (⌘K) from any page, or **Go to…** in the
    top bar: pages and records as you type (`GET /find.json`, the person's
    own permissions), Enter opens one; with nothing picked, Enter asks the
-   assistant from that page.
+   assistant from that page. It is also where decision 0014's command
+   palette went when the two met before staging: a deal it finds can be
+   moved on a stage or back one (posted as the deal's own form), and
+   "keys" opens the shortcut list. Decision 0014's ? list and G-then-letter
+   jumps stay as they were (G then D is Home); its `/palette.json` is gone,
+   since `/find.json` answers the same.
 6. **The assistant on every page.** **Ask** in the top bar opens a drawer
    with the same conversation. A message is sent with the page's address,
    so "this" means that page's record. Open and close are links
@@ -121,7 +126,7 @@ branch stacked on the first:
    an invoice (money: always asks, and stays a draft). Starting the timer is
    moving a task to Working on.
 10. **Pins and recents.** **Pin** in the top bar puts the page you're on at
-    the top of your sidebar (up to 12, per person, migration 0075). Recent
+    the top of your sidebar (up to 12, per person, migration 0074). Recent
     records are kept on the device only, and cleared on sign-out.
     **Default:** recents aren't kept on the server, so viewing a page writes
     nothing.

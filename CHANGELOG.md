@@ -9,6 +9,42 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Undo and moving back (decision 0014). After a pipeline move, a client or
+  project status change, a task move on the board or ticking off a to-do,
+  an Undo bar appears at the bottom of the screen; press it or Ctrl+Z (⌘Z).
+  Opportunities can be dragged back to any earlier stage, moved back with a
+  card's Back button, and reopened from won (unless already a project) or
+  lost on their own page. Automatic moves still only go forward. Dragging
+  is clearer on the pipeline and the board: a grip on each card, the card
+  lifts and fades while dragged, columns it can go to are outlined with
+  "Drop to move here", and pipeline columns it can't go to are dimmed.
+- More undo and easier getting around (decision 0014, sections 4 to 7).
+  Undo also covers saving a task's or project's details and a deal's price
+  or follow-up, and reopening a lost deal; it is kept server-side behind a
+  one-time token (`/undo/<token>`, migration 0072). Remove buttons hide the
+  item and wait six seconds with Undo before sending. After a post HQ keeps
+  your scroll and focus, cards slide to their new place where the browser
+  supports view transitions, forms can't be sent twice, leaving a typed form
+  asks first, and green messages fade. New: a command palette (Ctrl+K or
+  "Go to…") that also moves deals, a shortcut list (?), G-then-letter
+  jumps, moving board and pipeline cards with Space and the arrow keys, and
+  dragging cards by the grip on a phone.
+- Recent changes and undo send (decision 0014, sections 8 and 9). A new
+  Recent changes page (sidebar, Ctrl+K, G then H) lists your changes from
+  the last day that can still be undone, one per thing, each with Undo.
+  An undo is now usable only by the person who made the change, and the
+  Undo bar names what it puts back. Send, publish, share, void and
+  call-cancel buttons wait eight seconds with Undo before anything leaves
+  HQ. A client's demo flag can be undone.
+- Undo for adding, a confirm step, and unsent text kept (decision 0014,
+  section 10). Adding a project link, comment, label, saved filter, time,
+  expense, demo or referral link can be undone, and so can editing a
+  comment. Turning off two-step sign-in, removing a passkey, new recovery
+  codes, resetting someone's two-step sign-in, turning an account off and
+  new webhook or automation secrets ask first. Unsent text in long boxes
+  comes back after a closed or crashed page. Ctrl+Enter sends a form.
+  Dropped cards move to their column at once. Pages leave room for the
+  Undo bars.
 - The sidebar is eight hubs (decision 0015): Home, Today, Clients, Work,
   Sites, Money, Growth and Company. The hub you're in is open; the others
   fold to one line and open with a tap. Every page keeps its address. The
@@ -31,17 +67,19 @@ moves those lines under a version heading. See `docs/conventions.md`.
   small changes go through with **Undo**. It is a feature in Settings → AI
   (off to start), shares the monthly AI budget, and takes a model picked
   beside the box up to the ceiling. Conversations are kept 90 days.
-  Migration 0074.
+  Migration 0073.
 - Finding your way, part two (decision 0015, follow-up): a command bar on
   `/` or Ctrl+K (⌘K) and **Go to…**, with pages and records as you type and
   Enter to ask the assistant when nothing fits; **Ask** in the top bar
   opens the assistant beside any page, sent with that page's address;
   a tab bar along the bottom on phones; the conversation opens with your
   day from HQ's own records; **Pin** keeps pages at the top of your sidebar
-  (migration 0075) and **Recent** lists records opened on this device;
+  (migration 0074) and **Recent** lists records opened on this device;
   **Speak** where the browser can. The assistant can also set a follow-up
   day and a project's health (with Undo), stop the timer, make a booking
-  link, start a proposal and draft an invoice.
+  link, start a proposal and draft an invoice. Decision 0014's command
+  palette is now this command bar: it moves a deal it finds on or back a
+  stage, and "keys" opens the shortcut list.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
@@ -63,7 +101,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
     server settings in one place.
   - **What changed here** on clients, deals, invoices, tasks and proposals.
   - **Notice settings**: right away, a 7 AM digest or never for each kind,
-    and quiet hours (migration 0076).
+    and quiet hours (migration 0075).
   - **Many at once** on All work (move, give, date, label), and marking
     several draft invoices sent.
   - **Team workload** for managers and admins.
@@ -71,15 +109,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   - **The weekly owner email**, Mondays at 7:23.
   - **HQ on a phone**: install to the home screen, and alerts for client
     messages and call requests, calls about to start, sites down and
-    notices (migration 0077; `npm run push:keygen`, `HQ_VAPID_*`).
+    notices (migration 0076; `npm run push:keygen`, `HQ_VAPID_*`).
   - **The portal**: Email me a link to sign in (self-serve password reset),
     and approving a deliverable from the email in one tap.
-  - **Typing survives a dropped signal**: a form's text box is kept on the
-    device until sent and brought back after a reload.
   - **Booked calls in the calendar feed**, at their times.
-  - **Undo** for ten minutes after moving a task or ticking a to-do
-    (migration 0078).
-  - **Saved replies** beside a message to a client (migration 0079).
+  - **Saved replies** beside a message to a client (migration 0077).
   - **Duplicate clients**: a name like one already here asks first, and a
     duplicate can be merged into the client to keep.
   - **The portal's timeline**: waiting on you, next, and done.

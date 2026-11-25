@@ -1,4 +1,4 @@
-// Saved replies (migration 0079).
+// Saved replies (migration 0077).
 import type { ReplyStore } from "../application/replies.ts";
 import type { Database } from "../../shared/adapters.ts";
 

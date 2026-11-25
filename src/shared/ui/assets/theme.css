@@ -339,6 +339,19 @@ hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-r
 .call-wrap { display: none; }
 :root[data-call-phase="wrap-up"] .call-wrap, :root[data-call-phase="over"] .call-wrap, .call-wrap.call-wrap-now { display: block; }
 
+/* Decision 0014: a form post that comes back to the same page slides the
+   cards that moved, where the browser supports cross-page view transitions.
+   The page itself swaps in place; page-keeper.zb names the cards and skips
+   the transition for a different page. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(*) { animation-duration: 240ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+/* A button whose form is on its way. */
+button[aria-busy=true] { cursor: progress; opacity: 0.7; }
+
 /* The portal's timeline: waiting on you, next, done (quality of life, 2026-11-25). */
 .portal-timeline { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-block: 0.75rem; }
 .portal-lane { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem 1rem; }

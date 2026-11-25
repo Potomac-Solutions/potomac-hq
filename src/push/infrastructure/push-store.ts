@@ -1,4 +1,4 @@
-// Phone alerts' devices, queue and sources (migration 0077).
+// Phone alerts' devices, queue and sources (migration 0076).
 import type { AlertQueue, AlertSources, DeviceStore, QueuedAlert, StoredDevice } from "../application/push.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";

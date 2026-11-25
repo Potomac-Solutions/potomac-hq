@@ -39,6 +39,7 @@ export const PLACES: readonly Place[] = [
 
   { key: "today", label: "Today", hub: "today", href: "/today", words: ["agenda", "due", "follow-ups", "calls to make"], what: "What's due today: follow-ups, calls, to-dos" },
   { key: "todos", label: "My work", hub: "today", href: "/todos", words: ["to-dos", "todos", "tasks", "mine", "assigned"], what: "Your to-dos and tasks" },
+  { key: "history", label: "Recent changes", hub: "today", href: "/history", words: ["undo", "history", "recent", "changes", "put back", "mistake"], what: "Your changes from the last day that can still be undone" },
   { key: "drafts", label: "AI drafts", hub: "today", href: "/drafts", gate: "ai:drafts", words: ["ai", "drafts", "claude", "waiting"], what: "Drafts AI wrote, waiting for you" },
   { key: "notices", label: "Notices", hub: "today", href: "/notices", hidden: true, words: ["notifications", "bell", "alerts", "reminders"], what: "Your notices" },
   { key: "add", label: "Quick add", hub: "today", href: "/add", hidden: true, gate: "perm:task.edit", words: ["new task", "new to-do", "add task", "add todo"], what: "Add a task or to-do in plain words" },

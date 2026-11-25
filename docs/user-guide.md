@@ -37,14 +37,58 @@ at least 10 characters. The link works once.
 
 The full list is in the article "Authorization matrix".
 
+## Undo
+
+After a move, a status change or an edit, an **Undo** bar appears at the
+bottom of the screen. Press it, or Ctrl+Z (⌘Z on a Mac) when you're not
+typing, to put things back. Undo works for pipeline stages, client and
+project status, task moves on the board, ticking off to-dos, and saving a
+task's or project's details or a deal's price or follow-up. It works once,
+for a day. It isn't offered when putting it back wouldn't be allowed, such
+as a repeating task whose next one was already made.
+
+**Remove** buttons hide the item at once and wait six seconds, with Undo,
+before anything is removed. **Send**, **Publish**, **Share** and **Void**
+buttons wait eight seconds, with Undo, before anything leaves HQ.
+
+Adding a link, comment, label, filter, time, expense, demo or referral link
+can be undone the same way. The few things that can't be undone, like
+turning off two-step sign-in, ask first.
+
+If a page closes before you send what you typed in a comment or note box,
+the text is there when you come back. **Ctrl+Enter** sends the form you're
+typing in.
+
+**Recent changes** (in the sidebar, or G then H) lists what you changed in
+the last day that can still be put back, each with its own Undo, so a
+mistake you notice later can still be undone.
+
+## Getting around by keyboard
+
+- **Ctrl+K** (⌘K), or **Go to…** in the top bar: go to any page, client,
+  deal, project, task or invoice, or move a deal on ("Move Feed store site
+  to Quoted").
+- **?** shows every shortcut. **G** then a letter jumps to a page: **P**
+  Pipeline, **C** Clients, **B** Board, **T** Today and more. **/** opens
+  the same box as Ctrl+K.
+- On the pipeline or the board, focus a card and press **Space**, the
+  **arrow keys**, then **Space** again to move it. **Escape** puts it back.
+- On a phone, drag a card by its grip (the dots on its left edge).
+
+After you save or move something, HQ keeps your place on the page. If you
+leave a page with something typed and not saved, it asks first.
+
 ## A lead comes in
 
 1. **Clients**, then "Add a client". Add the person you talk to as a contact.
 2. On the client, open an **opportunity**: what they want, and how they
    found Potomac.
 3. Move it along the **Pipeline** as it goes: new, consult booked,
-   consulted, quoted. Set a follow-up day and it shows on your dashboard
-   when it is due.
+   consulted, quoted. Drag a card by its grip to the next column, or back to
+   any earlier one; columns it can't go to are dimmed while you drag. Each
+   card also has a Back button, and the opportunity's page can move it back
+   or reopen a won or lost deal. Set a follow-up day and it shows on your
+   dashboard when it is due.
 4. Write what was said in **Notes** on the client or the opportunity.
 
 ## The proposal
@@ -66,7 +110,8 @@ The full list is in the article "Authorization matrix".
 - When a milestone is something the client has to do, like sending photos,
   tick "The client has to do this one". Their portal then puts it first,
   under "waiting on you".
-- The **Board** shows tasks by status. Drag a card, or use its menu.
+- The **Board** shows tasks by status. Drag a card by its grip, or use its
+  menu.
   Moving a task to "Working on" starts your timer. Moving it on stops the
   timer and logs the time.
 - **Deliverables** are files for the client. A draft is yours. Share it and
@@ -482,10 +527,6 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
   Mondays.
 - Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
   straight from the email when work is shared with them.
-- Lost signal halfway through a note? Reload: what you'd typed comes back
-  until you send it.
-- Moved a task or ticked a to-do by mistake? **Undo** on the next page, for
-  ten minutes.
 - **Saved replies** under Clients: write it once, then *Use a saved reply*
   beside a message to a client.
 - Adding a client that's already here? HQ asks first. A duplicate can be

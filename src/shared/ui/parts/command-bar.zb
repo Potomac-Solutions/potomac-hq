@@ -1,7 +1,10 @@
 <!--
   The command bar (decision 0015, follow-up): press / or Ctrl+K (⌘K on a
   Mac), or tap "Go to", and type. Pages and records come up as you type;
-  Enter opens the one picked. When nothing fits, Enter asks the assistant
+  Enter opens the one picked. A deal it finds can be moved on a stage or
+  back one from here too, posted as the deal's own form would be (decision
+  0014's palette, folded in), and "keys" offers the keyboard shortcuts.
+  When nothing fits, Enter asks the assistant
   instead, from the page you're on. Without scripts the top bar's search
   box does the finding. Only the shell imports this. `here` is the page's
   address, sent with a question; `ask` says whether the assistant is on.
@@ -61,16 +64,39 @@
     }
     try {
       const response = await fetch('/find.json?q=' + encodeURIComponent(text), { credentials: 'same-origin', headers: { accept: 'application/json' } })
-      const body = response.ok ? await response.json() : { items: [] }
+      const body = response.ok ? await response.json() : { items: [], moves: [] }
       if (mine !== asked) return
-      items = body.items || []
+      const moves = (body.moves || []).map((one, index) => ({ kind: 'Move', label: one.label, href: '#move-' + index, move: one }))
+      const keys = /^(keys?|keyboard|shortcuts?)/i.test(text.trim()) ? [{ kind: 'Action', label: 'Keyboard shortcuts', href: '#keys' }] : []
+      items = [...moves, ...keys, ...(body.items || [])]
       active = items[0] ? items[0].href : ''
     } catch {
       items = []
     }
   }
+  // A move is a form post, like the deal's own Move button.
+  function post(move) {
+    const form = document.createElement('form')
+    form.method = 'post'
+    form.action = move.action
+    for (const [name, value] of Object.entries(move.fields)) {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = name
+      input.value = value
+      form.append(input)
+    }
+    document.body.append(form)
+    form.requestSubmit()
+  }
   function go() {
     const picked = items.find((one) => one.href === active)
+    if (picked && picked.move) return post(picked.move)
+    if (picked && picked.href === '#keys') {
+      hide()
+      document.dispatchEvent(new CustomEvent('hq-keys'))
+      return
+    }
     if (picked) {
       location.href = picked.href
       return
@@ -144,13 +170,13 @@
       </div>
       <ul class="cmd-list" id="cmd-list" role="listbox" aria-label="Matches">
         <zb-each items={items} as="item" key={item.href}>
-          <li role="presentation"><a id={'cmd-item-' + items.indexOf(item)} role="option" aria-selected={item.href === active ? 'true' : 'false'} class:active={item.href === active} href={item.href}><span class="cmd-kind">{item.kind}</span><span>{item.label}</span><span zb-if={item.detail} class="cmd-detail">{item.detail}</span></a></li>
+          <li role="presentation"><a id={'cmd-item-' + items.indexOf(item)} role="option" aria-selected={item.href === active ? 'true' : 'false'} class:active={item.href === active} href={item.href} onclick={(event) => { if (item.move || item.href === '#keys') { event.preventDefault(); active = item.href; go() } }}><span class="cmd-kind">{item.kind}</span><span>{item.label}</span><span zb-if={item.detail} class="cmd-detail">{item.detail}</span></a></li>
         </zb-each>
       </ul>
       <p class="cmd-foot">
         <span zb-if={q.trim() && items.length === 0 && ask}>Nothing matches. Press Enter to <button type="button" onclick={go}>ask the assistant</button>.</span>
         <span zb-if={q.trim() && items.length === 0 && !ask}>Nothing matches “{q}”.</span>
-        <span zb-if={!q.trim()}>↑ ↓ to pick, Enter to open, Esc to close.</span>
+        <span zb-if={!q.trim()}>↑ ↓ to pick, Enter to open, Esc to close, ? for every shortcut.</span>
         <span zb-if={q.trim() && items.length > 0}>Enter opens it.<span zb-if={ask}> Or <button type="button" onclick={() => { active = ''; go() }}>ask the assistant</button> instead.</span></span>
       </p>
       <form id="cmd-ask" method="post" action="/assistant" hidden>
