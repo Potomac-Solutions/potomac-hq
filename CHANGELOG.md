@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The call screen (decision 0009, slice 1). "Start a call" on a client, a
+  contact, an opportunity or a booked call opens a screen with a big Dial
+  button and a timer kept by the server. A call is planned for 15 minutes,
+  or a booked call's length, changed 5 minutes at a time. Five minutes
+  before the end (a third of a short call) the timer turns amber, the phone
+  buzzes once with no sound, and a wrap-up list shows; at the end it turns
+  red and counts the overtime. Notes save as they're typed, and the screen
+  stays awake. "End call" logs it in the call log with its length. The top
+  bar leads back to an open call, and a call nobody ended is closed after 3
+  hours. Migration 0052.
 - Decision 0009, call mode: start a call with a timer, a guide of questions
   with talking points from HQ's records, a warning to wrap up before the
   planned end, and the call logged with its length; then calls to make,

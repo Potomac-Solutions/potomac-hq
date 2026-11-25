@@ -32,6 +32,30 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+## Calls
+
+Added by decision 0009, slice 1 (migration 0052). `call`: a call in
+progress, at a client and optionally with a contact, on an opportunity or
+for a booking; who's on it, the number dialed, when it started, the
+planned minutes (5 to 240, in steps of 5; 15 by default, or the booking's
+length), the warning minutes (5, or a third of a call under 15), notes
+kept as they're typed, and when it ended and the touch it was logged as.
+`touch` gains `minutes` and `call_id`.
+
+- One open call per person (a unique index). Starting another answers with
+  the open one.
+- Only the person on the call sees or changes it. Starting, changing and
+  ending need `contact.edit`; a follow-up set on ending needs
+  `opportunity.set-follow-up`.
+- Ending logs the touch and closes the call in one transaction. The length
+  is whole minutes, rounded up.
+- A call left open for 3 hours is ended every five minutes by the server,
+  logged as 180 minutes with a note saying so.
+- A booking from the public page counts as at its CRM client once it's
+  been added to the CRM.
+- Events: `call.started`, `call.length-changed`, `call.ended`,
+  `call.ended-automatically`; `touch.logged` carries `minutes` and `callId`.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.
