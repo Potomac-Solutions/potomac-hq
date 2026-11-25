@@ -1,0 +1,121 @@
+<!--
+  The call screen (decision 0009): a big Dial button, the timer, the planned
+  length with shorter and longer, notes that save as they're typed, and
+  ending the call into the call log. Built for a phone held in one hand.
+  Only the person on the call sees it. Without scripts: dial, the time as
+  the page was made, notes saved with a button, and ending all still work.
+-->
+<script>
+  'use route /phone/:id'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import './call-timer.zb'
+  import { notFound } from '@zubra/router'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.callScreen(params.id)
+    if (!view) return notFound()
+    return { title: view.contactName ? `Call with ${view.contactName}` : `Call with ${view.clientName}`, view, done: context.notice.done, problem: context.notice.problem }
+  }
+
+  // Notes save a moment after you stop typing, so a dropped call or a dead
+  // phone loses nothing. Without scripts, "Save notes" does it.
+  let saving = null
+  let saved = ''
+  function typed(event) {
+    const box = event.currentTarget
+    saved = ''
+    if (saving) clearTimeout(saving)
+    saving = setTimeout(async () => {
+      try {
+        const body = new URLSearchParams({ note: box.value })
+        const answer = await fetch('/phone/' + view.id + '/note', { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' })
+        saved = answer.type === 'opaqueredirect' || answer.ok ? 'Notes saved.' : ''
+      } catch {
+        saved = ''
+      }
+    }, 1200)
+  }
+</script>
+<style>
+  .call { display: grid; gap: 1rem; max-width: 34rem; }
+  .call h1 { margin: 0; }
+  .call-who { margin: 0.15rem 0 0; color: var(--muted-foreground); }
+  .call-dial { display: flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 3.5rem; font-size: 1.15rem; text-decoration: none; }
+  .call-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0; }
+  .call-plan form { margin: 0; }
+  .call-plan p { margin: 0; flex: 1 1 12rem; }
+  .call-steps { display: flex; gap: 0.5rem; }
+  .call-steps .hq-button { min-width: 3rem; min-height: 2.75rem; }
+  .call-wrap ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+  .call-end { display: grid; gap: 0.75rem; }
+  .call-outcomes { display: grid; gap: 0.4rem; border: 0; margin: 0; padding: 0; }
+  .call-outcomes legend { font-weight: 600; margin-bottom: 0.25rem; }
+  .call-outcomes label { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .call-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .call-actions .hq-button { min-height: 3rem; flex: 1 1 10rem; }
+  .call-saved { min-height: 1.25rem; margin: 0; color: var(--muted-foreground); font-size: 0.85rem; }
+</style>
+<hq-call view={null} done="" problem="">
+  <div class="call">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Call', href: '' }]}></breadcrumb-trail>
+    <div>
+      <h1>{view.contactName || view.clientName}</h1>
+      <p class="call-who" zb-if={view.contactName}>{view.clientName}<span zb-if={view.opportunityTitle}>, about {view.opportunityTitle}</span></p>
+      <p class="call-who" zb-if={!view.contactName && view.opportunityTitle}>About {view.opportunityTitle}</p>
+    </div>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+
+    <section zb-if={view.ended} class="hq-panel">
+      <p>This call ended {view.endedText}. It’s in the call log.</p>
+      <p><a href="/clients/{view.clientId}#touches">See the call log</a></p>
+    </section>
+
+    <a zb-if={!view.ended && view.dial} class="hq-button call-dial" href={view.dial}>Dial {view.phone}</a>
+    <p zb-if={!view.ended && !view.dial} class="hq-muted">No phone number on file. <a href="/clients/{view.clientId}">Add one on the client’s page</a>, or dial from your phone; the timer’s running.</p>
+
+    <call-timer call={view.id} started={view.startedAt} now={view.now} ended={view.ended ? view.endedText : ''} planned={view.plannedMinutes} warn={view.warnMinutes} timer={view.timer} begin={view.clock.phase}></call-timer>
+
+    <div zb-if={!view.ended} class="call-plan">
+      <p>Planned for {view.plannedMinutes} min. Wrap up at {view.wrapUpText}, done by {view.endsText}.</p>
+      <div class="call-steps">
+        <form method="post" action="/phone/{view.id}/shorter"><button class="hq-button secondary" type="submit" disabled={!view.canShorter} aria-label="5 minutes shorter">−5</button></form>
+        <form method="post" action="/phone/{view.id}/longer"><button class="hq-button secondary" type="submit" disabled={!view.canLonger} aria-label="5 minutes longer">+5</button></form>
+      </div>
+    </div>
+
+    <p zb-if={view.topic} class="hq-panel"><strong>They booked it about:</strong> {view.topic}</p>
+
+    <section zb-if={!view.ended} class="hq-panel call-wrap {view.clock.phase === 'on' ? '' : 'call-wrap-now'}" aria-labelledby="call-wrap-heading">
+      <h2 id="call-wrap-heading">Wrapping up</h2>
+      <ul>
+        <li>Say back what you agreed, in a sentence.</li>
+        <li>Say who does what next, and by when.</li>
+        <li>More to talk about? Offer another call, and set a follow-up below.</li>
+      </ul>
+    </section>
+
+    <form zb-if={!view.ended} method="post" action="/phone/{view.id}/end" class="hq-panel call-end">
+      <div class="hq-field">
+        <label for="call-note">Notes</label>
+        <textarea id="call-note" name="note" rows="6" maxlength="2000" aria-describedby="call-note-help" oninput={typed}>{view.note}</textarea>
+        <p id="call-note-help" class="hq-muted hq-small">Saved as you type. They go in the call log when you end the call.</p>
+      </div>
+      <p class="call-saved" aria-live="polite">{saved}</p>
+      <fieldset class="call-outcomes">
+        <legend>How it went</legend>
+        <zb-each items={view.outcomes} as="outcome" key={outcome.value}>
+          <label><input type="radio" name="outcome" value={outcome.value} checked={outcome.value === 'reached'}> {outcome.label}</label>
+        </zb-each>
+      </fieldset>
+      <text-field zb-if={view.canFollowUp} label="Next follow-up" name="followUpOn" type="date"></text-field>
+      <div class="call-actions">
+        <button class="hq-button" type="submit">End call</button>
+        <button class="hq-button secondary" type="submit" formaction="/phone/{view.id}/note">Save notes</button>
+      </div>
+    </form>
+  </div>
+</hq-call>

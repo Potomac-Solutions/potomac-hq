@@ -14,11 +14,18 @@
   .touches p { margin: 0; overflow-wrap: anywhere; }
   .touch-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; align-items: end; }
   .touch-form .touch-note { grid-column: 1 / -1; }
+  .touch-call { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.75rem 0; }
+  .touch-call .hq-button { min-height: 2.75rem; }
 </style>
-<touches-panel touches={{ items: [], canLog: false, kinds: [], outcomes: [], contacts: [], last: "", cold: "" }} action="" follow-up={false}>
+<touches-panel touches={{ items: [], canLog: false, kinds: [], outcomes: [], contacts: [], last: "", cold: "" }} action="" follow-up={false} call-field="" call-id="">
   <section class="hq-panel" id="touches" aria-labelledby="touches-heading">
     <h2 id="touches-heading">Calls and messages</h2>
     <p class="hq-muted hq-small">{touches.last}</p>
+    <form zb-if={touches.canLog && callField} method="post" action="/phone" class="touch-call">
+      <input type="hidden" name={callField} value={callId}>
+      <button class="hq-button" type="submit">Start a call</button>
+      <span class="hq-muted hq-small">A timer, notes, and a nudge to wrap up. It’s logged here when you end it.</span>
+    </form>
     <p zb-if={touches.cold} class="hq-cold"><status-badge variant="danger">Going cold</status-badge> {touches.cold}</p>
     <details zb-if={touches.canLog} class="hq-more" open={touches.items.length === 0}>
       <summary>Log a call, email, text or meeting</summary>

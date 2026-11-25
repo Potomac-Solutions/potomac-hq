@@ -98,7 +98,7 @@
     </section>
     </div>
     <div>
-    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open}></touches-panel>
+    <touches-panel zb-if={touches} touches={touches} action="/opportunities/{o.id}/touches" follow-up={o.open} call-field="opportunityId" call-id={o.id}></touches-panel>
     <todos-panel zb-if={todos} todos={todos} where="opportunity" id={o.id}></todos-panel>
     <section zb-if={proposals.canView} class="hq-panel" aria-labelledby="opportunity-proposals">
       <h2 id="opportunity-proposals">Proposals</h2>
