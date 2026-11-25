@@ -44,6 +44,8 @@ import { creditInquiry, referralLinks } from "./referrals/index.ts";
 import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
 import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
+import { buildsView, buildView, builderSettingsView, type Claude } from "./builder/index.ts";
+import { builderDownloads, builderRoutes } from "./builder/api/builder-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { callRoutes } from "./crm/api/call-routes.ts";
@@ -113,6 +115,12 @@ export type AppConfig = {
   readonly sitePublisher?: SitePublisher | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
+  /** The site builder's link to Claude (decision 0010). Without it, Claude can't be asked. */
+  readonly claude?: Claude | null;
+  /** The email of the one person who may change the site builder's model and cap. */
+  readonly builderOwner?: string | null;
+  /** Runs a site builder request after the answer is sent. Tests give their own to wait on it. */
+  readonly runLater?: (job: () => Promise<void>) => void;
 };
 
 /** Potomac's own phone, email and mailing address, as clients are shown them. */
@@ -144,13 +152,14 @@ export type App = {
 // Nothing inline is allowed to run. Zubra is told to write no inline script
 // or style (`inline: false`), so every script and stylesheet comes from this
 // origin. Inline style attributes are allowed because server-rendered Zubra
-// UI components use them.
+// UI components use them. The one frame is the site builder's preview, from
+// this origin and sandboxed into one of its own (decision 0010).
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "same-origin",
   "content-security-policy":
-    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 type Answer = ReturnType<typeof show>;
@@ -258,7 +267,14 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly siteBuilder: boolean };
+  /** The site builder (decision 0010). */
+  readonly builder: {
+    list(): ReturnType<typeof buildsView>;
+    /** A build; `version` is the ?v= of the address, for an older version. */
+    build(id: string, version: string | null): ReturnType<typeof buildView>;
+    settings(): ReturnType<typeof builderSettingsView>;
+  };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -408,7 +424,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -679,7 +695,12 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, siteBuilder: authorize(sessionDeps, actor, "site.build").ok },
+        builder: {
+          list: () => buildsView(services.builder, actor),
+          build: (id, version) => withId(id, (buildId) => buildView(services.builder, actor, buildId, version === null ? null : /^\d{1,6}$/.test(version) ? Number(version) : Number.NaN)),
+          settings: () => builderSettingsView(services.builder, actor),
+        },
         websites: {
           mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
           all: () => allWebsites(services.websites, actor),
@@ -1034,6 +1055,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", shareRoutes({ projects: projectsDeps, sign: (location) => notices.sign(location), allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
   forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: (location) => notices.sign(location), secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
   forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", builderRoutes({ builder: services.builder, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
@@ -1102,6 +1124,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
+  downloads.route("/", builderDownloads({ builder: services.builder, actorOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
@@ -1150,7 +1173,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/versions\/\d{1,6}\/site\.zip$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

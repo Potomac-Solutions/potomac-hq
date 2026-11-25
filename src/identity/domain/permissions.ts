@@ -74,6 +74,8 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // The site builder (decision 0010)
+  "site.build",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -89,6 +91,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "public-site.view",
   "public-site.edit",
   "webhook.manage",
+  "site.build",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

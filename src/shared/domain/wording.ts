@@ -205,6 +205,13 @@ const WORDING: Readonly<Record<string, string>> = {
   "alert.sent": "An alert was sent",
   "backup.completed": "A backup was saved",
   "backup.failed": "A backup failed",
+  "build.started": "started a website in the site builder",
+  "build.brief-changed": "changed a site builder brief",
+  "build.asked": "asked Claude for a change to a website",
+  "build.version-made": "Claude made a new version of a website",
+  "build.request-failed": "A request to Claude for a website failed",
+  "build.restored": "restored an earlier version of a website",
+  "builder.settings-changed": "changed the site builder’s model or monthly cap",
 };
 
 /**
