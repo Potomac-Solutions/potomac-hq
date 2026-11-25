@@ -116,6 +116,17 @@ test("a timed call, from Start a call to the call log", async () => {
   await page.goto(`${t.origin}/opportunities/${deal.id}`);
   assert.match(await text(page), /Call, talked, 1[67] min/);
   assert.match(await text(page), /Wants online booking\. Quote by Friday\. - What does the business do, and who are its customers\? Collision repair, local drivers\./);
+  // A booked call in 10 minutes: the top bar says get ready, and the page is ready to start it.
+  const soon = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  t.db.prepare("insert into booking (id, kind, status, starts_at, ends_at, name, email, phone, topic, crm_client_id, host_id, created_at) values (?, 'public', 'booked', ?, ?, 'Dale Hensley', 'dale@example.com', '304-555-0100', 'The quote', ?, ?, ?)").run("00000000-0000-4000-8000-00000000e001", soon(10), soon(40), shop.id, mikey, new Date().toISOString());
+  await page.goto(`${t.origin}/clients`);
+  await page.getByRole("link", { name: /^Call in (9|10) minutes with Dale Hensley/ }).click();
+  await page.getByRole("heading", { name: "Dale Hensley", level: 1 }).waitFor();
+  await assertAccessible(page, "getting ready for a booked call");
+  await page.getByRole("button", { name: "Start the call" }).click();
+  await page.waitForURL((url) => url.pathname.startsWith("/phone/"));
+  assert.match(await text(page), /Planned for 30 min\./);
+
   assert.deepEqual(problems, []);
   await context.close();
 });

@@ -254,6 +254,9 @@ puts back what HQ had.
   we're waiting on from them, a late invoice, a site that's down, a renewal
   coming up, and what was said last time. Change the questions under
   Knowledge → Call guides.
+- **Getting ready.** Fifteen minutes before a booked call, the top bar
+  says "Call in 12 minutes with …: get ready". Its page has why they
+  booked, what's worth raising and the guide, and "Start the call".
 - **Calls to make.** Today lists who to call, one line each with every
   reason: they asked for a call, a follow-up is due, an invoice is a week
   late, a deal is going cold. Tap "Call" and the call screen opens; end it

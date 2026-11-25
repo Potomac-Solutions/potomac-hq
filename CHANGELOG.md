@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Getting ready for a booked call (decision 0009, slice 5). Fifteen minutes
+  before a call booked with you, the top bar and Today say "Call in 12
+  minutes with …: get ready". Its page has why they booked, what's worth
+  raising, the guide the call will start with, and "Start the call". Also
+  on each upcoming call on the Calls page.
 - Calls to make (decision 0009, slice 4). Today lists who to call, one line
   per client with every reason: calls asked for in the portal, follow-ups
   due, invoices a week or more late, and deals going cold. "Call" opens the

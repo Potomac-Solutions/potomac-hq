@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -184,6 +184,9 @@ export type PageContext = {
     voicemailScript(): ScriptView | null;
     /** Today's calls to make (decision 0009, section 5). */
     callsToMake(): CallsToMakeView;
+    /** A booked call starting within 15 minutes (decision 0009, section 6). */
+    comingUp(): ComingUp | null;
+    getReady(bookingId: string): GetReadyView | null;
     /** The person's open call, for the shell. */
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     opportunityTouches(id: string): TouchesView | null;
@@ -587,6 +590,12 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view.ok ? view.value : null;
           },
           callsToMake: () => callsToMake(services.calls, actor),
+          comingUp: () => comingUp(services.calls, actor),
+          getReady: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? getReady(services.calls, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
           inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status, demo) => listClients(crmDeps, actor, { status: status ?? "", kind: demo ?? "" }),
           canImport: () => mayImport(crmDeps, actor),

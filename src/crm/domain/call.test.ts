@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { addBusinessDays, fillScript, readReturnTo, callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
+import { addBusinessDays, fillScript, readReturnTo, startsText, callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
 
 const AT = "2026-11-25T15:00:00.000Z";
 const ids = { id: "c1" as Id, organizationId: "o1" as Id, contactId: null, opportunityId: null, bookingId: null, userId: "u1" as Id, phone: "304-555-0100", startedAt: AT };
@@ -94,4 +94,11 @@ test("the voicemail script fills its blanks, plainly when there's nothing to fil
 test("a call only goes back to a page in HQ", () => {
   assert.equal(readReturnTo("/today#calls-to-make"), "/today#calls-to-make");
   for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example", "today", "", "/" + "x".repeat(200), "/a b"]) assert.equal(readReturnTo(bad), null, bad);
+});
+
+test("a booked call's start reads plainly", () => {
+  assert.equal(startsText(later(12), AT), "in 12 minutes");
+  assert.equal(startsText(later(1), AT), "in 1 minute");
+  assert.equal(startsText(later(0, 20), AT), "now");
+  assert.equal(startsText(AT, later(4)), "4 minutes ago");
 });

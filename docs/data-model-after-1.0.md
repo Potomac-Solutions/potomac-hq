@@ -120,6 +120,18 @@ call goes back to when it ends (only `/…`, never `//` or `/\`).
 - The script is read with `knowledge.view` and changed with
   `knowledge.edit` (`call-script.changed`).
 
+### Getting ready for a booked call
+
+Decision 0009, slice 5. No new tables.
+
+- A call booked with the person (its host) that starts within 15 minutes,
+  or has started and not ended and hasn't been called, shows in the top
+  bar and on Today with "Get ready". Not while they're on a call.
+- `/get-ready/:booking` shows who, when, why they booked, the talking
+  points (for a client in the CRM) and the guide HQ would start with, and
+  starts the call. Needs `contact.edit`. A booking not in the CRM says to
+  add it first.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.

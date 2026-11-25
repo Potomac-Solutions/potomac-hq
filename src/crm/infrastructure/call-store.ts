@@ -24,6 +24,17 @@ const toCall = (row: Row): Call => ({
   returnTo: (row["return_to"] as string | null) ?? null,
 });
 
+const toBooked = (row: Row): BookedCall => ({
+  id: row["id"] as Id,
+  organizationId: (row["organization_id"] as Id | null) ?? null,
+  name: String(row["name"]),
+  phone: String(row["phone"] ?? ""),
+  topic: String(row["topic"] ?? ""),
+  startsAt: String(row["starts_at"]),
+  endsAt: String(row["ends_at"]),
+  booked: row["status"] === "booked",
+});
+
 export function sqliteCallScreenStore(db: Database): CallStore {
   const insert = db.prepare(`insert into call (${COLUMNS}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const one = db.prepare(`select ${COLUMNS} from call where id = ?`);
@@ -33,6 +44,8 @@ export function sqliteCallScreenStore(db: Database): CallStore {
   const stale = db.prepare(`select ${COLUMNS} from call where ended_at is null and started_at <= ? order by started_at`);
   // A public booking added to the CRM keeps its client in crm_client_id.
   const booking = db.prepare("select id, coalesce(organization_id, crm_client_id) as organization_id, name, phone, topic, starts_at, ends_at, status from booking where id = ?");
+  const between = db.prepare("select id, coalesce(organization_id, crm_client_id) as organization_id, name, phone, topic, starts_at, ends_at, status from booking where host_id = ? and status = 'booked' and starts_at >= ? and starts_at <= ? order by starts_at");
+  const forBooking = db.prepare(`select ${COLUMNS} from call where booking_id = ? order by started_at desc limit 1`);
   return {
     insert(c, at) {
       insert.run(c.id, c.organizationId, c.contactId, c.opportunityId, c.bookingId, c.userId, c.phone, c.startedAt, c.plannedMinutes, c.warnMinutes, c.note, c.endedAt, c.touchId, c.guide, c.returnTo, at);
@@ -54,18 +67,12 @@ export function sqliteCallScreenStore(db: Database): CallStore {
     openStartedBy: (instant) => stale.all(instant).map((row) => toCall(row as Row)),
     booking: (id) => {
       const row = booking.get(id) as Row | undefined;
-      if (!row) return null;
-      const found: BookedCall = {
-        id: row["id"] as Id,
-        organizationId: (row["organization_id"] as Id | null) ?? null,
-        name: String(row["name"]),
-        phone: String(row["phone"] ?? ""),
-        topic: String(row["topic"] ?? ""),
-        startsAt: String(row["starts_at"]),
-        endsAt: String(row["ends_at"]),
-        booked: row["status"] === "booked",
-      };
-      return found;
+      return row ? toBooked(row) : null;
+    },
+    bookedBetween: (hostId, from, to) => between.all(hostId, from, to).map((row) => toBooked(row as Row)),
+    forBooking: (bookingId) => {
+      const row = forBooking.get(bookingId) as Row | undefined;
+      return row ? toCall(row) : null;
     },
   };
 }
