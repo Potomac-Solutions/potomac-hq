@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-25
+
 - The recap email (decision 0009, slice 6). Ending a call where you talked
   can open a recap email to the contact, drafted from your notes. Read and
   change it, then "Send recap" or "Skip"; nothing goes until you press it,
