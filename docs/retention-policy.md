@@ -25,6 +25,7 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | A refused attempt (wrong password or code, a form someone was not allowed to use) | 90 days | Long enough to see a pattern. It can come from anyone, so it is not kept for good like the activity log |
 | One-time links (setup, invite, password reset) that expired or were used | 30 days after they stopped working | The same |
 | Invites to HQ that nobody used | 30 days | The link stopped working after 7 |
+| An AI receipt draft nobody used or discarded, and its picture (decision 0012) | 30 days, then discarded by HQ | Decided by Mikey 2026-11-25. A receipt that was used is kept with its expense, as a tax record |
 
 A run that removes something writes one activity event with the counts. A
 run that removes nothing writes none.
@@ -40,6 +41,7 @@ run that removes nothing writes none.
 | Knowledge base articles and every revision | Always | Archived, never deleted |
 | Removed time entries and expenses | Always | Marked removed and kept, so the record shows what was changed |
 | User accounts that were turned off | Always | The activity log names them |
+| Newsletter readers (email, first name, the stop they signed up from) | Until they unsubscribe, or ask by phone or email | Decision 0013. Unsubscribing clears the email and name and keeps only a one-way hash of the address, so no issue ever reaches them again by mistake. "Forget" on the Newsletter page removes even that. A sign-up nobody confirmed is kept with the rest, and its link stops working after a week |
 
 ## Backups
 

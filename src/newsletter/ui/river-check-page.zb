@@ -1,0 +1,13 @@
+<!-- After signing up: the confirm link is on its way. -->
+<script>
+  'use route /river/check'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    return { title: 'Check your email', done: context.notice.done }
+  }
+</script>
+<hq-river-check done="">
+  <h1>Check your email</h1>
+  <alert-banner variant="success">{done || 'Check your email: we sent a link to confirm. It works for a week.'}</alert-banner>
+  <p>Nothing is sent until you open that link. Didn’t get it? Check your spam folder, or <a href="/river">sign up again</a> for a new one.</p>
+</hq-river-check>

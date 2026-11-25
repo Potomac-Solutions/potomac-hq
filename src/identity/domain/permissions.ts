@@ -74,6 +74,20 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // The site builder (decision 0010)
+  "site.build",
+  // Social media (decision 0011)
+  "social.view",
+  "social.edit",
+  // AI assistance (decision 0012)
+  "ai.manage",
+  // Growth tools (decision 0013)
+  "newsletter.manage",
+  "free-page.manage",
+  "client-report.send",
+  "automation.manage",
+  "review.manage",
+  "demo.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -89,6 +103,8 @@ const ADMIN_ONLY: readonly Permission[] = [
   "public-site.view",
   "public-site.edit",
   "webhook.manage",
+  "site.build",
+  "ai.manage",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [
@@ -116,6 +132,11 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "site.publish",
   "label.manage",
   "project.share",
+  "newsletter.manage",
+  "client-report.send",
+  "automation.manage",
+  "review.manage",
+  "demo.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

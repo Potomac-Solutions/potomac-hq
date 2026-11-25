@@ -647,3 +647,64 @@ internet. Kept 90 days, left out of the export.
 | `email` | The email typed at a sign-in. Never the password, never a code |
 | `address` | Where the request came from |
 | `detail` | Why, or for a form, which one, with ids left out: `POST /people/:id/roles` |
+
+## The site builder
+
+Decision 0010, slice 1 (migration 0056).
+
+- `build`: a website being made for one client (`organization_id`), with
+  its name and brief, who started it, and when it last changed.
+- `build_version`: numbered from 1 per build. `files` holds every file of
+  the version as one JSON object (path to text); `chars` is its size.
+  `request_id` is the request that made it, or empty for one restored by
+  `made_by`. Versions are never changed or removed.
+- `build_request`: one request to Claude. `state` is `working`, `done` or
+  `failed`. `reserved_micros` is its worst case, held under the cap while it
+  works; `cost_micros` what it really cost, from the API's token counts, in
+  millionths of a dollar. A failed request is still counted. `error` is a
+  code, never the API's words.
+- `builder_settings`: one row, the model and the monthly cap in cents.
+- `build_image` (slice 2, migration 0059): a photo or the logo uploaded to a
+  build, with its bytes, its type and size read from its own header, what
+  it shows, and its path in the site (`images/logo-<12 hex>.png`), made
+  from its id. Shared by every version of the build: the preview and the
+  zip serve it beside the version's files. Removing one deletes it. A
+  picture from a reworked repository keeps its old path instead.
+- `build.reference_from` and `build.reference` (slice 3, migration 0060):
+  where a reworked build was read from, and the old site's text, shown to
+  Claude only while the build has no files.
+- `build_publish` (slice 4, migration 0061): each version put on GitHub.
+  `kind` is `new-repo` (the publish that made the repository), `commit` (a
+  later one onto it) or `pull-request` (to a client's own repository);
+  `branch` is the branch committed onto, or for a pull request the branch
+  it goes into. The newest decides where the next goes.
+
+Events: `build.started`, `build.brief-changed`, `build.asked` (with what
+was reserved), `build.version-made` and `build.request-failed` (by HQ
+itself, with the cost), `build.restored`, `build.image-added`, `build.image-removed`,
+`build.published`, `builder.settings-changed`. No
+event carries the brief, the request's words or any file.
+
+## AI assistance
+
+Added by decision 0012 (migration 0058). The API key is never stored: it is
+`HQ_ANTHROPIC_API_KEY` on the server.
+
+| Table | Holds |
+| --- | --- |
+| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the features turned on, the price guide, and who changed it last |
+| `ai_usage` | Every call: the feature and record, the model, tokens in and out, the cost in millionths of a dollar, who asked (empty when HQ ran it by itself), whether a usable answer came, and the draft it made |
+| `ai_draft` | What AI wrote, as the feature's JSON: `waiting`, `used` or `discarded`, the fingerprint of the records it came from, and a receipt's picture until the draft is decided |
+
+- Events: `ai.settings-changed`, `ai.drafted`, `ai.failed`,
+  `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
+  AI wrote, only the feature, model, counts and cost.
+- The budget is the site builder's `builder_settings.cap_cents`, one cap
+  for both (set to $20 by migration 0070). Each counts the other's spending:
+  `ai_usage.cost` and `build_request` costs this month.
+- An unused receipt draft is discarded by the retention run after 30 days,
+  and its `attachment` cleared.
+- A recap draft is marked used when its recap is sent (`call.recap-sent`).
+  A brief, an answer from Ask HQ and a site-down diagnosis are used where
+  they're shown; a scope check that finds nothing out of scope is discarded
+  by HQ, and kept so the message isn't checked twice.

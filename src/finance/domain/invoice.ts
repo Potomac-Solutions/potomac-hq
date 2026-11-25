@@ -88,6 +88,21 @@ export function addInvoiceLine(invoice: Invoice, input: { readonly description: 
   return ok({ ...invoice, lines, total: { minor: lines.reduce((sum, one) => sum + one.amount.minor, 0), currency: "USD" } });
 }
 
+/**
+ * Takes a credit off a draft (a referral credit, decision 0013): a line with
+ * a negative amount. It never makes the invoice zero or less.
+ */
+export function addCreditLine(invoice: Invoice, input: { readonly description: string; readonly minor: number }): Result<Invoice, "not-a-draft" | "too-many-lines" | "description-missing" | "description-too-long" | "amount-must-be-positive" | "credit-too-large"> {
+  if (invoice.status !== "draft") return err("not-a-draft");
+  if (invoice.lines.length >= MAX_INVOICE_LINES) return err("too-many-lines");
+  const description = requiredText(input.description, 300);
+  if (!description.ok) return err(description.error === "missing" ? "description-missing" : "description-too-long");
+  if (!Number.isSafeInteger(input.minor) || input.minor <= 0) return err("amount-must-be-positive");
+  if (invoice.total.minor - input.minor <= 0) return err("credit-too-large");
+  const lines = [...invoice.lines, { description: description.value, amount: { minor: -input.minor, currency: "USD" as const } }];
+  return ok({ ...invoice, lines, total: { minor: lines.reduce((sum, one) => sum + one.amount.minor, 0), currency: "USD" } });
+}
+
 /** A sent invoice cannot be edited: it is what the client was asked to pay. */
 export function sendInvoice(invoice: Invoice, today: string): Result<Invoice, "not-a-draft"> {
   if (invoice.status !== "draft") return err("not-a-draft");

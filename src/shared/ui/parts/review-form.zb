@@ -1,0 +1,32 @@
+<!--
+  The fields of a review, shared by the emailed link's page and the portal's
+  (decision 0013, section 6). Stars as radio buttons, so it works with no
+  scripts and every star is reachable by keyboard.
+-->
+<script>
+  import '../zubra/text-field.zb'
+</script>
+<style>
+  .rf-stars { border: 0; margin: 0; padding: 0; }
+  .rf-stars legend { font-weight: 600; margin-bottom: 0.4rem; }
+  .rf-stars div { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+  .rf-stars label { display: inline-flex; gap: 0.35rem; align-items: center; min-height: 2.75rem; }
+  .rf-check { display: flex; gap: 0.5rem; align-items: flex-start; }
+  .rf-check input { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; }
+</style>
+<review-form>
+  <fieldset class="rf-stars">
+    <legend>How was it working with us?</legend>
+    <div>
+      <label><input type="radio" name="rating" value="5" required checked> 5 stars</label>
+      <label><input type="radio" name="rating" value="4"> 4 stars</label>
+      <label><input type="radio" name="rating" value="3"> 3 stars</label>
+      <label><input type="radio" name="rating" value="2"> 2 stars</label>
+      <label><input type="radio" name="rating" value="1"> 1 star</label>
+    </div>
+  </fieldset>
+  <text-field label="In a few words" name="text" rows={4} required={true} maxlength={1000}></text-field>
+  <text-field label="Your name, as you’d like it shown" name="displayName" required={true} maxlength={80} description="Like: Rita M."></text-field>
+  <text-field label="Your town" name="town" maxlength={80}></text-field>
+  <label class="rf-check"><input type="checkbox" name="mayPublish" value="1" checked> Potomac Solutions may show this on its website</label>
+</review-form>

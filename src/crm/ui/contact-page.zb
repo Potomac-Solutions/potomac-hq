@@ -10,18 +10,22 @@
     // A referral link's code, when the visitor came by one. Sent with the form so the inquiry is counted for it.
     const typed = url.searchParams.get('ref') ?? ''
     const referral = /^[a-z0-9-]{2,32}$/.test(typed) ? typed : ''
-    return { title: 'Contact Potomac Solutions', services: context.crm.inquiryServices(), booking: context.booking.publicOpen(), problem: context.notice.problem, referral }
+    // Where on the website they came from (decision 0013, section 2), passed on with the form.
+    const from = url.searchParams.get('src') ?? ''
+    const place = /^[a-z0-9][a-z0-9:_.-]{0,59}$/.test(from) ? from : ''
+    return { title: 'Contact Potomac Solutions', services: context.crm.inquiryServices(), booking: context.booking.publicOpen(), problem: context.notice.problem, referral, place }
   }
 </script>
 <style>
   .contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 </style>
-<hq-contact services={[]} booking={false} problem="" referral="">
+<hq-contact services={[]} booking={false} problem="" referral="" place="">
   <h1>Tell us what you need</h1>
   <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
   <p>A website, an online store, help with what you have, or something you’re not sure about yet. We answer within two business days.<span zb-if={booking}> Or <a href="/book">book a call</a> now.</span></p>
   <form method="post" action="/contact" class="hq-panel hq-form">
     <input zb-if={referral} type="hidden" name="ref" value={referral}>
+    <input zb-if={place} type="hidden" name="src" value={place}>
     <text-field label="Your name" name="name" autocomplete="name" required={true}></text-field>
     <text-field label="Your email" name="email" type="email" autocomplete="email" required={true}></text-field>
     <text-field label="A phone number" name="phone" type="tel" autocomplete="tel" description="If you’d rather we call"></text-field>

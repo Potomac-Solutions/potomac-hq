@@ -1,0 +1,57 @@
+<!--
+  Lead sources (decision 0013, section 2): for a period, each place leads
+  came from, with how many had a call, got a proposal and were won.
+-->
+<script>
+  'use route /reports/lead-sources'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.leads.sources(url.searchParams.get('days') || '90')
+    if (!view.ok) return context.forbidden()
+    return { title: 'Lead sources', view: view.value }
+  }
+</script>
+<style>
+  .lead-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; margin: 0 0 1rem; }
+  .lead-figures div { padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); }
+  .lead-figures dt { color: var(--muted-foreground); font-size: 0.85rem; }
+  .lead-figures dd { margin: 0.15rem 0 0; font-size: 1.35rem; font-weight: 700; }
+</style>
+<hq-lead-sources view={{ days: '90', periods: [], showValue: false, total: {}, lines: [], unknown: 0 }}>
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Reports', href: '/reports' }, { label: 'Lead sources', href: '' }]}></breadcrumb-trail>
+    <h1>Lead sources</h1>
+    <p class="hq-muted">Every new opportunity in the period, by where it came from: the river stop, Lab demo, Work page or campaign the website passed on, a referral link, or how it was entered. A call is one booked and held, or logged as reached.</p>
+    <form method="get" action="/reports/lead-sources" class="hq-form-row">
+      <div class="hq-field">
+        <label for="lead-days">Leads from</label>
+        <select id="lead-days" name="days">
+          <zb-each items={view.periods} as="period" key={period.value}><option value={period.value} selected={period.value === view.days}>{period.label}</option></zb-each>
+        </select>
+      </div>
+      <button class="hq-button secondary" type="submit">Show</button>
+    </form>
+    <section class="hq-panel" aria-labelledby="lead-table" data-spaced>
+      <h2 id="lead-table">{view.total.leads} {view.total.leads === 1 ? 'lead' : 'leads'}</h2>
+      <dl class="lead-figures">
+        <div><dt>Had a call</dt><dd>{view.total.calls}</dd></div>
+        <div><dt>Got a proposal</dt><dd>{view.total.proposals}</dd></div>
+        <div><dt>Won</dt><dd>{view.total.won}</dd></div>
+        <div zb-if={view.showValue}><dt>Won, in value</dt><dd>{view.total.wonText}</dd></div>
+      </dl>
+      <empty-state zb-if={view.lines.length === 0} heading="No leads in this period">Try a longer period.</empty-state>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Came from</th><th scope="col" class="hq-number">Leads</th><th scope="col" class="hq-number">Had a call</th><th scope="col" class="hq-number">Proposal</th><th scope="col" class="hq-number">Won</th><th zb-if={view.showValue} scope="col" class="hq-number">Value won</th></tr></thead>
+        <tbody>
+          <zb-each items={view.lines} as="line" key={line.key}>
+            <tr><th scope="row">{line.label}</th><td class="hq-number">{line.leads}</td><td class="hq-number">{line.calls}</td><td class="hq-number">{line.proposals}</td><td class="hq-number">{line.won}</td><td zb-if={view.showValue} class="hq-number">{line.wonText}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p zb-if={view.unknown > 0} class="hq-small hq-muted" data-spaced>{view.unknown} website {view.unknown === 1 ? 'lead' : 'leads'} came with nothing to say where on the site. Once the website sends <code>src</code> with its forms, they’ll show by stop, demo or page.</p>
+    </section>
+  </div>
+</hq-lead-sources>

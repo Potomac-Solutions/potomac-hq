@@ -34,6 +34,10 @@ export type SiteBookingRoutesDeps = WebsiteBookingDeps & {
   readonly allowPerVisitor: (key: string) => boolean;
   readonly allowPerEmail: (key: string) => boolean;
   readonly allowApi: (incoming: Request) => boolean;
+  /** Keeps where on the website the person was, for the newest open opportunity at their new client (decision 0013). */
+  readonly attribute?: (organizationId: Id, read: (name: string) => string | undefined) => void;
+  /** Credits the booking to the referral link whose code the website passed on (`ref`). */
+  readonly credit?: (code: string, organizationId: Id) => void;
 };
 
 const MESSAGES: Readonly<Record<string, string>> = {
@@ -92,6 +96,17 @@ export function siteBookingRoutes(deps: SiteBookingRoutesDeps): Hono {
       return c.json({ ok: true, status: "known", sent }, 200, noStore);
     }
     const { booking, link } = result.value;
+    const organizationId = booking.organizationId;
+    if (organizationId) {
+      // Nice-to-haves: the call is booked whatever happens here.
+      try {
+        deps.attribute?.(organizationId, (name) => (typeof body[name] === "string" ? (body[name] as string).slice(0, 300) : undefined));
+        const ref = field("ref", 40).trim();
+        if (ref) deps.credit?.(ref, organizationId);
+      } catch {
+        // Logged nowhere on purpose: it's never the visitor's problem.
+      }
+    }
     const when = deps.booking.formatWhen(booking.start);
     const sent = await deps.mail({ email: link.email, name: link.name }, `${deps.publicUrl}${link.path}`, "booked", when);
     await tellMade(deps.booking, deps.emails, booking);

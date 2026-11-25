@@ -12,7 +12,7 @@
     if (stop) return stop
     const view = context.referrals.list()
     if (!view.ok) return context.forbidden()
-    return { title: 'Referral links', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Referral links', view: view.value, credit: context.referralCredit.amount(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -29,7 +29,7 @@
   .referral-actions form { margin: 0; }
   @media (max-width: 34rem) { .referrals > li { grid-template-columns: minmax(0, 1fr); } .referral-code { justify-items: start; } }
 </style>
-<hq-referrals view={{ links: [], totalScans: 0, totalInquiries: 0, publicUrlSet: true }} done="" problem="">
+<hq-referrals view={{ links: [], totalScans: 0, totalInquiries: 0, publicUrlSet: true }} credit={null} done="" problem="">
   <div class="hq-page">
     <h1>Referral links</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -82,6 +82,14 @@
         <text-field label="Where a scan goes" name="destination" required={true} description="An address like potomac.solutions, or a page here: /contact or /book"></text-field>
         <text-field label="Code" name="code" maxlength={32} description="The end of the short address, like card. Leave it empty and HQ makes one up. It can’t be changed once made."></text-field>
         <div><button class="hq-button" type="submit">Make link</button></div>
+      </form>
+    </section>
+    <section zb-if={credit !== null} class="hq-panel" id="credit" aria-labelledby="referrals-credit">
+      <h2 id="referrals-credit">Referral credit</h2>
+      <p class="hq-muted">When a client someone referred pays their first invoice, the client who referred them earns this much credit, taken off one of their own invoices. Make a client their own link from their page.</p>
+      <form method="post" action="/referral-credit" class="hq-form-row">
+        <text-field label="Each referral earns, in dollars" name="amount" value={credit} inputmode="decimal" required={true}></text-field>
+        <button class="hq-button secondary" type="submit">Save</button>
       </form>
     </section>
   </div>

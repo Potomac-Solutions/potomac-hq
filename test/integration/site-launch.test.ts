@@ -13,7 +13,7 @@ import { clientSignedIn, events, httpClient, signIn, testApp, textOf, unwrap, ty
 
 const CONTENT = JSON.stringify({ notice: "", gallery: [{ src: "/gallery/booth.webp", alt: "A clean paint booth", title: "Paint Booth" }], testimonials: [] });
 const repo = fakeSiteRepo({ "src/content/site.json": CONTENT, "public/gallery/booth.webp": WEBP });
-const SETUP = { name: "Nu Finish website", repo: "Potomac-Solutions/nu-finish-site", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
+const SETUP = { name: "Nu Finish website", repo: "Potomac-Solutions/example-site", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
 const SOON = { mode: "coming-soon", opensOn: "2099-01-01", opensTime: "00:00", message: "Call us in the meantime." };
 
 let t: TestApp;
@@ -140,7 +140,7 @@ test("a status already in the site's file is read when the site is read again", 
 
 test("a site already closed when it is set up has no preview link yet, and either side can make one", async () => {
   const otherId = t.db.prepare("select id from client_organization where name = 'Gormania Feed'").get()?.["id"] as string;
-  assert.equal(problemOf(await admin.post(`/clients/${otherId}/website`, { ...SETUP, repo: "potomac-solutions/NU-FINISH-SITE" })), "That repository’s content file is already set up for another client.");
+  assert.equal(problemOf(await admin.post(`/clients/${otherId}/website`, { ...SETUP, repo: "potomac-solutions/EXAMPLE-SITE" })), "That repository’s content file is already set up for another client.");
   // A site started as a copy of Nu Finish's: its file still carries Nu Finish's photo ids.
   const made = await admin.post(`/clients/${otherId}/website`, { ...SETUP, repo: "Potomac-Solutions/feed-store-site", name: "Feed store website", siteUrl: "gormaniafeed.example" });
   const second = /\/websites\/([0-9a-f-]{36})/.exec(made.headers.get("location") ?? "")?.[1] ?? "";

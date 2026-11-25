@@ -57,6 +57,7 @@ and Variables tabs:
 | Volume | Attached to the service, mounted at `/data` |
 | `HQ_DATABASE_PATH` | `/data/hq.db`. It must start with `/data/`: a relative path is inside the read-only app folder |
 | `RAILWAY_RUN_UID` | `0` |
+| `KIT_READ_TOKEN` | A GitHub token that can read `Potomac-Solutions/potomac-kit` (fine-grained, Contents: read-only). The build installs the private kit with it; without it the build stops at `npm ci` |
 | `PORT` | `3000`, the same as the domain's target port. Without it Railway uses 8080 and the domain answers 502 |
 | Replicas | 1 |
 | Start command | Empty. The `Dockerfile` runs `bin/start.sh` |
@@ -83,7 +84,7 @@ Do it for the test environment first, then again for production.
 ### In Railway
 
 1. Make a project with two environments, `test` and `production`.
-2. Add a service from the GitHub repository `Potomac-Solutions/potomac-hq`.
+2. Add a service from HQ's GitHub repository.
    Turn **off** Railway's own deploy-on-push for it: CI deploys, so that
    nothing ships before its checks pass.
 3. Add a **volume** to the service, mounted at `/data`. The database is one
@@ -114,6 +115,9 @@ Do it for the test environment first, then again for production.
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
+| `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
+| `HQ_GITHUB_ADMIN_TOKEN` | A fine-grained GitHub token that may make repositories in the organization and write to them (see "The site builder") | For new repositories from the site builder |
+| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
@@ -306,6 +310,15 @@ field and fill it from the address:
 Keeping it in `sessionStorage` carries the code from the page they landed
 on to the page with the form. HQ's own `/contact` needs none of this.
 
+To say where on the site the person was (the lead sources report, decision
+0010, section 2), add hidden fields: `src` (`stop:lakes`, `lab:counter`,
+`work:better-days-towing`, `planner`, `blog:<slug>` or `newsletter`), `page`
+(the path, like `/stops/lakes`), and any of `utm_source`, `utm_medium` and
+`utm_campaign` the visitor arrived with. The website's booking call
+(`POST /api/site/booking`) takes the same fields, and `ref`, in its JSON.
+HQ keeps the first it sees for each opportunity; anything odd is dropped,
+never refused. HQ's own `/contact?src=...` passes `src` on by itself.
+
 `return_to` must be on a listed site; HQ sends people back there with
 `?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
 posts from those sites. Five an hour from one address, three a day for one
@@ -338,6 +351,52 @@ up on the client's page in HQ.
 
 Without the token HQ starts and says "Site content can't be set up or
 published". Everything else works.
+
+## The site builder
+
+Admins make client websites with Claude under Delivery → Site builder
+(`docs/decisions/0010-site-builder.md`). It needs two variables:
+
+- `HQ_ANTHROPIC_API_KEY`: a key from platform.claude.com → API keys. Give
+  it its own workspace in the Claude Console, with its own spend limit
+  there too, as a second stop behind HQ's.
+- `HQ_SITE_BUILDER_OWNER`: Mikey's email, exactly as his HQ account has it.
+  Only he can change the model and the monthly cap, under Site builder →
+  Model and cap. Every admin can see them and what's been spent.
+
+A new install uses Claude Opus 5.5 with a $10 monthly cap. Before each
+request HQ adds this month's spending to the most the request could cost
+(every output token it may write), and doesn't send it if that would pass
+the cap. What a request really cost is recorded when it's done.
+
+A request runs in the background, inside HQ. If HQ restarts in the middle,
+the request is marked failed after 20 minutes and counted at what it
+reserved, since Claude may have billed it.
+
+The preview is served by HQ at `/builder/preview/…`, sandboxed and only by
+an address the build page signs, good for an hour. It is never public.
+
+Reworking a client's existing repository reads it with `HQ_GITHUB_TOKEN`
+(see "Site content"), so that token must be allowed to read the
+repository. Reworking from an address needs nothing: HQ reads public https
+pages only, never one inside a private network.
+
+Publishing a version to GitHub needs one of two more tokens:
+
+- `HQ_GITHUB_ADMIN_TOKEN`, to make new private repositories: a
+  fine-grained token for the Potomac-Solutions organization with access to
+  **All repositories** and **Administration** and **Contents** read and
+  write. It makes the repository and commits to it. Keep it apart from the
+  everyday token, which can stay limited to the client sites it edits.
+- `HQ_GITHUB_TOKEN` (above), for pull requests to a client's own
+  repository: it also needs **Pull requests: read and write** there.
+
+`HQ_GITHUB_ORG` names the organization if it isn't Potomac-Solutions.
+Commits are made as each token's owner. A new repository isn't online
+until it's connected to Railway or Netlify as a static site, once, by hand.
+
+Without the key HQ starts and says "The site builder can't ask Claude".
+Builds can still be seen and downloaded.
 
 ## Dependency updates
 
@@ -400,3 +459,70 @@ start, and `visitor`, the visitor's address) books someone new or emails someone
 already on file a sign-in link. It is open only when "Anyone can sign up at
 /book" is on, hours are set and email works. Each visitor address may try 5
 times an hour and each email 3 times a day.
+
+## The newsletter
+
+Sales → Newsletter (`newsletter.manage`) is "Notes from the river"
+(`docs/decisions/0013-growth-tools.md`, section 1). It needs email (the
+Brevo key) and `HQ_CONTACT_ADDRESS`: every issue ends with Potomac's mailing
+address, which US anti-spam law asks for, and sending refuses to start
+without it. Issues go out a batch of 50 a minute.
+
+People sign up three ways:
+
+- HQ's own page, `HQ_PUBLIC_URL/river`. Add `?src=stop:lakes` (or any stop:
+  `mountains`, `lakes`, `roadside`, `history`, `enterprise`) to put them in
+  that stop.
+- A plain form on potomac.solutions posting to `HQ_PUBLIC_URL/river`, with
+  `email`, `name` (optional), `src`, `return_to` and the empty `website` trap,
+  like the inquiry form. The site must be in `HQ_FORM_ORIGINS`.
+- The website's server, with its token: `POST /api/site/newsletter` (JSON:
+  `email`, `name`, `src`, and `visitor`, the visitor's address). It answers
+  `{ ok: true, status: "check-email", message }`, or `{ ok: false, error,
+  message }` with a sentence to show.
+
+Either way they get an email with a confirm link, and are on the list only
+once they press Confirm. Five tries an hour from one address, three a day
+for one email. The answer is the same whether or not they were already on
+the list.
+
+Every issue carries a one-click unsubscribe link and a `List-Unsubscribe`
+header. Mail apps post to `/river/one-click?t=...`, which needs no cookie
+or Origin.
+
+## Reviews and case studies
+
+Sales → Reviews (`docs/decisions/0013-growth-tools.md`, section 6). Asking
+for a review needs email. The website reads what's published with its
+token: `GET /api/site/showcase` answers `{ ok, reviews: [{ rating, text,
+name, town, client, source, date }], caseStudies: [{ id, client, headline,
+problem, built, result, url, shots: [{ path, alt }] }] }`, newest reviews
+first and case studies in their order. Each shot's `path` is fetched from
+HQ with the same token (`/api/site/showcase/files/<id>`); the website
+serves it on from its own address. Nothing unpublished is ever in the
+answer.
+
+## Free landing pages
+
+Delivery → Landing pages, and each client's Free landing page
+(`docs/decisions/0013-growth-tools.md`, section 3). "Download its code"
+zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
+read access to that repository too. Without the token there is no download.
+
+## Automations
+
+Delivery → Automations, and each client's Automations
+(`docs/decisions/0013-growth-tools.md`, section 5). Adding one shows its
+check-in address once. In n8n, the workflow's last node is an HTTP Request
+posting to it with `?status=ok`; an Error Trigger workflow posts to it with
+`?status=failed` and a `message`. HQ checks every five minutes, and emails
+`HQ_ALERT_EMAIL` when one fails or doesn't run on time, and when it runs
+again. The address takes 120 check-ins a minute from one caller.
+
+## Demos
+
+Sales → Demos (`docs/decisions/0013-growth-tools.md`, section 8). Sending
+demos needs email. Each demo link is `HQ_PUBLIC_URL/d/<code>`: it counts an
+open and redirects to the demo. Some mail services open links to scan them,
+with a browser's user agent; an open seconds after sending may be one.
+

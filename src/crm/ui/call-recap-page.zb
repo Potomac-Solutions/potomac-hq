@@ -15,7 +15,7 @@
     if (stop) return stop
     const recap = context.crm.recap(params.id)
     if (recap === null) return notFound()
-    return { title: 'Recap email', recap: recap === 'no-email' ? null : recap, noEmail: recap === 'no-email', emailOn: context.crm.emailOn, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Recap email', recap: recap === 'no-email' ? null : recap, noEmail: recap === 'no-email', emailOn: context.crm.emailOn, ai: recap === 'no-email' ? null : context.ai.recap(params.id), aiState: context.ai.state('call-recap'), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -24,7 +24,7 @@
   .recap-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
   .recap-actions .hq-button { min-height: 3rem; }
 </style>
-<hq-call-recap recap={null} no-email={false} email-on={false} done="" problem="">
+<hq-call-recap recap={null} no-email={false} email-on={false} ai={null} ai-state={{ on: false, why: '' }} done="" problem="">
   <div class="recap">
     <breadcrumb-trail zb-if={recap} items={[{ label: 'Clients', href: '/clients' }, { label: recap.clientName, href: `/clients/${recap.clientId}` }, { label: 'Recap email', href: '' }]}></breadcrumb-trail>
     <h1>Recap email</h1>
@@ -38,12 +38,25 @@
     <form zb-if={recap && !recap.sentText} method="post" action="/phone/{recap.callId}/recap" class="hq-panel hq-form">
       <p>To <strong>{recap.toName}</strong> &lt;{recap.to}&gt;. Read it through and change anything before it goes.</p>
       <p zb-if={!emailOn} class="hq-muted">Email isn’t set up here, so HQ can’t send it. Copy it into your own email instead.</p>
-      <text-field label="Subject" name="subject" value={recap.subject} required={true} maxlength={150}></text-field>
-      <text-field label="Message" name="body" value={recap.body} rows={14} required={true} maxlength={4000}></text-field>
+      <p zb-if={ai} class="hq-muted hq-small">Drafted by AI from your notes. Check every line: it goes as you leave it.</p>
+      <text-field label="Subject" name="subject" value={ai ? ai.subject : recap.subject} required={true} maxlength={150}></text-field>
+      <text-field label="Message" name="body" value={ai ? ai.body : recap.body} rows={14} required={true} maxlength={4000}></text-field>
       <div class="recap-actions">
         <button zb-if={emailOn} class="hq-button" type="submit">Send recap</button>
         <a class="hq-button secondary" href={recap.skipTo}>Skip</a>
       </div>
     </form>
+    <section zb-if={recap && !recap.sentText && ai && ai.nextSteps.length} class="hq-panel" aria-labelledby="recap-steps">
+      <h2 id="recap-steps">Next steps AI found</h2>
+      <ul><zb-each items={ai.nextSteps} as="step" key={step}><li>{step}</li></zb-each></ul>
+      <form method="post" action="/ai/drafts/{ai.id}/steps"><input type="hidden" name="back" value="/phone/{recap.callId}/recap"><button class="hq-button secondary" type="submit">Add these as to-dos</button></form>
+    </section>
+    <form zb-if={recap && !recap.sentText && aiState.on} method="post" action="/phone/{recap.callId}/recap/ai" class="hq-panel hq-form">
+      <h2>{ai ? 'Draft it again with AI' : 'Draft it with AI'}</h2>
+      <p class="hq-muted hq-small">AI writes the email and the next steps from your notes. Nothing is sent until you press Send recap.</p>
+      <text-field label="Transcript (optional)" description="Paste one from your phone or another app. HQ doesn’t record calls." name="transcript" rows={6} maxlength={30000}></text-field>
+      <div><button class="hq-button secondary" type="submit">Draft with AI</button></div>
+    </form>
+    <p zb-if={recap && !recap.sentText && aiState.why} class="hq-muted hq-small">{aiState.why}</p>
   </div>
 </hq-call-recap>

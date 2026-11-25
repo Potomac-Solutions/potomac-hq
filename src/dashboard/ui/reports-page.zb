@@ -26,6 +26,7 @@
 <hq-reports pipeline={{ periods: [], stages: [], sources: [] }} projects={{ statuses: [], healths: [], late: [], attention: [] }} budget={{ rows: [], totals: {} }}>
   <div class="hq-page">
     <h1>Reports</h1>
+    <p><a href="/reports/lead-sources">Lead sources</a>: where leads come from on the website, and what became of them.</p>
 
     <section class="hq-panel" aria-labelledby="rep-pipeline">
       <h2 id="rep-pipeline">Pipeline</h2>

@@ -39,7 +39,7 @@ const photoId = (title: string) => {
   return gallery.find((one) => one.title === title)?.id ?? assert.fail(`no photo titled ${title}`);
 };
 const state = () => t.db.prepare("select draft_state from content_site where id = ?").get(siteId)?.["draft_state"];
-const SETUP = { name: "Nu Finish website", repo: "Potomac-Solutions/nu-finish-site", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
+const SETUP = { name: "Nu Finish website", repo: "Potomac-Solutions/example-site", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
 
 before(async () => {
   t = await testApp({ sitePublisher: repo.publisher });
@@ -57,7 +57,7 @@ after(() => t.stop());
 
 test("a site is set up on its client's page by reading its repository; what can't be read is said plainly", async () => {
   assert.match(textOf(await admin.page(`/clients/${clientId}`)), /Website editing Let this client change their own site’s photos, notice and reviews/);
-  assert.equal(problemOf(await admin.post(`/clients/${clientId}/website`, { ...SETUP, repo: "nu-finish-site" })), "Enter the repository as owner/name, like Potomac-Solutions/nu-finish-site.");
+  assert.equal(problemOf(await admin.post(`/clients/${clientId}/website`, { ...SETUP, repo: "example-site" })), "Enter the repository as owner/name, like Potomac-Solutions/example-site.");
   assert.equal(problemOf(await admin.post(`/clients/${clientId}/website`, { ...SETUP, contentPath: "../../etc/passwd.json" })), "The content file is a path to a .json file in the repository, like src/content/site.json.");
   assert.match(problemOf(await admin.post(`/clients/${clientId}/website`, { ...SETUP, contentPath: "src/content/missing.json" })), /^GitHub has no such repository, branch or file/);
   assert.match(problemOf(await admin.post(`/clients/${clientId}/website`, { ...SETUP, photoDir: "static" })), /^A photo named in the content file isn’t in the repository/);
@@ -77,7 +77,7 @@ test("a site is set up on its client's page by reading its repository; what can'
   assert.match(page, /1\. Paint Booth Where refinishing happens\. For someone who can’t see it: A clean paint booth/);
   assert.match(page, /2\. Parts Bay/);
   assert.match(page, /“They made it easy\.” Evelyn S\. · via Yelp/);
-  assert.match(page, /Repository Potomac-Solutions\/nu-finish-site , branch main/);
+  assert.match(page, /Repository Potomac-Solutions\/example-site , branch main/);
   assert.match(textOf(await admin.page("/websites")), /Site content .* Nothing to check Nu Finish website · Nu Finish Collision Center Up to date/);
   assert.ok(actions(t.db).includes("site-content.set-up"));
 });

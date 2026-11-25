@@ -1,0 +1,128 @@
+<!--
+  Settings → AI (decision 0012), for admins: the model, which features are
+  on, the price guide lead triage reads, and what AI has cost this month,
+  call by call, against the budget shared with the site builder.
+-->
+<script>
+  'use route /settings/ai'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/progress-bar.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.ai.settings()
+    if (!view.ok) return context.forbidden()
+    return { title: 'AI settings', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .ai-features { display: grid; gap: 0.75rem; border: 0; padding: 0; margin: 0; }
+  .ai-features legend { font-weight: 600; margin-bottom: 0.5rem; }
+  .ai-feature { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.6rem; align-items: start; }
+  .ai-feature input { margin-top: 0.3rem; }
+  .ai-feature span { grid-column: 2; }
+  .ai-usage { width: 100%; border-collapse: collapse; }
+  .ai-usage th, .ai-usage td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border, #e4e4e7); vertical-align: top; }
+  .ai-usage td.num { text-align: right; white-space: nowrap; }
+  .ai-month { display: grid; gap: 0.5rem; }
+  .ai-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
+</style>
+<hq-ai-settings view={{ keySet: false, canChange: false, ownerSet: false, model: '', models: [], other: { id: '', input: '', output: '' }, features: [], priceGuide: '', month: { spent: '', drafts: '', builder: '', budget: '', percent: 0, state: 'ok', calls: 0, failed: 0 }, recent: [], updated: '' }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Settings', href: '/settings' }, { label: 'AI', href: '' }]}></breadcrumb-trail>
+    <h1>AI settings</h1>
+    <p class="hq-muted">AI in HQ only ever drafts. A person reads, edits and sends everything it writes.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.keySet} variant="warning" heading="No API key">HQ has no Claude API key, so no feature can be used. Set HQ_ANTHROPIC_API_KEY on the server; the key is never shown or kept in HQ’s database.</alert-banner>
+
+    <section class="hq-panel" aria-labelledby="ai-month">
+      <h2 id="ai-month">This month</h2>
+      <div class="ai-month">
+        <p><strong>{view.month.spent}</strong> of {view.month.budget} spent: {view.month.drafts} on AI drafts, in {view.month.calls} {view.month.calls === 1 ? 'call' : 'calls'}<span zb-if={view.month.failed}> ({view.month.failed} without a usable answer)</span>, and {view.month.builder} on the site builder.</p>
+        <p class="hq-muted hq-small">One budget for everything HQ asks Claude, shared with the site builder. The owner sets it under <a href="/builder/settings">Site builder → Model and cap</a>.</p>
+        <progress-bar value={view.month.percent} max={100} label="Budget used"></progress-bar>
+        <alert-banner zb-if={view.month.state === 'warning'} variant="warning">Over 80% of this month’s budget is spent.</alert-banner>
+        <alert-banner zb-if={view.month.state === 'reached'} variant="danger">The budget is spent. AI and the site builder are paused until the first of the month, or until the owner raises the cap. HQ works as usual without them.</alert-banner>
+      </div>
+    </section>
+
+    <p zb-if={!view.canChange} class="hq-panel hq-muted">{view.ownerSet ? 'Only the owner set in HQ_SITE_BUILDER_OWNER changes these, as for the site builder. You can see them.' : 'Nobody can change these yet: set HQ_SITE_BUILDER_OWNER on the server to the owner’s email, as for the site builder.'}</p>
+    <form method="post" action="/settings/ai" class="hq-form">
+      <fieldset disabled={!view.canChange} class="ai-settings-fields">
+      <section class="hq-panel" aria-labelledby="ai-model">
+        <h2 id="ai-model">Model</h2>
+        <div class="hq-field">
+          <label for="ai-model-choice">Model</label>
+          <select id="ai-model-choice" name="model">
+            <zb-each items={view.models} as="option" key={option.value}><option value={option.value} selected={option.value === view.model}>{option.label}</option></zb-each>
+          </select>
+          <span class="hint">Haiku 5.5 costs $0.10 per million tokens read and $0.50 per million written: a recap or a triage is a fraction of a cent.</span>
+        </div>
+        <fieldset class="hq-form">
+          <legend>Another model</legend>
+          <p class="hq-muted hq-small">Only with “Another model” chosen above. Prices are dollars per million tokens, from Anthropic’s pricing page.</p>
+          <div class="hq-field">
+            <label for="ai-other-model">Model id</label>
+            <input id="ai-other-model" name="otherModel" maxlength="80" value={view.other.id} placeholder="claude-…" autocomplete="off">
+          </div>
+          <div class="hq-form-row">
+            <div class="hq-field">
+              <label for="ai-other-input">Input price</label>
+              <input id="ai-other-input" name="otherInput" inputmode="decimal" maxlength="12" value={view.other.input}>
+            </div>
+            <div class="hq-field">
+              <label for="ai-other-output">Output price</label>
+              <input id="ai-other-output" name="otherOutput" inputmode="decimal" maxlength="12" value={view.other.output}>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="hq-panel" aria-labelledby="ai-features">
+        <h2 id="ai-features">Features</h2>
+        <fieldset class="ai-features">
+          <legend>Turn on</legend>
+          <zb-each items={view.features} as="feature" key={feature.key}>
+            <label class="ai-feature">
+              <input type="checkbox" name="feature-{feature.key}" checked={feature.on}>
+              <strong>{feature.label}</strong>
+              <span class="hq-muted hq-small">{feature.phase}: {feature.what}</span>
+            </label>
+          </zb-each>
+        </fieldset>
+      </section>
+
+      <section class="hq-panel" aria-labelledby="ai-prices">
+        <h2 id="ai-prices">Price guide</h2>
+        <p class="hq-muted hq-small">What Potomac charges, in your own words. Lead triage, proposal drafts and the scope check price only from this.</p>
+        <text-field label="Prices" name="priceGuide" value={view.priceGuide} rows={10} maxlength={4000}></text-field>
+      </section>
+      <div><button zb-if={view.canChange} class="hq-button" type="submit">Save AI settings</button> <span zb-if={view.updated} class="hq-muted hq-small">{view.updated}</span></div>
+      </fieldset>
+    </form>
+
+    <section class="hq-panel" aria-labelledby="ai-recent">
+      <h2 id="ai-recent">Recent calls</h2>
+      <p zb-if={view.recent.length === 0} class="hq-muted">No calls yet.</p>
+      <table zb-else class="ai-usage">
+        <thead><tr><th scope="col">When</th><th scope="col">Feature</th><th scope="col">Outcome</th><th scope="col" class="num">Cost</th></tr></thead>
+        <tbody>
+          <zb-each items={view.recent} as="row" index="i" key={i}>
+            <tr>
+              <td>{row.when}</td>
+              <td>{row.feature}<br><span class="hq-muted hq-small">{row.model}</span></td>
+              <td><status-badge zb-if={!row.ok} variant="warning">No draft</status-badge> {row.outcome}</td>
+              <td class="num">{row.cost}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-ai-settings>

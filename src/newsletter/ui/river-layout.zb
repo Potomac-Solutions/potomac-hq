@@ -1,0 +1,32 @@
+<!--
+  The frame around the newsletter's public pages (decision 0013, section 1):
+  Potomac's name and nothing of HQ.
+-->
+<script>
+  'use layout /river root'
+  export async function load({ context }) {
+    return { title: 'Notes from the river', contact: context.portal.contact }
+  }
+</script>
+<style>
+  :host { display: block; min-height: 100vh; overflow-wrap: anywhere; }
+  .river-bar { display: flex; align-items: center; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); }
+  .river-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
+  .river-brand img { width: 1.75rem; height: 1.75rem; }
+  .river-main { max-width: 40rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+  .river-main:focus { outline: none; }
+  .river-foot { max-width: 40rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted-foreground); font-size: 0.95rem; }
+  .river-foot p { margin: 0.25rem 0; }
+</style>
+<hq-river-frame contact={{}}>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="river-bar">
+    <a class="river-brand" href="/river"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac Solutions</a>
+  </header>
+  <main id="main" class="river-main" tabindex="-1">
+    <zb-slot></zb-slot>
+  </main>
+  <footer zb-if={contact.address} class="river-foot">
+    <p>Potomac Solutions · {contact.address}</p>
+  </footer>
+</hq-river-frame>

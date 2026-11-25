@@ -191,6 +191,51 @@ for their own site and it takes effect at once
 `client.view`.
 
 
+### The site builder
+
+Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the one person whose email is `HQ_SITE_BUILDER_OWNER`.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See builds, start one, ask Claude, restore a version, download a version, see the preview, and see the model, cap and spending | `site.build` | Yes | No | No | No |
+
+### Growth tools (decision 0013)
+
+Decided 2026-11-25 (`docs/decisions/0013-growth-tools.md`). Needs Mikey's approval.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+| Add, change, turn off and remove the Lab's demos and their demo sign-ins | `demo.manage` | Yes | Yes | No | No |
+| Ask a client for a review, type one in, publish or keep back reviews, and write case studies with their screenshots | `review.manage` | Yes | Yes | No | No (writes their own review, from an emailed link or the portal) |
+| Add, change, pause and remove a client's n8n automations, and make a new check-in address | `automation.manage` | Yes | Yes | No | No (sees their own automations, and whether each is running, in the portal) |
+| Read, add a line to, send or skip the monthly reports to plan clients, and draft them now | `client-report.send` | Yes | Yes | No | No (reads their own sent reports in the portal) |
+| Record a client's free landing page, change its address and status, write down a round of changes and mark one done | `free-page.manage` | Yes | Yes | Yes | No (asks for theirs, sends rounds and approves it in the portal) |
+
+Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
+they were emailed is the only thing that says who they are.
+
+Sending demos from an opportunity needs `contact.edit`, like logging a call;
+seeing who opened them, `opportunity.view`. A demo link is opened by anyone
+who has it, and counts the open.
+
+Referral credit needs no key of its own: who referred an opportunity is
+set with `opportunity.edit`; a client's own link, and what a referral earns,
+with `referral.manage`; taking credit off a draft invoice with
+`invoice.edit`. A client sees their own link and credit in the portal.
+
+A review is written from an emailed link, whose token is the only key, or
+signed in to the portal, once for the client's own organization. The website
+reads only what is published, with its token.
+
+Automations are seen on a client, on the Automations page and on Today with
+`client.view`. n8n checks in with the automation's secret address alone.
+
+Free landing pages are seen on a client with `client.view`. A client user
+holds no key: signed in, they ask for their own organization's page, send it
+rounds and approve it, and download its code once approved. Their
+organization comes from their session alone.
+
 ### Platform (v1.0)
 
 Decided 2026-11-16 while Mikey was away. Needs his approval.
@@ -287,6 +332,48 @@ downloading it needs `file.download`, as for a deliverable.
 
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
+
+### Social media (decision 0011)
+
+Decided 2026-11-25 by Mikey.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See clients' social media plans and calendars | `social.view` | Yes | Yes | Yes | No |
+| Set a plan, write posts, send them, record approval, mark them posted | `social.edit` | Yes | Yes | Yes | No |
+
+A client sees and approves only their own organization's posts, in the
+portal, taken from their session (see Client users).
+
+### AI assistance (decision 0012)
+
+Decided 2026-11-25 by Mikey: only he chooses the model and the budget. As
+for the site builder, changing them is the `HQ_SITE_BUILDER_OWNER`'s alone;
+other admins see them.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See the AI settings and what AI has cost (changing them: `HQ_SITE_BUILDER_OWNER` only) | `ai.manage` | Yes | No | No | No |
+
+Every AI feature only drafts, and asking for a draft needs the permission
+the finished thing needs, so AI gives no one more than they already have:
+
+| Feature | Asking for it, seeing it and using it |
+| --- | --- |
+| Call recap | `contact.edit`, and only the person who made the call |
+| Get ready brief | `contact.edit`, and only the person the call is booked with |
+| Lead triage, its reply, and going-cold check-ins | `opportunity.edit` and `contact.edit` |
+| Proposal first draft | `proposal.edit` |
+| Scope check | `finance.edit` |
+| Weekly client update | `project.post-update` |
+| Ask HQ | `knowledge.view`; it reads only the knowledge base and decision log |
+| Receipt reading | `expense.edit` |
+| Site-down diagnosis | Made by HQ itself; seen with `client.view` |
+| Case study and social post drafts | `project.edit` |
+
+Lead triage, the weekly updates and the site-down diagnosis also run by
+themselves, when they're turned on. HQ is then the actor, as it is for an
+inquiry, and the drafts wait for a person.
 
 ## Client users
 

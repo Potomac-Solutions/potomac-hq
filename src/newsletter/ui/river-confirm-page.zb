@@ -1,0 +1,26 @@
+<!--
+  The confirm link. Opening it changes nothing: mail scanners open links too.
+  Pressing Confirm puts the person on the list.
+-->
+<script>
+  'use route /river/confirm'
+  export async function load({ context, url }) {
+    const token = url.searchParams.get('t') ?? ''
+    const works = context.newsletter.confirmWorks(token)
+    return { title: works ? 'Confirm your subscription' : 'Link not working', works, token: works ? token : '' }
+  }
+</script>
+<hq-river-confirm works={false} token="">
+  <div zb-if={works}>
+    <h1>Confirm your subscription</h1>
+    <p>One more step: press the button and you’re on the list for Notes from the river.</p>
+    <form method="post" action="/river/confirm">
+      <input type="hidden" name="t" value={token}>
+      <button class="hq-button portal-big" type="submit">Confirm</button>
+    </form>
+  </div>
+  <div zb-else>
+    <h1>That link doesn’t work any more</h1>
+    <p>It may have been used already, or it’s more than a week old. <a href="/river">Sign up again</a> and we’ll send a new one.</p>
+  </div>
+</hq-river-confirm>

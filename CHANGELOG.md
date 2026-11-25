@@ -9,6 +9,186 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-25
+
+- Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep
+  the Lab's demos: name, address, a line about each, and the demo sign-in
+  that stays the same across the daily reset (`demo.manage`, managers and
+  admins). On an opportunity, "Send demos" emails the contact a link to
+  each one ticked, with its sign-in and a note of your own (`contact.edit`).
+  Each link is its own short address (`/d/<code>`) that counts opens (not
+  previews or crawlers) and sends them on. Opens show on the opportunity,
+  and on Today as "… looked at Counter: follow up" for two days, or until
+  a call is logged. A demo that was sent can be turned off but not removed,
+  so its links keep working. Migration 0069.
+- Referral credit (decision 0013, slice 8). An opportunity can say who
+  referred it, a client picked from the list or a person typed in ("Dale
+  at the feed store"), under "Who referred them". A client can have their
+  own referral link, named for them (`/r/moats-hardware`), shown on their
+  page and in their portal under "Send a friend our way". An inquiry or a
+  website booking that comes by it is marked as referred by them. When a
+  referred client pays an invoice, the client who referred them earns a
+  credit, once ($25 unless changed under Sales → Referral links). On one of
+  the referrer's draft invoices, "Take … of referral credit off" adds a
+  negative line for what's available, up to all but the invoice's last
+  dollar. Invoices can now carry a credit line. Migration 0068.
+- Reviews and case studies (decision 0013, slice 7). On a client's Reviews
+  and case study page, "Email the link" asks their primary contact for a
+  review. The link works once, for 30 days, and is written on a page of its
+  own: stars, a few words, the name and town to show, and whether it may be
+  shown. Clients can also write one in the portal. Reviews can be typed in
+  from a phone call, Google or Facebook too. Under Sales → Reviews, publish
+  or keep back each one (one its writer said not to show can't be
+  published); waiting ones are on Today. Each client's case study (headline,
+  the problem, what we built, what came of it, the live address, its place
+  on the Work page, and up to 6 screenshots checked by their bytes) is a
+  draft until published. The website reads only what's published from
+  `GET /api/site/showcase`, and screenshots from
+  `/api/site/showcase/files/<id>`, with its token. For managers and admins
+  (`review.manage`). Migration 0067.
+- Automations (decision 0013, slice 6). On a client, add each n8n workflow
+  run for them: its name, what it does, its link in n8n and how often it
+  runs. HQ shows its secret check-in address once; n8n posts to it at the
+  end of a run with `status=ok` or `status=failed` (and a `message`), in the
+  query, a form or JSON. HQ keeps the last 50 runs. One that failed, or
+  hasn't checked in within its schedule and half again, goes on Today and
+  is emailed to `HQ_ALERT_EMAIL` once, and again when it's running. Pausing
+  one stops it being late. Clients see theirs, and whether each is running,
+  in the portal, without the n8n link or the address. Delivery →
+  Automations lists them all. For managers and admins
+  (`automation.manage`); anyone may see them. Migration 0066.
+- Monthly reports to plan clients (decision 0013, slice 5). Each morning in
+  the first week of a month, HQ drafts last month's report for every client
+  with an active ongoing project: their sites' uptime (from monitoring), the
+  milestones finished, updates put live and changes approved, how many tasks
+  were done (never their names), what's coming in the next 60 days, and
+  what's waiting on them. Hours are never shown. Under Delivery → Monthly
+  reports, read each one as the email it will be, add a line of your own,
+  and Send it to the client's primary contact, or Skip it. It's never sent
+  by itself, and it's sent once. Drafts wait on Today. Sent reports are in
+  the client's portal. For managers and admins (`client-report.send`).
+  Migration 0065.
+- Free landing pages (decision 0013, slice 4). Clients ask for theirs in
+  the portal, or it's recorded on the client: its address at
+  `<name>.potomac.solutions`, where it stands (asked for, being built, ready
+  to look at, approved, live, handed over) and its repository. In the
+  portal, the client sends rounds of changes and sees "2 of 4 free rounds
+  used". After four, or after approving, they must tick that the changes
+  are paid ($50 an hour) before sending. Each round waits on Today until
+  it's marked done, or priced. Once approved, a zip of the page's code can be
+  downloaded from the portal and the client page (needs `HQ_GITHUB_TOKEN`).
+  One free page a person: a client whose contacts share an email or phone
+  with another client's free page is refused. Delivery → Landing pages lists
+  them all. Anyone at Potomac (`free-page.manage`). Migration 0064.
+- Where leads come from (decision 0013, slice 3). The inquiry form and the
+  website's booking keep where on potomac.solutions the person was: `src`
+  (a river stop, a Lab demo, a Work page, the planner, the blog or the
+  newsletter), `page`, and `utm_source`, `utm_medium` and `utm_campaign`.
+  The first for each opportunity is kept and shown on it ("On the website").
+  Reports → Lead sources counts each source's leads in the last 30, 90 or
+  365 days, and how many had a call, got a proposal and were won, with the
+  value won for those who may see values. HQ's own `/contact?src=...` passes
+  `src` on, and the website's booking now credits a referral link's `ref`.
+  Migration 0063.
+- The newsletter, "Notes from the river" (decision 0013, slice 2). People
+  sign up at `/river`, from a form on potomac.solutions, or through the
+  website's server (`POST /api/site/newsletter` with its token), and are on
+  the list once they press Confirm in the email they get. Each reader
+  belongs to the river stop they signed up from (`src=stop:lakes`). Under
+  Sales → Newsletter, write an issue, send yourself a test, and send it to
+  everyone or some stops; it goes out 50 a minute, each reader once. Every
+  issue carries Potomac's mailing address (needs `HQ_CONTACT_ADDRESS`), a
+  one-click unsubscribe link and a `List-Unsubscribe` header. Leaving forgets
+  the address. For managers and admins (`newsletter.manage`). Migration 0062.
+- Decision 0013, growth tools: the newsletter, where leads come from, free
+  landing pages, monthly reports to plan clients, n8n automations, reviews
+  and case studies, referral credit, and who looked at a demo, in eight
+  slices.
+
+- One budget for everything HQ asks Claude (decision 0012, as Mikey
+  answered). The site builder's cap is now shared with the AI drafts, at $20
+  a month, changed under Site builder → Model and cap; each counts the
+  other's spending before it asks, and Settings → AI shows both. Settings →
+  AI no longer has a budget of its own. The nightly retention run discards
+  an AI receipt draft nobody used after 30 days, with its picture. Every
+  other choice in decision 0012 is confirmed. Migration 0070.
+- The container builds again now that the kit is private. The build
+  installs it with `KIT_READ_TOKEN` in a throwaway stage, so the image that
+  ships carries no token. Railway needs the same variable on HQ's service
+  (docs/operations.md, "Railway settings that work"), and CI passes its
+  secret to the container build.
+- The kit now installs from its renamed private repository,
+  `Potomac-Solutions/potomac-kit`. Examples and tests use a made-up
+  `Potomac-Solutions/example-site` in place of real client repositories.
+- Going live from the site builder (decision 0010, slice 4). "Put it on
+  GitHub" sends the newest version to a new private repository under
+  Potomac-Solutions (with `HQ_GITHUB_ADMIN_TOKEN`), or as a branch and pull
+  request to a client's own repository, never onto its deploy branch.
+  Later versions go the same way. A new repository is set up for client
+  editing (decision 0003) when HQ's everyday token can see it. Migration
+  0061.
+
+- Rework a site a client already has (decision 0010, slice 3). From its
+  repository on GitHub or its address on the web: a plain HTML repository
+  becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
+  site is read as reference for Claude to rewrite as plain files, and a
+  repository's pictures come along at their old paths. Migration 0060.
+
+- Pictures in the site builder (decision 0010, slice 2). Add a build's
+  photos and its logo, each with what it shows; a photo is shrunk in the
+  browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
+  each one's path, size and what it shows, and the preview and the .zip
+  carry them. Migration 0059.
+
+- Social media (decision 0011), for clients on social media marketing. A
+  plan on the client's page: Facebook, Instagram and LinkedIn with each
+  page's address, 8 posts and 1 blog post a month unless set otherwise,
+  and notes about the business. A calendar per month to write posts and
+  blog posts against the plan, checked for each network's limit, an
+  Instagram post needing its picture. "Send to the client" puts the month
+  in their portal under "Your social media" and on "Waiting on you"; they
+  approve it in one go or ask for changes post by post, and anything
+  unanswered for 3 days counts as approved (checked hourly). A yes by
+  phone or text can be recorded. Approved posts due show on Today with
+  "Copy the words", "Open Facebook" and "It's up" with links, which the
+  client sees. Asks for changes show on Today as Waiting on you.
+  Delivery → Social media lists every client's month. New permissions
+  `social.view` and `social.edit` for every role. Migration 0057.
+
+- The site builder (decision 0010, slice 1). Delivery → Site builder, for
+  admins: start a build for a client with a brief, and Claude makes the
+  first version from it and the client's facts in HQ. Ask for changes in
+  plain words; each answer is a new version, shown in a sandboxed preview
+  at phone, tablet or full width, downloadable as a .zip, and restorable.
+  A request is refused before it is sent if its worst case would pass the
+  monthly cap ($10 to start); what it really cost is recorded. Only
+  `HQ_SITE_BUILDER_OWNER` changes the model and the cap, under Model and
+  cap, which also shows spending by person, build and month. Needs
+  `HQ_ANTHROPIC_API_KEY`. New permission `site.build`, admins only.
+  Migration 0056.
+
+- Decision 0010, the site builder: client websites made with Claude in
+  HQ, previewed in a sandbox, kept as versions, with a monthly cap that is
+  never crossed, published to a new repository or as a pull request to a
+  client's own. Four slices.
+
+- AI drafts (decision 0012, all phases). With `HQ_ANTHROPIC_API_KEY` set
+  and a feature turned on in Settings → AI, Claude drafts and a person uses
+  or discards: the recap email and next steps after a call, a brief on Get
+  ready, a triage and reply for each new lead (by itself every five
+  minutes), check-ins for deals gone quiet, a proposal's first draft checked
+  against similar finished jobs, a flag and change request for client
+  messages beyond what was agreed (by itself), each active project's weekly
+  update (by itself on Fridays), answers from the knowledge base (Ask HQ),
+  expenses read from receipt photos, a likely cause in site-down alerts, and
+  case studies and social posts (Marketing). Nothing is sent, posted or saved
+  until someone presses the button that says so. Settings → AI sets the model (Claude Haiku 5.5 to start), the monthly budget
+  ($20 to start, a hard stop, a warning at 80%), which features are on and
+  the price guide, and shows every call's cost. AI drafts waiting show on
+  Today and in the sidebar. Only `HQ_SITE_BUILDER_OWNER` changes them; other admins (`ai.manage`)
+  see them. Uses the site builder's `HQ_ANTHROPIC_API_KEY`, with its own
+  budget. Migration 0058.
+
 ## [0.16.0] - 2026-11-25
 
 - The recap email (decision 0009, slice 6). Ending a call where you talked

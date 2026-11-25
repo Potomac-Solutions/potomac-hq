@@ -84,8 +84,9 @@ test("a Host header with a path in it changes nothing (5.17 and 5.18 routed by i
 test("every page is refused to a signed-out visitor, whatever its layout", async () => {
   const stranger = httpClient(t.origin);
   // Open to anyone: asking for a reset, the portal's sign-in and invite pages, booking a call, and a
-  // project shared by link (decision 0007, section 11), which is "not found" without a working link.
-  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/sign-up", "/portal/accept", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks", "/s/:token"]);
+  // project shared by link (decision 0007, section 11), which is "not found" without a working link,
+  // and the newsletter's sign-up and its confirm and unsubscribe pages (decision 0013).
+  const open = new Set(["/forgot-password", "/portal/sign-in", "/portal/sign-up", "/portal/accept", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks", "/s/:token", "/river", "/river/check", "/river/confirm", "/river/thanks", "/river/unsubscribe", "/river/left", "/review", "/review/thanks"]);
   const share = await stranger.get(`/s/${"a".repeat(43)}`);
   assert.equal(share.status, 404, "a made-up share link");
   assert.doesNotMatch(await share.text(), /onerror|Mikey Nichols/);
