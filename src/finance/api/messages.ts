@@ -1,6 +1,8 @@
 // What each refusal code says to a person.
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
+  "nothing-picked": "Tick at least one draft first.",
+  "not-checked": "Tick the box to say you’ve checked them first.",
   "not-found": "That record doesn’t exist.",
   "invalid-every": "Choose how often from the list.",
   "ends-before-start": "It can’t end before its first invoice.",

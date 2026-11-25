@@ -102,6 +102,12 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
   });
   post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
   post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
+  // Several drafts at once: each ticked box is invoice-<id>.
+  post("/projects/:id/invoices/send", (actor, f, id) => finance.sendInvoicesNow(deps.finance, actor, id as Id, Object.keys(f).filter((key) => key.startsWith("invoice-") && f[key] === "on").map((key) => key.slice(8)), f["checked"] === "on"), {
+    done: (_, id) => `/projects/${id ?? ""}/money#invoices`,
+    back: (id) => `/projects/${id ?? ""}/money#invoices`,
+    message: (result) => (result.skipped > 0 ? `Marked ${result.sent} sent. ${result.skipped} couldn’t be (only drafts can).` : result.sent === 1 ? "Marked 1 sent." : `Marked ${result.sent} sent.`),
+  });
   post("/invoices/:id/send", (actor, _f, id) => finance.sendInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice sent. Download the PDF to give it to the client." });
   post("/invoices/:id/void", (actor, _f, id) => finance.voidInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice voided." });
   post(

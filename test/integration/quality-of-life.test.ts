@@ -61,3 +61,30 @@ test("notice settings: right away, the morning digest, never, and quiet hours", 
   assert.match(sent[0]?.subject ?? "", /Fix the map/);
   assert.match(textOf(await member.page("/notices")), /gave you “Fix the map”/, "the bell has it either way");
 });
+
+test("many at once: tasks moved, given, dated and labelled together; drafts marked sent together", async () => {
+  const mikey = userId("mikey@example.com");
+  const sam = userId("sam@example.com");
+  const { project } = await wonProject(t.services, mikey, { client: "Garrett County Adventures" });
+  const a = unwrap(projects.addTask(t.services.projects, mikey, project.id, { title: "Kayak page" }));
+  const b = unwrap(projects.addTask(t.services.projects, mikey, project.id, { title: "Rental form" }));
+  const table = await admin.page("/work");
+  assert.match(table, new RegExp(`name="task-${a.id}"`));
+  const picked = { [`task-${a.id}`]: "on", [`task-${b.id}`]: "on" };
+  assert.match(query(await admin.post("/work/bulk", { ...picked, action: "status", "value-status": "doing" }), "done"), /Changed 2/);
+  assert.equal(t.services.projects.tasks.get(a.id)?.status, "doing");
+  await admin.post("/work/bulk", { ...picked, action: "assign", "value-assign": sam });
+  assert.equal(t.services.projects.tasks.get(b.id)?.assigneeId, sam);
+  await admin.post("/work/bulk", { ...picked, action: "due", "value-due": "2026-12-11" });
+  assert.equal(t.services.projects.tasks.get(a.id)?.dueOn, "2026-12-11");
+  assert.match(query(await admin.post("/work/bulk", { action: "status", "value-status": "done" }), "problem"), /Tick at least one/);
+  assert.match(query(await admin.post("/work/bulk", { ...picked, action: "status", "value-status": "archived" }), "problem"), /Choose what to do/);
+
+  const { createInvoice } = await import("../../src/finance/index.ts");
+  const one = unwrap(createInvoice(t.services.finance, mikey, project.id, { kind: "deposit", description: "Deposit", amount: "100" }));
+  const two = unwrap(createInvoice(t.services.finance, mikey, project.id, { kind: "balance", description: "Balance", amount: "200" }));
+  const ticked = { [`invoice-${one.id}`]: "on", [`invoice-${two.id}`]: "on" };
+  assert.match(query(await admin.post(`/projects/${project.id}/invoices/send`, ticked), "problem"), /checked them/);
+  assert.match(query(await admin.post(`/projects/${project.id}/invoices/send`, { ...ticked, checked: "on" }), "done"), /Marked 2 sent/);
+  assert.equal(t.services.finance.invoices.get(two.id)?.status, "sent");
+});
