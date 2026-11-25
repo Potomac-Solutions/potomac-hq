@@ -11,7 +11,7 @@ if (!databasePath) {
 const db = openDatabase(databasePath);
 try {
   const removed = applyRetention({ db, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock: systemClock, newId });
-  console.log(`Removed ${removed.sessions} expired sessions, ${removed.links} expired links and ${removed.invites} unused invites.`);
+  console.log(`Removed ${removed.sessions} expired sessions, ${removed.links} expired links, ${removed.invites} unused invites and ${removed.receipts} unused AI receipt drafts.`);
 } finally {
   db.close();
 }

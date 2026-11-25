@@ -189,7 +189,7 @@ const stopRecurring = scheduleDaily(runRecurring, { zone: BUSINESS_TIME_ZONE, ho
 const stopRetention = scheduleDaily(
   async () => {
     const removed = applyRetention({ db, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock: systemClock, newId });
-    console.log(`Retention: removed ${removed.sessions} expired sessions, ${removed.links} expired links and ${removed.invites} unused invites.`);
+    console.log(`Retention: removed ${removed.sessions} expired sessions, ${removed.links} expired links, ${removed.invites} unused invites and ${removed.receipts} unused AI receipt drafts.`);
   },
   { zone: BUSINESS_TIME_ZONE, hour: 4, minute: 7, clock: systemClock, log, name: "retention run" },
 );

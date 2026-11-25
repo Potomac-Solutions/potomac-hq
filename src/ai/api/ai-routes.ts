@@ -34,7 +34,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "already-decided": "That draft was already used or discarded.",
   "no-key": "AI needs HQ_ANTHROPIC_API_KEY set on the server.",
   "feature-off": "That AI feature is off. An admin can turn it on in Settings → AI.",
-  "budget-reached": "This month’s AI budget is spent. AI is paused until the first of the month, or until the budget is raised in Settings → AI.",
+  "budget-reached": "This month’s budget, shared with the site builder, is spent. AI is paused until the first of the month, or until the owner raises the cap under Site builder → Model and cap.",
   "ai-unavailable": "Claude didn’t answer. Try again in a minute; nothing was changed.",
   "bad-answer": "Claude’s answer didn’t make sense, so it wasn’t kept. Try again.",
   "no-email": "Their contact has no email in HQ.",
@@ -49,7 +49,6 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "receipt-too-big": "Keep the receipt under 5 MB.",
   "model-invalid": "Choose a model, or type another model’s id: lower case letters, digits, dots and dashes.",
   "price-invalid": "Give the other model’s prices in dollars per million tokens, like 0.10.",
-  "budget-invalid": "Give the monthly budget in dollars, from 0 to 1,000.",
   "price-guide-too-long": "Keep the price guide under 4,000 characters.",
   "opportunity-closed": "That deal is already won or lost.",
   "project-closed": "That project isn’t active.",
@@ -86,7 +85,7 @@ export function aiRoutes(deps: Deps): Hono {
 
   post(
     "/settings/ai",
-    (actor, f) => saveAiSettings(aiDeps, actor, { model: f["model"] ?? "", otherModel: f["otherModel"] ?? "", otherInput: f["otherInput"] ?? "", otherOutput: f["otherOutput"] ?? "", budget: f["budget"] ?? "", features: features(f), priceGuide: f["priceGuide"] ?? "" }),
+    (actor, f) => saveAiSettings(aiDeps, actor, { model: f["model"] ?? "", otherModel: f["otherModel"] ?? "", otherInput: f["otherInput"] ?? "", otherOutput: f["otherOutput"] ?? "", features: features(f), priceGuide: f["priceGuide"] ?? "" }),
     { done: () => "/settings/ai", back: () => "/settings/ai", message: "AI settings saved. They apply from the next call." },
   );
 

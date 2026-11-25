@@ -1,7 +1,7 @@
 <!--
-  Settings → AI (decision 0012), for admins: the model, the monthly budget,
-  which features are on, the price guide lead triage reads, and what AI has
-  cost this month, call by call.
+  Settings → AI (decision 0012), for admins: the model, which features are
+  on, the price guide lead triage reads, and what AI has cost this month,
+  call by call, against the budget shared with the site builder.
 -->
 <script>
   'use route /settings/ai'
@@ -30,7 +30,7 @@
   .ai-month { display: grid; gap: 0.5rem; }
   .ai-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
 </style>
-<hq-ai-settings view={{ keySet: false, canChange: false, ownerSet: false, model: '', models: [], other: { id: '', input: '', output: '' }, budget: '', features: [], priceGuide: '', month: { spent: '', budget: '', percent: 0, state: 'ok', calls: 0, failed: 0 }, recent: [], updated: '' }} done="" problem="">
+<hq-ai-settings view={{ keySet: false, canChange: false, ownerSet: false, model: '', models: [], other: { id: '', input: '', output: '' }, features: [], priceGuide: '', month: { spent: '', drafts: '', builder: '', budget: '', percent: 0, state: 'ok', calls: 0, failed: 0 }, recent: [], updated: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Settings', href: '/settings' }, { label: 'AI', href: '' }]}></breadcrumb-trail>
     <h1>AI settings</h1>
@@ -44,10 +44,11 @@
     <section class="hq-panel" aria-labelledby="ai-month">
       <h2 id="ai-month">This month</h2>
       <div class="ai-month">
-        <p><strong>{view.month.spent}</strong> of {view.month.budget} spent, on {view.month.calls} {view.month.calls === 1 ? 'call' : 'calls'}<span zb-if={view.month.failed}> ({view.month.failed} without a usable answer)</span>.</p>
+        <p><strong>{view.month.spent}</strong> of {view.month.budget} spent: {view.month.drafts} on AI drafts, in {view.month.calls} {view.month.calls === 1 ? 'call' : 'calls'}<span zb-if={view.month.failed}> ({view.month.failed} without a usable answer)</span>, and {view.month.builder} on the site builder.</p>
+        <p class="hq-muted hq-small">One budget for everything HQ asks Claude, shared with the site builder. The owner sets it under <a href="/builder/settings">Site builder → Model and cap</a>.</p>
         <progress-bar value={view.month.percent} max={100} label="Budget used"></progress-bar>
         <alert-banner zb-if={view.month.state === 'warning'} variant="warning">Over 80% of this month’s budget is spent.</alert-banner>
-        <alert-banner zb-if={view.month.state === 'reached'} variant="danger">The budget is spent. AI is paused until the first of the month, or until you raise the budget below. HQ works as usual without it.</alert-banner>
+        <alert-banner zb-if={view.month.state === 'reached'} variant="danger">The budget is spent. AI and the site builder are paused until the first of the month, or until the owner raises the cap. HQ works as usual without them.</alert-banner>
       </div>
     </section>
 
@@ -55,7 +56,7 @@
     <form method="post" action="/settings/ai" class="hq-form">
       <fieldset disabled={!view.canChange} class="ai-settings-fields">
       <section class="hq-panel" aria-labelledby="ai-model">
-        <h2 id="ai-model">Model and budget</h2>
+        <h2 id="ai-model">Model</h2>
         <div class="hq-field">
           <label for="ai-model-choice">Model</label>
           <select id="ai-model-choice" name="model">
@@ -81,11 +82,6 @@
             </div>
           </div>
         </fieldset>
-        <div class="hq-field">
-          <label for="ai-budget">Monthly budget, in dollars</label>
-          <input id="ai-budget" name="budget" inputmode="decimal" maxlength="8" required value={view.budget}>
-          <span class="hint">A hard stop: no call goes that could take the month past it. A warning shows from 80%.</span>
-        </div>
       </section>
 
       <section class="hq-panel" aria-labelledby="ai-features">

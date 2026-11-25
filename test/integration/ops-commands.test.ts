@@ -134,22 +134,28 @@ test("retention removes expired sessions, used-up links and stale invites, and n
     const invite = db.prepare("insert into user_invite (id, email, name, roles, invited_by, created_at) values (?, ?, 'Someone', '[\"member\"]', ?, ?)");
     invite.run(newId(), "old@example.com", admin, new Date(now - 45 * day).toISOString());
     invite.run(newId(), "new@example.com", admin, new Date(now - 2 * day).toISOString());
+    // AI receipt drafts (decision 0012): one nobody used for 31 days loses its picture; a newer one and a used one stay.
+    const receipt = db.prepare("insert into ai_draft (id, feature, record_type, record_id, content, status, attachment, attachment_name, created_at) values (?, 'receipt', 'project', 'p', '{}', ?, ?, 'r.jpg', ?)");
+    receipt.run("old-receipt", "waiting", new Uint8Array([1, 2, 3]), new Date(now - 31 * day).toISOString());
+    receipt.run("new-receipt", "waiting", new Uint8Array([1, 2, 3]), new Date(now - 2 * day).toISOString());
+    receipt.run("used-receipt", "used", null, new Date(now - 60 * day).toISOString());
     const eventsBefore = events(db).length;
 
     const deps = { db, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock: systemClock, newId };
-    assert.deepEqual(applyRetention(deps), { sessions: 2, links: 1, invites: 1 });
+    assert.deepEqual(applyRetention(deps), { sessions: 2, links: 1, invites: 1, receipts: 1 });
+    assert.deepEqual((db.prepare("select id, status, attachment is null as gone from ai_draft order by id").all() as Record<string, unknown>[]).map((row) => [row["id"], row["status"], row["gone"]]), [["new-receipt", "waiting", 0], ["old-receipt", "discarded", 1], ["used-receipt", "used", 1]]);
     assert.deepEqual((db.prepare("select collection, key from kit_document order by collection, key").all() as { collection: string; key: string }[]).map((row) => `${row.collection}/${row.key}`), ["accounts/a1", "portal:staff-tokens/live", "staff-sessions/live", "staff-sessions/recent"]);
     assert.deepEqual((db.prepare("select email from user_invite").all() as { email: string }[]).map((row) => row.email), ["new@example.com"]);
-    assert.deepEqual(events(db).slice(eventsBefore).map((e) => [e.action, e.actor, e.context]), [["retention.applied", null, { expiredSignIns: 2, expiredLinks: 1, staleInvites: 1 }]]);
+    assert.deepEqual(events(db).slice(eventsBefore).map((e) => [e.action, e.actor, e.context]), [["retention.applied", null, { expiredSignIns: 2, expiredLinks: 1, staleInvites: 1, unusedReceipts: 1 }]]);
 
     // A second run finds nothing and writes no event. The command says so.
-    assert.deepEqual(applyRetention(deps), { sessions: 0, links: 0, invites: 0 });
+    assert.deepEqual(applyRetention(deps), { sessions: 0, links: 0, invites: 0, receipts: 0 });
     assert.equal(events(db).length, eventsBefore + 1);
     assert.throws(() => db.prepare("delete from activity_event").run(), /append-only/, "the audit log cannot be thinned");
     db.close();
     const ran = run("retention.ts", [], { HQ_DATABASE_PATH: path });
     assert.equal(ran.status, 0, ran.output);
-    assert.match(ran.output, /Removed 0 expired sessions, 0 expired links and 0 unused invites\./);
+    assert.match(ran.output, /Removed 0 expired sessions, 0 expired links, 0 unused invites and 0 unused AI receipt drafts\./);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

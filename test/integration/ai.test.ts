@@ -46,7 +46,7 @@ const query = (res: Response, name: string) => new URL("http://x" + (res.headers
 const path = (res: Response) => new URL("http://x" + (res.headers.get("location") ?? "")).pathname;
 /** The jobs HQ runs by itself, with the stand-in: the harness's own services have no model. */
 const jobs = () => ({ ...t.services.ai, model: fake });
-const turnOn = (features: string[], budget = "20") => mikey.post("/settings/ai", { model: "claude-haiku-5-5", budget, ...Object.fromEntries(features.map((one) => [`feature-${one}`, "on"])) });
+const turnOn = (features: string[]) => mikey.post("/settings/ai", { model: "claude-haiku-5-5", ...Object.fromEntries(features.map((one) => [`feature-${one}`, "on"])) });
 const ALL = ["call-recap", "call-brief", "lead-triage", "check-in", "proposal-draft", "scope-check", "weekly-update", "ask", "receipt", "site-diagnosis", "case-study", "social-posts"];
 
 /** With email set up, the invite link is emailed, not shown: take it from the email. */
@@ -73,19 +73,19 @@ before(async () => {
 });
 after(() => t.stop());
 
-test("Settings → AI: admins only; Haiku 5.5, $20 and everything off to start; a change applies from the next call", async () => {
+test("Settings → AI: the owner changes them; Haiku 5.5, a $20 budget shared with the site builder, and everything off to start", async () => {
   assert.equal((await sam.get("/settings/ai")).status, 403);
-  assert.match(query(await sam.post("/settings/ai", { model: "claude-haiku-5-5", budget: "999" }), "problem"), /permission/);
+  assert.match(query(await sam.post("/settings/ai", { model: "claude-haiku-5-5", features: "" }), "problem"), /permission/);
   const jo = await signIn(t, "jo@example.com", "Jo Admin", ["admin"]);
   assert.match(textOf(await jo.page("/settings/ai")), /Only the owner set in HQ_SITE_BUILDER_OWNER changes these/, "another admin sees them");
-  assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5", budget: "999" }), "problem"), /permission/, "and can't change them");
+  assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5" }), "problem"), /permission/, "and can't change them");
   const page = textOf(await mikey.page("/settings/ai"));
-  assert.match(page, /\$0\.00 of \$20\.00 spent, on 0 calls/);
+  assert.match(page, /\$0\.00 of \$20\.00 spent: \$0\.00 on AI drafts, in 0 calls, and \$0\.00 on the site builder\./);
+  assert.match(page, /One budget for everything HQ asks Claude, shared with the site builder/);
   assert.match(page, /Claude Haiku 5\.5/);
-  assert.match(await mikey.page("/settings/ai"), /value="20"/);
   assert.doesNotMatch(await mikey.page("/settings/ai"), /name="feature-call-recap" checked/);
   assert.match(page, /Consulting: the first 30 minutes are free, then \$75 an hour\./, "the price guide starts with Potomac's launch prices");
-  assert.match(query(await mikey.post("/settings/ai", { model: "other", otherModel: "claude-x", otherInput: "", otherOutput: "1", budget: "20" }), "problem"), /prices in dollars/);
+  assert.match(query(await mikey.post("/settings/ai", { model: "other", otherModel: "claude-x", otherInput: "", otherOutput: "1" }), "problem"), /prices in dollars/);
   assert.match(query(await turnOn(ALL), "done"), /AI settings saved/);
   assert.match(await mikey.page("/settings/ai"), /name="feature-call-recap" checked/);
   assert.ok(actions(t.db).includes("ai.settings-changed"));
@@ -252,14 +252,17 @@ test("site-down alerts get a likely cause; if AI fails, the alert goes as it was
   assert.ok(actions(t.db).includes("ai.failed"));
 });
 
-test("the budget is a hard stop, and the usage page shows every call's cost", async () => {
+test("one budget, shared with the site builder: each counts the other, and it's a hard stop for both", async () => {
   const page = textOf(await mikey.page("/settings/ai"));
-  assert.match(page, /of \$20\.00 spent, on \d+ calls \(\d without a usable answer\)/);
+  assert.match(page, /of \$20\.00 spent: \$0\.\d+ on AI drafts, in \d+ calls \(\d without a usable answer\) ?, and \$0\.00 on the site builder\./);
   assert.match(page, /Recent calls .* Ask HQ claude-haiku-5-5/);
-  await turnOn(ALL, "0");
-  assert.match(textOf(await mikey.page("/settings/ai")), /The budget is spent\. AI is paused/);
+  assert.match(textOf(await mikey.page("/builder/settings")), /shared with the AI drafts , which have spent \$0\.\d+ of it/);
+  t.db.prepare("update builder_settings set cap_cents = 100").run();
+  t.db.prepare("insert into ai_usage (id, feature, record_type, record_id, model, input_count, output_count, cost, actor_id, at, ok) values ('00000000-0000-4000-8000-0000000a4001', 'ask', 'user', 'x', 'claude-haiku-5-5', 0, 0, 1000000, null, ?, 1)").run(new Date().toISOString());
+  assert.match(textOf(await mikey.page("/settings/ai")), /The budget is spent\. AI and the site builder are paused/);
+  assert.match(textOf(await mikey.page("/builder/settings")), /\$0\.00 left/, "the site builder counts what AI drafts spent");
   const before = asked.length;
-  assert.match(query(await mikey.post("/ask", { question: "Deposits?" }), "problem"), /budget is spent/);
+  assert.match(query(await mikey.post("/ask", { question: "Deposits?" }), "problem"), /shared with the site builder, is spent/);
   assert.equal(asked.length, before, "no call goes past the budget");
   assert.match(textOf(await mikey.page("/ask")), /Budget reached: AI is paused/);
   await turnOn([]);

@@ -36,7 +36,7 @@
     <section class="hq-panel" aria-labelledby="cap-month">
       <h2 id="cap-month">This month</h2>
       <progress-bar value={view.budget.percent} max={100} label={view.budget.spent + ' of ' + view.budget.cap + ' spent'}></progress-bar>
-      <p class="hq-small hq-muted">{view.budget.left} left. Before each request HQ adds up the most it could cost; if that would pass the cap, it isn’t sent. The month starts on the 1st, Eastern time.</p>
+      <p class="hq-small hq-muted">{view.budget.left} left. The cap is one budget shared with the <a href="/settings/ai">AI drafts</a><span zb-if={view.budget.drafts}>, which have spent {view.budget.drafts} of it</span>. Before each request HQ adds up the most it could cost; if that would pass the cap, it isn’t sent. The month starts on the 1st, Eastern time.</p>
     </section>
     <form method="post" action="/builder/settings" class="hq-panel settings-form" aria-labelledby="cap-settings">
       <h2 id="cap-settings">Model and monthly cap</h2>

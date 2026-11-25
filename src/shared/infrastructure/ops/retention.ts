@@ -14,8 +14,10 @@ export const EXPIRED_SIGN_IN_DAYS = 30;
 export const UNUSED_INVITE_DAYS = 30;
 /** Days a refused attempt is kept. */
 export const REFUSED_ATTEMPT_DAYS = 90;
+/** Days an AI receipt draft nobody used keeps its picture (decision 0012; Mikey, 2026-11-25). */
+export const UNUSED_RECEIPT_DAYS = 30;
 
-export type RetentionResult = { readonly sessions: number; readonly links: number; readonly invites: number };
+export type RetentionResult = { readonly sessions: number; readonly links: number; readonly invites: number; readonly receipts: number };
 
 export function applyRetention(deps: ActivityDeps & { readonly db: Database; readonly transact: Transact }): RetentionResult {
   const now = Temporal.Instant.from(deps.clock());
@@ -33,18 +35,22 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   const limits = deps.db.prepare("delete from rate_limit where reset_at <= ?");
   // A session's two-factor pass goes with the session.
   const passes = deps.db.prepare("delete from two_factor_session where session_hash not in (select key from kit_document where collection = 'staff-sessions')");
+  // An AI receipt draft nobody used or discarded: discarded by HQ, and its picture let go.
+  const receipts = deps.db.prepare("update ai_draft set status = 'discarded', decided_at = ?, attachment = null, attachment_name = null where feature = 'receipt' and status = 'waiting' and created_at < ?");
+  const receiptCutoff = now.subtract({ hours: 24 * UNUSED_RECEIPT_DAYS }).toString();
   return deps.transact(() => {
     const result = {
       sessions: Number(expired.run("staff-sessions", "portal:staff-sessions", signInCutoff).changes),
       links: Number(expired.run("staff-tokens", "portal:staff-tokens", signInCutoff).changes),
       invites: Number(invites.run(inviteCutoff).changes),
+      receipts: Number(receipts.run(now.toString(), receiptCutoff).changes),
     };
     passes.run();
     refused.run(refusedCutoff);
     limits.run(now.epochMilliseconds);
-    if (result.sessions + result.links + result.invites > 0) {
+    if (result.sessions + result.links + result.invites + result.receipts > 0) {
       // Counts only. The log refuses a context that names sessions or links, so these are called what they were.
-      recordActivity(deps, { actorId: null, action: "retention.applied", recordType: "retention", recordId: deps.newId(), context: { expiredSignIns: result.sessions, expiredLinks: result.links, staleInvites: result.invites } });
+      recordActivity(deps, { actorId: null, action: "retention.applied", recordType: "retention", recordId: deps.newId(), context: { expiredSignIns: result.sessions, expiredLinks: result.links, staleInvites: result.invites, unusedReceipts: result.receipts } });
     }
     return result;
   });

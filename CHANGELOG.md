@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- One budget for everything HQ asks Claude (decision 0012, as Mikey
+  answered). The site builder's cap is now shared with the AI drafts, at $20
+  a month, changed under Site builder → Model and cap; each counts the
+  other's spending before it asks, and Settings → AI shows both. Settings →
+  AI no longer has a budget of its own. The nightly retention run discards
+  an AI receipt draft nobody used after 30 days, with its picture. Every
+  other choice in decision 0012 is confirmed. Migration 0062.
 - The container builds again now that the kit is private. The build
   installs it with `KIT_READ_TOKEN` in a throwaway stage, so the image that
   ships carries no token. Railway needs the same variable on HQ's service
