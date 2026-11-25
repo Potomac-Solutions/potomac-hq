@@ -51,6 +51,14 @@ as a repeating task whose next one was already made.
 before anything is removed. **Send**, **Publish**, **Share** and **Void**
 buttons wait eight seconds, with Undo, before anything leaves HQ.
 
+Adding a link, comment, label, filter, time, expense, demo or referral link
+can be undone the same way. The few things that can't be undone, like
+turning off two-step sign-in, ask first.
+
+If a page closes before you send what you typed in a comment or note box,
+the text is there when you come back. **Ctrl+Enter** sends the form you're
+typing in.
+
 **Recent changes** (in the sidebar, or G then H) lists what you changed in
 the last day that can still be put back, each with its own Undo, so a
 mistake you notice later can still be undone.

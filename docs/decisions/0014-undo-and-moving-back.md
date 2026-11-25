@@ -8,7 +8,8 @@ too." Built on one branch, reviewed by Mikey before it merges into
 `staging`. Sections 4 to 7 were added the same day, when Mikey asked for
 all eleven follow-ups Claude proposed ("all of these in the same branch").
 Sections 8 and 9 followed: "make sure it's intuitive and allows mistakes to
-be reverted... improve this tooling further yet."
+be reverted... improve this tooling further yet." Section 10 came from "any
+more improvements, now is the chance to do it".
 
 ## Context
 
@@ -146,6 +147,28 @@ cursor said so, and only the column under the card lit up while dragging.
 - As with removals, leaving the page sends it straight away, it is done in
   the browser for every such button at once, and without JavaScript it is
   immediate. Settings and the client portal are left alone.
+
+### 10. Adding can be undone; asking first; never losing typed text
+
+- Adding something that has a Remove can be undone, which removes it: a
+  project link, a task comment, a label, a saved filter, logged time, an
+  expense, a demo, a referral link. Editing a comment can be undone too.
+- The few things that can't be undone or held ask first, in a dialog with
+  Cancel focused: turning off two-step sign-in, removing a passkey, making
+  new recovery codes, resetting someone's two-step sign-in, turning an
+  account off, and making a new webhook or automation secret. Without
+  JavaScript they go at once, as before.
+- Text typed in a long box (a comment, a description, a note) and not sent
+  is kept on that device while it's typed. If the page is closed, reloaded
+  or crashes first, the text comes back next time with "Brought back text
+  you hadn't sent", and Discard. It's cleared when the form is sent, after
+  a week, and from every box when you sign out.
+- Ctrl+Enter (⌘Enter) sends the form you're typing in.
+- A card dropped on the pipeline or the board moves to its column at once
+  while the server makes the move; the page that comes back has the final
+  say, so a refused move puts it back where it was.
+- Every page has room at the bottom, so the Undo bars never cover the last
+  buttons.
 
 ## Not in this decision
 

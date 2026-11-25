@@ -259,3 +259,85 @@ test("sending something waits for Undo, and nothing is sent if it's called back"
   assert.deepEqual(posted, [], "called back before it went");
   await page.close();
 });
+
+test("adding can be undone; Ctrl+Enter sends; unsent text comes back after the page closes", async () => {
+  const projects = await import("../../src/projects/application/commands.ts");
+  const task = projects.addTask(t.services.projects, mikey, projectId as Id, { title: "Pick the colours" });
+  assert.ok(task.ok);
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(t.origin + `/tasks/${task.value.id}`);
+  const comments = () => Number(t.db.prepare("select count(*) as n from task_comment where task_id = ?").get(task.value.id)?.["n"]);
+
+  // Ctrl+Enter sends; Undo takes the comment away again.
+  const box = page.getByLabel("Add a comment");
+  await box.fill("Navy and cream, like the old sign.");
+  await box.press("Control+Enter");
+  await page.locator(".hq-undo").getByText("Comment added").waitFor();
+  assert.equal(comments(), 1);
+  await page.locator(".hq-undo").getByRole("button", { name: "Undo" }).click();
+  await page.getByText("Comment deleted.").first().waitFor();
+  assert.equal(comments(), 0);
+
+  // Typed, then the page goes away before it's sent: it comes back, and Discard clears it.
+  await page.getByLabel("Add a comment").fill("Half a thought about the logo");
+  await page.waitForTimeout(600);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  await page.getByText("Brought back text you hadn’t sent.").waitFor();
+  assert.equal(await page.getByLabel("Add a comment").inputValue(), "Half a thought about the logo");
+  await assertAccessible(page, "unsent text brought back");
+  await page.getByRole("button", { name: "Discard" }).click();
+  assert.equal(await page.getByLabel("Add a comment").inputValue(), "");
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
+test("what can't be undone asks first, with Cancel as the default", async () => {
+  const page = await signedIn.newPage();
+  await page.goto(t.origin + "/settings");
+  const posted: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posted.push(new URL(request.url()).pathname);
+  });
+  // A stand-in for the real button, which only shows once two-step sign-in is on.
+  await page.evaluate(`(() => {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/settings/two-factor/off";
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "Turn off two-step sign-in";
+    form.append(button);
+    document.querySelector("main").append(form);
+  })()`);
+  await page.getByRole("button", { name: "Turn off two-step sign-in" }).click();
+  const dialog = page.getByRole("dialog", { name: "This can’t be undone" });
+  await dialog.waitFor();
+  await assertAccessible(page, "the confirm step");
+  assert.equal(await dialog.getByRole("button", { name: "Cancel" }).evaluate((button) => button === (button.ownerDocument as { activeElement: unknown }).activeElement), true, "Cancel has focus");
+  await page.keyboard.press("Enter");
+  await dialog.waitFor({ state: "hidden" });
+  assert.deepEqual(posted, [], "cancelled: nothing sent");
+  await page.getByRole("button", { name: "Turn off two-step sign-in" }).click();
+  await dialog.getByRole("button", { name: "Turn it off" }).click();
+  await page.waitForLoadState();
+  await new Promise((done) => setTimeout(done, 300));
+  assert.deepEqual(posted, ["/settings/two-factor/off"], "confirmed: sent once");
+  await page.close();
+});
+
+test("a link added to a project can be undone", async () => {
+  const page = await signedIn.newPage();
+  await page.goto(t.origin + `/projects/${projectId}#links`);
+  const before = Number(t.db.prepare("select count(*) as n from project_link").get()?.["n"]);
+  await page.getByText("Add a link").click();
+  await page.locator('form[action$="/links"]').getByLabel("Web address").fill("https://design.example.com");
+  await page.locator('form[action$="/links"]').getByRole("button").last().click();
+  await page.locator(".hq-undo").getByText("Link added: https://design.example.com").waitFor();
+  assert.equal(Number(t.db.prepare("select count(*) as n from project_link").get()?.["n"]), before + 1);
+  await page.keyboard.press("Control+z");
+  await page.getByText("Link removed.").first().waitFor();
+  assert.equal(Number(t.db.prepare("select count(*) as n from project_link").get()?.["n"]), before);
+  await page.close();
+});

@@ -36,6 +36,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
   Undo bar names what it puts back. Send, publish, share, void and
   call-cancel buttons wait eight seconds with Undo before anything leaves
   HQ. A client's demo flag can be undone.
+- Undo for adding, a confirm step, and unsent text kept (decision 0014,
+  section 10). Adding a project link, comment, label, saved filter, time,
+  expense, demo or referral link can be undone, and so can editing a
+  comment. Turning off two-step sign-in, removing a passkey, new recovery
+  codes, resetting someone's two-step sign-in, turning an account off and
+  new webhook or automation secrets ask first. Unsent text in long boxes
+  comes back after a closed or crashed page. Ctrl+Enter sends a form.
+  Dropped cards move to their column at once. Pages leave room for the
+  Undo bars.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
