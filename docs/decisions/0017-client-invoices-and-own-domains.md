@@ -1,4 +1,4 @@
-# 0014. Invoices on a client, and free pages on a client's own domain
+# 0017. Invoices on a client, and free pages on a client's own domain
 
 Status: decided 2026-11-25 at Mikey's request ("I want to bill him for just
 the domain name, but I can't seem to do so without starting a project", and
@@ -17,7 +17,7 @@ $10 a year.
 ## Decision
 
 - **Every invoice names its client; its project is optional** (migration
-  0072). The invoice table is rebuilt with `organization_id`, filled from
+  0078). The invoice table is rebuilt with `organization_id`, filled from
   each invoice's project, and `project_id` may be empty. Numbers, ids and
   payments are kept.
 - **Without a project, an invoice is "full" or "other".** A deposit or a
@@ -29,7 +29,7 @@ $10 a year.
 - **Renewals bill the client alone by default.** "Bill the client" offers
   "The client, no project" first, then their projects.
 - **A free page has one address: a name on potomac.solutions, or the
-  client's own domain** (migration 0073, `free_page.own_domain`, unique).
+  client's own domain** (migration 0079, `free_page.own_domain`, unique).
   With its renewal date, cost and price, saving adds the domain to the
   client's Renewals, yearly, ready to bill; it isn't added twice.
 - Nothing about a project moves when a client-only invoice is paid: there is
@@ -54,7 +54,7 @@ Asked for by Mikey after a look at what admins, managers and clients see.
   the week it renewed, already past that day. Once the pay-by day passes
   unpaid, Today says it "isn't paid", to decide.
 - **The client answers in the portal: "Renew it" or "Let it lapse"**
-  (migration 0074, on `renewal`: the answer, the renewal date it was for,
+  (migration 0080, on `renewal`: the answer, the renewal date it was for,
   when, and who). An answer counts for one term; marking it renewed starts
   the next term unanswered. They may change their mind until the day it
   renews, but not once it's paid. A renewal they let lapse isn't offered for
