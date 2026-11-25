@@ -673,7 +673,7 @@ Decision 0010, slice 1 (migration 0056).
 - `build.reference_from` and `build.reference` (slice 3, migration 0059):
   where a reworked build was read from, and the old site's text, shown to
   Claude only while the build has no files.
-- `build_publish` (slice 4, migration 0059): each version put on GitHub.
+- `build_publish` (slice 4, migration 0060): each version put on GitHub.
   `kind` is `new-repo` (the publish that made the repository), `commit` (a
   later one onto it) or `pull-request` (to a client's own repository);
   `branch` is the branch committed onto, or for a pull request the branch

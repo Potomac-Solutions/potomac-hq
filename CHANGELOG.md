@@ -15,7 +15,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
   request to a client's own repository, never onto its deploy branch.
   Later versions go the same way. A new repository is set up for client
   editing (decision 0003) when HQ's everyday token can see it. Migration
-  0059.
+  0060.
 
 - Rework a site a client already has (decision 0010, slice 3). From its
   repository on GitHub or its address on the web: a plain HTML repository
