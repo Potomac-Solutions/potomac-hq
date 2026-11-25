@@ -19,6 +19,8 @@ import type { ReportsDeps } from "./client-reports/index.ts";
 import type { AutomationsDeps } from "./automations/index.ts";
 import type { ShowcaseDeps } from "./showcase/index.ts";
 import type { ReferralCreditDeps } from "./referral-credit/index.ts";
+import type { DemosDeps } from "./demos/index.ts";
+import { sqliteDemoLinkStore, sqliteDemoStore } from "./demos/adapters.ts";
 import { sqliteReferralCreditStore } from "./referral-credit/adapters.ts";
 import { addReferralLink } from "./referrals/index.ts";
 import { sqliteCaseStudyStore, sqliteRequestStore, sqliteReviewStore } from "./showcase/adapters.ts";
@@ -114,6 +116,8 @@ export type Services = {
   readonly showcase: ShowcaseDeps;
   /** Who referred a lead, clients' own links, and the credit they earn (decision 0013, section 7). */
   readonly referralCredit: ReferralCreditDeps;
+  /** The Lab's demos, sent to prospects, and who opened them (decision 0013, section 8). */
+  readonly demos: DemosDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
@@ -444,6 +448,29 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     timeZone: BUSINESS_TIME_ZONE,
     runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
   };
+  const lastTouch = db.prepare("select max(t.happened_at) as at from touch t join opportunity o on o.organization_id = t.organization_id where o.id = ?");
+  const demos: DemosDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    demos: sqliteDemoStore(db),
+    links: sqliteDemoLinkStore(db),
+    random: (length) => crypto.getRandomValues(new Uint8Array(length)),
+    opportunity: (id) => {
+      const found = crm.opportunities.get(id);
+      if (!found) return null;
+      const contact = found.contactId ? crm.contacts.get(found.contactId) : null;
+      const to = contact?.email ? { name: contact.name, email: contact.email } : (clientEmails(found.organizationId)[0] ?? null);
+      return { title: found.title, organizationId: found.organizationId, clientName: crm.clients.get(found.organizationId)?.name ?? "", to };
+    },
+    lastTouchAt: (opportunityId) => {
+      const at = lastTouch.get(opportunityId)?.["at"];
+      return typeof at === "string" ? at : null;
+    },
+  };
   const referralCredit: ReferralCreditDeps = {
     users,
     transact: sqliteTransact(db),
@@ -490,7 +517,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, showcase, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -566,5 +593,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       expenseCategories: EXPENSE_CATEGORIES,
     },
   };
-  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

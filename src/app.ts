@@ -58,6 +58,8 @@ import { automationSecretPage } from "./automations/ui/views.ts";
 import { caseStudyFor, mayWriteReview, reviewLink, showcase } from "./showcase/index.ts";
 import { clientReferrals, creditAmount, creditFor, markReferredByLink, portalReferrals, referredByView, type ClientReferralsView } from "./referral-credit/index.ts";
 import { referralCreditRoutes } from "./referral-credit/api/referral-credit-routes.ts";
+import { demosList, opportunityDemos, type OpportunityDemos } from "./demos/index.ts";
+import { demoLinkRoutes, demoRoutes } from "./demos/api/demo-routes.ts";
 import { reviewWritingRoutes, showcaseApiRoutes, showcaseDownloads, showcaseStaffRoutes, type AskMail } from "./showcase/api/showcase-routes.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { buildsView, buildView, builderSettingsView, type Claude } from "./builder/index.ts";
@@ -307,7 +309,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly social: boolean; readonly siteBuilder: boolean; readonly newsletter: boolean; readonly monthlyReports: boolean; readonly reviews: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly social: boolean; readonly siteBuilder: boolean; readonly newsletter: boolean; readonly monthlyReports: boolean; readonly reviews: boolean; readonly demos: boolean };
   /** The site builder (decision 0010). */
   readonly builder: {
     list(): ReturnType<typeof buildsView>;
@@ -347,6 +349,11 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** The Lab's demos, and who opened them (decision 0013, section 8). */
+  readonly demos: {
+    list(): ReturnType<typeof demosList>;
+    forOpportunity(opportunityId: string): OpportunityDemos | null;
+  };
   /** Who referred a lead, clients' own links, and referral credit (decision 0013, section 7). */
   readonly referralCredit: {
     referredBy(opportunityId: string): ReturnType<typeof referredByView>;
@@ -856,7 +863,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, social: authorize(sessionDeps, actor, "social.view").ok, siteBuilder: authorize(sessionDeps, actor, "site.build").ok, newsletter: authorize(sessionDeps, actor, "newsletter.manage").ok, monthlyReports: authorize(sessionDeps, actor, "client-report.send").ok, reviews: authorize(sessionDeps, actor, "review.manage").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, social: authorize(sessionDeps, actor, "social.view").ok, siteBuilder: authorize(sessionDeps, actor, "site.build").ok, newsletter: authorize(sessionDeps, actor, "newsletter.manage").ok, monthlyReports: authorize(sessionDeps, actor, "client-report.send").ok, reviews: authorize(sessionDeps, actor, "review.manage").ok, demos: authorize(sessionDeps, actor, "demo.manage").ok },
         builder: {
           list: () => buildsView(services.builder, actor),
           build: (id, version) => withId(id, (buildId) => buildView(services.builder, actor, buildId, version === null ? null : /^\d{1,6}$/.test(version) ? Number(version) : Number.NaN)),
@@ -872,6 +879,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        demos: {
+          list: () => demosList(services.demos, actor),
+          forOpportunity: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? opportunityDemos(services.demos, actor, parsed.value) : null;
+          },
+        },
         referralCredit: {
           referredBy: (id) => {
             const parsed = parseId(id);
@@ -1325,6 +1339,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           body: `Hi ${to.name.split(/\s+/)[0] ?? ""},\n\nThank you for trusting Potomac Solutions with ${clientName || "your business"}'s work. Would you tell others how it went? It takes a minute: a few stars, a few words, and whether we may show it on our website.\n\n${link}\n\nThe link works once, for 30 days. If you'd rather not, ignore this email: no hard feelings.\n\nMikey and Jayanti\nPotomac Solutions`,
         }))
     : null;
+  forms.route("/", demoRoutes({ demos: services.demos, actorOf, sign: (location) => notices.sign(location), publicUrl, mail: sendOne }));
   forms.route("/", referralCreditRoutes({ credit: services.referralCredit, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", showcaseStaffRoutes({ showcase: services.showcase, actorOf, sign: (location) => notices.sign(location), publicUrl, mail: askMail }));
   forms.route("/", reviewWritingRoutes({ showcase: services.showcase, sign: (location) => notices.sign(location), clientOf }));
@@ -1444,6 +1459,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
   downloads.route("/", builderDownloads({ builder: services.builder, actorOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
+  downloads.route("/", demoLinkRoutes({ demos: services.demos }));
   downloads.route("/", showcaseDownloads({ showcase: services.showcase, actorOf }));
   downloads.route("/", freePageDownloads({ freePages: services.freePages, actorOf, clientOf, archive: config.siteArchive ?? null }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
@@ -1493,7 +1509,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/versions\/\d{1,6}\/site\.zip$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/versions\/\d{1,6}\/site\.zip$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

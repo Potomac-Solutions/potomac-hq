@@ -16,6 +16,7 @@ import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
 import { automationsNeedingAttention, type AutomationsDeps } from "../../automations/index.ts";
 import { reviewsWaiting, type ShowcaseDeps } from "../../showcase/index.ts";
+import { demoFollowUps, type DemosDeps } from "../../demos/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -37,6 +38,8 @@ export type TodayDeps = {
   readonly automations: AutomationsDeps;
   /** Reviews waiting to be published or kept back (decision 0013, section 6). */
   readonly showcase: ShowcaseDeps;
+  /** Prospects who opened a demo (decision 0013, section 8). */
+  readonly demos: DemosDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -92,6 +95,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
     if (one.kind === "changes") add("waiting", { key: `social-${one.id}`, text: one.text, detail: one.detail, href, action: "Change it", overdue: false, at: one.day });
     else add("social", { key: `social-${one.id}`, text: one.text, detail: one.detail, href, action: "Put it up", overdue: one.overdue, at: one.day });
   }
+  for (const one of demoFollowUps(deps.demos, actorId)) add("follow-up", { key: `demo-${one.opportunityId}`, text: one.text, detail: one.detail, href: `/opportunities/${one.opportunityId}#demos`, action: "Log a call", overdue: false, at: one.at.slice(0, 10) });
   for (const one of goingCold(deps.crm, actorId)) {
     add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });
   }

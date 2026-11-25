@@ -498,3 +498,10 @@ posting to it with `?status=ok`; an Error Trigger workflow posts to it with
 `HQ_ALERT_EMAIL` when one fails or doesn't run on time, and when it runs
 again. The address takes 120 check-ins a minute from one caller.
 
+## Demos
+
+Sales → Demos (`docs/decisions/0013-growth-tools.md`, section 8). Sending
+demos needs email. Each demo link is `HQ_PUBLIC_URL/d/<code>`: it counts an
+open and redirects to the demo. Some mail services open links to scan them,
+with a browser's user agent; an open seconds after sending may be one.
+
