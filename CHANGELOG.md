@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Undo and moving back (decision 0014). After a pipeline move, a client or
+  project status change, a task move on the board or ticking off a to-do,
+  an Undo bar appears at the bottom of the screen; press it or Ctrl+Z (⌘Z).
+  Opportunities can be dragged back to any earlier stage, moved back with a
+  card's Back button, and reopened from won (unless already a project) or
+  lost on their own page. Automatic moves still only go forward. Dragging
+  is clearer on the pipeline and the board: a grip on each card, the card
+  lifts and fades while dragged, columns it can go to are outlined with
+  "Drop to move here", and pipeline columns it can't go to are dimmed.
+
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
   button, on Ask HQ and beside "Ask Claude" in the site builder, a Model

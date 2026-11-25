@@ -1,5 +1,7 @@
 <!--
-  Tasks in columns by status. A card is dragged to another column to move it.
+  Tasks in columns by status. A card is dragged by its grip to another column
+  to move it; while it's dragged the other columns are outlined as places to
+  drop it. Undo puts it back (decision 0014).
   The same move works without a mouse, and with JavaScript off, through the
   small form on each card. `board` is what `context.projects.board` returns.
 -->
@@ -7,18 +9,37 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import './label-chips.zb'
   let over = ''
-  let dragged = ''
+  let dragging = ''
+  let from = ''
 
-  function start(event, id) {
-    dragged = id
+  function start(event, id, status) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', id)
+    from = status
+    // Let the browser take its picture of the card before it fades.
+    requestAnimationFrame(() => { if (from) dragging = id })
+  }
+  function end() {
+    dragging = ''
+    from = ''
+    over = ''
+  }
+  function enter(event, status) {
+    if (!from || status === from) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    over = status
+  }
+  function leave(event, status) {
+    if (event.currentTarget.contains(event.relatedTarget)) return
+    if (over === status) over = ''
   }
   function drop(event, status) {
     event.preventDefault()
-    over = ''
-    const id = event.dataTransfer.getData('text/plain') || dragged
-    dragged = ''
+    const id = event.dataTransfer.getData('text/plain')
+    const allowed = from !== '' && from !== status
+    end()
+    if (!allowed) return
     if (!/^[0-9a-f-]{36}$/.test(id)) return
     const form = event.currentTarget.getRootNode().querySelector('#move-' + id)
     const select = form ? form.querySelector('select') : null
@@ -30,12 +51,24 @@
 <style>
   :host { display: block; }
   .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 1rem; align-items: start; }
-  .board-column { display: grid; gap: 0.75rem; align-content: start; min-height: 8rem; padding: 0.75rem; background: var(--muted); border: 2px solid transparent; border-radius: var(--radius); }
-  .board-over { border-color: var(--ring); }
+  .board-column { display: grid; gap: 0.75rem; align-content: start; min-height: 8rem; padding: 0.75rem; background: var(--muted); border: 2px solid transparent; border-radius: var(--radius); transition: border-color 120ms, background-color 120ms; }
+  /* While a card is dragged, every other column is outlined as a place to drop it, and the one under it lights up. */
+  .board.board-dragging .board-column { border-style: dashed; border-color: color-mix(in srgb, var(--ring) 45%, transparent); }
+  .board.board-dragging .board-home { border-color: transparent; }
+  .board-column.board-over { border-style: solid; border-color: var(--ring); background: color-mix(in srgb, var(--ring) 12%, var(--muted)); }
+  .board-drop-hint { display: grid; place-items: center; min-height: 4rem; padding: 0.75rem; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; border: 2px dashed color-mix(in srgb, var(--ring) 55%, transparent); border-radius: var(--radius); }
+  .board-over .board-drop-hint { color: var(--foreground); border-color: var(--ring); background: var(--card); }
   .board-column h2 { display: flex; justify-content: space-between; margin: 0; font-size: 1rem; }
   .board-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-  .board-card { display: grid; gap: 0.35rem; padding: 0.75rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
-  .board-card[draggable=true] { cursor: grab; }
+  .board-card { position: relative; display: grid; gap: 0.35rem; padding: 0.75rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); transition: transform 120ms, box-shadow 120ms, border-color 120ms, opacity 120ms; }
+  /* A card that can be dragged has a grip, lifts on hover and grabs. */
+  .board-card[draggable=true] { cursor: grab; padding-left: 1.5rem; }
+  .board-card[draggable=true]:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--ring) 60%, var(--border)); box-shadow: 0 8px 20px rgb(0 0 0 / 0.12); }
+  .board-card[draggable=true]:active { cursor: grabbing; }
+  .board-grip { position: absolute; top: 0.8rem; left: 0.4rem; width: 0.75rem; height: 1.15rem; color: var(--muted-foreground); opacity: 0.55; }
+  .board-card:hover .board-grip { opacity: 1; color: var(--ring); }
+  .board-card.board-card-dragging { opacity: 0.4; transform: none; box-shadow: none; border-style: dashed; border-color: var(--ring); }
+  @media (prefers-reduced-motion: reduce) { .board-card, .board-column { transition: none; } .board-card[draggable=true]:hover { transform: none; } }
   .board-card p { margin: 0; }
   .board-meta { color: var(--muted-foreground); font-size: 0.85rem; }
   .board-move { display: flex; gap: 0.4rem; margin: 0.35rem 0 0; }
@@ -44,15 +77,17 @@
   .board-empty { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
 </style>
 <task-board board={{ columns: [], statuses: [], canMove: false, returnTo: "", project: null }}>
-  <div class="board">
+  <div class="board" class:board-dragging={dragging !== ''}>
     <zb-each items={board.columns} as="column" key={column.status}>
-      <section class="board-column" class:board-over={over === column.status} aria-labelledby="column-{column.status}" ondragover={(event) => { event.preventDefault(); over = column.status }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.status)}>
+      <section class="board-column" class:board-over={over === column.status} class:board-home={dragging !== '' && from === column.status} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
         <h2 id="column-{column.status}"><span>{column.label}</span> <status-badge>{column.cards.length}</status-badge></h2>
-        <p zb-if={column.cards.length === 0} class="board-empty">Nothing here.</p>
+        <div zb-if={dragging !== '' && from !== column.status} class="board-drop-hint" aria-hidden="true">Drop to move here</div>
+        <p zb-if={column.cards.length === 0 && dragging === ''} class="board-empty">Nothing here.</p>
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
-            <li class="board-card" draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id)}>
-              <p><a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
+            <li class="board-card" class:board-card-dragging={dragging === card.id} draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id, card.status)} ondragend={end}>
+              <svg zb-if={board.canMove} class="board-grip" aria-hidden="true" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg>
+              <p><a draggable="false" href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
               <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={card.subtasks || card.waiting > 0} class="board-meta"><span zb-if={card.subtasks}>Subtasks {card.subtasks}</span><span zb-if={card.subtasks && card.waiting > 0}> · </span><span zb-if={card.waiting > 0}>Waiting on {card.waiting}</span></p>
               <p zb-if={card.repeats} class="board-meta">Repeats</p>

@@ -37,14 +37,26 @@ at least 10 characters. The link works once.
 
 The full list is in the article "Authorization matrix".
 
+## Undo
+
+After a move or a status change, an **Undo** bar appears at the bottom of
+the screen. Press it, or Ctrl+Z (⌘Z on a Mac) when you're not typing, to put
+things back. Undo works for pipeline stages, client and project status,
+task moves on the board, and ticking off to-dos. It isn't offered when
+putting it back wouldn't be allowed: a deal marked lost (mark it lost again
+with a reason), or a repeating task whose next one was already made.
+
 ## A lead comes in
 
 1. **Clients**, then "Add a client". Add the person you talk to as a contact.
 2. On the client, open an **opportunity**: what they want, and how they
    found Potomac.
 3. Move it along the **Pipeline** as it goes: new, consult booked,
-   consulted, quoted. Set a follow-up day and it shows on your dashboard
-   when it is due.
+   consulted, quoted. Drag a card by its grip to the next column, or back to
+   any earlier one; columns it can't go to are dimmed while you drag. Each
+   card also has a Back button, and the opportunity's page can move it back
+   or reopen a won or lost deal. Set a follow-up day and it shows on your
+   dashboard when it is due.
 4. Write what was said in **Notes** on the client or the opportunity.
 
 ## The proposal
@@ -66,7 +78,8 @@ The full list is in the article "Authorization matrix".
 - When a milestone is something the client has to do, like sending photos,
   tick "The client has to do this one". Their portal then puts it first,
   under "waiting on you".
-- The **Board** shows tasks by status. Drag a card, or use its menu.
+- The **Board** shows tasks by status. Drag a card by its grip, or use its
+  menu.
   Moving a task to "Working on" starts your timer. Moving it on stops the
   timer and logs the time.
 - **Deliverables** are files for the client. A draft is yours. Share it and

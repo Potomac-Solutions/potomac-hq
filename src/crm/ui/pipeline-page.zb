@@ -1,6 +1,9 @@
 <!--
   Every open opportunity, grouped by stage. A button, or dragging the card to
-  the next column, moves one on and comes back here. Prices show only for people who may see them.
+  the next column, moves one on and comes back here. Dragging it to any
+  earlier column, or its Back button, moves it back (decision 0014). Columns
+  a card can't go to are dimmed while it's dragged. Prices show only for
+  people who may see them.
 -->
 <script>
   'use route /pipeline'
@@ -16,37 +19,79 @@
     return { title: 'Pipeline', view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
 
-  // Dragging a card to the next column does what its button does: it posts
-  // the card's own form. The server still decides whether the move is allowed.
+  // Dragging a card does what its button does: it posts the card's own form.
+  // It may go to the next column or back to any earlier one; the server still
+  // decides whether the move is allowed.
   let over = ''
-  function start(event, id) {
+  let dragging = ''
+  let from = -1
+  const canDrop = (index) => from !== -1 && (index < from || index === from + 1)
+  function start(event, id, index) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', id)
+    from = index
+    // Let the browser take its picture of the card before it fades.
+    requestAnimationFrame(() => { if (from !== -1) dragging = id })
   }
-  function drop(event, stage) {
-    event.preventDefault()
+  function end() {
+    dragging = ''
+    from = -1
     over = ''
+  }
+  function enter(event, column) {
+    if (!canDrop(column.index)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    over = column.stage
+  }
+  function leave(event, stage) {
+    if (event.currentTarget.contains(event.relatedTarget)) return
+    if (over === stage) over = ''
+  }
+  function drop(event, column) {
+    event.preventDefault()
+    const allowed = canDrop(column.index)
     const id = event.dataTransfer.getData('text/plain')
-    if (!/^[0-9a-f-]{36}$/.test(id)) return
+    end()
+    if (!allowed || !/^[0-9a-f-]{36}$/.test(id)) return
     const form = event.currentTarget.getRootNode().querySelector('#stage-' + id)
     const to = form ? form.querySelector('input[name=to]') : null
-    if (!to || form.dataset.now === stage) return
-    to.value = stage
+    const back = form ? form.querySelector('input[name=back]') : null
+    if (!to || form.dataset.now === column.stage) return
+    to.value = column.stage
+    if (back) back.value = Number(form.dataset.index) > column.index ? '1' : ''
     form.requestSubmit()
   }
 </script>
 <style>
   .hq-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; align-items: start; }
   /* Each stage is a lane, tall enough to drop a card into even when empty. */
-  .hq-column { display: grid; gap: 0.75rem; align-content: start; min-height: 22rem; padding: 0.75rem; background: color-mix(in srgb, var(--muted) 55%, transparent); border: 2px solid transparent; border-radius: var(--radius); }
-  .hq-column-over { border-color: var(--ring); }
-  .hq-card[draggable=true] { cursor: grab; }
+  .hq-column { display: grid; gap: 0.75rem; align-content: start; min-height: 22rem; padding: 0.75rem; background: color-mix(in srgb, var(--muted) 55%, transparent); border: 2px solid transparent; border-radius: var(--radius); transition: border-color 120ms, background-color 120ms, opacity 120ms; }
   .hq-column h2 { display: flex; justify-content: space-between; align-items: center; margin: 0; font-size: 0.9375rem; }
+  /* While a card is dragged: where it can go is outlined, where it can't is dimmed, and the one under it lights up. */
+  .hq-columns.hq-dragging .hq-column { border-style: dashed; border-color: color-mix(in srgb, var(--ring) 45%, transparent); }
+  .hq-columns.hq-dragging .hq-column-home { border-color: transparent; }
+  .hq-columns.hq-dragging .hq-column-blocked { opacity: 0.45; border-color: transparent; }
+  .hq-column.hq-column-over { border-style: solid; border-color: var(--ring); background: color-mix(in srgb, var(--ring) 12%, var(--muted)); }
+  .hq-drop-hint { display: grid; place-items: center; min-height: 4.5rem; padding: 0.75rem; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; text-align: center; border: 2px dashed color-mix(in srgb, var(--ring) 55%, transparent); border-radius: var(--radius); }
+  .hq-column-over .hq-drop-hint { color: var(--foreground); border-color: var(--ring); background: var(--card); }
+  .hq-blocked-hint { margin: 0; color: var(--muted-foreground); font-size: 0.8rem; text-align: center; }
+
   .hq-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-  .hq-card { display: grid; gap: 0.35rem; padding: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.9rem; }
+  .hq-card { position: relative; display: grid; gap: 0.35rem; padding: 0.85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.9rem; transition: transform 120ms, box-shadow 120ms, border-color 120ms, opacity 120ms; }
+  /* A card that can be dragged has a grip, lifts on hover and grabs. */
+  .hq-card[draggable=true] { cursor: grab; padding-left: 1.6rem; }
+  .hq-card[draggable=true]:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--ring) 60%, var(--border)); box-shadow: 0 8px 20px rgb(0 0 0 / 0.12); }
+  .hq-card[draggable=true]:active { cursor: grabbing; }
+  .hq-grip { position: absolute; top: 0.85rem; left: 0.45rem; width: 0.75rem; height: 1.15rem; color: var(--muted-foreground); opacity: 0.55; }
+  .hq-card:hover .hq-grip { opacity: 1; color: var(--ring); }
+  .hq-card.hq-card-dragging { opacity: 0.4; transform: none; box-shadow: none; border-style: dashed; border-color: var(--ring); }
   .hq-card p { margin: 0; }
-  .hq-card form { margin: 0.35rem 0 0; }
+  .hq-card a { position: relative; }
+  .hq-card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.35rem 0 0; }
+  .hq-card form { margin: 0; }
   .hq-card .hq-button { height: 2rem; padding: 0 0.75rem; font-size: 0.85rem; }
+  @media (prefers-reduced-motion: reduce) { .hq-card, .hq-column { transition: none; } .hq-card[draggable=true]:hover { transform: none; } }
 </style>
 <hq-pipeline view={{ columns: [], openCount: 0, canMove: false }} done="" problem="">
   <div class="hq-page">
@@ -56,22 +101,35 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <empty-state zb-if={view.openCount === 0} heading="No open opportunities">Open one from a client's page.</empty-state>
-    <div zb-else class="hq-columns">
+    <p zb-if={view.openCount > 0 && view.canMove} class="hq-muted">Drag a card by its grip to the next stage, or back to any earlier one.</p>
+    <div zb-if={view.openCount > 0} class="hq-columns" class:hq-dragging={dragging !== ''}>
       <zb-each items={view.columns} as="column" key={column.stage}>
-        <section class="hq-column" class:hq-column-over={over === column.stage} aria-labelledby="stage-{column.stage}" ondragover={(event) => { event.preventDefault(); over = column.stage }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.stage)}>
+        <section class="hq-column" class:hq-column-over={over === column.stage} class:hq-column-home={dragging !== '' && column.index === from} class:hq-column-blocked={dragging !== '' && column.index !== from && !canDrop(column.index)} aria-labelledby="stage-{column.stage}" ondragenter={(event) => enter(event, column)} ondragover={(event) => enter(event, column)} ondragleave={(event) => leave(event, column.stage)} ondrop={(event) => drop(event, column)}>
           <h2 id="stage-{column.stage}"><span>{column.label}</span> <status-badge>{column.items.length}</status-badge></h2>
+          <div zb-if={dragging !== '' && canDrop(column.index)} class="hq-drop-hint" aria-hidden="true">{column.index < from ? 'Drop to move back here' : 'Drop to move here'}</div>
+          <p zb-if={dragging !== '' && column.index !== from && !canDrop(column.index)} class="hq-blocked-hint" aria-hidden="true">One stage at a time</p>
           <ul class="hq-cards">
             <zb-each items={column.items} as="item" key={item.id}>
-              <li class="hq-card" draggable={view.canMove ? "true" : "false"} ondragstart={(event) => start(event, item.id)}>
-                <p><a href="/opportunities/{item.id}"><strong>{item.title}</strong></a></p>
+              <li class="hq-card" class:hq-card-dragging={dragging === item.id} draggable={view.canMove ? "true" : "false"} ondragstart={(event) => start(event, item.id, column.index)} ondragend={end}>
+                <svg zb-if={view.canMove} class="hq-grip" aria-hidden="true" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg>
+                <p><a draggable="false" href="/opportunities/{item.id}"><strong>{item.title}</strong></a></p>
                 <p class="hq-muted">{item.clientName} · {item.serviceLabel}</p>
                 <p zb-if={item.price}>{item.price}</p>
                 <p zb-if={item.followUpOn}>Follow up <time datetime={item.followUpOn}>{item.followUpText}</time> <status-badge zb-if={item.followUpDue} variant="danger">Due</status-badge></p>
-                <form zb-if={view.canMove} id="stage-{item.id}" data-now={column.stage} method="post" action="/opportunities/{item.id}/stage">
-                  <input type="hidden" name="to" value={column.nextStage}>
-                  <input type="hidden" name="returnTo" value="pipeline">
-                  <button class="hq-button secondary" type="submit" aria-label="Move to {column.nextStageLabel}: {item.title}">Move to {column.nextStageLabel}</button>
-                </form>
+                <div zb-if={view.canMove} class="hq-card-actions">
+                  <form id="stage-{item.id}" data-now={column.stage} data-index={column.index} method="post" action="/opportunities/{item.id}/stage">
+                    <input type="hidden" name="to" value={column.nextStage}>
+                    <input type="hidden" name="back" value="">
+                    <input type="hidden" name="returnTo" value="pipeline">
+                    <button class="hq-button secondary" type="submit" aria-label="Move to {column.nextStageLabel}: {item.title}">Move to {column.nextStageLabel}</button>
+                  </form>
+                  <form zb-if={column.backStage} method="post" action="/opportunities/{item.id}/stage">
+                    <input type="hidden" name="to" value={column.backStage}>
+                    <input type="hidden" name="back" value="1">
+                    <input type="hidden" name="returnTo" value="pipeline">
+                    <button class="hq-button secondary" type="submit" aria-label="Move back to {column.backStageLabel}: {item.title}">Back</button>
+                  </form>
+                </div>
               </li>
             </zb-each>
           </ul>
