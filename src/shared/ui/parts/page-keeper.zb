@@ -1,0 +1,229 @@
+<!--
+  Small things the shell does on every page so a click never costs you your
+  place (decision 0014):
+
+  - After a form post comes back to the same page, the scroll position and
+    focus come back too, and cards moved on a board slide to their new place
+    (a view transition, where the browser has them).
+  - A form can't be sent twice by a double-click.
+  - Leaving a page with a form you've typed in asks first.
+  - Green "done" messages fade after a few seconds; problems stay.
+  - Removing something hides it at once and waits a few seconds, with Undo,
+    before the removal is sent. Leaving the page sends it straight away.
+-->
+<script>
+  import { onMount, onUnmount } from '@zubra/runtime'
+
+  const PLACE = 'hq-kept-place'
+  const REMOVAL = /\/(remove|archive)$/
+  const WAIT_MS = 6000
+  let pending = null
+  let removing = false
+  let timer = 0
+
+  const isPost = (form) => form instanceof HTMLFormElement && (form.getAttribute('method') || '').toLowerCase() === 'post'
+  const actionOf = (form) => new URL(form.getAttribute('action') || location.pathname, location.href).pathname
+  const typing = (target) => target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+
+  // ── Keep your place ────────────────────────────────────────────────────
+  function rememberPlace(form, submitter) {
+    const card = form.closest('[data-vt]')
+    const place = { path: location.pathname, y: Math.round(scrollY), action: form.getAttribute('action') || '', label: submitter ? submitter.textContent.trim() : '', card: card ? card.dataset.vt : '', at: Date.now() }
+    try { sessionStorage.setItem(PLACE, JSON.stringify(place)) } catch {}
+  }
+  function restorePlace() {
+    let place = null
+    try {
+      place = JSON.parse(sessionStorage.getItem(PLACE) || 'null')
+      sessionStorage.removeItem(PLACE)
+    } catch {}
+    if (!place || Date.now() - place.at > 20000 || place.path !== location.pathname || location.hash) return
+    scrollTo({ top: place.y, behavior: 'instant' })
+    const card = place.card ? document.querySelector('[data-vt="' + CSS.escape(place.card) + '"]') : null
+    const form = !card && place.action ? [...document.forms].find((one) => one.getAttribute('action') === place.action) : null
+    const button = form ? [...form.querySelectorAll('button[type=submit], button:not([type])')].find((one) => !place.label || one.textContent.trim() === place.label) : null
+    const target = card || button
+    if (target && !target.closest('[hidden]')) target.focus({ preventScroll: true })
+  }
+
+  // ── Cards slide to their new place (cross-page view transitions) ─────────
+  function nameCards(names) {
+    for (const element of document.querySelectorAll('[data-vt]')) {
+      const box = element.getBoundingClientRect()
+      const near = box.bottom > -200 && box.top < innerHeight + 200
+      element.style.viewTransitionName = names && near ? element.dataset.vt : ''
+    }
+  }
+  function swap(event) {
+    if (!event.viewTransition) return
+    const to = event.activation && event.activation.entry && event.activation.entry.url ? new URL(event.activation.entry.url) : null
+    if (!to || to.pathname !== location.pathname) return event.viewTransition.skipTransition()
+    nameCards(true)
+  }
+  function reveal(event) {
+    if (!event.viewTransition) return
+    restorePlace()
+    nameCards(true)
+    event.viewTransition.finished.finally(() => nameCards(false))
+  }
+
+  // ── Sending: once only, and removals wait for Undo ──────────────────────
+  function guard(event) {
+    const form = event.target
+    if (!isPost(form) || event.defaultPrevented) return
+    if (form.hasAttribute('data-hq-sending')) return event.preventDefault()
+    const path = actionOf(form)
+    if (REMOVAL.test(path) && !path.startsWith('/settings/') && !form.hasAttribute('data-hq-now')) {
+      event.preventDefault()
+      holdRemoval(form, event.submitter)
+    }
+  }
+  // Runs last: only a post that is really going marks its form as sending.
+  function sent(event) {
+    const form = event.target
+    if (!isPost(form) || event.defaultPrevented) return
+    if (form.target && form.target !== '_self') return
+    rememberPlace(form, event.submitter)
+    form.removeAttribute('data-hq-dirty')
+    form.setAttribute('data-hq-sending', '')
+    if (event.submitter) event.submitter.setAttribute('aria-busy', 'true')
+    setTimeout(() => {
+      form.removeAttribute('data-hq-sending')
+      if (event.submitter) event.submitter.removeAttribute('aria-busy')
+    }, 8000)
+  }
+  function shown(event) {
+    if (!event.persisted) return
+    for (const form of document.querySelectorAll('[data-hq-sending]')) form.removeAttribute('data-hq-sending')
+    for (const button of document.querySelectorAll('[aria-busy=true]')) button.removeAttribute('aria-busy')
+  }
+
+  function holdRemoval(form, submitter) {
+    if (pending) sendNow(pending)
+    const item = form.closest('li, tr')
+    pending = { form, submitter, item, body: new URLSearchParams(new FormData(form, submitter)) }
+    if (item) item.style.display = 'none'
+    removing = true
+    hideServerUndo(true)
+    clearTimeout(timer)
+    timer = setTimeout(sendHeld, WAIT_MS)
+    requestAnimationFrame(() => document.getElementById('hq-removal-undo')?.focus({ preventScroll: true }))
+  }
+  // Time's up: send it as the form would have, so the page says what happened.
+  function sendHeld() {
+    const held = pending
+    pending = null
+    removing = false
+    if (!held) return
+    held.form.setAttribute('data-hq-now', '')
+    held.form.requestSubmit(held.submitter && held.submitter.form === held.form ? held.submitter : undefined)
+  }
+  // Leaving the page, or removing something else: send it in the background.
+  function sendNow(held) {
+    fetch(held.form.getAttribute('action'), { method: 'POST', body: held.body, keepalive: true, credentials: 'same-origin', redirect: 'manual' }).catch(() => {})
+  }
+  function undoRemoval() {
+    clearTimeout(timer)
+    if (pending && pending.item) pending.item.style.display = ''
+    const focus = pending && pending.submitter
+    pending = null
+    removing = false
+    hideServerUndo(false)
+    if (focus) focus.focus()
+  }
+  function leaving() {
+    if (!pending) return
+    clearTimeout(timer)
+    sendNow(pending)
+    pending = null
+  }
+  function hideServerUndo(hide) {
+    const bar = document.querySelector('.hq-undo')
+    if (bar) bar.style.visibility = hide ? 'hidden' : ''
+  }
+  function undoKey(event) {
+    if (!pending || (event.key !== 'z' && event.key !== 'Z') || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+    if (typing(event.target)) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    undoRemoval()
+  }
+
+  // ── Typed but not sent ──────────────────────────────────────────────────
+  function edited(event) {
+    const field = event.target
+    const form = field && field.form
+    if (!isPost(form) || field.type === 'hidden' || form.closest('[data-no-warn]')) return
+    form.setAttribute('data-hq-dirty', '')
+  }
+  function beforeLeaving(event) {
+    if (pending) leaving()
+    if (!document.querySelector('form[data-hq-dirty]')) return
+    event.preventDefault()
+    event.returnValue = ''
+  }
+
+  // ── Done messages fade; problems stay ───────────────────────────────────
+  function fadeDone() {
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+    for (const banner of document.querySelectorAll('main alert-banner[variant=success]')) {
+      const fade = () => {
+        if (!banner.isConnected) return
+        if (banner.matches(':hover, :focus-within')) return void setTimeout(fade, 2000)
+        const done = () => {
+          banner.style.display = 'none'
+          const box = banner.closest('.hq-notices')
+          if (box && ![...box.children].some((child) => child.style.display !== 'none')) box.style.display = 'none'
+        }
+        if (still) return done()
+        banner.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: 'ease-out' }).finished.then(done, done)
+      }
+      setTimeout(fade, 6000)
+    }
+  }
+
+  onMount(() => {
+    document.addEventListener('submit', guard, true)
+    addEventListener('submit', sent)
+    document.addEventListener('input', edited, true)
+    document.addEventListener('change', edited, true)
+    addEventListener('keydown', undoKey, true)
+    addEventListener('beforeunload', beforeLeaving)
+    addEventListener('pagehide', leaving)
+    addEventListener('pageshow', shown)
+    addEventListener('pageswap', swap)
+    addEventListener('pagereveal', reveal)
+    restorePlace()
+    fadeDone()
+  })
+  onUnmount(() => {
+    document.removeEventListener('submit', guard, true)
+    removeEventListener('submit', sent)
+    document.removeEventListener('input', edited, true)
+    document.removeEventListener('change', edited, true)
+    removeEventListener('keydown', undoKey, true)
+    removeEventListener('beforeunload', beforeLeaving)
+    removeEventListener('pagehide', leaving)
+    removeEventListener('pageshow', shown)
+    removeEventListener('pageswap', swap)
+    removeEventListener('pagereveal', reveal)
+  })
+</script>
+<style>
+  .keeper-bar { position: fixed; z-index: 21; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: var(--sidebar-foreground); background: var(--sidebar); border: 1px solid var(--sidebar-border); border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; }
+  .keeper-bar button { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
+  .keeper-bar button:hover { background: #dff1fd; }
+  .keeper-bar button:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
+  .keeper-bar kbd { font: inherit; font-size: 0.75rem; color: var(--sidebar-muted); }
+  .keeper-clock { width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid var(--sidebar-muted); border-top-color: #9fd6fb; animation: keeper-turn 6s linear forwards; }
+  @keyframes keeper-turn { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .keeper-clock { animation: none; } }
+</style>
+<page-keeper>
+  <div zb-if={removing} class="keeper-bar" role="region" aria-label="Removed">
+    <span class="keeper-clock" aria-hidden="true"></span>
+    <span role="status">Removed.</span>
+    <button id="hq-removal-undo" type="button" onclick={undoRemoval}>Undo</button>
+    <kbd aria-hidden="true">Ctrl Z</kbd>
+  </div>
+</page-keeper>
