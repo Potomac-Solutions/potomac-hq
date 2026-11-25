@@ -664,7 +664,7 @@ Decision 0010, slice 1 (migration 0056).
   millionths of a dollar. A failed request is still counted. `error` is a
   code, never the API's words.
 - `builder_settings`: one row, the model and the monthly cap in cents.
-- `build_image` (slice 2, migration 0057): a photo or the logo uploaded to a
+- `build_image` (slice 2, migration 0058): a photo or the logo uploaded to a
   build, with its bytes, its type and size read from its own header, what
   it shows, and its path in the site (`images/logo-<12 hex>.png`), made
   from its id. Shared by every version of the build: the preview and the

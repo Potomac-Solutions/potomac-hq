@@ -20,10 +20,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} sites={null} website={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -260,6 +260,12 @@
           </zb-each>
         </ul>
       </div>
+    </section>
+    <section zb-if={social} class="hq-panel" id="social" aria-labelledby="client-social">
+      <h2 id="client-social">Social media</h2>
+      <p zb-if={social.plan}>{social.plan}<span zb-if={social.paused}> · paused</span>. This month: {social.count}.</p>
+      <p zb-else class="hq-muted">No plan. For a client on social media marketing: their networks, and how many posts each month.</p>
+      <p><a class="hq-button secondary" href="/clients/{view.client.id}/social">{social.plan ? 'Open the calendar' : social.canEdit ? 'Set up a plan' : 'Open'}</a></p>
     </section>
     <section zb-if={renewals} class="hq-panel" id="renewals" aria-labelledby="client-renewals">
       <h2 id="client-renewals">Renewals</h2>

@@ -296,6 +296,18 @@ downloading it needs `file.download`, as for a deliverable.
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
 
+### Social media (decision 0011)
+
+Decided 2026-11-25 by Mikey.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See clients' social media plans and calendars | `social.view` | Yes | Yes | Yes | No |
+| Set a plan, write posts, send them, record approval, mark them posted | `social.edit` | Yes | Yes | Yes | No |
+
+A client sees and approves only their own organization's posts, in the
+portal, taken from their session (see Client users).
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in
