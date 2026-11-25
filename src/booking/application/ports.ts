@@ -47,7 +47,7 @@ export type BookingStore = {
    */
   dueReminders(from: string, to: string): readonly Booking[];
   markReminded(id: Id, at: string): void;
-  setCrm(id: Id, clientId: Id, opportunityId: Id): void;
+  setCrm(id: Id, clientId: Id, opportunityId: Id | null): void;
 };
 
 /** Times already taken in another calendar, such as Google Calendar. None until one is connected. */
