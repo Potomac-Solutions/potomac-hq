@@ -33,6 +33,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "questions-missing": "Add at least one question, one a line.",
   "too-many-questions": "A guide has up to 20 questions.",
   "question-too-long": "Keep each question under 200 characters.",
+  "script-missing": "Write the script, or put back the one HQ came with.",
+  "script-too-long": "Keep the script under 600 characters: about 30 seconds read aloud.",
   closed: "This opportunity is closed. A deal that comes back is a new opportunity.",
   "invalid-stage": "Choose a stage from the list.",
   "not-the-next-stage": "Stages move forward one at a time.",

@@ -1,7 +1,7 @@
 // The call screen's forms (decision 0009): start a call, change its planned
 // length, keep its notes, and end it into the call log.
 import { Hono } from "hono";
-import { changeCallLength, endCall, followThroughCall, keepCallNote, lengthText, saveAnswers, saveCallGuide, startCall, switchGuide, type CallDeps, type CallFrom } from "../application/calls.ts";
+import { changeCallLength, endCall, followThroughCall, keepCallNote, lengthText, saveAnswers, saveCallGuide, saveVoicemailScript, startCall, switchGuide, type CallDeps, type CallFrom } from "../application/calls.ts";
 import { err, formPosts, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -42,7 +42,7 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
   const screen = (id: Id | null) => `/phone/${id}`;
   post("/phone", (actor, f) => {
     const from = fromForm(f);
-    return from ? startCall(deps.calls, actor, from) : err("not-found");
+    return from ? startCall(deps.calls, actor, from, { returnTo: f["returnTo"] ?? null }) : err("not-found");
   }, {
     done: (started) => `/phone/${started.call.id}`,
     back: (_, f) => backFrom(f),
@@ -58,6 +58,7 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
     back: (_, f) => `/call-guides#guide-${encodeURIComponent(f["situation"] ?? "")}`,
     message: (saved) => `Saved, with ${saved.count} question${saved.count === 1 ? "" : "s"}. Calls from now on use it.`,
   });
+  post("/call-guides/voicemail", (actor, f) => saveVoicemailScript(deps.calls, actor, f["text"] ?? ""), { done: () => "/call-guides#voicemail", back: () => "/call-guides#voicemail", message: "Saved. Calls from now on use it." });
   post("/phone/:id/note", (actor, f, id) => keepCallNote(deps.calls, actor, id as Id, f["note"] ?? ""), { done: (_, id) => screen(id), back: screen, message: "Notes saved." });
   post("/phone/:id/end", (actor, f, id) => {
     const ended = endCall(deps.calls, actor, id as Id, { outcome: f["outcome"] ?? null, note: f["note"] ?? null, followUpOn: f["followUpOn"] ?? null });
@@ -66,7 +67,7 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
     const after = followThroughCall(deps.calls, actor, id as Id, { nextSteps: f["nextSteps"] ?? null, projectId: f["logTo"] ?? null });
     return { ok: true as const, value: { call: ended.value, after: after.ok ? after.value : { todos: 0, loggedMinutes: 0, problems: [] } } };
   }, {
-    done: ({ call }) => (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
+    done: ({ call }) => call.returnTo ?? (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
     back: screen,
     message: ({ after }) =>
       [

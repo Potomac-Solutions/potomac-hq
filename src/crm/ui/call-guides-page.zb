@@ -13,14 +13,14 @@
     if (stop) return stop
     const view = context.crm.callGuides()
     if (!view) return context.forbidden()
-    return { title: 'Call guides', view, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Call guides', view, script: context.crm.voicemailScript(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   .guides { display: grid; gap: 1rem; max-width: 46rem; }
   .guide-list { margin: 0.5rem 0 0; padding-left: 1.4rem; display: grid; gap: 0.3rem; }
 </style>
-<hq-call-guides view={null} done="" problem="">
+<hq-call-guides view={null} script={null} done="" problem="">
   <div class="guides">
     <h1>Call guides</h1>
     <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -41,5 +41,14 @@
         </form>
       </section>
     </zb-each>
+    <section zb-if={script} class="hq-panel" id="voicemail" aria-labelledby="voicemail-heading">
+      <h2 id="voicemail-heading">Voicemail script</h2>
+      <p class="hq-muted hq-small">Shown on the call screen under “If you get their voicemail”. {script.updated}.</p>
+      <p zb-if={!script.canEdit}>{script.text}</p>
+      <form zb-if={script.canEdit} method="post" action="/call-guides/voicemail" class="hq-form">
+        <text-field label="What to say" name="text" value={script.text} rows={4} required={true} maxlength={600} description={'{name} is their first name, {me} yours, and {about} what the call is about. About 30 seconds read aloud.'}></text-field>
+        <div><button class="hq-button" type="submit">Save the script</button></div>
+      </form>
+    </section>
   </div>
 </hq-call-guides>
