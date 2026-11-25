@@ -96,6 +96,39 @@ What it can do at first (**Default**, more as they're asked for):
 | Always asks | Quick add a task or to-do in quick add's own words; add a note; log a call or message; add a client; open a deal |
 | Anything else | A link to the page that does it, filled in where the page allows |
 
+## Follow-up (2026-11-25)
+
+Mikey asked for all seven of Claude's follow-up ideas ("do them all"), on a
+branch stacked on the first:
+
+5. **Command bar.** `/` or Ctrl+K (⌘K) from any page, or **Go to…** in the
+   top bar: pages and records as you type (`GET /find.json`, the person's
+   own permissions), Enter opens one; with nothing picked, Enter asks the
+   assistant from that page.
+6. **The assistant on every page.** **Ask** in the top bar opens a drawer
+   with the same conversation. A message is sent with the page's address,
+   so "this" means that page's record. Open and close are links
+   (`?chat=open`), so it works without scripts.
+7. **Phones.** Under 60rem a tab bar along the bottom: Home, Today, Search,
+   Add, Ask.
+8. **Your day.** The conversation opens with a line built from HQ's own
+   records (who's waiting, what's due, the next call), with links. No
+   model, no budget.
+9. **More the assistant can do.** Set a deal's follow-up day and mark a
+   project's health (both small, with Undo); stop the timer; make a booking
+   link (shown on Calls to copy; its address never goes in the conversation
+   or the log); start a proposal (from the AI draft when one waits); draft
+   an invoice (money: always asks, and stays a draft). Starting the timer is
+   moving a task to Working on.
+10. **Pins and recents.** **Pin** in the top bar puts the page you're on at
+    the top of your sidebar (up to 12, per person, migration 0073). Recent
+    records are kept on the device only, and cleared on sign-out.
+    **Default:** recents aren't kept on the server, so viewing a page writes
+    nothing.
+11. **Voice.** **Speak** beside the box, in the drawer and in the command
+    bar, where the browser can turn speech into text. Nothing is recorded
+    by HQ.
+
 ## Slices
 
 1. Places, hubs and search for pages.
@@ -107,4 +140,3 @@ What it can do at first (**Default**, more as they're asked for):
 - Streaming answers as they're written. A message waits for the whole
   answer, as Ask HQ does.
 - Sending, posting or paying anything from the assistant.
-- Voice input.

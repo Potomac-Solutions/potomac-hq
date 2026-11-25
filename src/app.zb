@@ -12,6 +12,8 @@
   // user-avatar is the shell's alone; the account actions are a plain link
   // and a plain button, not action-button.
   import './shared/ui/zubra/user-avatar.zb'
+  import './shared/ui/parts/command-bar.zb'
+  import './shared/ui/parts/assistant-drawer.zb'
   import { onMount, onUnmount } from '@zubra/runtime'
 
   export async function load({ context, url }) {
@@ -29,11 +31,43 @@
     // open. The list of pages and who may open each lives in one place.
     const groups = context.user ? context.nav(path, url.search) : []
     const draftHub = aiDrafts > 0 ? 'today' : ''
+    // Pins, and the assistant's drawer on any page but Home (decision 0015, follow-up).
+    const pins = context.user ? context.pins(path + url.search) : { items: [], here: false, href: path }
+    const here = pins.href
+    const askOn = context.user ? context.ai.state('assistant').on : false
+    const chatOpen = Boolean(context.user) && path !== '/' && url.searchParams.get('chat') === 'open'
+    const chat = chatOpen ? context.assistant() : null
+    const join = (href, add) => href + (href.includes('?') ? '&' : '?') + add
+    const askHref = path === '/' ? '/#chat' : join(here, 'chat=open') + '#assistant'
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, aiDrafts, draftHub, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, aiDrafts, draftHub, pins, here, askOn, chat, askHref, closeHref: here, atHome: path === '/', searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
   }
 
   let menu = false
+  // Recent records (decision 0015, follow-up): kept on this device only, and
+  // cleared when you sign out.
+  const RECENT = 'hq-recent'
+  let recent = []
+  const RECORD = /^\/(clients|opportunities|projects|tasks|proposals|invoices)\/[0-9a-f-]{36}$/
+  function remember() {
+    let list = []
+    try {
+      list = JSON.parse(localStorage.getItem(RECENT) || '[]')
+    } catch {}
+    const href = location.pathname
+    if (RECORD.test(href) && document.title && document.title !== 'Potomac HQ') {
+      list = [{ href, label: document.title }, ...list.filter((one) => one.href !== href)].slice(0, 6)
+      try {
+        localStorage.setItem(RECENT, JSON.stringify(list))
+      } catch {}
+    }
+    recent = list.filter((one) => one && typeof one.href === 'string' && RECORD.test(one.href) && typeof one.label === 'string').map((one) => ({ href: one.href, label: one.label.slice(0, 80), current: one.href === href }))
+  }
+  function forget() {
+    try {
+      localStorage.removeItem(RECENT)
+    } catch {}
+  }
 
   // N goes to quick add, unless you're typing somewhere.
   function quickKey(event) {
@@ -91,6 +125,7 @@
     document.addEventListener('keydown', quickKey)
     document.addEventListener('submit', keepForm)
     refill()
+    remember()
   })
   onUnmount(() => {
     document.removeEventListener('keydown', quickKey)
@@ -145,7 +180,18 @@
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
 
+  .hq-pin-form { display: inline; margin: 0; }
+  .hq-pin-form button { gap: 0.3rem; }
+  .hq-ask { color: var(--primary-foreground); background: var(--primary); border-color: transparent; }
+  .hq-pins summary::before { content: "★"; font-size: 0.8rem; }
+  .hq-tabbar { display: none; }
+
   @media (max-width: 60rem) {
+    .hq-shell { padding-bottom: 4rem; }
+    .hq-tabbar { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--border); }
+    .hq-tabbar a { flex: 1 1 0; display: grid; place-items: center; min-height: 2.75rem; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); text-decoration: none; border-radius: calc(var(--radius) - 2px); }
+    .hq-tabbar a[aria-current=page] { color: var(--primary); }
+    .hq-pin-label, .hq-ask, .hq-find { display: none; }
     .hq-shell { display: block; }
     .hq-side { position: static; height: auto; gap: 0.75rem; padding: 0.6rem 0.75rem; }
     .hq-menu { display: inline-flex; align-items: center; }
@@ -156,7 +202,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} ai-drafts={0} draft-hub="" searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
+<hq-app who="" groups={[]} ai-drafts={0} draft-hub="" pins={{ items: [], here: false, href: '/' }} here="/" ask-on={false} chat={null} ask-href="/" close-href="/" at-home={false} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -165,6 +211,16 @@
         <button type="button" class="hq-menu" aria-expanded={menu ? 'true' : 'false'} aria-controls="hq-nav" onclick={() => (menu = !menu)}>Menu</button>
       </div>
       <nav class="hq-nav" id="hq-nav" aria-label="Main">
+        <div zb-if={pins.items.length > 0} class="hq-hub hq-pins">
+          <details open={true}>
+            <summary>Pinned</summary>
+            <ul>
+              <zb-each items={pins.items} as="pin" key={pin.href}>
+                <li><a href={pin.href} aria-current={pin.current ? 'page' : null}>{pin.label}</a></li>
+              </zb-each>
+            </ul>
+          </details>
+        </div>
         <zb-each items={groups} as="hub" key={hub.key}>
           <div class="hq-hub" class:current={hub.current}>
             <a zb-if={hub.single} class="hq-hub-one" href={hub.links[0].href} aria-current={hub.links[0].current ? 'page' : null}>{hub.label}</a>
@@ -178,6 +234,16 @@
             </details>
           </div>
         </zb-each>
+        <div zb-if={recent.length > 0} class="hq-hub">
+          <details>
+            <summary>Recent</summary>
+            <ul>
+              <zb-each items={recent} as="item" key={item.href}>
+                <li><a href={item.href} aria-current={item.current ? 'page' : null}>{item.label}</a></li>
+              </zb-each>
+            </ul>
+          </details>
+        </div>
       </nav>
     </aside>
     <div class="hq-body">
@@ -186,18 +252,21 @@
           <label class="sr-only" for="hq-find-q">Search HQ</label>
           <input id="hq-find-q" name="q" type="search" placeholder="Search pages, clients, projects, invoices…" autocomplete="off" maxlength="100">
         </form>
+        <command-bar here={here} ask={askOn}></command-bar>
         <form zb-if={adding} method="get" action="/add" class="hq-quick">
           <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
           <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">
         </form>
         <div class="hq-account">
+          <a zb-if={askOn && !atHome} class="hq-account-action hq-ask" href={askHref}>Ask</a>
+          <form method="post" action="/nav/pin" class="hq-pin-form"><input type="hidden" name="href" value={here}><button class="hq-account-action" type="submit" aria-pressed={pins.here ? 'true' : 'false'} title={pins.here ? 'Unpin this page from your sidebar' : 'Pin this page to your sidebar'}><span aria-hidden="true">{pins.here ? '★' : '☆'}</span><span class="hq-pin-label">{pins.here ? 'Pinned' : 'Pin'}</span></button></form>
           <a zb-if={onCall} class="hq-account-action hq-on-call" href={onCall.href}><span class="hq-on-call-dot" aria-hidden="true"></span>{onCall.label}</a>
           <a zb-if={ready} class="hq-account-action hq-ready" href={ready.href}>{ready.label}</a>
           <a class="hq-account-action hq-bell" href="/notices" aria-current={atNotices ? 'page' : null}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg><span class="hq-bell-label">Notices</span><span zb-if={bell > 0} class="hq-bell-count">{bell > 99 ? '99+' : bell}<span class="sr-only"> new</span></span></a>
           <user-avatar name={who} size="sm"></user-avatar>
           <span class="hq-who">{who}</span>
           <a class="hq-account-action" href="/settings">Settings</a>
-          <form method="post" action="/staff/sign-out">
+          <form method="post" action="/staff/sign-out" onsubmit={forget}>
             <button class="hq-account-action" type="submit">Sign out</button>
           </form>
         </div>
@@ -206,6 +275,14 @@
         <zb-slot></zb-slot>
       </main>
     </div>
+    <assistant-drawer zb-if={chat} view={chat} from={here} close={closeHref}></assistant-drawer>
+    <nav class="hq-tabbar" aria-label="Quick">
+      <a href="/" aria-current={atHome ? 'page' : null}>Home</a>
+      <a href="/today">Today</a>
+      <a href="/search">Search</a>
+      <a zb-if={adding} href="/add">Add</a>
+      <a zb-if={askOn} href={askHref}>Ask</a>
+    </nav>
   </div>
   <div zb-else>
     <header class="hq-signed-out">

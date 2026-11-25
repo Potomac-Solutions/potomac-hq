@@ -22,7 +22,7 @@ export type Tool = {
   readonly input_schema: Readonly<Record<string, unknown>>;
 };
 
-export const TOOL_NAMES = ["find", "whats_due", "knowledge", "quick_add", "move_task", "tick_off", "reopen", "add_note", "log_contact", "add_client", "open_deal"] as const;
+export const TOOL_NAMES = ["find", "whats_due", "knowledge", "quick_add", "move_task", "tick_off", "reopen", "add_note", "log_contact", "add_client", "open_deal", "set_follow_up", "project_health", "stop_timer", "booking_link", "start_proposal", "draft_invoice"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const TASK_MOVES = ["todo", "doing", "blocked", "done"] as const;
@@ -31,6 +31,10 @@ export const NOTE_ON = ["client", "opportunity", "project"] as const;
 export const CONTACT_KINDS = ["call", "email", "text", "meeting"] as const;
 export const CONTACT_OUTCOMES = ["reached", "voicemail", "no-answer"] as const;
 export const LEAD_SOURCES = ["word-of-mouth", "phone", "email", "website", "social", "referral", "other"] as const;
+export const HEALTHS = ["on-track", "at-risk", "off-track"] as const;
+export const HEALTH_LABELS: Readonly<Record<(typeof HEALTHS)[number], string>> = { "on-track": "On track", "at-risk": "At risk", "off-track": "Off track" };
+export const LINK_LASTS = ["7", "30", "90", ""] as const;
+export const INVOICE_KINDS = ["deposit", "balance", "full", "other"] as const;
 export const SERVICES = ["consulting", "landing-page", "domain-management", "website", "blog", "social-media", "application", "automation"] as const;
 
 const object = (properties: Record<string, unknown>, required: readonly string[]) => ({ type: "object", properties, required, additionalProperties: false });
@@ -66,7 +70,7 @@ export const TOOLS: readonly Tool[] = [
   {
     name: "move_task",
     kind: "small",
-    description: "Move a project task to another status. Get its id with find.",
+    description: "Move a project task to another status. Moving it to doing (working on) starts the timer on it; moving it off stops it. Get its id with find.",
     input_schema: object({ task_id: text("The task's id."), to: choice(TASK_MOVES, "Where it goes.") }, ["task_id", "to"]),
   },
   {
@@ -124,6 +128,51 @@ export const TOOLS: readonly Tool[] = [
       ["client_id", "title", "lead_source"],
     ),
   },
+  {
+    name: "set_follow_up",
+    kind: "small",
+    description: "Set or clear the day to follow up on an open deal (opportunity).",
+    input_schema: object({ opportunity_id: text("The deal's id, from find."), on: text("The day, YYYY-MM-DD, or empty to clear it.") }, ["opportunity_id", "on"]),
+  },
+  {
+    name: "project_health",
+    kind: "small",
+    description: "Mark a project on track, at risk or off track.",
+    input_schema: object({ project_id: text("The project's id, from find."), health: choice(HEALTHS, "How it's going.") }, ["project_id", "health"]),
+  },
+  {
+    name: "stop_timer",
+    kind: "change",
+    description: "Stop the person's running timer and log the time.",
+    input_schema: object({}, []),
+  },
+  {
+    name: "booking_link",
+    kind: "change",
+    description: "Make a booking link someone can book a call with, without an account. It is shown on the Calls page to copy; this never sends it.",
+    input_schema: object({ label: text("Who it's for, like \"Stacy at Better Days\"."), lasts: choice(LINK_LASTS, "Days it works: 7, 30, 90, or empty for no end."), one_time: { type: "boolean", description: "True for one call only." } }, ["label"]),
+  },
+  {
+    name: "start_proposal",
+    kind: "change",
+    description: "Start a draft proposal for a deal: from the AI proposal draft if one is waiting, otherwise from the service's template. Nothing is sent.",
+    input_schema: object({ opportunity_id: text("The deal's id, from find.") }, ["opportunity_id"]),
+  },
+  {
+    name: "draft_invoice",
+    kind: "change",
+    description: "Draft an invoice on a project, with one line. It stays a draft; nothing is sent.",
+    input_schema: object(
+      {
+        project_id: text("The project's id, from find."),
+        kind: choice(INVOICE_KINDS, "What it's for."),
+        description: text("The line, like \"Deposit: one third of the quote\"."),
+        amount: text("Dollars, like 500 or 166.67."),
+        due_on: text("When it's due, YYYY-MM-DD, if known."),
+      },
+      ["project_id", "kind", "description", "amount"],
+    ),
+  },
 ];
 
 export const toolNamed = (name: string): Tool | null => TOOLS.find((tool) => tool.name === name) ?? null;
@@ -140,7 +189,13 @@ export type Ask =
   | { readonly tool: "add_note"; readonly on: (typeof NOTE_ON)[number]; readonly id: string; readonly note: string }
   | { readonly tool: "log_contact"; readonly clientId: string; readonly opportunityId: string; readonly kind: string; readonly outcome: string; readonly note: string; readonly followUpOn: string }
   | { readonly tool: "add_client"; readonly name: string; readonly website: string; readonly phone: string; readonly address: string }
-  | { readonly tool: "open_deal"; readonly clientId: string; readonly title: string; readonly leadSource: string; readonly service: string; readonly summary: string };
+  | { readonly tool: "open_deal"; readonly clientId: string; readonly title: string; readonly leadSource: string; readonly service: string; readonly summary: string }
+  | { readonly tool: "set_follow_up"; readonly opportunityId: string; readonly on: string }
+  | { readonly tool: "project_health"; readonly projectId: string; readonly health: (typeof HEALTHS)[number] }
+  | { readonly tool: "stop_timer" }
+  | { readonly tool: "booking_link"; readonly label: string; readonly lasts: string; readonly oneTime: boolean }
+  | { readonly tool: "start_proposal"; readonly opportunityId: string }
+  | { readonly tool: "draft_invoice"; readonly projectId: string; readonly kind: string; readonly description: string; readonly amount: string; readonly dueOn: string };
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -213,6 +268,46 @@ export function readAsk(name: string, input: Readonly<Record<string, unknown>>):
       if (!leadSource) return err(`lead_source must be one of ${LEAD_SOURCES.join(", ")}.`);
       return ok({ tool: "open_deal", clientId, title, leadSource, service: oneOf("service", SERVICES) ?? "", summary: str("summary", 2000) });
     }
+    case "set_follow_up": {
+      const opportunityId = id("opportunity_id");
+      const on = str("on", 10);
+      if (!opportunityId) return err("opportunity_id must be a deal's id from find.");
+      if (on && !/^\d{4}-\d{2}-\d{2}$/.test(on)) return err("on must be YYYY-MM-DD, or empty.");
+      return ok({ tool: "set_follow_up", opportunityId, on });
+    }
+    case "project_health": {
+      const projectId = id("project_id");
+      const health = oneOf("health", HEALTHS);
+      if (!projectId) return err("project_id must be a project's id from find.");
+      return health ? ok({ tool: "project_health", projectId, health }) : err(`health must be one of ${HEALTHS.join(", ")}.`);
+    }
+    case "stop_timer":
+      return ok({ tool: "stop_timer" });
+    case "booking_link": {
+      const label = str("label", 80);
+      const lasts = str("lasts", 4);
+      if (!label) return err("Say who the link is for.");
+      if (!(LINK_LASTS as readonly string[]).includes(lasts)) return err("lasts must be 7, 30, 90 or empty.");
+      return ok({ tool: "booking_link", label, lasts, oneTime: input["one_time"] === true });
+    }
+    case "start_proposal": {
+      const opportunityId = id("opportunity_id");
+      return opportunityId ? ok({ tool: "start_proposal", opportunityId }) : err("opportunity_id must be a deal's id from find.");
+    }
+    case "draft_invoice": {
+      const projectId = id("project_id");
+      const kind = oneOf("kind", INVOICE_KINDS);
+      const description = str("description", 200);
+      const raw = input["amount"];
+      const amount = (typeof raw === "number" ? String(raw) : str("amount", 20)).replace(/[$,\s]/g, "");
+      const dueOn = str("due_on", 10);
+      if (!projectId) return err("project_id must be a project's id from find.");
+      if (!kind) return err(`kind must be one of ${INVOICE_KINDS.join(", ")}.`);
+      if (!description) return err("Give the invoice line a description.");
+      if (!/^\d{1,7}(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) return err("amount must be dollars, like 500 or 166.67.");
+      if (dueOn && !/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) return err("due_on must be YYYY-MM-DD.");
+      return ok({ tool: "draft_invoice", projectId, kind, description, amount, dueOn });
+    }
     default:
       return err(`There is no tool called ${name}.`);
   }
@@ -264,13 +359,21 @@ export function historyFor(messages: readonly Message[], limit = HISTORY_LIMIT):
   return joined;
 }
 
+/** The page the person sent from, when it is one of HQ's: an address only, checked. */
+export function readWhere(path: string): string {
+  const where = path.trim().split("#")[0] ?? "";
+  return where.length <= 200 && HQ_PATH.test(where) && !where.startsWith("/assistant") ? where : "";
+}
+
 /** What the model is told about itself and the person. */
-export function systemPrompt(who: { readonly name: string; readonly today: string; readonly autoSmall: boolean }): string {
+export function systemPrompt(who: { readonly name: string; readonly today: string; readonly autoSmall: boolean; readonly where?: string }): string {
+  const where = who.where && who.where !== "/" ? `They're on the page ${who.where}. When they say "this" or "here", they mean that page, and any id in its address is that record's.` : "";
   return [
+    ...(where ? [where] : []),
     "You are the assistant inside Potomac HQ, the internal app Potomac Solutions (a small web and app development company in Gormania, West Virginia, run by Mikey and Jayanti) uses to run its business.",
     `You're talking with ${who.name}. Today is ${who.today}.`,
     "Help them get things done in HQ in as few steps as you can. Look things up with your tools rather than guessing, and act through your tools.",
-    "Every change you propose is shown to them as a card with a Do it button" + (who.autoSmall ? ", except small ones (moving a task, ticking off or reopening a to-do), which go straight through with an Undo." : ".") + " Don't ask them to confirm in words; propose the change and say in one short line what the card will do.",
+    "Every change you propose is shown to them as a card with a Do it button" + (who.autoSmall ? ", except small ones (moving a task, ticking off or reopening a to-do, a follow-up day, a project's health), which go straight through with an Undo." : ".") + " Don't ask them to confirm in words; propose the change and say in one short line what the card will do.",
     "You can't send emails, post anything, take payments or delete anything. For anything your tools can't do, find the page that does it and link it as [Page name](/address).",
     "Use the ids that find returns; never make one up. If several records match, ask which one.",
     "Answer in a sentence or two, plainly, with no headings. Link records and pages as [Name](/address).",

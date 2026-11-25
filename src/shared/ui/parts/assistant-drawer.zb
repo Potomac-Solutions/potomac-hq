@@ -1,0 +1,111 @@
+<!--
+  The assistant on every page (decision 0015, follow-up): a drawer opened by
+  "Ask" in the top bar (or the phone's tab bar), showing the same
+  conversation as Home. What's typed here is sent with this page's address,
+  so "log a call here" means this client. Opening and closing are links, so
+  it works without scripts. Only the shell imports this. `view` is the page
+  context's assistant(); `from` this page's address; `close` the same page
+  with the drawer shut.
+-->
+<script>
+  let busy = false
+  let listening = false
+  let canTalk = false
+  import { onMount } from '@zubra/runtime'
+  function key(event) {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+    if (!event.target.value.trim()) return
+    event.preventDefault()
+    busy = true
+    event.target.form?.requestSubmit()
+  }
+  function talk(event) {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition
+    const box = event.target.closest('form')?.querySelector('textarea')
+    if (!Speech || !box || listening) return
+    const heard = new Speech()
+    heard.lang = 'en-US'
+    heard.interimResults = false
+    heard.onresult = (result) => {
+      box.value = (box.value ? box.value + ' ' : '') + result.results[0][0].transcript
+      box.focus()
+    }
+    heard.onend = () => (listening = false)
+    listening = true
+    heard.start()
+  }
+  onMount(() => {
+    canTalk = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
+    document.getElementById('drawer-message')?.focus()
+  })
+</script>
+<style>
+  :host { display: contents; }
+  .drawer { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: min(26rem, 100%); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; color: var(--card-foreground); background: var(--card); border-left: 1px solid var(--border); box-shadow: -12px 0 40px rgb(0 0 0 / 0.18); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+  .drawer-head h2 { margin: 0; font-size: 1rem; }
+  .drawer-head div { display: flex; gap: 0.5rem; align-items: center; }
+  .drawer-head form { margin: 0; }
+  .drawer-log { display: flex; flex-direction: column-reverse; overflow-y: auto; padding: 0.75rem 1rem; }
+  .drawer-log ol { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+  .drawer-log li { display: flex; min-width: 0; }
+  .chat-you { justify-content: flex-end; }
+  .bubble { max-width: 90%; padding: 0.5rem 0.75rem; border-radius: calc(var(--radius) + 2px); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; font-size: 0.9375rem; }
+  .chat-you .bubble { color: var(--primary-foreground); background: var(--primary); }
+  .chat-hq .bubble { background: var(--muted); }
+  .chat-looked { font-size: 0.8125rem; color: var(--muted-foreground); }
+  .card { flex: 1 1 auto; display: grid; gap: 0.4rem; padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-left: 0.25rem solid var(--primary); border-radius: var(--radius); }
+  .card.settled { border-left-color: var(--border); }
+  .card p { margin: 0; }
+  .card-status { font-size: 0.8125rem; font-weight: 600; color: var(--muted-foreground); }
+  .card-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .card-actions form { margin: 0; }
+  .drawer-box { display: grid; gap: 0.5rem; padding: 0.75rem 1rem 1rem; border-top: 1px solid var(--border); }
+  .drawer-box textarea { width: 100%; min-height: 3rem; padding: 0.55rem 0.7rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); resize: vertical; }
+  .drawer-box textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .drawer-send { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .drawer-off { padding: 1rem; }
+</style>
+<assistant-drawer view={{ on: false, why: '', lines: [], autoSmall: false, suggestions: [] }} from="/" close="/">
+  <aside class="drawer" id="assistant" aria-labelledby="drawer-heading">
+    <div class="drawer-head">
+      <h2 id="drawer-heading">Assistant</h2>
+      <div>
+        <form zb-if={view.lines.length > 1} method="post" action="/assistant/new"><input type="hidden" name="from" value={from}><button class="hq-button secondary small" type="submit">New chat</button></form>
+        <a class="hq-button secondary small" href={close}>Close<span class="sr-only"> the assistant</span></a>
+      </div>
+    </div>
+    <div zb-if={view.on} class="drawer-log" tabindex="0" role="log" aria-label="Conversation with the assistant">
+      <ol>
+        <zb-each items={view.lines} as="line" key={line.key}>
+          <li class={'chat-' + line.who}>
+            <span zb-if={line.who === 'you'} class="bubble"><span class="sr-only">You: </span>{line.text}</span>
+            <span zb-if={line.who === 'hq'} class="bubble"><span class="sr-only">Assistant: </span><zb-each items={line.segments} as="part" key={part.text + part.href}><a zb-if={part.href} href={part.href}>{part.text}</a><span zb-else>{part.text}</span></zb-each></span>
+            <span zb-if={line.who === 'looked'}>{line.text}</span>
+            <div zb-if={line.who === 'card'} class="card" class:settled={line.card.status !== 'waiting'}>
+              <p class="card-status">{line.card.statusText}</p>
+              <p>{line.card.summary}</p>
+              <p zb-if={line.card.problem} class="hq-small">{line.card.problem}</p>
+              <div class="card-actions">
+                <form zb-if={line.card.status === 'waiting'} method="post" action="/assistant/actions/{line.card.id}/do"><input type="hidden" name="from" value={from}><button class="hq-button small" type="submit">Do it<span class="sr-only">: {line.card.summary}</span></button></form>
+                <form zb-if={line.card.status === 'waiting'} method="post" action="/assistant/actions/{line.card.id}/cancel"><input type="hidden" name="from" value={from}><button class="hq-button secondary small" type="submit">Cancel<span class="sr-only">: {line.card.summary}</span></button></form>
+                <form zb-if={line.card.canUndo} method="post" action="/assistant/actions/{line.card.id}/undo"><input type="hidden" name="from" value={from}><button class="hq-button secondary small" type="submit">Undo<span class="sr-only">: {line.card.summary}</span></button></form>
+                <a zb-if={line.card.href} href={line.card.href}>Open it</a>
+              </div>
+            </div>
+          </li>
+        </zb-each>
+      </ol>
+    </div>
+    <p zb-if={!view.on} class="drawer-off hq-muted">{view.why || 'The assistant is off. An admin can turn it on in Settings → AI.'}</p>
+    <form zb-if={view.on} method="post" action="/assistant" class="drawer-box" onsubmit={() => (busy = true)}>
+      <input type="hidden" name="from" value={from}>
+      <label class="sr-only" for="drawer-message">Tell the assistant what needs to happen here</label>
+      <textarea id="drawer-message" name="message" required maxlength="1000" rows="2" placeholder="What needs to happen here?" onkeydown={key}></textarea>
+      <div class="drawer-send">
+        <button zb-if={canTalk} type="button" class="hq-button secondary" onclick={talk} aria-pressed={listening ? 'true' : 'false'}>{listening ? 'Listening…' : 'Speak'}</button>
+        <button class="hq-button" type="submit" aria-busy={busy ? 'true' : 'false'}>{busy ? 'Thinking…' : 'Send'}</button>
+      </div>
+    </form>
+  </aside>
+</assistant-drawer>

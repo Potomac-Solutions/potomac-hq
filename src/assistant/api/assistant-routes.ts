@@ -3,7 +3,8 @@
 // conversation. A message waits for Claude's answer, as Ask HQ does.
 import { Hono } from "hono";
 import { cancelAction, confirmAction, newChat, sendMessage, setAutoSmall, undoAction, type AssistantDeps } from "../application/assistant.ts";
-import { formPosts, type Id } from "../../shared/index.ts";
+import { formPosts, type FormFields, type Id } from "../../shared/index.ts";
+import { readWhere as readWhereForm } from "../application/assistant.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
@@ -27,11 +28,16 @@ export function assistantRoutes(deps: { readonly assistant: AssistantDeps; reado
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: CHAT });
   const a = deps.assistant;
-  post("/assistant", (actor, f) => sendMessage(a, actor, f["message"] ?? "", f["model"] ?? ""), { done: () => CHAT, back: () => CHAT, message: "" });
-  post("/assistant/actions/:id/do", (actor, _f, id) => confirmAction(a, actor, id as Id), { done: () => CHAT, back: () => CHAT, message: "" });
-  post("/assistant/actions/:id/cancel", (actor, _f, id) => cancelAction(a, actor, id as Id), { done: () => CHAT, back: () => CHAT, message: "" });
-  post("/assistant/actions/:id/undo", (actor, _f, id) => undoAction(a, actor, id as Id), { done: () => CHAT, back: () => CHAT, message: "Undone." });
-  post("/assistant/new", (actor) => newChat(a, actor), { done: () => CHAT, back: () => CHAT, message: "" });
+  // From the drawer on another page: back to that page, with the drawer open.
+  const back = (f: FormFields): string => {
+    const from = readWhereForm(f["from"] ?? "");
+    return from && from !== "/" ? `${from}${from.includes("?") ? "&" : "?"}chat=open#assistant` : CHAT;
+  };
+  post("/assistant", (actor, f) => sendMessage(a, actor, f["message"] ?? "", f["model"] ?? "", f["from"] ?? ""), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
+  post("/assistant/actions/:id/do", (actor, _f, id) => confirmAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
+  post("/assistant/actions/:id/cancel", (actor, _f, id) => cancelAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
+  post("/assistant/actions/:id/undo", (actor, _f, id) => undoAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "Undone." });
+  post("/assistant/new", (actor) => newChat(a, actor), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
   post("/assistant/settings", (actor, f) => setAutoSmall(a, actor, f["autoSmall"] === "on"), { done: () => CHAT, back: () => CHAT, message: (on) => (on ? "Small changes now go through without asking, each with Undo." : "Every change now asks first.") });
   return app;
 }

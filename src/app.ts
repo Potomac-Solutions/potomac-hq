@@ -11,7 +11,8 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, navHubs, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
+import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
+import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
@@ -511,6 +512,8 @@ export type PageContext = {
   readonly search: (q: string) => ReturnType<typeof search>;
   /** The sidebar's hubs for this person and address (decision 0015). `search` is the address's `?…`, for pinned filters. */
   nav(path: string, search: string): readonly NavHub[];
+  /** Pages this person pinned, the one at this address marked; and whether this address is pinned. */
+  pins(href: string): { readonly items: readonly { readonly href: string; readonly label: string; readonly current: boolean }[]; readonly here: boolean; readonly href: string };
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
   setup(): Setup | null;
   readonly knowledge: {
@@ -1080,6 +1083,11 @@ export async function createApp(config: AppConfig): Promise<App> {
           twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
         },
         search: (q) => search(services.search, actor, q, placesFor(actor)),
+        pins: (href) => {
+          const clean = cleanHref(href);
+          const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
+          return { items, here: items.some((pin) => pin.current), href: clean };
+        },
         setup: () => {
           if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
           const counts = setupCounts();
@@ -1366,6 +1374,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", assistantRoutes({ assistant: services.assistant, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", navRoutes({ pins: services.pins, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
@@ -1507,6 +1516,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", builderDownloads({ builder: services.builder, actorOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
   downloads.route("/", demoLinkRoutes({ demos: services.demos }));
+  downloads.route("/", findRoutes({ find: (actor, q) => search(services.search, actor, q, services.placesFor(actor)), actorOf }));
   downloads.route("/", showcaseDownloads({ showcase: services.showcase, actorOf }));
   downloads.route("/", freePageDownloads({ freePages: services.freePages, actorOf, clientOf, archive: config.siteArchive ?? null }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
@@ -1556,7 +1566,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

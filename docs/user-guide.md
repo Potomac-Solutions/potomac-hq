@@ -431,6 +431,13 @@ tap another to open it. Settings is in the top bar. Can't find a page? Type
 what it does in the search box ("booking hours", "dark mode", "invoices"):
 **Pages** come first.
 
+Press **/** (or Ctrl+K, ⌘K on a Mac) anywhere, or tap **Go to…**, and type:
+pages and records come up as you type. If nothing fits, Enter hands it to
+the assistant. **Pin** in the top bar keeps the page you're on at the top
+of your sidebar; **Recent** in the sidebar lists the records you opened on
+this device. On a phone, Home, Today, Search, Add and Ask sit along the
+bottom.
+
 Admins see **Get HQ ready** on Home until everything on it is done. Each
 line ticks itself when HQ can see it's true.
 
@@ -439,14 +446,22 @@ Settings → AI. Say what needs to happen in plain words: "add a to-do to call
 Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 "where do I set my hours?", "what's due today?".
 
+- It opens with your day: who's waiting, what's due, your next call.
+- **Ask** in the top bar opens it beside any page. "Log a call here" then
+  means the client you're looking at.
+- **Speak** turns what you say into text, where your browser can.
 - It looks things up by itself: records, pages, the knowledge base, what's
   due.
+- Besides tasks, notes, calls, clients and deals, it can set a deal's
+  follow-up day, mark a project's health, stop your timer, make a booking
+  link, start a proposal and draft an invoice. Invoices and proposals stay
+  drafts.
 - Every change shows a card first. Nothing happens until you tap **Do it**.
 - It acts as you, so it can't do anything you can't. What it does shows in
   Audit history as yours.
 - Under **How changes are made** you can let small changes (moving a task,
-  ticking off or reopening a to-do) go straight through, each with
-  **Undo** for a day.
+  ticking off or reopening a to-do, a follow-up day, a project's health) go
+  straight through, each with **Undo** for a day.
 - It can't send, post, pay or delete. For those it links the page.
 - **New chat** starts over. Conversations are kept 90 days.
 - It uses the same monthly AI budget as the drafts and the site builder.

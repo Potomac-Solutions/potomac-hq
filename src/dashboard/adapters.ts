@@ -2,3 +2,4 @@
 export { formatWhenIn, sqliteActivityReader, sqliteAuditReader } from "./infrastructure/activity-reader.ts";
 export { sqliteSearchReader } from "./infrastructure/search-reader.ts";
 export { sqliteSetupCounts, type SetupCounts } from "./infrastructure/setup-reader.ts";
+export { sqlitePinStore } from "./infrastructure/pin-store.ts";

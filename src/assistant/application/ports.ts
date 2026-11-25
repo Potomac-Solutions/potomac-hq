@@ -6,7 +6,11 @@ export type StoredMessage = Message & { readonly id: Id; readonly at: string };
 export type ActionStatus = "waiting" | "done" | "cancelled" | "failed" | "undone";
 
 /** How to put a small change back: the tool that does it and what it's given. */
-export type Undo = { readonly tool: "move_task"; readonly taskId: string; readonly to: string } | { readonly tool: "tick_off" | "reopen"; readonly todoId: string };
+export type Undo =
+  | { readonly tool: "move_task"; readonly taskId: string; readonly to: string }
+  | { readonly tool: "tick_off" | "reopen"; readonly todoId: string }
+  | { readonly tool: "set_follow_up"; readonly opportunityId: string; readonly on: string }
+  | { readonly tool: "project_health"; readonly projectId: string; readonly health: string };
 
 export type StoredAction = {
   readonly id: Id;
@@ -47,6 +51,8 @@ export type Done = { readonly href: string; readonly undo?: Undo | null };
  */
 export type AssistantActions = {
   find(actorId: Id, query: string): unknown;
+  /** The day in a sentence or two, from HQ's own records, with [links](/address): who's waiting, what's due, the next call. */
+  brief(actorId: Id): string;
   due(actorId: Id): unknown;
   knowledge(actorId: Id, query: string): unknown;
   /** Quick add's reading of a line, for the card: what it will add, or why it can't. */
@@ -62,6 +68,20 @@ export type AssistantActions = {
   logContact(actorId: Id, where: { readonly clientId: Id } | { readonly opportunityId: Id }, input: { readonly kind: string; readonly outcome: string; readonly note: string; readonly followUpOn: string }): Result<Done, string>;
   addClient(actorId: Id, input: { readonly name: string; readonly website: string; readonly phone: string; readonly address: string }): Result<Done, string>;
   openDeal(actorId: Id, clientId: Id, input: { readonly title: string; readonly leadSource: string; readonly service: string; readonly summary: string }): Result<Done, string>;
+  /** A deal's title, client and follow-up day ("" for none); null if there's none this person may see. */
+  deal(actorId: Id, id: Id): { readonly name: string; readonly followUpOn: string; readonly open: boolean } | null;
+  setFollowUp(actorId: Id, id: Id, on: string): Result<Done, string>;
+  /** A project's name and health; null if there's none this person may see. */
+  project(actorId: Id, id: Id): { readonly name: string; readonly health: string } | null;
+  setHealth(actorId: Id, id: Id, health: string): Result<Done, string>;
+  /** The running timer, in words ("Set up hosting, 25 min"), or "" when none runs. */
+  timer(actorId: Id): string;
+  stopTimer(actorId: Id): Result<Done, string>;
+  bookingLink(actorId: Id, input: { readonly label: string; readonly lasts: string; readonly oneTime: boolean }): Result<Done, string>;
+  /** Whether an AI proposal draft waits for the deal, so the card can say which it starts from. */
+  proposalDraftWaiting(actorId: Id, opportunityId: Id): boolean;
+  startProposal(actorId: Id, opportunityId: Id): Result<Done, string>;
+  draftInvoice(actorId: Id, projectId: Id, input: { readonly kind: string; readonly description: string; readonly amount: string; readonly dueOn: string }): Result<Done, string>;
 };
 
 /** One turn with the model, through AI's checks and budget, with the model picked (up to the ceiling). The error is a problem code from the AI module. */

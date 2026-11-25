@@ -32,6 +32,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
   (off to start), shares the monthly AI budget, and takes a model picked
   beside the box up to the ceiling. Conversations are kept 90 days.
   Migration 0072.
+- Finding your way, part two (decision 0015, follow-up): a command bar on
+  `/` or Ctrl+K (⌘K) and **Go to…**, with pages and records as you type and
+  Enter to ask the assistant when nothing fits; **Ask** in the top bar
+  opens the assistant beside any page, sent with that page's address;
+  a tab bar along the bottom on phones; the conversation opens with your
+  day from HQ's own records; **Pin** keeps pages at the top of your sidebar
+  (migration 0073) and **Recent** lists records opened on this device;
+  **Speak** where the browser can. The assistant can also set a follow-up
+  day and a project's health (with Undo), stop the timer, make a booking
+  link, start a proposal and draft an invoice.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
