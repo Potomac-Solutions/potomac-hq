@@ -71,7 +71,7 @@
               <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
-              <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a></td>
+              <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a> <form zb-if={contact.phone && touches && touches.canLog} method="post" action="/phone" class="hq-inline"><input type="hidden" name="contactId" value={contact.id}><button class="hq-button secondary hq-small" type="submit" aria-label="Start a call with {contact.name}">Start a call</button></form></td>
             </tr>
           </zb-each>
         </tbody>
@@ -128,7 +128,7 @@
     <notes-panel notes={notes}></notes-panel>
     </div>
     <div>
-    <touches-panel zb-if={touches} touches={touches} action="/clients/{view.client.id}/touches" follow-up={false}></touches-panel>
+    <touches-panel zb-if={touches} touches={touches} action="/clients/{view.client.id}/touches" follow-up={false} call-field="clientId" call-id={view.client.id}></touches-panel>
     <todos-panel zb-if={todos} todos={todos} where="client" id={view.client.id}></todos-panel>
     <section zb-if={view.can.viewOpportunities} class="hq-panel" aria-labelledby="client-opportunities">
       <h2 id="client-opportunities">Opportunities</h2>

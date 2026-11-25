@@ -334,3 +334,7 @@ hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-r
    row are all as tall as the tallest. */
 .hq-stats a, .hq-stats stat-card { display: grid; }
 .hq-stats .stat { align-content: start; }
+
+/* The call screen (decision 0009): the wrap-up panel shows once the timer says so. The timer marks the page, so this lives here, outside any one component. */
+.call-wrap { display: none; }
+:root[data-call-phase="wrap-up"] .call-wrap, :root[data-call-phase="over"] .call-wrap, .call-wrap.call-wrap-now { display: block; }

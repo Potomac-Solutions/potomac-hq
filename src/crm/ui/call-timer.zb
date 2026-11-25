@@ -1,0 +1,100 @@
+<!--
+  The call screen's timer (decision 0009). Counts up from when the call
+  started, kept by the server, allowing for the device's clock being off.
+  Turns amber when it's time to start wrapping up, vibrating once where the
+  phone can (no sound, so the other person hears nothing), and red at the
+  planned end, then counts the overtime. Keeps the screen awake while it's
+  shown, where the browser can. Without scripts it shows the time as the
+  page was made.
+-->
+<script>
+  import { onMount, onUnmount } from '@zubra/runtime'
+  // call: its id. started, now: instants. planned, warn: minutes. ended: an instant or ''.
+  // begin: the phase as the server saw it. timer: the time as the server saw it.
+  let phase = begin
+  let shown = timer
+  let said = ''
+  let skew = 0
+  let ticking = null
+  let lock = null
+  const pad = (n) => String(n).padStart(2, '0')
+  const text = (seconds) => {
+    const whole = Math.abs(Math.trunc(seconds))
+    const h = Math.floor(whole / 3600)
+    const m = Math.floor((whole % 3600) / 60)
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(whole % 60) : m + ':' + pad(whole % 60)
+  }
+  function tick() {
+    const at = ended ? Date.parse(ended) : Date.now() - skew
+    const start = Date.parse(started)
+    const end = start + planned * 60000
+    const next = at >= end ? 'over' : at >= end - warn * 60000 ? 'wrap-up' : 'on'
+    shown = text(Math.max(0, (at - start) / 1000))
+    if (next !== phase) {
+      if (next === 'wrap-up') {
+        said = warn + (warn === 1 ? ' minute' : ' minutes') + ' left. Time to start wrapping up.'
+        buzz('wrap-up', 300)
+      } else if (next === 'over') {
+        said = 'Time’s up. Overtime is counting.'
+        buzz('over', [150, 100, 150])
+      }
+      phase = next
+      document.documentElement.dataset.callPhase = next
+    }
+  }
+  // Vibrate once per call and moment, even across reloads.
+  function buzz(moment, pattern) {
+    const key = 'hq-call-buzz-' + call + '-' + planned + '-' + moment
+    try {
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    } catch {}
+    try {
+      navigator.vibrate?.(pattern)
+    } catch {}
+  }
+  async function wake() {
+    if (ended || document.visibilityState !== 'visible') return
+    try {
+      lock = await navigator.wakeLock?.request('screen')
+    } catch {}
+  }
+  onMount(() => {
+    skew = Date.now() - Date.parse(now)
+    // A page cached or made a moment ago: only trust a skew bigger than the delay could explain.
+    if (Math.abs(skew) < 5000) skew = 0
+    document.documentElement.dataset.callPhase = phase
+    tick()
+    if (!ended) ticking = setInterval(tick, 1000)
+    wake()
+    document.addEventListener('visibilitychange', wake)
+  })
+  onUnmount(() => {
+    if (ticking) clearInterval(ticking)
+    document.removeEventListener('visibilitychange', wake)
+    delete document.documentElement.dataset.callPhase
+    try {
+      lock?.release()
+    } catch {}
+  })
+</script>
+<style>
+  :host { display: block; }
+  .call-timer { padding: 1rem; border-radius: var(--radius); background: var(--muted); text-align: center; transition: background var(--duration-normal) var(--ease-out); }
+  .call-timer-time { margin: 0; font-size: clamp(3rem, 16vw, 4.5rem); font-weight: 600; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .call-timer-phase { margin: 0.25rem 0 0; font-weight: 600; }
+  .call-wrap-up { background: var(--label-amber-bg); color: var(--label-amber-fg); }
+  .call-over { background: var(--label-red-bg); color: var(--label-red-fg); }
+  .call-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .call-timer { transition: none; } }
+</style>
+<call-timer call="" started="" now="" ended="" planned={15} warn={5} timer="0:00" begin="on">
+  <div class="call-timer call-{phase}" role="timer" aria-label="Time on the call">
+    <p class="call-timer-time">{shown}</p>
+    <p class="call-timer-phase" zb-if={phase === 'on' && !ended}>On the call</p>
+    <p class="call-timer-phase" zb-if={phase === 'wrap-up' && !ended}>Start wrapping up</p>
+    <p class="call-timer-phase" zb-if={phase === 'over' && !ended}>Over the planned time</p>
+    <p class="call-timer-phase" zb-if={ended}>Ended</p>
+  </div>
+  <p class="call-said" aria-live="assertive">{said}</p>
+</call-timer>

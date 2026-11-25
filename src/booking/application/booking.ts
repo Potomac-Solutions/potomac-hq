@@ -374,6 +374,8 @@ export type CallLine = {
   readonly changeable: boolean;
   /** From the public page and not in the CRM yet: it can be added. */
   readonly canAddToCrm: boolean;
+  /** At a client in the CRM, so the call screen can log it there (decision 0009). */
+  readonly startable: boolean;
   /** Its opportunity, once added. */
   readonly crmHref: string;
 };
@@ -394,6 +396,7 @@ const lineOf = (deps: BookingDeps, booking: Booking): CallLine => ({
   cancelText: booking.status !== "cancelled" ? "" : `Cancelled by ${booking.cancelledBy === "staff" ? "Potomac" : booking.name}${booking.cancelReason ? `: ${booking.cancelReason}` : ""}`,
   changeable: changeable(booking, deps.clock()),
   canAddToCrm: booking.kind === "public" && !booking.crmClientId,
+  startable: booking.status !== "cancelled" && Boolean(booking.organizationId ?? booking.crmClientId),
   crmHref: booking.crmOpportunityId ? `/opportunities/${booking.crmOpportunityId}` : "",
 });
 
