@@ -23,6 +23,8 @@
     // A booked call within 15 minutes: get ready for it, from any page.
     const next = !call && context.user ? context.crm.comingUp() : null
     const ready = next && path !== next.href ? { href: next.href, label: 'Call ' + next.startsText + ' with ' + next.who + ': get ready' } : null
+    // AI drafts waiting for this person (decision 0012).
+    const aiDrafts = context.user ? context.ai.draftCount() : 0
     const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
     const groups = [
@@ -30,6 +32,7 @@
         { label: 'Today', href: '/today', current: at('/today') },
         { label: 'My work', href: '/todos', current: at('/todos') },
         { label: 'Dashboard', href: '/', current: at('/') },
+        ...(aiDrafts > 0 || context.ai.canManage ? [{ label: aiDrafts > 0 ? `AI drafts (${aiDrafts})` : 'AI drafts', href: '/drafts', current: at('/drafts') }] : []),
       ] },
       { label: 'Sales', links: [
         { label: 'Pipeline', href: '/pipeline', current: at('/pipeline', '/opportunities') },
@@ -49,6 +52,8 @@
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
         { label: 'Site content', href: '/websites', current: at('/websites') },
+        ...(can.siteBuilder ? [{ label: 'Site builder', href: '/builder', current: at('/builder') }] : []),
+        ...(can.social ? [{ label: 'Social media', href: '/social', current: at('/social') }] : []),
       ] },
       { label: 'Finance', links: [
         ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),
@@ -61,6 +66,9 @@
         ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
         ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
         ...(can.webhooks ? [{ label: 'Webhooks', href: '/webhooks', current: at('/webhooks') }] : []),
+        ...(context.ai.state('ask').on ? [{ label: 'Ask HQ', href: '/ask', current: at('/ask') }] : []),
+        ...(context.ai.state('case-study').on || context.ai.state('social-posts').on ? [{ label: 'Marketing', href: '/marketing', current: at('/marketing') }] : []),
+        ...(context.ai.canManage ? [{ label: 'AI model and budget', href: '/settings/ai', current: at('/settings/ai') }] : []),
       ] },
     ]
     // The default title. A page's own title replaces it.

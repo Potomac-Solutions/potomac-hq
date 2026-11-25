@@ -647,3 +647,44 @@ internet. Kept 90 days, left out of the export.
 | `email` | The email typed at a sign-in. Never the password, never a code |
 | `address` | Where the request came from |
 | `detail` | Why, or for a form, which one, with ids left out: `POST /people/:id/roles` |
+
+## The site builder
+
+Decision 0010, slice 1 (migration 0056).
+
+- `build`: a website being made for one client (`organization_id`), with
+  its name and brief, who started it, and when it last changed.
+- `build_version`: numbered from 1 per build. `files` holds every file of
+  the version as one JSON object (path to text); `chars` is its size.
+  `request_id` is the request that made it, or empty for one restored by
+  `made_by`. Versions are never changed or removed.
+- `build_request`: one request to Claude. `state` is `working`, `done` or
+  `failed`. `reserved_micros` is its worst case, held under the cap while it
+  works; `cost_micros` what it really cost, from the API's token counts, in
+  millionths of a dollar. A failed request is still counted. `error` is a
+  code, never the API's words.
+- `builder_settings`: one row, the model and the monthly cap in cents.
+
+Events: `build.started`, `build.brief-changed`, `build.asked` (with what
+was reserved), `build.version-made` and `build.request-failed` (by HQ
+itself, with the cost), `build.restored`, `builder.settings-changed`. No
+event carries the brief, the request's words or any file.
+
+## AI assistance
+
+Added by decision 0012 (migration 0058). The API key is never stored: it is
+`HQ_ANTHROPIC_API_KEY` on the server.
+
+| Table | Holds |
+| --- | --- |
+| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the monthly budget in cents, the features turned on, the price guide, and who changed it last |
+| `ai_usage` | Every call: the feature and record, the model, tokens in and out, the cost in millionths of a dollar, who asked (empty when HQ ran it by itself), whether a usable answer came, and the draft it made |
+| `ai_draft` | What AI wrote, as the feature's JSON: `waiting`, `used` or `discarded`, the fingerprint of the records it came from, and a receipt's picture until the draft is decided |
+
+- Events: `ai.settings-changed`, `ai.drafted`, `ai.failed`,
+  `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
+  AI wrote, only the feature, model, counts and cost.
+- A recap draft is marked used when its recap is sent (`call.recap-sent`).
+  A brief, an answer from Ask HQ and a site-down diagnosis are used where
+  they're shown; a scope check that finds nothing out of scope is discarded
+  by HQ, and kept so the message isn't checked twice.
