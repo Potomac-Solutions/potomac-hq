@@ -288,6 +288,34 @@ downloading it needs `file.download`, as for a deliverable.
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
 
+### AI assistance (decision 0010)
+
+Decided 2026-11-25 by Mikey: only he chooses the model and the budget.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Choose the model, the budget and which AI features are on; see what AI has cost | `ai.manage` | Yes | No | No | No |
+
+Every AI feature only drafts, and asking for a draft needs the permission
+the finished thing needs, so AI gives no one more than they already have:
+
+| Feature | Asking for it, seeing it and using it |
+| --- | --- |
+| Call recap | `contact.edit`, and only the person who made the call |
+| Get ready brief | `contact.edit`, and only the person the call is booked with |
+| Lead triage, its reply, and going-cold check-ins | `opportunity.edit` and `contact.edit` |
+| Proposal first draft | `proposal.edit` |
+| Scope check | `finance.edit` |
+| Weekly client update | `project.post-update` |
+| Ask HQ | `knowledge.view`; it reads only the knowledge base and decision log |
+| Receipt reading | `expense.edit` |
+| Site-down diagnosis | Made by HQ itself; seen with `client.view` |
+| Case study and social post drafts | `project.edit` |
+
+Lead triage, the weekly updates and the site-down diagnosis also run by
+themselves, when they're turned on. HQ is then the actor, as it is for an
+inquiry, and the drafts wait for a person.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in

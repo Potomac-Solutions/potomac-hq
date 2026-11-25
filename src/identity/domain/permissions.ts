@@ -74,6 +74,8 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // AI assistance (decision 0010)
+  "ai.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -89,6 +91,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "public-site.view",
   "public-site.edit",
   "webhook.manage",
+  "ai.manage",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [
