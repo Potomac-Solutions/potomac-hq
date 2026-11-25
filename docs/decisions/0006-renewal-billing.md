@@ -46,7 +46,8 @@ by card" button, and the renewal follows its invoice by itself.
 
 ## Consequences
 
-- A client with no project in HQ can't be billed this way: the invoice needs
-  a project to go on. An ongoing project for their plan works.
+- ~~A client with no project in HQ can't be billed this way.~~ Since
+  decision 0014 (2026-11-25), a renewal is billed on the client alone by
+  default, or on one of their projects.
 - Voiding the invoice puts the renewal back to "not billed".
 - Changing a renewal's price after it is billed doesn't change the invoice.

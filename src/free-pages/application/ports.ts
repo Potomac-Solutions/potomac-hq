@@ -5,6 +5,7 @@ export type FreePageStore = {
   get(id: Id): FreePage | null;
   forOrganization(organizationId: Id): FreePage | null;
   bySubdomain(subdomain: string): FreePage | null;
+  byOwnDomain(domain: string): FreePage | null;
   /** Newest first. */
   list(): FreePage[];
   insert(page: FreePage, at: string): void;

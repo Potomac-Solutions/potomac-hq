@@ -97,7 +97,7 @@ test("a recurring plan is measured over its own period", () => {
 
 test("an invoice is drafted, sent, and paid by what is received against it", async () => {
   const { addInvoiceLine, invoiceLabel, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice } = await import("./invoice.ts");
-  const base = { id: id(1), projectId: id(2), number: 7, createdBy: id(3) };
+  const base = { id: id(1), organizationId: id(4), projectId: id(2), number: 7, createdBy: id(3) };
   assert.equal(invoiceLabel(7), "INV-0007");
   const made = newInvoice(base, { kind: "deposit", description: "Deposit, one third", amount: "800", dueOn: "2026-11-30" });
   assert.ok(made.ok);
@@ -105,6 +105,13 @@ test("an invoice is drafted, sent, and paid by what is received against it", asy
   assert.deepEqual(newInvoice(base, { kind: "tip", description: "x", amount: "1" }), { ok: false, error: "invalid-invoice-kind" });
   assert.deepEqual(newInvoice(base, { kind: "full", description: " ", amount: "1" }), { ok: false, error: "description-missing" });
   assert.deepEqual(newInvoice(base, { kind: "full", description: "x", amount: "0" }), { ok: false, error: "amount-must-be-positive" });
+  // On the client alone: a domain, a one-off. A deposit or a balance needs a project.
+  const alone = { ...base, projectId: null };
+  const domain = newInvoice(alone, { kind: "other", description: "Domain name, one year", amount: "25" });
+  assert.ok(domain.ok);
+  assert.deepEqual([domain.value.organizationId, domain.value.projectId], [id(4), null]);
+  assert.deepEqual(newInvoice(alone, { kind: "deposit", description: "x", amount: "1" }), { ok: false, error: "project-needed" });
+  assert.deepEqual(newInvoice(alone, { kind: "balance", description: "x", amount: "1" }), { ok: false, error: "project-needed" });
 
   const two = addInvoiceLine(made.value, { description: "Stock photos", amount: "37.50" });
   assert.ok(two.ok);
@@ -162,7 +169,7 @@ test("a budget is worth watching at three quarters used, unless the work has kep
 
 test("a credit comes off a draft as a negative line, and never makes it zero or less", async () => {
   const { addCreditLine, newInvoice } = await import("./invoice.ts");
-  const ids = { id: "11111111-1111-4111-8111-111111111111" as never, projectId: "22222222-2222-4222-8222-222222222222" as never, number: 1, createdBy: "33333333-3333-4333-8333-333333333333" as never };
+  const ids = { id: "11111111-1111-4111-8111-111111111111" as never, organizationId: "44444444-4444-4444-8444-444444444444" as never, projectId: "22222222-2222-4222-8222-222222222222" as never, number: 1, createdBy: "33333333-3333-4333-8333-333333333333" as never };
   const draft = newInvoice(ids, { kind: "other", description: "Website plan, December", amount: "50" });
   assert.ok(draft.ok);
   const credited = addCreditLine(draft.value, { description: "Referral credit", minor: 2500 });

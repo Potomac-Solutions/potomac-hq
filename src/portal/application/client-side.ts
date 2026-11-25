@@ -155,7 +155,7 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
   }
   for (const invoice of unpaid) {
     const due = invoice.dueOn ? ((daysUntil(invoice.dueOn, today) ?? 0) < 0 ? ` It was due ${friendlyDay(invoice.dueOn, today)}.` : ` Due ${dueText(invoice.dueOn, today)}.`) : "";
-    attention.push({ key: `i-${invoice.id}`, text: `Pay invoice ${invoiceLabel(invoice.number)}: ${formatMoney({ minor: owedOn(invoice), currency: invoice.total.currency })}`, detail: `${invoice.projectName}.${due}`, href: "/portal#invoices", action: "How to pay" });
+    attention.push({ key: `i-${invoice.id}`, text: `Pay invoice ${invoiceLabel(invoice.number)}: ${formatMoney({ minor: owedOn(invoice), currency: invoice.total.currency })}`, detail: `${invoice.projectName || "For your business"}.${due}`, href: "/portal#invoices", action: "How to pay" });
   }
 
   const latest = projects

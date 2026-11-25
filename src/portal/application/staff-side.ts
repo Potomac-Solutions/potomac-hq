@@ -210,9 +210,9 @@ export function staffWaiting(deps: PortalDeps, actorId: Id | null): { readonly i
     for (const invoice of deps.invoices.list()) {
       const label = `INV-${String(invoice.number).padStart(4, "0")}`;
       if (invoice.status === "draft") {
-        items.push({ key: `i-${invoice.id}`, text: `Send invoice ${label}`, detail: `${invoice.projectName}, ${invoice.clientName}. ${formatMoney(invoice.total)}, still a draft.`, href: `/invoices/${invoice.id}`, action: "Check and send", since: "" });
+        items.push({ key: `i-${invoice.id}`, text: `Send invoice ${label}`, detail: `${invoice.projectName ? `${invoice.projectName}, ` : ""}${invoice.clientName}. ${formatMoney(invoice.total)}, still a draft.`, href: `/invoices/${invoice.id}`, action: "Check and send", since: "" });
       } else if (invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < today) {
-        items.push({ key: `i-${invoice.id}`, text: `Invoice ${label} is past due`, detail: `${invoice.projectName}, ${invoice.clientName}. ${formatMoney({ minor: invoice.total.minor - invoice.paidMinor, currency: invoice.total.currency })} owed, due ${dueText(invoice.dueOn, today)}.`, href: `/invoices/${invoice.id}`, action: "Open", since: "" });
+        items.push({ key: `i-${invoice.id}`, text: `Invoice ${label} is past due`, detail: `${invoice.projectName ? `${invoice.projectName}, ` : ""}${invoice.clientName}. ${formatMoney({ minor: invoice.total.minor - invoice.paidMinor, currency: invoice.total.currency })} owed, due ${dueText(invoice.dueOn, today)}.`, href: `/invoices/${invoice.id}`, action: "Open", since: "" });
       }
     }
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addressOf, canApprove, cleanRepo, cleanSubdomain, nextRound, repoText, roundsUsedText, roundText } from "./free-page.ts";
+import { addressOf, cleanDomain, canApprove, cleanRepo, cleanSubdomain, nextRound, repoText, roundsUsedText, roundText } from "./free-page.ts";
 
 test("a subdomain is typed as a name, a label or the whole address; Potomac's own names are kept back", () => {
   assert.deepEqual(cleanSubdomain(" Moats Hardware "), { ok: true, value: "moats-hardware" });
@@ -8,7 +8,9 @@ test("a subdomain is typed as a name, a label or the whole address; Potomac's ow
   assert.deepEqual(cleanSubdomain(""), { ok: true, value: null });
   assert.deepEqual(cleanSubdomain("hq"), { ok: false, error: "subdomain-reserved" });
   for (const bad of ["-moats", "moats-", "moats--hw", "moats.hw", "mo@ts", "x".repeat(41)]) assert.deepEqual(cleanSubdomain(bad), { ok: false, error: "subdomain-invalid" }, bad);
-  assert.equal(addressOf("moats"), "https://moats.potomac.solutions");
+  assert.equal(addressOf({ subdomain: "moats", ownDomain: null }), "https://moats.potomac.solutions");
+  assert.equal(addressOf({ subdomain: null, ownDomain: "betterdaystowing.com" }), "https://betterdaystowing.com");
+  assert.equal(addressOf({ subdomain: null, ownDomain: null }), "");
   assert.equal(addressOf(null), "");
 });
 
@@ -38,4 +40,13 @@ test("a round says what to change", () => {
   assert.deepEqual(roundText("  Bigger phone number\r\nand our hours "), { ok: true, value: "Bigger phone number\nand our hours" });
   assert.deepEqual(roundText(" "), { ok: false, error: "text-missing" });
   assert.deepEqual(roundText("x".repeat(4001)), { ok: false, error: "text-too-long" });
+});
+
+test("a client's own domain is cleaned to its bare name, and potomac.solutions isn't one", () => {
+  assert.deepEqual(cleanDomain(" https://www.BetterDaysTowing.com/about "), { ok: true, value: "betterdaystowing.com" });
+  assert.deepEqual(cleanDomain("moats.co.uk"), { ok: true, value: "moats.co.uk" });
+  assert.deepEqual(cleanDomain(""), { ok: true, value: null });
+  assert.deepEqual(cleanDomain("not a domain"), { ok: false, error: "domain-invalid" });
+  assert.deepEqual(cleanDomain("localhost"), { ok: false, error: "domain-invalid" });
+  assert.deepEqual(cleanDomain("moats.potomac.solutions"), { ok: false, error: "domain-ours" });
 });

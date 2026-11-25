@@ -84,6 +84,11 @@ The full list is in the article "Authorization matrix".
   with receipts, invoices and payments.
 - An **invoice** is drafted, then sent, which gives it its number. Record
   each payment against it. A mistake is voided, never deleted.
+- **Billing a client with no project.** A domain or a one-off charge doesn't
+  need a project: on the client's page, under Invoices, "Bill a one-off
+  charge" drafts one on the client alone (the full amount or something
+  else; a deposit or a balance always goes on a project). The Invoices list
+  there shows all of the client's invoices, project or not.
 - HQ never takes a card number. A payment's reference is a check number or
   the card processor's reference.
 - **Money**, in the top bar: every project at a glance, and the CSV exports.
@@ -197,7 +202,13 @@ still to write, what's with the client, and what's due to go up.
   link goes later; the printed code stays the same.
 - **Renewals.** On a client's page, add their domain, hosting, certificate
   or licenses, with when each renews. Each shows on the dashboard 30 days
-  ahead. Press "Renewed" when it is done, and its date moves on.
+  ahead. Press "Renewed" when it is done, and its date moves on. "Bill the
+  client" sends its invoice, due a week before it renews, on the client
+  alone (the default) or on one of their projects.
+- **A free landing page on their own domain.** Under the client's free
+  landing page, choose "Their own domain" instead of a name on
+  potomac.solutions. Give when the domain renews, what it costs and what
+  they're billed, and HQ adds it to their Renewals, ready to bill.
 - **Today.** Start the day here. It's one list, in order: booked calls, what
   clients are waiting on, down sites, anything overdue, then today's
   follow-ups, to-dos and deadlines, and renewals this week. Work down it.

@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Invoices on a client, with or without a project (decision 0014,
+  migration 0072). Bill a domain or a one-off charge from the client's
+  page; renewals bill the client alone by default. A deposit or a balance
+  still needs a project.
+- A free landing page can live on the client's own domain (decision 0014,
+  migration 0073). With its renewal date and price, the domain goes on the
+  client's Renewals, ready to bill.
+
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
   button, on Ask HQ and beside "Ask Claude" in the site builder, a Model

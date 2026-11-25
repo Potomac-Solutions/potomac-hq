@@ -69,6 +69,11 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
     (actor, f, id) => finance.createInvoice(deps.finance, actor, id as Id, { kind: f["kind"] ?? "", description: f["description"] ?? "", amount: f["amount"] ?? "", dueOn: f["dueOn"] ?? null, note: f["note"] ?? null }),
     { done: (made) => invoice(made.id), back: (id) => `${money(id)}#invoices`, message: "Invoice drafted. Check it, then send it." },
   );
+  post(
+    "/clients/:id/invoices",
+    (actor, f, id) => finance.createClientInvoice(deps.finance, actor, id as Id, { kind: f["kind"] ?? "other", description: f["description"] ?? "", amount: f["amount"] ?? "", dueOn: f["dueOn"] ?? null, note: f["note"] ?? null }),
+    { done: (made) => invoice(made.id), back: (id) => `/clients/${id ?? ""}#invoices`, message: "Invoice drafted. Check it, then send it." },
+  );
   post("/invoices/:id/lines", (actor, f, id) => finance.addLineToInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "" }), {
     done: (_, id) => invoice(id),
     back: (id) => invoice(id),

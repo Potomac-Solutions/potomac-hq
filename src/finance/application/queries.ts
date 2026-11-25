@@ -286,9 +286,29 @@ function invoiceSuggestions(budget: Money | null, invoices: readonly Invoice[]):
   return { deposit: plain(depositShare(budget.minor)), balance: plain(budget.minor - invoiced), full: plain(budget.minor) };
 }
 
+/** A client's invoices, on a project or not, and whether this person may bill them for a one-off charge. `invoice.view`. */
+export type ClientInvoicesView = {
+  readonly items: readonly (InvoiceRowView & { readonly projectName: string })[];
+  readonly canCreate: boolean;
+  readonly kinds: readonly Option[];
+};
+
+export function clientInvoices(deps: FinanceDeps, actorId: Id | null, organizationId: Id): Result<ClientInvoicesView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const today = deps.today();
+  return ok({
+    items: deps.invoices.listForClient(organizationId).map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName })),
+    canCreate: may(deps, actorId, "invoice.edit"),
+    // Without a project, an invoice is for the full amount of something, or another charge.
+    kinds: options(INVOICE_KIND_LABELS).filter((one) => one.value === "other" || one.value === "full"),
+  });
+}
+
 export type InvoiceView = {
   readonly invoice: InvoiceRowView & { readonly note: string; readonly draft: boolean };
-  readonly project: { readonly id: string; readonly name: string };
+  /** The project it is for, or null for a charge on the client alone. */
+  readonly project: { readonly id: string; readonly name: string } | null;
+  readonly client: { readonly id: string; readonly name: string };
   readonly clientName: string;
   readonly lines: readonly { readonly key: string; readonly description: string; readonly amount: string }[];
   readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly methodLabel: string; readonly reference: string }[];
@@ -306,7 +326,8 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
   const edit = may(deps, actorId, "invoice.edit");
   return ok({
     invoice: { ...invoiceRowView(invoice, today), note: invoice.note, draft: invoice.status === "draft" },
-    project: { id: invoice.projectId, name: invoice.projectName },
+    project: invoice.projectId === null ? null : { id: invoice.projectId, name: invoice.projectName },
+    client: { id: invoice.organizationId, name: invoice.clientName },
     clientName: invoice.clientName,
     lines: invoice.lines.map((line, index) => ({ key: String(index), description: line.description, amount: formatMoney(line.amount) })),
     payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: payment.receivedOn, amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),

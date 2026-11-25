@@ -92,3 +92,23 @@ test("members record and see; a signed-out visitor gets nothing", async () => {
   assert.equal((await fetch(`${t.origin}/clients/${moats}/landing-page.zip`)).status, 404);
   assert.ok(t.db.prepare("select count(*) as n from activity_event where action = 'free-page.approved'").get()?.["n"] === 1);
 });
+
+test("a free page can live on the client's own domain; with its renewal date, the domain goes on their Renewals, ready to bill", async () => {
+  const towing = unwrap(crm.createClient(t.services.crm, mikeyId, { name: "Better Days Towing" })).id;
+  const set = (fields: Record<string, string>) => mikey.post(`/clients/${towing}/landing-page`, { status: "building", repo: "", subdomain: "", ...fields });
+  assert.equal(query(await set({ where: "own", ownDomain: "not a domain" }), "problem"), "Type the domain like betterdaystowing.com.");
+  assert.equal(query(await set({ where: "own", ownDomain: "towing.potomac.solutions" }), "problem"), "That’s a name on potomac.solutions: choose “A name on potomac.solutions” and type just the name.");
+  // Chosen as their own domain, a name typed for potomac.solutions is not kept.
+  assert.equal(query(await set({ where: "own", ownDomain: "https://www.BetterDaysTowing.com/", subdomain: "better-days", renewsOn: "2026-12-02", cost: "15", price: "25" }), "done"), "Saved. Their domain is on their Renewals, ready to bill.");
+  const page = t.services.freePages.pages.forOrganization(towing);
+  assert.deepEqual([page?.ownDomain, page?.subdomain], ["betterdaystowing.com", null]);
+  assert.match(textOf(await mikey.page(`/clients/${towing}/landing-page`)), /https:\/\/betterdaystowing\.com/);
+  const added = t.services.renewals.renewals.listFor(towing);
+  assert.deepEqual(added.map((one) => [one.kind, one.name, one.renewsOn, one.termMonths, one.price?.minor]), [["domain", "betterdaystowing.com", "2026-12-02", 12, 2500]]);
+  assert.match(textOf(await mikey.page(`/clients/${towing}`)), /betterdaystowing\.com/);
+  // Saved again, the renewal isn't added twice; another client can't take the domain.
+  assert.equal(query(await set({ where: "own", ownDomain: "betterdaystowing.com", renewsOn: "2026-12-02", price: "25" }), "done"), "Saved. Their domain was already on their Renewals.");
+  assert.equal(t.services.renewals.renewals.listFor(towing).length, 1);
+  const other = unwrap(crm.createClient(t.services.crm, mikeyId, { name: "Copycat Towing" })).id;
+  assert.equal(query(await mikey.post(`/clients/${other}/landing-page`, { status: "building", repo: "", subdomain: "", where: "own", ownDomain: "betterdaystowing.com" }), "problem"), "Another client’s page is already on that domain.");
+});

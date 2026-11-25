@@ -14,7 +14,7 @@ import { err, ok, recordActivity, type Id, type Money, type Result } from "../..
 import type { ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
-  Pick<CrmDeps, "opportunities"> & {
+  Pick<CrmDeps, "opportunities" | "clients"> & {
     readonly time: TimeStore;
     readonly expenses: ExpenseStore;
     readonly finance: FinanceStore;
@@ -185,11 +185,28 @@ export function setProjectPayment(deps: FinanceDeps, actorId: Id | null, project
 export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(projectId)) return err("not-found");
-    const invoice = newInvoice({ id: deps.newId(), projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const invoice = newInvoice({ id: deps.newId(), organizationId: project.organizationId, projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
     if (!invoice.ok) return invoice;
     deps.invoices.insert(invoice.value, deps.clock());
     recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { projectId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
+    return ok(invoice.value);
+  });
+}
+
+/**
+ * An invoice on a client with no project: a domain, a one-off charge. Its kind
+ * is "full" or "other"; a deposit or a balance needs a project. `invoice.edit`.
+ */
+export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+    if (!invoice.ok) return invoice;
+    deps.invoices.insert(invoice.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
     return ok(invoice.value);
   });
 }
@@ -235,9 +252,11 @@ export function addLineToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceI
 export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepted: { readonly projectId: Id; readonly ownerId: Id; readonly deposit: Money | null; readonly title: string; readonly version: number }): Invoice | null {
   if (!accepted.deposit || accepted.deposit.minor <= 0) return null;
   if (deps.invoices.listForProject(accepted.projectId).some((invoice) => invoice.kind === "deposit" && invoice.status !== "void")) return null;
+  const project = deps.projects.get(accepted.projectId);
+  if (!project) return null;
   const amount = (accepted.deposit.minor / 100).toFixed(2);
   const invoice = newInvoice(
-    { id: deps.newId(), projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
+    { id: deps.newId(), organizationId: project.organizationId, projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
     { kind: "deposit", description: `Deposit, one third of “${accepted.title}”`.slice(0, 200), amount, note: `Drafted by HQ when version ${accepted.version} of the proposal was accepted.` },
   );
   if (!invoice.ok) throw new Error(`Could not draft the deposit invoice: ${invoice.error}`);
@@ -248,11 +267,14 @@ export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepte
 
 /** Moves the project's payment status on when one of its invoices changes, and records it. Inside a transaction. */
 function followInvoice(deps: FinanceDeps, actorId: Id | null, changed: Invoice): void {
-  const to = paymentStatusAfter(changed, deps.invoices.listForProject(changed.projectId));
-  const before = deps.finance.get(changed.projectId) ?? defaultFinance(changed.projectId);
+  // A charge on the client alone has no project to move on.
+  const projectId = changed.projectId;
+  if (projectId === null) return;
+  const to = paymentStatusAfter(changed, deps.invoices.listForProject(projectId));
+  const before = deps.finance.get(projectId) ?? defaultFinance(projectId);
   if (to === null || to === before.paymentStatus) return;
   deps.finance.save({ ...before, paymentStatus: to, invoiceRef: before.invoiceRef }, deps.clock());
-  recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: changed.projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
+  recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
 }
 
 /** Sends a draft: it gets today's date and can no longer be edited. The project becomes "invoiced". */
@@ -352,10 +374,11 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
     for (let n = 0; n < 12; n++) {
       const done = deps.transact(() => {
         const recurring = deps.recurring.get(first.id);
-        if (!recurring || !isDue(recurring, today) || !deps.projects.get(recurring.projectId)) return null;
+        const project = recurring ? deps.projects.get(recurring.projectId) : null;
+        if (!recurring || !project || !isDue(recurring, today)) return null;
         const dueOn = recurring.autoSend ? Temporal.PlainDate.from(today).add({ days: recurring.dueDays }).toString() : null;
         const invoice = newInvoice(
-          { id: deps.newId(), projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
+          { id: deps.newId(), organizationId: project.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
           { kind: "other", description: periodLine(recurring, recurring.nextOn), amount: (recurring.amount.minor / 100).toFixed(2), dueOn, note: "Made by HQ from a recurring invoice." },
         );
         if (!invoice.ok) throw new Error(`Could not make a recurring invoice: ${invoice.error}`);
