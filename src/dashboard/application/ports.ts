@@ -11,6 +11,8 @@ export type ActivityRow = {
 export type ActivityReader = {
   /** The newest events first, at most `limit`, within the scope. */
   recent(scope: FeedScope, limit: number): ActivityRow[];
+  /** One record's events, newest first, at most `limit`. */
+  forRecord(recordType: string, recordId: string, limit: number): ActivityRow[];
 };
 
 /** What the audit history may be narrowed by. An empty value means "any". */

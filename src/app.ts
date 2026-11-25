@@ -12,7 +12,7 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, search, setupChecklist, sizeText, statusChecks, type NavHub, type Setup, type StatusCheck } from "./dashboard/index.ts";
+import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, type NavHub, type Setup, type StatusCheck } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
@@ -515,6 +515,8 @@ export type PageContext = {
   nav(path: string, search: string): readonly NavHub[];
   /** Pages this person pinned, the one at this address marked; and whether this address is pinned. */
   pins(href: string): { readonly items: readonly { readonly href: string; readonly label: string; readonly current: boolean }[]; readonly here: boolean; readonly href: string };
+  /** What changed on a record, for someone who may see it (quality of life, 2026-11-25). */
+  history(recordType: string, recordId: string): ReturnType<typeof recordHistory>;
   /** System status, for admins; null for anyone else. */
   status(): { readonly checks: readonly StatusCheck[]; readonly errors: readonly { readonly when: string; readonly message: string }[]; readonly version: string; readonly started: string; readonly database: string; readonly migrations: string } | null;
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
@@ -1109,6 +1111,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
+        history: (recordType, recordId) => recordHistory(dashboardDeps, actor, recordType, recordId),
         status: () => {
           if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
           const counts = statusCounts();

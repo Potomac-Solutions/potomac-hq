@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /clients/:id'
+  import '../../shared/ui/parts/history-panel.zb'
   import '../../shared/ui/zubra/select-field.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
@@ -20,10 +21,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), history: context.history('client-organization', params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} touches={null} todos={null} invites={[]} min-day="" history={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -386,5 +387,6 @@
     </section>
     </div>
     </div>
+    <history-panel items={history}></history-panel>
   </div>
 </hq-client>
