@@ -3,7 +3,7 @@ import type { TouchStore } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-const COLUMNS = "id, organization_id, opportunity_id, contact_id, kind, outcome, note, happened_at, user_id";
+const COLUMNS = "id, organization_id, opportunity_id, contact_id, kind, outcome, note, happened_at, user_id, minutes, call_id";
 const toTouch = (row: Record<string, unknown>): Touch => ({
   id: row["id"] as Id,
   organizationId: row["organization_id"] as Id,
@@ -14,10 +14,12 @@ const toTouch = (row: Record<string, unknown>): Touch => ({
   note: String(row["note"]),
   happenedAt: String(row["happened_at"]),
   userId: row["user_id"] as Id,
+  minutes: (row["minutes"] as number | null) ?? null,
+  callId: (row["call_id"] as Id | null) ?? null,
 });
 
 export function sqliteTouchStore(db: Database): TouchStore {
-  const insert = db.prepare(`insert into touch (${COLUMNS}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into touch (${COLUMNS}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const forClient = db.prepare(`select ${COLUMNS} from touch where organization_id = ? order by happened_at desc limit ?`);
   const forOpportunity = db.prepare(`select ${COLUMNS} from touch where opportunity_id = ? order by happened_at desc limit ?`);
   const last = db.prepare("select organization_id, max(happened_at) as at from touch group by organization_id");
@@ -27,7 +29,7 @@ export function sqliteTouchStore(db: Database): TouchStore {
   );
   return {
     insert(t, at) {
-      insert.run(t.id, t.organizationId, t.opportunityId, t.contactId, t.kind, t.outcome, t.note, t.happenedAt, t.userId, at);
+      insert.run(t.id, t.organizationId, t.opportunityId, t.contactId, t.kind, t.outcome, t.note, t.happenedAt, t.userId, t.minutes, t.callId, at);
     },
     listForClient: (organizationId, limit) => forClient.all(organizationId, limit).map(toTouch),
     listForOpportunity: (opportunityId, limit) => forOpportunity.all(opportunityId, limit).map(toTouch),
