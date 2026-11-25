@@ -105,8 +105,21 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
     back: (id) => `${money(id)}#recurring`,
     message: "Recurring invoice set up. HQ makes each one on its day.",
   });
-  post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
-  post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
+  // A plan on the client alone: hosting, upkeep. Billed by HQ the same way.
+  post("/clients/:id/recurring", (actor, f, id) => finance.addClientRecurringInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "", every: f["every"] ?? "", firstOn: f["firstOn"] ?? "", endsOn: f["endsOn"] ?? null, autoSend: f["autoSend"] === "1", dueDays: f["dueDays"] ?? null }), {
+    done: (_, id) => `/clients/${id ?? ""}#billing`,
+    back: (id) => `/clients/${id ?? ""}#billing`,
+    message: "Saved. HQ makes each invoice on its day.",
+  });
+  post("/clients/:id/prepaid", (actor, f, id) => finance.addPrepaidHours(deps.finance, actor, id as Id, { hours: f["hours"] ?? "", boughtOn: f["boughtOn"] ?? "", note: f["note"] ?? null, price: f["price"] ?? null, send: f["send"] === "on" }), {
+    done: (_, id) => `/clients/${id ?? ""}#billing`,
+    back: (id) => `/clients/${id ?? ""}#billing`,
+    message: (block) => (block.invoiceId ? "Saved, with its invoice." : "Saved. Time logged on their projects now draws it down."),
+  });
+  post("/money/pay-instructions", (actor, f) => finance.setPayInstructions(deps.finance, actor, f["instructions"] ?? ""), { done: () => "/money#how-to-pay", back: () => "/money#how-to-pay", message: "Saved. Clients see it in their portal." });
+  const recurringHome = (made: { readonly projectId: Id | null; readonly organizationId: Id }) => (made.projectId ? `${money(made.projectId)}#recurring` : `/clients/${made.organizationId}#billing`);
+  post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => recurringHome(made), back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
+  post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => recurringHome(made), back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
   post("/invoices/:id/send", (actor, _f, id) => finance.sendInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice sent. Download the PDF to give it to the client." });
   post("/invoices/:id/promise", (actor, f, id) => finance.promiseInvoicePayment(deps.finance, actor, id as Id, { on: f["on"] ?? "", note: f["note"] ?? null }), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.promisedOn ? "Saved. Today will remind you that day." : "The promise is cleared.") });
   post("/invoices/:id/pay-link", (actor, f, id) => finance.setInvoicePayLink(deps.finance, actor, id as Id, f["link"] ?? ""), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.payLink ? "Saved. The client sees “Pay by card” in their portal." : "The link is removed.") });

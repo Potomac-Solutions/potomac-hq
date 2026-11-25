@@ -90,6 +90,25 @@ export function addContact(deps: CrmDeps, actorId: Id | null, clientId: Id, inpu
   });
 }
 
+/**
+ * Who gets the client's bills: one of their contacts with an email, such as
+ * a bookkeeper. Invoices, reminders, receipts and statements go to them.
+ * Empty: the usual people again. `client.edit`.
+ */
+export function setBillingContact(deps: CrmDeps, actorId: Id | null, clientId: Id, contactId: string): Result<{ readonly contactId: Id | null }, Refused | "contact-not-at-client" | "contact-has-no-email"> {
+  if (!allowed(deps, actorId, "client.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(clientId)) return err("not-found");
+    const wanted = contactId.trim();
+    const contact = wanted === "" ? null : deps.contacts.get(wanted as Id);
+    if (wanted !== "" && (!contact || contact.organizationId !== clientId)) return err("contact-not-at-client");
+    if (contact && !contact.email) return err("contact-has-no-email");
+    deps.clients.setBillingContact(clientId, contact?.id ?? null, deps.clock());
+    recordActivity(deps, { actorId, action: "client.billing-contact-set", recordType: "client", recordId: clientId, context: { contactId: contact?.id ?? null } });
+    return ok({ contactId: contact?.id ?? null });
+  });
+}
+
 export type CreateOpportunityError = Refused | OpportunityError | "contact-not-at-client";
 
 /** The actor owns the opportunity they create. Pricing and value are set separately. */

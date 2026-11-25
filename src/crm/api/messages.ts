@@ -18,6 +18,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-service": "Choose a service from the list.",
   "summary-too-long": "That summary is too long.",
   "contact-not-at-client": "That contact belongs to a different client.",
+  "contact-has-no-email": "That contact has no email address. Add one, or choose someone else.",
   "invalid-kind": "Choose call, email, text or meeting.",
   "invalid-outcome": "Choose how the call went from the list.",
   "note-missing": "Add a word about it: what was said, or what was sent.",

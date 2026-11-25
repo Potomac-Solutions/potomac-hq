@@ -66,6 +66,15 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
   );
 
   post(
+    "/clients/:id/billing-contact",
+    (actor, f, id) => {
+      const set = crm.setBillingContact(deps.crm, actor, id as Id, f["contactId"] ?? "");
+      return set.ok ? { ok: true, value: { id: String(id) } } : set;
+    },
+    { done: (_, id) => `/clients/${id}`, back: (id) => `/clients/${id}`, message: "Saved. Bills, reminders, receipts and statements go to whoever you chose." },
+  );
+
+  post(
     "/clients/:id/opportunities",
     (actor, f, id) => {
       const contact = f["contactId"] ? parseId(f["contactId"]) : null;

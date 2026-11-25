@@ -4,6 +4,7 @@
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
 import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { newBlock, type BlockError, type BlockInput, type PrepaidBlock } from "../domain/prepaid.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
@@ -204,17 +205,59 @@ export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organ
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
     if (!deps.clients.get(organizationId)) return err("not-found");
-    const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
-    if (!invoice.ok) return invoice;
-    deps.invoices.insert(invoice.value, deps.clock());
-    recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
-    if (!options.send) return ok(invoice.value);
-    // Drafted and sent in one step, for a small charge like a domain.
-    const sent = sendInvoice(invoice.value, deps.today());
-    if (!sent.ok) return ok(invoice.value);
-    deps.invoices.update(sent.value, deps.clock());
-    recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: sent.value.id, context: { organizationId, number: sent.value.number, minor: sent.value.total.minor } });
-    return ok(sent.value);
+    return clientInvoiceInside(deps, actorId, organizationId, input, options.send === true);
+  });
+}
+
+/** Makes (and, if asked, sends) an invoice on a client alone, inside a transaction already open. */
+function clientInvoiceInside(deps: FinanceDeps, actorId: Id, organizationId: Id, input: InvoiceInput, send: boolean): Result<Invoice, InvoiceError> {
+  const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+  if (!invoice.ok) return invoice;
+  deps.invoices.insert(invoice.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
+  if (!send) return ok(invoice.value);
+  // Drafted and sent in one step, for a small charge like a domain.
+  const sent = sendInvoice(invoice.value, deps.today());
+  if (!sent.ok) return ok(invoice.value);
+  deps.invoices.update(sent.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: sent.value.id, context: { organizationId, number: sent.value.number, minor: sent.value.total.minor } });
+  return ok(sent.value);
+}
+
+/**
+ * A client buys a block of prepaid hours. With a price, HQ makes its invoice
+ * on the client too, a draft or sent. `invoice.edit`.
+ */
+export function addPrepaidHours(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: BlockInput & { readonly price?: string | null; readonly send?: boolean }): Result<PrepaidBlock, Refused | BlockError | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact((): Result<PrepaidBlock, Refused | BlockError | InvoiceError> => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const checked = newBlock({ id: deps.newId(), organizationId, createdBy: actorId, invoiceId: null }, input);
+    if (!checked.ok) return checked;
+    const price = (input.price ?? "").trim();
+    let invoiceId: Id | null = null;
+    if (price !== "") {
+      const hours = checked.value.minutes / 60;
+      const made = clientInvoiceInside(deps, actorId, organizationId, { kind: "full", description: `${hours} prepaid hours`, amount: price }, input.send === true);
+      if (!made.ok) return made;
+      invoiceId = made.value.id;
+    }
+    const block = { ...checked.value, invoiceId };
+    deps.billing.insertBlock(block, deps.clock());
+    recordActivity(deps, { actorId, action: "prepaid-hours.added", recordType: "client", recordId: organizationId, context: { minutes: block.minutes, boughtOn: block.boughtOn, invoiceId } });
+    return ok(block);
+  });
+}
+
+/** How clients pay, in Potomac's words, for the portal. `invoice.edit`. */
+export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: string): Result<{ readonly text: string }, "forbidden" | "too-long"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  const clean = text.trim().replace(/\r\n/g, "\n");
+  if (clean.length > 2000) return err("too-long");
+  return deps.transact(() => {
+    deps.billing.setPayInstructions(clean, actorId, deps.clock());
+    recordActivity(deps, { actorId, action: "finance.pay-instructions-set", recordType: "setting", recordId: "finance-setting" as Id, context: { length: clean.length } });
+    return ok({ text: clean });
   });
 }
 

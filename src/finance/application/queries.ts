@@ -6,6 +6,7 @@ import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
 import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
+import { prepaidBalance } from "../domain/prepaid.ts";
 import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
 import { milestoneProgress, type Project } from "../../projects/index.ts";
@@ -339,16 +340,53 @@ export type ClientInvoicesView = {
   readonly items: readonly (InvoiceRowView & { readonly projectName: string })[];
   readonly canCreate: boolean;
   readonly kinds: readonly Option[];
+  /** The money line at the top of a client's page. */
+  readonly money: { readonly owed: string; readonly overdue: string; readonly hasOverdue: boolean; readonly paidThisYear: string; readonly owedMinor: number };
+  /** Prepaid hours: what's left, and each block bought. Null when they've bought none. */
+  readonly prepaid: { readonly bought: string; readonly used: string; readonly left: string; readonly low: boolean; readonly over: boolean; readonly blocks: readonly { readonly id: string; readonly hours: string; readonly boughtOn: string; readonly note: string; readonly invoiceId: string }[] } | null;
+  /** Recurring invoices on the client with no project: hosting, upkeep, a plan. */
+  readonly plans: readonly RecurringLine[];
+  readonly everyOptions: readonly Option[];
+  readonly today: string;
 };
 
 export function clientInvoices(deps: FinanceDeps, actorId: Id | null, organizationId: Id): Result<ClientInvoicesView, "forbidden"> {
   if (!may(deps, actorId, "invoice.view")) return err("forbidden");
   const today = deps.today();
+  const invoices = deps.invoices.listForClient(organizationId);
+  const owed = (one: InvoiceRow) => (one.status === "sent" ? Math.max(0, one.total.minor - one.paidMinor) : 0);
+  const late = invoices.filter((one) => one.status === "sent" && one.dueOn !== null && one.dueOn < today);
+  const year = Number(today.slice(0, 4));
+  const paidThisYear = deps.billing.paymentsForClient(organizationId, year).reduce((sum, one) => sum + one.payment.amount.minor, 0);
+  const blocks = deps.billing.blocksFor(organizationId);
+  const balance = prepaidBalance(blocks, blocks.length > 0 ? deps.billing.minutesSince(organizationId, [...blocks].map((one) => one.boughtOn).sort()[0] as string) : 0);
+  const clientName = deps.clients.get(organizationId)?.name ?? "";
   return ok({
-    items: deps.invoices.listForClient(organizationId).map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName })),
+    items: invoices.map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName })),
     canCreate: may(deps, actorId, "invoice.edit"),
     // Without a project, an invoice is for the full amount of something, or another charge.
     kinds: options(INVOICE_KIND_LABELS).filter((one) => one.value === "other" || one.value === "full"),
+    money: {
+      owed: formatMoney(usd(invoices.reduce((sum, one) => sum + owed(one), 0))),
+      overdue: formatMoney(usd(late.reduce((sum, one) => sum + owed(one), 0))),
+      hasOverdue: late.length > 0,
+      paidThisYear: formatMoney(usd(paidThisYear)),
+      owedMinor: invoices.reduce((sum, one) => sum + owed(one), 0),
+    },
+    prepaid:
+      blocks.length === 0
+        ? null
+        : {
+            bought: readableHours(balance.boughtMinutes),
+            used: readableHours(balance.usedMinutes),
+            left: balance.leftMinutes < 0 ? `${readableHours(-balance.leftMinutes)} over` : readableHours(balance.leftMinutes),
+            low: balance.low,
+            over: balance.leftMinutes < 0,
+            blocks: blocks.map((one) => ({ id: one.id, hours: readableHours(one.minutes), boughtOn: one.boughtOn, note: one.note, invoiceId: one.invoiceId ?? "" })),
+          },
+    plans: deps.recurring.listForClientAlone(organizationId).map((one) => recurringLine(one, "", clientName, today)),
+    everyOptions: options(EVERY_LABELS),
+    today,
   });
 }
 
@@ -748,7 +786,15 @@ export type MoneyFollowUp = { readonly key: string; readonly text: string; reado
 export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly MoneyFollowUp[] {
   if (!may(deps, actorId, "invoice.view")) return [];
   const today = deps.today();
-  return deps.invoices
+  const low = deps.billing.clientsWithBlocks().flatMap((organizationId): MoneyFollowUp[] => {
+    const blocks = deps.billing.blocksFor(organizationId);
+    const balance = prepaidBalance(blocks, deps.billing.minutesSince(organizationId, [...blocks].map((one) => one.boughtOn).sort()[0] as string));
+    if (!balance.low) return [];
+    const name = deps.clients.get(organizationId)?.name ?? "A client";
+    const left = balance.leftMinutes < 0 ? `${readableHours(-balance.leftMinutes)} over` : `${readableHours(balance.leftMinutes)} left`;
+    return [{ key: `prepaid-${organizationId}`, text: `${name}’s prepaid hours are running low`, detail: `${left} of ${readableHours(balance.boughtMinutes)} bought`, href: `/clients/${organizationId}#billing`, action: "Open", overdue: balance.leftMinutes < 0, at: today }];
+  });
+  return [...low, ...deps.invoices
     .list()
     .filter((one) => one.status === "sent" && one.promisedOn !== null && one.promisedOn <= today)
     .map((one) => ({
@@ -759,5 +805,5 @@ export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly 
       action: "Follow up",
       overdue: (one.promisedOn as string) < today,
       at: one.promisedOn as string,
-    }));
+    }))];
 }
