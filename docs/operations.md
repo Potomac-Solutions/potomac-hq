@@ -83,7 +83,7 @@ Do it for the test environment first, then again for production.
 ### In Railway
 
 1. Make a project with two environments, `test` and `production`.
-2. Add a service from the GitHub repository `Potomac-Solutions/potomac-hq`.
+2. Add a service from HQ's GitHub repository.
    Turn **off** Railway's own deploy-on-push for it: CI deploys, so that
    nothing ships before its checks pass.
 3. Add a **volume** to the service, mounted at `/data`. The database is one
