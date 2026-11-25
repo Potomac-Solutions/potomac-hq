@@ -37,8 +37,8 @@ follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 Added by decision 0009, slice 1 (migration 0052). `call`: a call in
 progress, at a client and optionally with a contact, on an opportunity or
 for a booking; who's on it, the number dialed, when it started, the
-planned minutes (5 to 240, in steps of 5; 15 by default, or the booking's
-length), the warning minutes (5, or a third of a call under 15), notes
+planned minutes (5 to 240, in steps of 5; 30 by default, or the booking's
+length; one tap sets 15, 30, 45 or 60), the warning minutes (5, or a third of a call under 15), notes
 kept as they're typed, and when it ended and the touch it was logged as.
 `touch` gains `minutes` and `call_id`.
 

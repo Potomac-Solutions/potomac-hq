@@ -237,8 +237,10 @@ puts back what HQ had.
   set the next follow-up in the same step: "left a voicemail, try Thursday".
 - **A timed call.** "Start a call" on a client, a contact, an opportunity or
   a booked call opens the call screen: a big Dial button, and a timer that
-  keeps running if you reload or switch apps. A call is planned for 15
-  minutes (a booked call for its own length); −5 and +5 change it. Five
+  keeps running if you reload or switch apps. A call is planned for 30
+  minutes (a booked call for its own length). Picked up with only 15
+  minutes to give? Tap "15 min"; 45 and an hour are there too, and −5 and
+  +5 fine-tune it. Five
   minutes before the end the timer turns amber and the phone buzzes once,
   with no sound, and the screen shows what to cover before hanging up. At
   the end it turns red and counts the overtime. Notes save as you type.

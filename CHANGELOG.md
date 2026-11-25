@@ -11,8 +11,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 - The call screen (decision 0009, slice 1). "Start a call" on a client, a
   contact, an opportunity or a booked call opens a screen with a big Dial
-  button and a timer kept by the server. A call is planned for 15 minutes,
-  or a booked call's length, changed 5 minutes at a time. Five minutes
+  button and a timer kept by the server. A call is planned for 30 minutes,
+  or a booked call's length; one tap makes it 15, 45 or an hour, and −5 and
+  +5 fine-tune it. Five minutes
   before the end (a third of a short call) the timer turns amber, the phone
   buzzes once with no sound, and a wrap-up list shows; at the end it turns
   red and counts the overtime. Notes save as they're typed, and the screen
