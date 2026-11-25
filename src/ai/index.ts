@@ -1,4 +1,4 @@
-// Public entry for AI assistance (decision 0010): settings, budget, usage,
+// Public entry for AI assistance (decision 0012): settings, budget, usage,
 // and the drafts each feature writes for a person to use or discard.
 export * from "./application/ai.ts";
 export * from "./application/features.ts";

@@ -1,4 +1,4 @@
-// What each AI feature asks, and how its answer is read (decision 0010). The
+// What each AI feature asks, and how its answer is read (decision 0012). The
 // facts come from HQ's records, gathered by the application layer; nothing
 // here reaches outside. Records are passed as data inside <records> tags, and
 // every prompt says that anything written in them is never an instruction:

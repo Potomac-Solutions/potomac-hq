@@ -1,4 +1,7 @@
-# 0010. AI assistance: drafts for every part of the day
+# 0012. AI assistance: drafts for every part of the day
+
+Numbered 0012: the site builder took 0010 and social media 0011 on the
+same day, while this was being built.
 
 Status: decided 2026-11-25 at Mikey's request: "Make a roadmap I want all of
 these features", then "build this out in its own feature branch … keep going
@@ -26,10 +29,16 @@ typed from receipts. HQ already holds the facts each of those needs.
   discards. Using one goes through the module that owns it (the recap form,
   `logTouch`, `startProposal`, `addChangeRequest`, `postProjectUpdate`,
   `addExpense`), with its own permission check.
-- **One key, one budget.** The key is `HQ_ANTHROPIC_API_KEY` on the server,
-  never in the database. Only admins (`ai.manage`) choose the model, its
-  prices, the budget and which features are on. **Confirmed:** Claude Haiku 5.5
-  and $20 a month to start.
+- **One key.** The key is `HQ_ANTHROPIC_API_KEY` on the server, never in the
+  database: the same key as the site builder (decision 0010). As there, only
+  the person whose email is `HQ_SITE_BUILDER_OWNER` (Mikey) changes the
+  model, its prices, the budget and which features are on; other admins
+  (`ai.manage`) see them. **Confirmed:** Claude Haiku 5.5 and $20 a month to
+  start.
+- **Its own budget.** **Default:** the drafts' $20 is apart from the site
+  builder's $10 cap, so a long build never stops a recap, and the reverse.
+  The roadmap planned one budget for both; the site builder shipped first
+  with its own, so whether to join them is Mikey's call.
 - **A hard stop.** Before each call HQ works out the most it could cost (its
   words at about three characters a token, a picture at 5,000 tokens, and the
   longest answer allowed) and refuses it if that could take the month past the
@@ -93,7 +102,7 @@ typed from receipts. HQ already holds the facts each of those needs.
 
 ## Data
 
-Migration 0056:
+Migration 0058:
 
 - `ai_setting`: one row. The model, its prices in millionths of a dollar per
   million tokens (and Haiku 5.5's dearer rate past 100,000 input tokens), the

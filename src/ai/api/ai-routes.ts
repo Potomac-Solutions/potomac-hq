@@ -1,4 +1,4 @@
-// AI's forms (decision 0010): Settings → AI, asking each feature for a draft,
+// AI's forms (decision 0012): Settings → AI, asking each feature for a draft,
 // and using or discarding drafts. Asking waits for Claude's answer, then goes
 // back to the page with the draft on it. Nothing here sends or changes
 // anything without someone pressing the button that says so.

@@ -23,7 +23,7 @@
     // A booked call within 15 minutes: get ready for it, from any page.
     const next = !call && context.user ? context.crm.comingUp() : null
     const ready = next && path !== next.href ? { href: next.href, label: 'Call ' + next.startsText + ' with ' + next.who + ': get ready' } : null
-    // AI drafts waiting for this person (decision 0010).
+    // AI drafts waiting for this person (decision 0012).
     const aiDrafts = context.user ? context.ai.draftCount() : 0
     const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
@@ -51,6 +51,8 @@
         ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
         { label: 'Sites', href: '/sites', current: at('/sites') },
         { label: 'Site content', href: '/websites', current: at('/websites') },
+        ...(can.siteBuilder ? [{ label: 'Site builder', href: '/builder', current: at('/builder') }] : []),
+        ...(can.social ? [{ label: 'Social media', href: '/social', current: at('/social') }] : []),
       ] },
       { label: 'Finance', links: [
         ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),

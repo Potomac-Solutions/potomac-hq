@@ -1,4 +1,4 @@
-// The eleven AI features of decision 0010, each a draft for a person to use.
+// The eleven AI features of decision 0012, each a draft for a person to use.
 // Facts are read with the reader in `records` or through other modules'
 // services in `links`, which check their own permissions; using a draft goes
 // through those services too, so a draft can do nothing its user couldn't.

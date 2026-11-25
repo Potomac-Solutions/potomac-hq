@@ -1,5 +1,5 @@
 // The Claude models HQ knows the prices of, and what a call cost (decision
-// 0010, Phase 0). Prices are kept in millionths of a dollar per million
+// 0012, Phase 0). Prices are kept in millionths of a dollar per million
 // tokens, so every sum stays a whole number.
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 

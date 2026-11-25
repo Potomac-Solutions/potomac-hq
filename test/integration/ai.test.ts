@@ -1,4 +1,4 @@
-// AI assistance (decision 0010) against a real database and over real HTTP,
+// AI assistance (decision 0012) against a real database and over real HTTP,
 // with a stand-in for Claude: settings and the budget's hard stop, and each
 // feature drafting, then a person using or discarding the draft. Nothing is
 // sent, posted or saved until someone presses the button that says so.
@@ -62,6 +62,7 @@ async function portalUser(organizationId: string, name: string, email: string): 
 before(async () => {
   t = await testApp({
     ai: fake,
+    builderOwner: "mikey@example.com",
     email: { publicUrl: "https://hq.example", send: async (message) => (sent.push({ to: message.to, subject: message.subject, body: message.body }), { ok: true }) },
   });
   mikey = await signIn(t, "mikey@example.com", "Mikey Nichols", ["admin"]);
@@ -75,6 +76,9 @@ after(() => t.stop());
 test("Settings → AI: admins only; Haiku 5.5, $20 and everything off to start; a change applies from the next call", async () => {
   assert.equal((await sam.get("/settings/ai")).status, 403);
   assert.match(query(await sam.post("/settings/ai", { model: "claude-haiku-5-5", budget: "999" }), "problem"), /permission/);
+  const jo = await signIn(t, "jo@example.com", "Jo Admin", ["admin"]);
+  assert.match(textOf(await jo.page("/settings/ai")), /Only the owner set in HQ_SITE_BUILDER_OWNER changes these/, "another admin sees them");
+  assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5", budget: "999" }), "problem"), /permission/, "and can't change them");
   const page = textOf(await mikey.page("/settings/ai"));
   assert.match(page, /\$0\.00 of \$20\.00 spent, on 0 calls/);
   assert.match(page, /Claude Haiku 5\.5/);

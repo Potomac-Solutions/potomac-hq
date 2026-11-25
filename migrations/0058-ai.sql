@@ -1,4 +1,4 @@
--- Decision 0010: AI assistance. One row of settings (the model and its prices,
+-- Decision 0012: AI assistance. One row of settings (the model and its prices,
 -- the monthly budget, which features are on, and the price guide lead triage
 -- reads), a log of every call with what it cost, and the drafts AI writes,
 -- which a person uses or discards. The API key is never stored here: it is

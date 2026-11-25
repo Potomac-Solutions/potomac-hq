@@ -1,4 +1,4 @@
-// What AI may do in HQ, and what it may spend (decision 0010). One row of
+// What AI may do in HQ, and what it may spend (decision 0012). One row of
 // settings: the model, its prices, the monthly budget, which features are on,
 // and Potomac's price guide that lead triage reads. Every feature starts off.
 import { err, ok, type Result } from "../../shared/domain/result.ts";
@@ -48,7 +48,7 @@ export type AiSettings = {
   readonly priceGuide: string;
 };
 
-/** The starting point (decision 0010, confirmed by Mikey on Nov 25): Haiku 5.5, $20 a month, everything off. */
+/** The starting point (decision 0012, confirmed by Mikey on Nov 25): Haiku 5.5, $20 a month, everything off. */
 export const DEFAULT_SETTINGS: AiSettings = {
   model: DEFAULT_MODEL,
   price: { input: 100_000, output: 500_000, long: { above: 100_000, input: 500_000, output: 2_500_000 } },

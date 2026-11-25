@@ -1,4 +1,4 @@
-// What AI features read from HQ's tables (decision 0010). Read-only, and
+// What AI features read from HQ's tables (decision 0012). Read-only, and
 // never more than a feature needs: no deal values, no money owed, no
 // passwords. Changes AI drafts are made through each module's own services.
 import type { AiRecords, DealFacts, ProjectFacts } from "../application/ports.ts";

@@ -1,5 +1,5 @@
 <!--
-  AI on a project (decision 0010): client messages that look beyond what was
+  AI on a project (decision 0012): client messages that look beyond what was
   agreed, this week's update for the client, and a case study or social
   posts once there's work to show. Everything is a draft until a person
   posts or sends it. `ai` is what `context.ai.project(id)` returns.

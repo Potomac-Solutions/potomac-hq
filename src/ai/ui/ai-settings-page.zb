@@ -1,5 +1,5 @@
 <!--
-  Settings → AI (decision 0010), for admins: the model, the monthly budget,
+  Settings → AI (decision 0012), for admins: the model, the monthly budget,
   which features are on, the price guide lead triage reads, and what AI has
   cost this month, call by call.
 -->
@@ -28,8 +28,9 @@
   .ai-usage th, .ai-usage td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border, #e4e4e7); vertical-align: top; }
   .ai-usage td.num { text-align: right; white-space: nowrap; }
   .ai-month { display: grid; gap: 0.5rem; }
+  .ai-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
 </style>
-<hq-ai-settings view={{ keySet: false, model: '', models: [], other: { id: '', input: '', output: '' }, budget: '', features: [], priceGuide: '', month: { spent: '', budget: '', percent: 0, state: 'ok', calls: 0, failed: 0 }, recent: [], updated: '' }} done="" problem="">
+<hq-ai-settings view={{ keySet: false, canChange: false, ownerSet: false, model: '', models: [], other: { id: '', input: '', output: '' }, budget: '', features: [], priceGuide: '', month: { spent: '', budget: '', percent: 0, state: 'ok', calls: 0, failed: 0 }, recent: [], updated: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Settings', href: '/settings' }, { label: 'AI', href: '' }]}></breadcrumb-trail>
     <h1>AI settings</h1>
@@ -50,7 +51,9 @@
       </div>
     </section>
 
+    <p zb-if={!view.canChange} class="hq-panel hq-muted">{view.ownerSet ? 'Only the owner set in HQ_SITE_BUILDER_OWNER changes these, as for the site builder. You can see them.' : 'Nobody can change these yet: set HQ_SITE_BUILDER_OWNER on the server to the owner’s email, as for the site builder.'}</p>
     <form method="post" action="/settings/ai" class="hq-form">
+      <fieldset disabled={!view.canChange} class="ai-settings-fields">
       <section class="hq-panel" aria-labelledby="ai-model">
         <h2 id="ai-model">Model and budget</h2>
         <div class="hq-field">
@@ -104,7 +107,8 @@
         <p class="hq-muted hq-small">What Potomac charges, in your own words. Lead triage, proposal drafts and the scope check price only from this.</p>
         <text-field label="Prices" name="priceGuide" value={view.priceGuide} rows={10} maxlength={4000}></text-field>
       </section>
-      <div><button class="hq-button" type="submit">Save AI settings</button> <span zb-if={view.updated} class="hq-muted hq-small">{view.updated}</span></div>
+      <div><button zb-if={view.canChange} class="hq-button" type="submit">Save AI settings</button> <span zb-if={view.updated} class="hq-muted hq-small">{view.updated}</span></div>
+      </fieldset>
     </form>
 
     <section class="hq-panel" aria-labelledby="ai-recent">

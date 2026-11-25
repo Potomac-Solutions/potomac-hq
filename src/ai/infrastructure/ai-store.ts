@@ -1,4 +1,4 @@
-// AI's settings, its call log and its drafts (migration 0056).
+// AI's settings, its call log and its drafts (migration 0058).
 import { DEFAULT_SETTINGS, isFeature, type Feature } from "../domain/settings.ts";
 import type { AiStore, Draft, DraftStatus, StoredSettings, UsageRow } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";

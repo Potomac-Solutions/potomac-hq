@@ -137,6 +137,38 @@ If you change the site's content file in the repository by hand, press
 "Read the site again" on the site's page afterwards, or the next publish
 puts back what HQ had.
 
+### Their social media
+
+For a client on social media marketing (decision 0011). On the client's
+page, under Social media, press "Set up a plan": tick their networks
+(Facebook, Instagram, LinkedIn), add the address of their page on each,
+how many posts and blog posts a month (8 and 1 unless they pay for more
+or less), and a few lines about the business: how they talk and what to
+stay away from. Those lines show beside every post you write.
+
+1. **Write the month.** On the calendar, add each post with its day, its
+   networks, the words, and what the picture shows. An Instagram post
+   needs its picture. Blog posts are under "Write a blog post". The count
+   at the top says how the month stands against the plan.
+2. **Send it.** "Send the drafts to the client" puts them in the client's
+   portal, under "Your social media", and on their "Waiting on you".
+3. **They answer.** They approve the month in one go, or ask for a change
+   on any post; asks show on Today under Waiting on you. Change the post
+   and send it again. Anything they don't answer in 3 days counts as
+   approved, and says so. If they said yes by phone or text, use "The
+   client said yes by phone or text" and say how.
+4. **Put it up.** On its day, an approved post shows on Today. Open it,
+   "Copy the words", "Open Facebook" (or the rest), post it there, then
+   "It's up" with the link if you have it. The client sees the link in
+   their portal. "Skip or remove" takes a post off with a reason.
+
+Editing a post the client has seen makes it a draft again, to send again.
+HQ doesn't post to the networks by itself yet; that needs Potomac to be
+a registered business and Meta and LinkedIn to approve the app.
+
+Delivery → Social media shows every client's month at a glance: what's
+still to write, what's with the client, and what's due to go up.
+
 ## Knowing what is going on
 
 - **Calls.** Managers and admins set the hours for booked calls under
@@ -293,6 +325,28 @@ puts back what HQ had.
   **Refused attempts** page lists wrong passwords, wrong two-factor codes
   and forms someone tried without permission, for the last 30 days.
 
+## Making a client's website with Claude
+
+Delivery → Site builder (admins only). Choose the client, give the build a
+name and write a brief: what the business does, who its customers are, the
+tone, the pages wanted. The client's name, phone, address and main contact
+come from their page in HQ, so keep those right. Starting asks Claude for
+the first version, which takes a minute or two; the page updates by itself.
+
+The preview shows the site as a visitor would, at phone, tablet or full
+width. Ask for changes in plain words, one thing at a time ("make the hero
+darker", "add a page for towing rates"). Each answer is a new version.
+Show an older one, download any one as a .zip, or make an older one the
+newest again.
+
+Claude only uses the facts it's given. Where something is missing it
+writes a placeholder in square brackets, like [Hours: ask the owner]:
+look for those before a site goes anywhere.
+
+Each request shows what it cost. This month's spending and what's left
+are at the top. A request that could pass the monthly cap isn't sent;
+Mikey can change the cap and the model under Model and cap.
+
 ## Our own website (potomac.solutions)
 
 Company → Our website (admins only). Pick **Coming soon** or **Down for maintenance**
@@ -307,8 +361,9 @@ the top of every page while the site is open.
 
 ## AI drafts
 
-With an API key on the server and a feature turned on in Settings → AI
-(admins), Claude drafts some of the day's writing. It only ever drafts: you
+With the site builder's API key on the server and a feature turned on in
+Settings → AI (by the owner in `HQ_SITE_BUILDER_OWNER`; other admins see
+it), Claude drafts some of the day's writing. It only ever drafts: you
 read it, change it and press the button that sends, posts or saves it, or
 discard it. **AI drafts** in the sidebar, and a line on Today, show what's
 waiting for you.

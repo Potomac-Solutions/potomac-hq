@@ -1,4 +1,4 @@
-// AI assistance, Phase 0 of decision 0010: the settings, the budget, the log
+// AI assistance, Phase 0 of decision 0012: the settings, the budget, the log
 // of every call and the drafts. Every feature runs through `draftWith`, which
 // checks that the feature is on, that HQ has a key and that the month's budget
 // has room for the most the call could cost; asks the model; logs the call
@@ -24,6 +24,8 @@ export type AiDeps = ActivityDeps & {
   /** The first instant of this month in the business time zone. */
   readonly monthStart: () => string;
   readonly formatWhen: (instant: string) => string;
+  /** The one person who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Null: nobody. */
+  readonly ownerEmail: string | null;
 };
 
 /** What a person needs to ask for, see and use each feature's drafts. */
@@ -149,6 +151,9 @@ export function draftDone(deps: AiDeps, actorId: Id | null, draftId: Id): Result
 
 export type AiSettingsView = {
   readonly keySet: boolean;
+  /** Whether this person may change them: the owner alone. */
+  readonly canChange: boolean;
+  readonly ownerSet: boolean;
   readonly model: string;
   readonly models: readonly { readonly value: string; readonly label: string }[];
   /** A model HQ doesn't list: its id and prices as typed. Empty for a listed one. */
@@ -180,6 +185,8 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   const listed = knownModel(settings.model) !== null;
   return ok({
     keySet: deps.model !== null,
+    canChange: isOwner(deps, actorId),
+    ownerSet: deps.ownerEmail !== null,
     model: listed ? settings.model : "other",
     models: [...KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })), { value: "other", label: "Another model" }],
     other: listed ? { id: "", input: "", output: "" } : { id: settings.model, input: perMillion(settings.price.input), output: perMillion(settings.price.output) },
@@ -195,9 +202,12 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   });
 }
 
-/** Saves Settings → AI. `ai.manage`. A change applies from the next call. */
+/** The owner: an admin whose email is HQ_SITE_BUILDER_OWNER. */
+const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmail">, actorId: Id | null): boolean => may(deps, actorId, "ai.manage") && deps.ownerEmail !== null && deps.users.get(actorId as Id)?.email.toLowerCase() === deps.ownerEmail.toLowerCase();
+
+/** Saves Settings → AI: the owner alone. A change applies from the next call. */
 export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: SettingsInput): Result<AiSettings, "forbidden" | SettingsError> {
-  if (!may(deps, actorId, "ai.manage")) return err("forbidden");
+  if (actorId === null || !isOwner(deps, actorId)) return err("forbidden");
   const read = readSettings(input);
   if (!read.ok) return read;
   return deps.transact(() => {

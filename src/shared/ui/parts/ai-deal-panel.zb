@@ -1,5 +1,5 @@
 <!--
-  AI on a deal (decision 0010): triage, a check-in and a proposal's first
+  AI on a deal (decision 0012): triage, a check-in and a proposal's first
   draft. Each is a draft: the email goes only when Send is pressed, and the
   proposal starts as a draft to edit. `ai` is what `context.ai.deal(id)`
   returns; `states` says which buttons show.
