@@ -51,7 +51,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
   await sam.getByLabel(/Choose a password/).fill(PASSWORD);
   await sam.getByRole("button", { name: /Make my account|Save|Sign in|Set/ }).first().click();
   await sam.waitForURL((url) => url.pathname === "/");
-  assert.equal(await sam.getByRole("link", { name: "Reports" }).count(), 1, "a manager has Reports");
+  assert.equal(await sam.getByRole("link", { name: "Reports", exact: true }).count(), 1, "a manager has Reports");
 
   await page.goto(`${t.origin}/people`);
   assert.match(await text(page), /Sam Helper sam@example\.com Manager · Active/);
@@ -102,7 +102,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
   assert.match((await download).suggestedFilename(), /^hq-audit-\d{4}-\d{2}-\d{2}\.csv$/);
 
   // Reports.
-  await page.getByRole("link", { name: "Reports" }).click();
+  await page.getByRole("link", { name: "Reports", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/reports");
   await assertAccessible(page, "reports");
   assert.match(await text(page), /Win rate\s*100%/);
