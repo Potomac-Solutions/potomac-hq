@@ -164,3 +164,15 @@ export function readReturnTo(text: string | null | undefined): string | null {
   const to = (text ?? "").trim();
   return /^\/(?![\/\\])[\x21-\x7e]{0,199}$/.test(to) ? to : null;
 }
+
+/** A booked call shows "Get ready" this many minutes before it starts. Default to confirm (decision 0009, section 6). */
+export const GET_READY_MINUTES = 15;
+
+/** "in 12 minutes", "in 1 minute", "now", "4 minutes ago": a booked call's start, from `now`. */
+export function startsText(startsAt: string, now: string): string {
+  const minutes = Math.round((Date.parse(startsAt) - Date.parse(now)) / 60_000);
+  if (minutes === 0) return "now";
+  const n = Math.abs(minutes);
+  const words = `${n} minute${n === 1 ? "" : "s"}`;
+  return minutes > 0 ? `in ${words}` : `${words} ago`;
+}

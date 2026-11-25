@@ -62,6 +62,10 @@ export type CallStore = {
   /** Open calls that started at or before this instant. */
   openStartedBy(instant: string): Call[];
   booking(id: Id): BookedCall | null;
+  /** Calls booked with this host that start between the two instants, soonest first. */
+  bookedBetween(hostId: Id, from: string, to: string): BookedCall[];
+  /** The call made for a booking, if one was started. */
+  forBooking(bookingId: Id): Call | null;
 };
 
 /** A call guide as stored (decision 0009, section 2). */

@@ -1,7 +1,7 @@
 // The call screen (decision 0009, call mode): start a call with someone at a
 // client, keep its timer on the server, change its planned length, keep
 // notes as they're typed, and end it into the call log with its length.
-import { addBusinessDays, fillScript, readReturnTo, OVERDUE_CALL_DAYS, RETRY_BUSINESS_DAYS, callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
+import { addBusinessDays, fillScript, readReturnTo, startsText, GET_READY_MINUTES, OVERDUE_CALL_DAYS, RETRY_BUSINESS_DAYS, callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
 import { OUTCOME_LABELS } from "../domain/touch.ts";
 import { callSummary, isSituation, MAX_ANSWER_LENGTH, pickSituation, readGuide, SITUATION_HINTS, type GuideError, type Situation } from "../domain/call-guide.ts";
 import type { Contact } from "../domain/contact.ts";
@@ -570,5 +570,77 @@ export function saveVoicemailScript(deps: CallDeps, actorId: Id | null, text: st
     deps.guides.saveScript("voicemail", cleaned, deps.clock(), actorId);
     recordActivity(deps, { actorId, action: "call-script.changed", recordType: "call-script", recordId: deps.newId(), context: { kind: "voicemail" } });
     return ok(true as const);
+  });
+}
+
+/** A booked call about to start, for the top bar and Today (decision 0009, section 6). */
+export type ComingUp = { readonly bookingId: string; readonly who: string; readonly when: string; readonly startsText: string; readonly href: string };
+
+/**
+ * The next call booked with this person that starts within 15 minutes, or
+ * started and hasn't been called yet (until its booked end). Null when on a
+ * call already, or with nothing coming up.
+ */
+export function comingUp(deps: CallDeps, actorId: Id | null): ComingUp | null {
+  if (actorId === null || !allowed(deps, actorId, "contact.edit") || deps.calls.openFor(actorId)) return null;
+  const now = deps.clock();
+  const from = new Date(Date.parse(now) - MAX_CALL_MINUTES * 60_000).toISOString();
+  const to = new Date(Date.parse(now) + GET_READY_MINUTES * 60_000).toISOString();
+  const next = deps.calls.bookedBetween(actorId, from, to).find((one) => one.endsAt > now && !deps.calls.forBooking(one.id));
+  if (!next) return null;
+  const clientName = next.organizationId ? (deps.clients.get(next.organizationId)?.name ?? "") : "";
+  return { bookingId: next.id, who: clientName && clientName !== next.name ? `${next.name} (${clientName})` : next.name, when: clockTime(next.startsAt, deps.timeZone), startsText: startsText(next.startsAt, now), href: `/get-ready/${next.id}` };
+}
+
+export type GetReadyView = {
+  readonly bookingId: string;
+  readonly name: string;
+  readonly clientId: string;
+  readonly clientName: string;
+  readonly when: string;
+  readonly startsText: string;
+  readonly minutes: number;
+  readonly topic: string;
+  readonly phone: string;
+  readonly dial: string;
+  readonly points: readonly TalkingPoint[];
+  readonly guide: { readonly title: string; readonly hint: string; readonly questions: readonly string[] };
+  /** In the CRM, so the call can be started and logged. */
+  readonly inCrm: boolean;
+  readonly canStart: boolean;
+  /** The call already started for it, if any. */
+  readonly callHref: string;
+};
+
+/**
+ * Getting ready for a booked call: who, when, why they booked, what's worth
+ * raising, and the guide HQ would start with. Needs `contact.edit`, as
+ * starting the call does.
+ */
+export function getReady(deps: CallDeps, actorId: Id | null, bookingId: Id): Result<GetReadyView, Refused> {
+  if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
+  const booking = deps.calls.booking(bookingId);
+  if (!booking || !booking.booked) return err("not-found");
+  const client = booking.organizationId ? deps.clients.get(booking.organizationId) : null;
+  const facts = client ? deps.facts.facts(client.id, deps.today()) : null;
+  const situation = facts ? pickSituation({ hasProposalOrProject: facts.anyProposalOrProject, proposalWaiting: facts.proposalsWaiting.length > 0, activeProject: facts.activeProjects.length > 0, renewalSoon: facts.renewalsSoon.length > 0 }) : "first-call";
+  const guide = deps.guides.get(situation);
+  const started = deps.calls.forBooking(bookingId);
+  return ok({
+    bookingId,
+    name: booking.name,
+    clientId: client?.id ?? "",
+    clientName: client?.name ?? "",
+    when: `${Temporal.Instant.from(booking.startsAt).toZonedDateTimeISO(deps.timeZone).toPlainDate().toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${clockTime(booking.startsAt, deps.timeZone)}`,
+    startsText: startsText(booking.startsAt, deps.clock()),
+    minutes: plannedFromBooking(booking.startsAt, booking.endsAt),
+    topic: booking.topic,
+    phone: booking.phone,
+    dial: dialAddress(booking.phone),
+    points: facts ? talkingPoints(deps, actorId, facts) : [],
+    guide: { title: guide?.title ?? "", hint: SITUATION_HINTS[situation], questions: guide?.questions ?? [] },
+    inCrm: client !== null,
+    canStart: client !== null && started === null,
+    callHref: started && started.userId === actorId ? `/phone/${started.id}` : "",
   });
 }

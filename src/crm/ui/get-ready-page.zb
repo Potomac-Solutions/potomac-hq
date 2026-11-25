@@ -1,0 +1,74 @@
+<!--
+  Getting ready for a booked call (decision 0009, section 6): who, when, why
+  they booked, what's worth raising, and the guide the call will start
+  with, then "Start the call". Reached from the top bar, Today and the
+  Calls page in the 15 minutes before, or any time from its address.
+-->
+<script>
+  'use route /get-ready/:id'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import { notFound } from '@zubra/router'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.getReady(params.id)
+    if (!view) return notFound()
+    return { title: `Get ready: ${view.name}`, view, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .ready { display: grid; gap: 1rem; max-width: 40rem; }
+  .ready h1 { margin: 0; }
+  .ready-when { margin: 0.15rem 0 0; color: var(--muted-foreground); }
+  .ready-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .ready-points li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.5rem; }
+  .ready-guide { margin: 0.5rem 0 0; padding-left: 1.4rem; display: grid; gap: 0.3rem; }
+  .ready-start .hq-button { min-height: 3.25rem; width: 100%; font-size: 1.1rem; }
+</style>
+<hq-get-ready view={null} done="" problem="">
+  <div class="ready">
+    <breadcrumb-trail items={[{ label: 'Calls', href: '/calls' }, { label: 'Get ready', href: '' }]}></breadcrumb-trail>
+    <div>
+      <h1>{view.name}</h1>
+      <p class="ready-when">{view.clientName ? view.clientName + '. ' : ''}{view.when}, {view.startsText}. {view.minutes} minutes.</p>
+    </div>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+
+    <p zb-if={view.topic} class="hq-panel"><strong>They booked it about:</strong> {view.topic}</p>
+
+    <section zb-if={view.points.length > 0} class="hq-panel" aria-labelledby="ready-points-heading">
+      <h2 id="ready-points-heading">Worth raising</h2>
+      <ul class="ready-points">
+        <zb-each items={view.points} as="point" key={point.text}>
+          <li>
+            <status-badge zb-if={point.kind === 'waiting-on-us'} variant="danger">They’re waiting</status-badge>
+            <status-badge zb-if={point.kind === 'waiting-on-them'} variant="warning">Waiting on them</status-badge>
+            <status-badge zb-if={point.kind === 'money'} variant="danger">Money</status-badge>
+            <status-badge zb-if={point.kind === 'site'} variant="danger">Site</status-badge>
+            <status-badge zb-if={point.kind === 'renewal'} variant="primary">Renewal</status-badge>
+            <status-badge zb-if={point.kind === 'last-call'} variant="neutral">Last call</status-badge>
+            <span>{point.text}</span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="ready-guide-heading">
+      <h2 id="ready-guide-heading">The guide: {view.guide.title}</h2>
+      <p class="hq-muted hq-small">{view.guide.hint}. You can switch it on the call.</p>
+      <ol class="ready-guide"><zb-each items={view.guide.questions} as="question" key={question}><li>{question}</li></zb-each></ol>
+    </section>
+
+    <a zb-if={view.callHref} class="hq-button" href={view.callHref}>Back to the call</a>
+    <form zb-if={view.canStart} method="post" action="/phone" class="ready-start">
+      <input type="hidden" name="bookingId" value={view.bookingId}>
+      <input type="hidden" name="back" value="/get-ready/{view.bookingId}">
+      <button class="hq-button" type="submit">Start the call</button>
+    </form>
+    <p zb-if={view.canStart && view.dial} class="hq-muted hq-small">The call screen has their number, {view.phone}, to dial.</p>
+    <p zb-if={!view.inCrm} class="hq-panel">They booked from the booking page and aren’t in the CRM yet. <a href="/calls">Add them on the Calls page</a> first, so the call is logged at their client.</p>
+  </div>
+</hq-get-ready>

@@ -20,6 +20,9 @@
     // On a call (decision 0009): a way back to its screen from any other page.
     const call = context.user ? context.crm.openCall() : null
     const onCall = call && path !== '/phone/' + call.id ? { href: '/phone/' + call.id, label: call.clientName ? 'On a call with ' + call.clientName : 'On a call' } : null
+    // A booked call within 15 minutes: get ready for it, from any page.
+    const next = !call && context.user ? context.crm.comingUp() : null
+    const ready = next && path !== next.href ? { href: next.href, label: 'Call ' + next.startsText + ' with ' + next.who + ': get ready' } : null
     const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
     const groups = [
@@ -60,7 +63,7 @@
       ] },
     ]
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
   }
 
   let menu = false
@@ -160,6 +163,7 @@
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
   .hq-bell { gap: 0.35rem; }
   .hq-on-call { gap: 0.4rem; color: var(--label-green-fg); background: var(--label-green-bg); border-color: transparent; font-weight: 600; }
+  .hq-ready { color: var(--label-amber-fg); background: var(--label-amber-bg); border-color: transparent; font-weight: 600; }
   .hq-on-call-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
   .hq-bell[aria-current=page] { border-color: var(--ring); }
   .hq-bell-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; font-size: 0.75rem; font-weight: 700; line-height: 1; color: var(--primary-foreground); background: var(--primary); border-radius: 999px; }
@@ -178,7 +182,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false} on-call={null}>
+<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -211,6 +215,7 @@
         </form>
         <div class="hq-account">
           <a zb-if={onCall} class="hq-account-action hq-on-call" href={onCall.href}><span class="hq-on-call-dot" aria-hidden="true"></span>{onCall.label}</a>
+          <a zb-if={ready} class="hq-account-action hq-ready" href={ready.href}>{ready.label}</a>
           <a class="hq-account-action hq-bell" href="/notices" aria-current={atNotices ? 'page' : null}><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg><span class="hq-bell-label">Notices</span><span zb-if={bell > 0} class="hq-bell-count">{bell > 99 ? '99+' : bell}<span class="sr-only"> new</span></span></a>
           <user-avatar name={who} size="sm"></user-avatar>
           <span class="hq-who">{who}</span>
