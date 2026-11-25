@@ -307,6 +307,10 @@ darker", "add a page for towing rates"). Each answer is a new version.
 Show an older one, download any one as a .zip, or make an older one the
 newest again.
 
+Under Pictures, add the client's photos and logo. Say what each one shows:
+Claude reads that to decide where it goes, and the site uses it as the
+picture's description. Ask Claude to use them once they're added.
+
 Claude only uses the facts it's given. Where something is missing it
 writes a placeholder in square brackets, like [Hours: ask the owner]:
 look for those before a site goes anywhere.

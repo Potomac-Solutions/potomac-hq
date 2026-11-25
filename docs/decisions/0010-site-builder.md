@@ -14,6 +14,9 @@ and logo, and an existing site to rework. The open choices are marked
 **Default**: Claude's pick, to be confirmed or changed in review. Built by
 Claude in the order under "Slices", one pull request into `staging` each.
 
+Later on Nov 25 Mikey approved every choice marked **Default** ("I approve
+them all so far"). They stand as decided.
+
 ## Context
 
 Potomac gives every business a free landing page and builds paid sites
@@ -129,7 +132,10 @@ All four are **Confirmed** and can be combined:
    upload as in decision 0003, with what each shows required. Claude gets
    their names, sizes and descriptions, not the pictures themselves.
    **Default**: no images sent to the model, to keep requests cheap; a
-   later change can send small copies.
+   later change can send small copies. A logo is shrunk to 800 pixels and
+   kept a PNG, so its see-through background survives. A build holds up to
+   30 pictures. Removing one leaves any version that shows it with a
+   missing picture until Claude is asked to take it off.
 4. **An existing site to rework** (slice 3): its repository, read through
    GitHub with `HQ_GITHUB_TOKEN` (text files of the kinds above become the
    first version; images become the build's images), or its public address,

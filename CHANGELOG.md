@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Pictures in the site builder (decision 0010, slice 2). Add a build's
+  photos and its logo, each with what it shows; a photo is shrunk in the
+  browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
+  each one's path, size and what it shows, and the preview and the .zip
+  carry them. Migration 0057.
+
 - The site builder (decision 0010, slice 1). Delivery → Site builder, for
   admins: start a build for a client with a brief, and Claude makes the
   first version from it and the client's facts in HQ. Ask for changes in
