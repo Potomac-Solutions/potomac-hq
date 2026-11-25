@@ -94,6 +94,9 @@ This keeps decision 0003's rule: HQ never serves a client's public site.
 
 ### 4. Money: the model and the hard stop
 
+Changed by decision 0012 (Mikey, 2026-11-25): the cap is one budget shared
+with the AI drafts, set to $20 a month, and each counts what the other spent.
+
 - **The key** is `HQ_ANTHROPIC_API_KEY`, set on Railway. It never goes in
   the database, a page or a log.
 - **The model and the monthly cap** are in **Site builder → Model and cap**

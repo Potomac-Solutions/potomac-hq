@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- One budget for everything HQ asks Claude (decision 0012, as Mikey
+  answered). The site builder's cap is now shared with the AI drafts, at $20
+  a month, changed under Site builder → Model and cap; each counts the
+  other's spending before it asks, and Settings → AI shows both. Settings →
+  AI no longer has a budget of its own. The nightly retention run discards
+  an AI receipt draft nobody used after 30 days, with its picture. Every
+  other choice in decision 0012 is confirmed. Migration 0059.
+
 - Social media (decision 0011), for clients on social media marketing. A
   plan on the client's page: Facebook, Instagram and LinkedIn with each
   page's address, 8 posts and 1 blog post a month unless set otherwise,

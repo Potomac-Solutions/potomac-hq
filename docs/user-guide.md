@@ -391,9 +391,11 @@ waiting for you.
 - **Marketing:** a project's page drafts a case study or social posts; copy
   them from Marketing, then mark them done.
 
-Settings → AI shows what AI has cost this month against the budget, call by
-call. At the budget, AI stops until the first of the month or until the
-budget is raised; HQ works as usual without it.
+Settings → AI shows what AI has cost this month, call by call, against one
+budget shared with the site builder ($20 a month to start, set under Site
+builder → Model and cap). At the budget, AI drafts and the site builder stop
+until the first of the month or until the cap is raised; HQ works as usual
+without them. A receipt draft nobody uses is discarded after 30 days.
 
 ## Habits that keep HQ worth using
 

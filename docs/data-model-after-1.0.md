@@ -677,13 +677,18 @@ Added by decision 0012 (migration 0058). The API key is never stored: it is
 
 | Table | Holds |
 | --- | --- |
-| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the monthly budget in cents, the features turned on, the price guide, and who changed it last |
+| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the features turned on, the price guide, and who changed it last |
 | `ai_usage` | Every call: the feature and record, the model, tokens in and out, the cost in millionths of a dollar, who asked (empty when HQ ran it by itself), whether a usable answer came, and the draft it made |
 | `ai_draft` | What AI wrote, as the feature's JSON: `waiting`, `used` or `discarded`, the fingerprint of the records it came from, and a receipt's picture until the draft is decided |
 
 - Events: `ai.settings-changed`, `ai.drafted`, `ai.failed`,
   `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
   AI wrote, only the feature, model, counts and cost.
+- The budget is the site builder's `builder_settings.cap_cents`, one cap
+  for both (set to $20 by migration 0059). Each counts the other's spending:
+  `ai_usage.cost` and `build_request` costs this month.
+- An unused receipt draft is discarded by the retention run after 30 days,
+  and its `attachment` cleared.
 - A recap draft is marked used when its recap is sent (`call.recap-sent`).
   A brief, an answer from Ask HQ and a site-down diagnosis are used where
   they're shown; a scope check that finds nothing out of scope is discarded
