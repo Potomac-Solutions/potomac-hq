@@ -66,8 +66,8 @@ import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/i
 import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
 import { sqliteAssistantStore } from "./assistant/adapters.ts";
-import { placeAt, PLACES, search, type PinsDeps, type Place } from "./dashboard/index.ts";
-import { sqlitePinStore } from "./dashboard/adapters.ts";
+import { placeAt, PLACES, search, type PinsDeps, type Place, type WeeklyDeps } from "./dashboard/index.ts";
+import { sqlitePinStore, sqliteWeekFacts, sqliteWeeklySent } from "./dashboard/adapters.ts";
 import { followUpsDue } from "./crm/index.ts";
 import { staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
@@ -183,6 +183,8 @@ export type Services = {
   readonly placesFor: (actorId: Id | null) => readonly Place[];
   /** Pins in the sidebar (decision 0015, follow-up). */
   readonly pins: PinsDeps;
+  /** The weekly owner email (quality of life, 2026-11-25). */
+  readonly weekly: WeeklyDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -825,6 +827,22 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
 
+  const weekFacts = sqliteWeekFacts(db);
+  const weekly: WeeklyDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    sentFor: sqliteWeeklySent(db),
+    facts(from, to, day) {
+      const shared = ai.sharedBudget();
+      const spent = ai.ai.spentSince(ai.monthStart()) + shared.builderSpent;
+      return { ...weekFacts(from, to, day), ai: `$${(spent / 1_000_000).toFixed(2)} of $${(shared.capCents / 100).toFixed(2)}` };
+    },
+  };
+
   const assistant: AssistantDeps = {
     users,
     transact: sqliteTransact(db),
@@ -841,5 +859,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

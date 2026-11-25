@@ -34,6 +34,7 @@ import { sendNotices, type Mail } from "../src/portal/index.ts";
 import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
+import { sendWeeklyEmails } from "../src/dashboard/index.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
 import { draftMonthlyReports } from "../src/client-reports/index.ts";
@@ -260,6 +261,16 @@ const stopMorning = email ? scheduleDaily(sendMorning, { zone: BUSINESS_TIME_ZON
 if (email && Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).hour >= 7) void sendMorning().catch((error: unknown) => log("Morning email: the run failed", error));
 console.log(email ? "Morning email: each person's Today list at 7, unless they turned it off." : "The morning email is off: email is not set up.");
 
+// The weekly owner email (quality of life, 2026-11-25): Mondays at 07:23, to
+// each admin. A run that finds it already sent this week sends nothing.
+const sendWeekly = async () => {
+  if (!email || Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).dayOfWeek !== 1) return;
+  const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+  const result = await sendWeeklyEmails(createServices(db).weekly, mail, { publicUrl });
+  if (result.sent + result.failed > 0) console.log(`Weekly owner email: sent ${result.sent}, failed ${result.failed}.`);
+};
+const stopWeekly = email ? scheduleDaily(sendWeekly, { zone: BUSINESS_TIME_ZONE, hour: 7, minute: 23, clock: systemClock, log, name: "weekly owner email" }) : null;
+
 // Client websites: checked every five minutes. Changes are emailed to the
 // alert address when email and HQ_ALERT_EMAIL are set.
 const siteChecker = httpSiteChecker();
@@ -465,6 +476,7 @@ const stopWeeklyUpdates = aiModel
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopBackups?.();
+    stopWeekly?.();
     stopSheet?.();
     stopRetention();
     stopRecurring();

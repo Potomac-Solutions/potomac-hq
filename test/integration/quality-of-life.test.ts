@@ -118,3 +118,15 @@ test("view as a role: an admin sees HQ as a member would, and can't change anyth
   const { actions } = await import("../support/harness.ts");
   assert.ok(actions(t.db).includes("user.preview-started") && actions(t.db).includes("user.preview-stopped"));
 });
+
+test("the weekly owner email: last week to each admin, once", async () => {
+  const { sendWeeklyEmails } = await import("../../src/dashboard/index.ts");
+  const mails: { to: string; subject: string; body: string }[] = [];
+  const mail = async (message: { to: string; subject: string; body: string }) => (mails.push(message), true);
+  const deps = { ...t.services.weekly, today: () => "2026-11-30" };
+  assert.deepEqual(await sendWeeklyEmails(deps, mail, { publicUrl: "https://hq.example" }), { sent: 1, failed: 0 }, "Mikey, the one admin");
+  assert.equal(mails[0]?.to, "mikey@example.com");
+  assert.match(mails[0]?.body ?? "", /Here's last week in HQ \(Nov 23 to Nov 29\)/);
+  assert.match(mails[0]?.body ?? "", /new deals?, \d+ won/);
+  assert.deepEqual(await sendWeeklyEmails(deps, mail, { publicUrl: "https://hq.example" }), { sent: 0, failed: 0 }, "never twice for a week");
+});

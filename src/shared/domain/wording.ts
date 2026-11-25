@@ -161,6 +161,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "nav.pinned": "pinned a page to the sidebar",
   "user.notice-preferences-set": "changed when their notices are emailed",
   "task.bulk-changed": "changed several tasks at once",
+  "weekly-email.sent": "Sent the weekly owner email",
   "user.preview-started": "started viewing HQ as another role",
   "user.preview-stopped": "stopped viewing HQ as another role",
   "nav.unpinned": "unpinned a page from the sidebar",
