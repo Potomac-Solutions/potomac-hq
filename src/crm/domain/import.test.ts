@@ -16,7 +16,7 @@ test("CSV: commas, quotes, a quote inside quotes, a line break inside quotes, an
 const header = "Client,Contact,Phone,Email,Website,Project,Service,Pricing,Price,Repository,Live,Demo";
 
 test("a row becomes a client, its contact and its project; columns go in any order, with a few other names", () => {
-  const read = readImport(`${header}\nNu-Finish Collision LLC,"John ""Grover"" Groves",+13013344727,,,Website,website,fixed,1500,https://github.com/jayanti-neu/nu-finish-site,,no\nHickory Hollow Bakehouse,,,,,Counter,application,free,,https://github.com/Potomac-Solutions/counter,,yes`);
+  const read = readImport(`${header}\nNu-Finish Collision LLC,"John ""Grover"" Groves",+13013344727,,,Website,website,fixed,1500,https://github.com/Potomac-Solutions/example-site,,no\nHickory Hollow Bakehouse,,,,,Counter,application,free,,https://github.com/Potomac-Solutions/counter,,yes`);
   assert.ok(read.ok);
   assert.deepEqual(read.value[0], {
     line: 2,
@@ -24,7 +24,7 @@ test("a row becomes a client, its contact and its project; columns go in any ord
     website: null,
     demo: false,
     contact: { name: 'John "Grover" Groves', title: null, email: null, phone: "+13013344727" },
-    project: { name: "Website", service: "website", pricing: "fixed", price: "1500", source: "other", repository: "https://github.com/jayanti-neu/nu-finish-site", live: null },
+    project: { name: "Website", service: "website", pricing: "fixed", price: "1500", source: "other", repository: "https://github.com/Potomac-Solutions/example-site", live: null },
   });
   assert.equal(read.value[1]?.demo, true);
   assert.equal(read.value[1]?.contact, null);

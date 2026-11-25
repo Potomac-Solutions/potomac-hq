@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { githubConfigFrom, githubPublisher } from "./github.ts";
 
-const REPO = { owner: "Potomac-Solutions", name: "nu-finish-site", branch: "main" };
+const REPO = { owner: "Potomac-Solutions", name: "example-site", branch: "main" };
 const TOKEN = "github_pat_test_0123456789abcdef";
 
 type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
@@ -19,7 +19,7 @@ function fakeGithub(answer: (call: Call) => { status: number; body?: unknown; by
   return { calls, fn };
 }
 
-const API = "https://api.github.com/repos/Potomac-Solutions/nu-finish-site";
+const API = "https://api.github.com/repos/Potomac-Solutions/example-site";
 /** GitHub when everything works: a branch at `head1`, then blobs, a tree, a commit and the branch moved. */
 function working(call: Call): { status: number; body?: unknown } {
   if (call.method === "GET" && call.url === `${API}/git/ref/heads/main`) return { status: 200, body: { object: { sha: "head1" } } };

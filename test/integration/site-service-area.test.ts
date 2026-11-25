@@ -16,7 +16,7 @@ const ALLEGANY = "24001";
 const LAKE = [[-79.42, 39.48], [-79.3, 39.48], [-79.3, 39.6], [-79.42, 39.6]];
 const START = { serviceArea: { areas: [{ name: "Garrett County", county: GARRETT, ring: [[-79.48, 39.72], [-79.07, 39.72], [-79.07, 39.48], [-79.49, 39.21]] }] }, theme: "night" };
 const repo = fakeSiteRepo({ "src/content/site.json": JSON.stringify(START) });
-const SETUP = { name: "Better Days website", repo: "Potomac-Solutions/better-days-towing", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
+const SETUP = { name: "Better Days website", repo: "Potomac-Solutions/example-towing", branch: "main", contentPath: "src/content/site.json", photoDir: "public/gallery" };
 
 type File = { serviceArea: { areas: { name: string; county?: string; ring: number[][] }[] }; theme: string; gallery?: unknown; launch?: unknown };
 let t: TestApp;

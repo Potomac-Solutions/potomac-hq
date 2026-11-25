@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The kit now installs from its renamed private repository,
+  `Potomac-Solutions/potomac-kit`. Examples and tests use a made-up
+  `Potomac-Solutions/example-site` in place of real client repositories.
 - Going live from the site builder (decision 0010, slice 4). "Put it on
   GitHub" sends the newest version to a new private repository under
   Potomac-Solutions (with `HQ_GITHUB_ADMIN_TOKEN`), or as a branch and pull
