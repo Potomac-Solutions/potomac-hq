@@ -18,6 +18,7 @@ import { linkName, decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, 
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
 import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
+import { portalTimeline, type Timeline } from "../domain/timeline.ts";
 
 /** The client a Cookie header is signed in as, or null. Read from storage every time. */
 export function clientSession(deps: PortalDeps, cookieHeader: string): ClientSession | null {
@@ -231,6 +232,8 @@ export type PortalProjectView = {
   readonly changes: readonly ChangeLine[];
   /** Where to see the work: the links Potomac shared. */
   readonly links: readonly { readonly id: string; readonly name: string; readonly url: string; readonly host: string }[];
+  /** Done, next, and waiting on the client: the part to read first. */
+  readonly timeline: Timeline;
 };
 
 // Said the way a client would: the full list of endings is long and means little to them.
@@ -244,7 +247,7 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
   const next = nextMilestone(milestones);
   const progress = milestoneProgress(milestones);
   const billableMinutes = deps.time.totals(project.id, { from: "0000-01-01", to: "9999-12-31" }).billableMinutes;
-  return ok({
+  const view = {
     project: { id: project.id, name: project.name, description: project.description, ...standingOf(project), target: project.targetOn ? dueText(project.targetOn, today) : "", open: project.status === "active" },
     progress: { ...progress, text: stepsDone(progress.done, progress.total) },
     next: next ? stepText(next.name, next.dueOn, today) : "",
@@ -276,7 +279,13 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     billableHours: billableMinutes > 0 ? readableHours(billableMinutes) : "",
     changes: changesForClient(deps, project.id),
     links: deps.links.listFor(project.id).filter((one) => one.shared).map((one) => ({ id: one.id, name: linkName(one), url: one.url, host: new URL(one.url).host })),
+  };
+  const timeline = portalTimeline({
+    steps: view.steps,
+    toLookAt: view.deliverables.filter((one) => one.awaiting),
+    toAnswer: view.changes.filter((one) => one.status === "sent"),
   });
+  return ok({ ...view, timeline });
 }
 
 function sentFiles(deps: PortalDeps, projectId: Id) {

@@ -92,6 +92,10 @@ test("the client follows a project, asks for changes to a deliverable, then appr
   assert.match(textOf(page), /On track Next: Design signed off, Sat, Dec 5, 2099, in \d+ days/);
   assert.doesNotMatch(page, /Billable hours/, "no hours line until some are logged");
   assert.match(textOf(page), /Home page design Waiting for your decision Open design\.pdf/);
+  // The timeline reads first: what's waiting on them links to where it's done.
+  assert.match(textOf(page), /Waiting on you Look over “Home page design” and approve it or ask for changes/);
+  assert.match(page, /<a href="#deliverables">Look over/);
+  assert.match(textOf(page), /What we’re doing next Design signed off/);
 
   const blank = await ann.submit(`/portal/deliverables/${deliverableId}/decision`, { decision: "changes-requested", note: " ", projectId });
   assert.match(blank.html, /Say what you would like changed\./);
@@ -110,6 +114,7 @@ test("the client follows a project, asks for changes to a deliverable, then appr
   assert.match(textOf(second), /Logo is bigger\. Have another look\. Mikey Nichols, Potomac Solutions/);
   const approved = await ann.submit(`/portal/deliverables/${deliverableId}/decision`, { decision: "approved", projectId });
   assert.match(textOf(approved.html), /Approved by you/);
+  assert.match(textOf(approved.html), /Waiting on you Nothing right now/);
   assert.match((await ann.submit(`/portal/deliverables/${deliverableId}/decision`, { decision: "approved", projectId })).html, /That has already been decided\./);
 
   const decided = events(t.db).filter((e) => e.action.startsWith("deliverable.") && e.actor === null);
