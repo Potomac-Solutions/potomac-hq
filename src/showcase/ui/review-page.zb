@@ -1,0 +1,27 @@
+<!-- Writing a review from the link Potomac emailed (decision 0010, section 6). Works once, with no scripts. -->
+<script>
+  'use route /review'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/review-form.zb'
+  export async function load({ context, url }) {
+    const token = url.searchParams.get('t') ?? ''
+    const link = context.showcase.link(token)
+    return { title: link ? 'Write a review' : 'Link not working', link, token: link ? token : '', problem: context.notice.problem }
+  }
+</script>
+<hq-review link={null} token="" problem="">
+  <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+  <div zb-if={link}>
+    <h1>How did we do?</h1>
+    <p>A few honest words help other small businesses decide. Thank you for taking a minute.</p>
+    <form method="post" action="/review" class="hq-panel hq-form">
+      <input type="hidden" name="t" value={token}>
+      <review-form></review-form>
+      <div><button class="hq-button portal-big" type="submit">Send my review</button></div>
+    </form>
+  </div>
+  <div zb-else>
+    <h1>That link doesn’t work any more</h1>
+    <p>It may have been used already, or it’s more than 30 days old. Reply to our email and we’ll send a new one.</p>
+  </div>
+</hq-review>

@@ -1,0 +1,25 @@
+<!-- Writing a review in the portal (decision 0010, section 6). One a client. -->
+<script>
+  'use route /portal/review'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/parts/review-form.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    if (!context.showcase.mayWrite()) return notFound()
+    return { title: 'Write a review', problem: context.notice.problem }
+  }
+</script>
+<hq-portal-review problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
+    <h1>How did we do?</h1>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+    <p>A few honest words help other small businesses decide. Thank you for taking a minute.</p>
+    <form method="post" action="/portal/review" class="hq-panel hq-form">
+      <review-form></review-form>
+      <div><button class="hq-button portal-big" type="submit">Send my review</button></div>
+    </form>
+  </div>
+</hq-portal-review>
