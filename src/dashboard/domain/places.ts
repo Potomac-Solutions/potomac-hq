@@ -57,6 +57,7 @@ export const PLACES: readonly Place[] = [
   { key: "board", label: "Board", hub: "work", href: "/board", words: ["kanban", "drag", "columns"], what: "Every task on a board" },
   { key: "timeline", label: "Timeline", hub: "work", href: "/timeline", words: ["gantt", "schedule", "dates"], what: "Tasks on a timeline" },
   { key: "work", label: "All work", hub: "work", href: "/work", words: ["filters", "table", "saved filters", "list"], what: "Every task in a table, with saved filters" },
+  { key: "workload", label: "Team workload", hub: "work", href: "/workload", gate: "perm:report.view", words: ["capacity", "team", "who's busy", "overloaded", "hours", "overdue"], what: "Who has what due this week, and who's over their usual hours" },
   { key: "labels", label: "Labels", hub: "work", href: "/labels", words: ["tags", "colors"], what: "Task labels" },
   { key: "time", label: "Time", hub: "work", href: "/time", gate: "perm:time.log", words: ["timer", "hours", "timesheet", "billable", "time tracking"], what: "Your hours and the timer" },
   { key: "calendar-feed", label: "Calendar feed", hub: "work", href: "/calendar-feed", hidden: true, words: ["ical", "calendar", "subscribe", "google calendar"], what: "Your tasks in your own calendar app" },

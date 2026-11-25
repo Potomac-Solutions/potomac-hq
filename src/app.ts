@@ -12,14 +12,14 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, type NavHub, type Setup, type StatusCheck } from "./dashboard/index.ts";
+import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { sqliteSetupCounts, sqliteStatusCounts } from "./dashboard/adapters.ts";
-import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
+import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
+import { createHqStaffPages, isPreviewRole, previewing, runPreviewing, sqliteRateLimit, type PreviewRole } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
@@ -517,6 +517,12 @@ export type PageContext = {
   pins(href: string): { readonly items: readonly { readonly href: string; readonly label: string; readonly current: boolean }[]; readonly here: boolean; readonly href: string };
   /** What changed on a record, for someone who may see it (quality of life, 2026-11-25). */
   history(recordType: string, recordId: string): ReturnType<typeof recordHistory>;
+  /** Team workload, for whoever may see reports; null for anyone else. */
+  workload(): { readonly lines: readonly WorkloadLine[]; readonly week: string } | null;
+  /** The role an admin is viewing HQ as, read-only, or null. */
+  readonly preview: { readonly role: string; readonly label: string } | null;
+  /** Whether this person may view HQ as another role (an admin, not already previewing). */
+  readonly canPreview: boolean;
   /** System status, for admins; null for anyone else. */
   status(): { readonly checks: readonly StatusCheck[]; readonly errors: readonly { readonly when: string; readonly message: string }[]; readonly version: string; readonly started: string; readonly database: string; readonly migrations: string } | null;
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
@@ -698,6 +704,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   const setupCounts = sqliteSetupCounts(db);
   const statusCounts = sqliteStatusCounts(db);
+  const workloadRows = sqliteWorkload(db);
   const placesFor = services.placesFor;
 
   const handleStaff = staffRoutes({
@@ -1110,6 +1117,16 @@ export async function createApp(config: AppConfig): Promise<App> {
           const clean = cleanHref(href);
           const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
           return { items, here: items.some((pin) => pin.current), href: clean };
+        },
+        preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
+        canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
+        workload: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "report.view").ok) return null;
+          const day = Temporal.PlainDate.from(date);
+          const monday = day.subtract({ days: day.dayOfWeek - 1 });
+          const sunday = monday.add({ days: 6 });
+          const lines = workloadLines(workloadRows(date, monday.toString(), sunday.toString(), monday.subtract({ weeks: 4 }).toString()), Math.min(5, day.dayOfWeek));
+          return { lines, week: `${monday.toLocaleString("en-US", { month: "short", day: "numeric" })} to ${sunday.toLocaleString("en-US", { month: "short", day: "numeric" })}` };
         },
         history: (recordType, recordId) => recordHistory(dashboardDeps, actor, recordType, recordId),
         status: () => {
@@ -1605,7 +1622,28 @@ export async function createApp(config: AppConfig): Promise<App> {
     res.end("Bad request");
   }
 
+  // View as a role (quality of life, 2026-11-25). The cookie only names the
+  // role; whether to honour it is decided on every request from the person's
+  // real access, before the preview starts.
+  const PREVIEW_COOKIE = config.secure ? "__Host-hq-preview" : "hq-preview";
+  const previewOf = (req: IncomingMessage): { readonly userId: Id; readonly role: PreviewRole } | null => {
+    const role = new RegExp(`(?:^|;\\s*)${PREVIEW_COOKIE}=([a-z]+)`).exec(req.headers.cookie ?? "")?.[1] ?? "";
+    if (!isPreviewRole(role)) return null;
+    const who = account(req.headers.cookie ?? "");
+    const user = who ? users.findByStaffAccount(who.account) : null;
+    return user && authorize(sessionDeps, user.id, "user.set-roles").ok ? { userId: user.id, role } : null;
+  };
+  const previewCookie = (value: string, maxAge: number) => `${PREVIEW_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secure ? "; Secure" : ""}`;
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // Starting or stopping a preview is decided on the person's real access.
+    const bare = (req.url ?? "").split("?")[0];
+    const preview = bare === "/preview" || bare === "/preview/stop" ? null : previewOf(req);
+    if (preview === null) return handleRequest(req, res, false);
+    return runPreviewing(preview.userId, preview.role, () => handleRequest(req, res, true));
+  }
+
+  async function handleRequest(req: IncomingMessage, res: ServerResponse, inPreview: boolean): Promise<void> {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
     // Every address HQ serves starts with one slash. Anything else ("//...",
@@ -1615,6 +1653,28 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (!target.startsWith("/") || target.startsWith("//") || !URL.canParse(target, "http://hq.invalid")) return void badRequest(res);
     const url = new URL(target, "http://hq.invalid");
     const path = url.pathname;
+
+    // Starting and stopping a preview: an admin's own choice, from People.
+    if (req.method === "POST" && (path === "/preview" || path === "/preview/stop")) {
+      if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
+      const body = await new Promise<string>((resolve) => {
+        let text = "";
+        req.on("data", (chunk: Buffer) => (text.length < 200 ? (text += chunk.toString("utf8")) : undefined));
+        req.on("end", () => resolve(text));
+      });
+      const role = new URLSearchParams(body).get("role") ?? "";
+      const who = account(req.headers.cookie ?? "");
+      const user = who ? users.findByStaffAccount(who.account) : null;
+      const admin = user !== null && authorize(sessionDeps, user.id, "user.set-roles").ok;
+      if (path === "/preview" && (!admin || !isPreviewRole(role))) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "Only an admin can view HQ as another role." }));
+      if (user && admin) services.session.transact(() => recordActivity(services.session, { actorId: user.id, action: path === "/preview" ? "user.preview-started" : "user.preview-stopped", recordType: "user", recordId: user.id, context: path === "/preview" ? { role } : {} }));
+      res.writeHead(303, { location: path === "/preview" ? "/" : "/people", "set-cookie": path === "/preview" ? previewCookie(role, 4 * 3600) : previewCookie("", 0), "cache-control": "no-store" });
+      return void res.end();
+    }
+    // A preview is for looking: every change is refused until it stops.
+    if (inPreview && req.method !== "GET" && req.method !== "HEAD" && path !== "/staff/sign-out") {
+      return void sendHtml(res, 403, "Viewing as another role", problemPage({ title: "You're viewing HQ as another role", message: "Nothing can be changed while you do. Use Stop viewing at the top of the page, then try again." }));
+    }
 
     if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);
     if (isStatic(path)) return void (await handleWeb(req, res));

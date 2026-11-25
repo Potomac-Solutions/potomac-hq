@@ -39,3 +39,16 @@ export function sqliteStatusCounts(db: Database): () => StatusCounts {
     };
   };
 }
+
+/** Each active person's tasks and hours, for Team workload. `today` and `monday` are YYYY-MM-DD. */
+export function sqliteWorkload(db: Database): (today: string, monday: string, sunday: string, fourWeeksBefore: string) => import("../domain/workload.ts").WorkloadRow[] {
+  const rows = db.prepare(`
+    select u.id as userId, u.name as name,
+      (select count(*) from task t where t.assignee_id = u.id and t.status <> 'done') as open,
+      (select count(*) from task t where t.assignee_id = u.id and t.status <> 'done' and t.due_on between :today and :sunday) as dueThisWeek,
+      (select count(*) from task t where t.assignee_id = u.id and t.status <> 'done' and t.due_on < :today) as overdue,
+      (select coalesce(sum(minutes), 0) from time_entry e where e.user_id = u.id and e.removed_at is null and e.worked_on >= :monday) as minutesThisWeek,
+      (select coalesce(sum(minutes), 0) from time_entry e where e.user_id = u.id and e.removed_at is null and e.worked_on >= :before and e.worked_on < :monday) as minutesLastFourWeeks
+    from user u where u.status = 'active' order by u.name`);
+  return (today, monday, sunday, before) => rows.all({ today, monday, sunday, before }).map((row) => ({ userId: String(row["userId"]), name: String(row["name"]), open: Number(row["open"]), dueThisWeek: Number(row["dueThisWeek"]), overdue: Number(row["overdue"]), minutesThisWeek: Number(row["minutesThisWeek"]), minutesLastFourWeeks: Number(row["minutesLastFourWeeks"]) }));
+}

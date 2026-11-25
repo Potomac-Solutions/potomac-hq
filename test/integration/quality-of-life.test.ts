@@ -88,3 +88,33 @@ test("many at once: tasks moved, given, dated and labelled together; drafts mark
   assert.match(query(await admin.post(`/projects/${project.id}/invoices/send`, { ...ticked, checked: "on" }), "done"), /Marked 2 sent/);
   assert.equal(t.services.finance.invoices.get(two.id)?.status, "sent");
 });
+
+test("Team workload: each person's week, for whoever may see reports", async () => {
+  const page = textOf(await admin.page("/workload"));
+  assert.match(page, /Team workload This week/);
+  assert.match(page, /Sam Rivers \d+ \d+ \d+ /);
+  assert.equal((await member.get("/workload")).status, 403);
+});
+
+test("view as a role: an admin sees HQ as a member would, and can't change anything while they do", async () => {
+  assert.match(textOf(await admin.page("/people")), /View as a member/);
+  assert.doesNotMatch(textOf(await member.page("/people")), /View as a member/);
+  assert.equal((await member.post("/preview", { role: "member" })).status, 403, "only an admin");
+  assert.equal((await admin.post("/preview", { role: "admin" })).status, 403, "only a lesser role");
+
+  const started = await admin.post("/preview", { role: "member" });
+  assert.equal(started.status, 303);
+  const home = textOf(await admin.page("/"));
+  assert.match(home, /You’re viewing HQ as a member\. Nothing can be changed until you stop\./);
+  assert.doesNotMatch(home, /Audit history|System status/, "a member's sidebar");
+  assert.equal((await admin.get("/status")).status, 403);
+  assert.equal((await admin.get("/money")).status, 403, "a member doesn't open Money");
+  const refused = await admin.post("/nav/pin", { href: "/projects" });
+  assert.equal(refused.status, 403);
+  assert.match(await refused.text(), /viewing HQ as another role/);
+
+  await admin.post("/preview/stop", {});
+  assert.equal((await admin.get("/status")).status, 200, "back to themselves");
+  const { actions } = await import("../support/harness.ts");
+  assert.ok(actions(t.db).includes("user.preview-started") && actions(t.db).includes("user.preview-stopped"));
+});
