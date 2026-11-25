@@ -246,6 +246,14 @@ puts back what HQ had.
   the end it turns red and counts the overtime. Notes save as you type.
   "End call" logs it with how it went and how long it lasted. While you're
   on a call, the top bar has a way back to it from any page.
+- **The guide.** Each call starts with questions that fit the client: a
+  first call for a new prospect, a follow-up for a proposal waiting, a
+  check-in for an active project, or a renewal. Tick each as you ask it and
+  jot what they said; it saves as you go and goes in the call log. Above it,
+  "Worth raising" lists what HQ knows: what they're waiting on from us, what
+  we're waiting on from them, a late invoice, a site that's down, a renewal
+  coming up, and what was said last time. Change the questions under
+  Knowledge → Call guides.
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.

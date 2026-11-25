@@ -56,6 +56,32 @@ kept as they're typed, and when it ended and the touch it was logged as.
 - Events: `call.started`, `call.length-changed`, `call.ended`,
   `call.ended-automatically`; `touch.logged` carries `minutes` and `callId`.
 
+### Call guides and talking points
+
+Added by decision 0009, slice 2 (migration 0053). `call_guide`: one guide
+for each situation (first call, proposal follow-up, project check-in,
+renewal, any call), with a title; `call_guide_question`: its questions in
+order, up to 20. `call.guide` is the guide on the call. `call_answer`: for
+a call, a guide and a question's place, the question as it was asked,
+whether it was ticked, and what was said.
+
+- A call starts with the guide that fits: no proposal or project yet is a
+  first call; then a sent proposal, an active project, a renewal in 30
+  days, in that order; otherwise any call. It can be switched; answers are
+  kept per guide, so nothing is lost.
+- Answers save as they're typed. `call.answered` is written the first time
+  a question is ticked; `call.guide-changed` on a switch.
+- Ending writes the notes, then a line for each question asked or
+  answered, in every guide used, into the call log (up to 2,000 characters).
+- Talking points are read, never stored, from projects, proposals,
+  invoices, deliverables, change requests, call requests, messages, sites,
+  renewals and touches. Each needs what its record needs: money
+  `invoice.view`, a proposal `proposal.view` (its total
+  `opportunity.view-value`), projects `project.view`, the rest `client.view`.
+- Guides are read with `knowledge.view` and changed with `knowledge.edit`
+  (`call-guide.changed`). A change applies to calls after it; a question
+  already answered keeps its words.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.
