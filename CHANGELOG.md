@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-24
+
 - Fixed: a form that's refused no longer loses what was typed. When the page
   comes back saying what was wrong, the form is filled in again as it was
   sent, so only the mistake needs fixing. Passwords, codes and files are
