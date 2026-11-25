@@ -133,9 +133,12 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
   assert.match((await page.textContent("[role=alert]")) ?? "", /don’t match/);
   await assertAccessible(page, "the sign-in page with an error");
 
+  // The email is kept after a refusal; the password never is.
+  assert.equal(await page.getByLabel("Email").inputValue(), "mikey@example.com");
+  assert.equal(await page.getByLabel("Password").inputValue(), "");
+
   // Sign back in using only the keyboard.
   await page.getByLabel("Email").focus();
-  await page.keyboard.type("mikey@example.com");
   await page.keyboard.press("Tab");
   await page.keyboard.type(PASSWORD);
   await page.keyboard.press("Enter");
