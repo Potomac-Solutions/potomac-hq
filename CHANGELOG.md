@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Calls to make (decision 0009, slice 4). Today lists who to call, one line
+  per client with every reason: calls asked for in the portal, follow-ups
+  due, invoices a week or more late, and deals going cold. "Call" opens the
+  call screen, and ending it goes back to the list, where that client has
+  dropped off. The call screen shows a voicemail script, changed with the
+  call guides. Ending as voicemail or no answer sets the follow-up two
+  business days on, or adds a to-do to call again. Migration 0054.
 - Following through from a call (decision 0009, slice 3). The wrap-up panel
   offers the next six open times; "Book it" books the next call while
   they're on the line, at the CRM client, and emails them as usual. Ending

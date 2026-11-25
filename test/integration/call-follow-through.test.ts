@@ -62,7 +62,8 @@ test("book the next call while they're on the line, at the CRM client, with its 
   assert.match(page, /Next steps for you .* Log this call’s time Don’t log it To Diner website/);
   const ended = await mikey.post(`/phone/${id}/end`, { outcome: "reached", note: "Menu first.", nextSteps: "Send the menu mock-up\n\n- Ask for photos\n", logTo: String(t.db.prepare("select id from project where name = 'Diner website'").get()?.["id"]) });
   assert.match(query(ended, "done"), /^Call ended and logged\. 2 to-dos added\. 2[01] min logged to the project\.$/);
-  const todos = t.db.prepare("select title, organization_id from task where project_id is null order by rowid").all();
+  // (The first call here went unanswered, so there's also a to-do to call Dale again.)
+  const todos = t.db.prepare("select title, organization_id from task where project_id is null and title not like 'Call % again' order by rowid").all();
   assert.deepEqual(todos.map((one) => [one["title"], one["organization_id"]]), [["Send the menu mock-up", client.id], ["Ask for photos", client.id]]);
   const entry = t.db.prepare("select minutes, note, billable from time_entry order by rowid desc limit 1").get() as Record<string, unknown>;
   assert.ok([20, 21].includes(Number(entry["minutes"])));

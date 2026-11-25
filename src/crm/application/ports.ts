@@ -76,6 +76,9 @@ export type CallGuideStore = {
   /** All the call's answers, in every guide it used, in the order they were first saved. */
   answers(callId: Id): CallAnswerRow[];
   saveAnswer(callId: Id, row: CallAnswerRow): void;
+  /** The voicemail script (decision 0009, section 5). */
+  script(kind: "voicemail"): { readonly text: string; readonly updatedAt: string; readonly updatedBy: Id | null } | null;
+  saveScript(kind: "voicemail", text: string, at: string, userId: Id): void;
 };
 
 /**
@@ -103,7 +106,17 @@ export type ClientFacts = {
   readonly lastCall: { readonly at: string; readonly note: string } | null;
 };
 
+/** Across all clients, for the calls to make (decision 0009, section 5). */
+export type CallListFacts = {
+  readonly overdueInvoices: readonly { readonly organizationId: Id; readonly clientName: string; readonly number: number; readonly dueOn: string; readonly totalMinor: number; readonly currency: string }[];
+  readonly callRequests: readonly { readonly organizationId: Id; readonly clientName: string; readonly wanted: string; readonly at: string }[];
+  /** Clients with a call logged since this instant: called already today. */
+  readonly calledSince: ReadonlySet<Id>;
+};
+
 export type ClientFactsReader = {
+  /** Invoices at least `lateBy` days past due on `today`, calls asked for, and who's been called since `since`. */
+  callList(today: string, lateBy: number, since: string): CallListFacts;
   /** `today` is a plain date; "soon" is the next 30 days. `exceptCallId` leaves out the call being made. */
   facts(organizationId: Id, today: string, exceptCallId?: Id | null): ClientFacts;
 };

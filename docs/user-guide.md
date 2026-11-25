@@ -254,6 +254,12 @@ puts back what HQ had.
   we're waiting on from them, a late invoice, a site that's down, a renewal
   coming up, and what was said last time. Change the questions under
   Knowledge → Call guides.
+- **Calls to make.** Today lists who to call, one line each with every
+  reason: they asked for a call, a follow-up is due, an invoice is a week
+  late, a deal is going cold. Tap "Call" and the call screen opens; end it
+  and you're back at the list, with that client gone from it. Got their
+  voicemail? The script is on the call screen; end it as "Left a voicemail"
+  and HQ sets the follow-up two business days on, or a to-do to call again.
 - **Before you hang up.** The wrap-up panel offers the next open times:
   pick one and "Book it" while they're still on the line, and they're
   emailed it. When you end the call, type next steps, one a line, and each

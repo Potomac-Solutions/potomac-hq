@@ -1,13 +1,13 @@
 // The call screen (decision 0009, call mode): start a call with someone at a
 // client, keep its timer on the server, change its planned length, keep
 // notes as they're typed, and end it into the call log with its length.
-import { callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
+import { addBusinessDays, fillScript, readReturnTo, OVERDUE_CALL_DAYS, RETRY_BUSINESS_DAYS, callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
 import { OUTCOME_LABELS } from "../domain/touch.ts";
 import { callSummary, isSituation, MAX_ANSWER_LENGTH, pickSituation, readGuide, SITUATION_HINTS, type GuideError, type Situation } from "../domain/call-guide.ts";
 import type { Contact } from "../domain/contact.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, formatHours, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
-import { writeTouch, type LogTouchError, type TouchDeps } from "./touches.ts";
+import { goingCold, writeTouch, type LogTouchError, type TouchDeps } from "./touches.ts";
 import type { CallGuideStore, CallStore, ClientFacts, ClientFactsReader } from "./ports.ts";
 
 /** "17 min", for the routes' messages. */
@@ -22,7 +22,7 @@ export type CallDeps = TouchDeps & { readonly calls: CallStore; readonly guides:
  * and activity, so the CRM doesn't depend on them.
  */
 export type FollowThrough = {
-  addTodo(actorId: Id, input: { readonly title: string; readonly clientId: Id; readonly opportunityId: Id | null }): Result<unknown, string>;
+  addTodo(actorId: Id, input: { readonly title: string; readonly clientId: Id; readonly opportunityId: Id | null; readonly dueOn?: string | null }): Result<unknown, string>;
   logTime(actorId: Id, projectId: Id, input: { readonly on: string; readonly hours: string; readonly note: string; readonly billable: boolean }): Result<unknown, string>;
 };
 type Refused = "forbidden" | "not-found";
@@ -47,7 +47,7 @@ function whoToCall(deps: CallDeps, organizationId: Id, contactId: Id | null): Co
  * it answers with that call, `already` set, instead of starting another. Permission:
  * `contact.edit`, as logging a call needs.
  */
-export function startCall(deps: CallDeps, actorId: Id | null, from: CallFrom): Result<Started, StartError> {
+export function startCall(deps: CallDeps, actorId: Id | null, from: CallFrom, options: { readonly returnTo?: string | null } = {}): Result<Started, StartError> {
   if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
   endForgottenCalls(deps);
   return deps.transact(() => {
@@ -94,9 +94,10 @@ export function startCall(deps: CallDeps, actorId: Id | null, from: CallFrom): R
     const guide = pickSituation({ hasProposalOrProject: facts.anyProposalOrProject, proposalWaiting: facts.proposalsWaiting.length > 0, activeProject: facts.activeProjects.length > 0, renewalSoon: facts.renewalsSoon.length > 0 });
     const made = newCall({ id: deps.newId(), organizationId, contactId, opportunityId, bookingId, userId: actorId, phone, startedAt: deps.clock() }, planned, guide);
     if (!made.ok) return made;
-    deps.calls.insert(made.value, deps.clock());
+    const call = { ...made.value, returnTo: readReturnTo(options.returnTo) };
+    deps.calls.insert(call, deps.clock());
     recordActivity(deps, { actorId, action: "call.started", recordType: "call", recordId: made.value.id, context: { clientId: organizationId, plannedMinutes: made.value.plannedMinutes, guide, ...(bookingId ? { bookingId } : {}) } });
-    return ok({ call: made.value, already: false });
+    return ok({ call, already: false });
   });
 }
 
@@ -150,7 +151,11 @@ export function endCall(deps: CallDeps, actorId: Id | null, callId: Id, input: E
     const minutes = loggedMinutes(call.startedAt, endedAt);
     const where = call.opportunityId ? { opportunityId: call.opportunityId } : { clientId: call.organizationId };
     const note = callSummary(input.note ?? call.note, deps.guides.answers(callId));
-    const logged = writeTouch(deps, actorId, where, { kind: "call", outcome: input.outcome ?? "reached", note, contactId: call.contactId, followUpOn: input.followUpOn ?? null }, { minutes, callId });
+    const outcome = input.outcome ?? "reached";
+    // Nobody answered: try again in two business days, on an open opportunity, unless a day was chosen.
+    const retry = (outcome === "voicemail" || outcome === "no-answer") && !(input.followUpOn ?? "").trim() && call.opportunityId !== null && deps.opportunities.get(call.opportunityId)?.stage !== "won" && deps.opportunities.get(call.opportunityId)?.stage !== "lost" && allowed(deps, actorId, "opportunity.set-follow-up");
+    const followUpOn = retry ? addBusinessDays(deps.today(), RETRY_BUSINESS_DAYS) : (input.followUpOn ?? null);
+    const logged = writeTouch(deps, actorId, where, { kind: "call", outcome, note, contactId: call.contactId, followUpOn }, { minutes, callId });
     if (!logged.ok) return logged;
     deps.calls.end(callId, endedAt, logged.value.id);
     recordActivity(deps, { actorId, action: "call.ended", recordType: "call", recordId: callId, context: { clientId: call.organizationId, minutes, outcome: logged.value.outcome ?? "reached" } });
@@ -218,6 +223,10 @@ export type CallScreen = {
   readonly projects: readonly { readonly id: string; readonly name: string; readonly hourly: boolean }[];
   /** Whether next steps can become to-dos. */
   readonly canAddTodos: boolean;
+  /** The voicemail script, filled in for this call. */
+  readonly voicemail: string;
+  /** Started from the calls to make: ending goes back there. */
+  readonly fromList: boolean;
   readonly guide: GuideOnCall;
   /** The other guides, to switch to. */
   readonly guides: readonly { readonly value: string; readonly label: string }[];
@@ -288,6 +297,8 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
     points: talkingPoints(deps, actorId, facts),
     projects: deps.followThrough && allowed(deps, actorId, "time.log") ? facts.activeProjects.map((one) => ({ id: one.id, name: one.name, hourly: one.hourly })) : [],
     canAddTodos: Boolean(deps.followThrough) && allowed(deps, actorId, "task.edit"),
+    voicemail: fillScript(deps.guides.script("voicemail")?.text ?? "", { name: contact?.name ?? booking?.name ?? "", me: deps.users.get(call.userId)?.name ?? "", about: opportunity?.title ?? facts.activeProjects[0]?.name ?? "" }),
+    fromList: call.returnTo !== null,
     guide: guideOnCall(deps, call),
     guides: deps.guides.all().map((one) => ({ value: one.situation, label: one.title })),
   });
@@ -455,6 +466,16 @@ export function followThroughCall(deps: CallDeps, actorId: Id | null, callId: Id
   const problems: string[] = [];
   let todos = 0;
   let timeLogged = 0;
+  // Nobody answered and there's no opportunity to follow up on: a to-do to try again, in two business days.
+  const touch = call.touchId ? deps.touches.listForClient(call.organizationId, 20).find((one) => one.id === call.touchId) : null;
+  const tryAgain = deps.followThrough && call.opportunityId === null && (touch?.outcome === "voicemail" || touch?.outcome === "no-answer");
+  if (tryAgain && deps.followThrough) {
+    const contact = call.contactId ? deps.contacts.get(call.contactId) : null;
+    const name = contact?.name ?? deps.clients.get(call.organizationId)?.name ?? "them";
+    const added = deps.followThrough.addTodo(actorId, { title: `Call ${name} again`, clientId: call.organizationId, opportunityId: null, dueOn: addBusinessDays(deps.today(), RETRY_BUSINESS_DAYS) });
+    if (added.ok) todos += 1;
+    else problems.push("the to-do to call again wasn't added");
+  }
   if (deps.followThrough) {
     for (const title of steps) {
       const added = deps.followThrough.addTodo(actorId, { title: title.slice(0, 200), clientId: call.organizationId, opportunityId: call.opportunityId });
@@ -474,4 +495,80 @@ export function followThroughCall(deps: CallDeps, actorId: Id | null, callId: Id
     }
   } else if (steps.length > 0 || input.projectId) problems.push("to-dos and time aren't set up here");
   return ok({ todos, loggedMinutes: timeLogged, problems });
+}
+
+export type CallToMake = {
+  readonly key: string;
+  readonly clientName: string;
+  /** What to start the call from: the opportunity when there is one, else the client. */
+  readonly field: "opportunityId" | "clientId";
+  readonly id: string;
+  /** Why to call, most pressing first. */
+  readonly reasons: readonly string[];
+  readonly urgent: boolean;
+};
+
+export type CallsToMakeView = { readonly items: readonly CallToMake[]; readonly calledToday: number; readonly canCall: boolean };
+
+/**
+ * Today's calls to make (decision 0009, section 5): calls asked for in the
+ * portal, follow-ups due (overdue first), invoices a week or more late, and
+ * opportunities going cold. One line per client, with every reason, each
+ * only for those who may see it. A client called today drops off.
+ */
+export function callsToMake(deps: CallDeps, actorId: Id | null): CallsToMakeView {
+  if (actorId === null || !allowed(deps, actorId, "client.view")) return { items: [], calledToday: 0, canCall: false };
+  const today = deps.today();
+  const since = Temporal.PlainDate.from(today).toZonedDateTime({ timeZone: deps.timeZone }).toInstant().toString();
+  const list = deps.facts.callList(today, OVERDUE_CALL_DAYS, since);
+  type Entry = { clientName: string; field: "opportunityId" | "clientId"; id: string; reasons: { rank: number; text: string }[] };
+  const byClient = new Map<string, Entry>();
+  const add = (organizationId: string, clientName: string, rank: number, text: string, opportunityId: string | null) => {
+    const entry = byClient.get(organizationId) ?? { clientName, field: "clientId" as const, id: organizationId, reasons: [] };
+    if (opportunityId && entry.field === "clientId") Object.assign(entry, { field: "opportunityId", id: opportunityId });
+    entry.reasons.push({ rank, text });
+    byClient.set(organizationId, entry);
+  };
+  for (const one of list.callRequests) add(one.organizationId, one.clientName, 0, `They asked for a call: ${one.wanted}`, null);
+  if (allowed(deps, actorId, "opportunity.view")) {
+    for (const one of deps.opportunities.dueBy(today)) {
+      const late = days(one.followUpOn ?? today, today);
+      add(one.organizationId, one.clientName, late > 0 ? 1 : 2, late > 0 ? `Follow-up on “${one.title}”, ${plural(late, "day")} overdue` : `Follow-up on “${one.title}” is today`, one.id);
+    }
+  }
+  if (allowed(deps, actorId, "invoice.view")) for (const one of list.overdueInvoices) add(one.organizationId, one.clientName, 3, `INV-${String(one.number).padStart(4, "0")} is ${plural(days(one.dueOn, today), "day")} late: ${amount(one.totalMinor, one.currency)}`, null);
+  for (const one of goingCold(deps, actorId)) add(one.organizationId, one.clientName, 4, `“${one.title}” is going cold: ${one.lastText.toLowerCase()}`, one.id);
+  const entries = [...byClient.entries()];
+  const calledToday = list.calledSince.size;
+  const items = entries
+    .filter(([organizationId]) => !list.calledSince.has(organizationId as Id))
+    .map(([organizationId, entry]) => {
+      const reasons = [...entry.reasons].sort((a, b) => a.rank - b.rank);
+      return { key: organizationId, clientName: entry.clientName, field: entry.field, id: entry.id, reasons: reasons.map((one) => one.text), urgent: (reasons[0]?.rank ?? 9) <= 1, rank: reasons[0]?.rank ?? 9 };
+    })
+    .sort((a, b) => a.rank - b.rank || a.clientName.localeCompare(b.clientName))
+    .map(({ rank: _rank, ...item }) => item);
+  return { items, calledToday, canCall: allowed(deps, actorId, "contact.edit") };
+}
+
+export type ScriptView = { readonly text: string; readonly updated: string; readonly canEdit: boolean };
+
+/** The voicemail script as written, with its blanks. Permission: `knowledge.view`. */
+export function voicemailScript(deps: CallDeps, actorId: Id | null): Result<ScriptView, "forbidden"> {
+  if (!allowed(deps, actorId, "knowledge.view")) return err("forbidden");
+  const script = deps.guides.script("voicemail");
+  return ok({ text: script?.text ?? "", updated: script?.updatedBy ? `Changed by ${deps.users.get(script.updatedBy)?.name ?? "someone"}, ${deps.formatWhen(script.updatedAt)}` : "As HQ came", canEdit: allowed(deps, actorId, "knowledge.edit") });
+}
+
+/** Changes the voicemail script. Permission: `knowledge.edit`. */
+export function saveVoicemailScript(deps: CallDeps, actorId: Id | null, text: string): Result<true, Refused | "script-missing" | "script-too-long"> {
+  if (!allowed(deps, actorId, "knowledge.edit")) return err("forbidden");
+  const cleaned = text.trim();
+  if (!cleaned) return err("script-missing");
+  if (cleaned.length > 600) return err("script-too-long");
+  return deps.transact(() => {
+    deps.guides.saveScript("voicemail", cleaned, deps.clock(), actorId);
+    recordActivity(deps, { actorId, action: "call-script.changed", recordType: "call-script", recordId: deps.newId(), context: { kind: "voicemail" } });
+    return ok(true as const);
+  });
 }

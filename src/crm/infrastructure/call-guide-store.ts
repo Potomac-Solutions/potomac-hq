@@ -18,7 +18,16 @@ export function sqliteCallGuideStore(db: Database): CallGuideStore {
     "insert into call_answer (call_id, guide, position, question, asked, answer) values (?, ?, ?, ?, ?, ?) on conflict (call_id, guide, position) do update set question = excluded.question, asked = excluded.asked, answer = excluded.answer",
   );
   const guide = (row: Row, list: readonly string[]): CallGuide => ({ situation: String(row["situation"]), title: String(row["title"]), questions: list, updatedAt: String(row["updated_at"]), updatedBy: (row["updated_by"] as Id | null) ?? null });
+  const script = db.prepare("select text, updated_at, updated_by from call_script where kind = ?");
+  const saveScript = db.prepare("update call_script set text = ?, updated_at = ?, updated_by = ? where kind = ?");
   return {
+    script(kind) {
+      const row = script.get(kind) as Row | undefined;
+      return row ? { text: String(row["text"]), updatedAt: String(row["updated_at"]), updatedBy: (row["updated_by"] as Id | null) ?? null } : null;
+    },
+    saveScript(kind, text, at, userId) {
+      saveScript.run(text, at, userId, kind);
+    },
     all() {
       const bySituation = new Map<string, string[]>();
       for (const row of questions.all()) {

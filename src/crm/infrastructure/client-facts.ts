@@ -35,7 +35,24 @@ export function sqliteClientFacts(db: Database): ClientFactsReader {
   const renewals = db.prepare("select name, renews_on from renewal where organization_id = ? and active = 1 and renews_on between ? and ? order by renews_on");
   const lastCall = db.prepare("select happened_at, note from touch where organization_id = ? and kind = 'call' and note <> '' and (call_id is null or call_id <> ?) order by happened_at desc limit 1");
   const plusDays = (day: string, days: number) => Temporal.PlainDate.from(day).add({ days }).toString();
+  const lateInvoices = db.prepare(
+    `select p.organization_id, c.name, i.number, i.due_on, i.total_minor, i.currency from invoice i
+       join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id
+      where i.status = 'sent' and i.due_on is not null and i.due_on <= ? and c.demo = 0 order by i.due_on`,
+  );
+  const asked = db.prepare(
+    `select r.organization_id, c.name, r.wanted, r.created_at from call_request r join client_organization c on c.id = r.organization_id
+      where r.status = 'requested' order by r.created_at`,
+  );
+  const called = db.prepare("select distinct organization_id from touch where kind = 'call' and happened_at >= ?");
   return {
+    callList(today, lateBy, since) {
+      return {
+        overdueInvoices: (lateInvoices.all(plusDays(today, -lateBy)) as Row[]).map((row) => ({ organizationId: row["organization_id"] as Id, clientName: str(row, "name"), number: num(row, "number"), dueOn: str(row, "due_on"), totalMinor: num(row, "total_minor"), currency: str(row, "currency") || "USD" })),
+        callRequests: (asked.all() as Row[]).map((row) => ({ organizationId: row["organization_id"] as Id, clientName: str(row, "name"), wanted: str(row, "wanted"), at: str(row, "created_at") })),
+        calledSince: new Set((called.all(since) as Row[]).map((row) => row["organization_id"] as Id)),
+      };
+    },
     facts(organizationId, today, exceptCallId = null): ClientFacts {
       const projectRows = projects.all(organizationId) as Row[];
       const proposalRows = proposals.all(organizationId) as Row[];
