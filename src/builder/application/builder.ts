@@ -16,7 +16,8 @@ import { zipFiles } from "../domain/zip.ts";
 import { checkImage, imagePath, MAX_IMAGES, type BuildImage, type ImageError } from "../domain/image.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, ImageStore, PageFetch, PreviewTokens, RepoReader } from "./ports.ts";
+import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, ImageStore, PageFetch, PreviewTokens, PublishStore, RepoReader, SitePublishing } from "./ports.ts";
+import { suggestedRepoName } from "../domain/publish.ts";
 
 export type BuilderDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
@@ -34,6 +35,11 @@ export type BuilderDeps = ActivityDeps & {
   readonly repos: RepoReader | null;
   /** Reads a public web address to rework (slice 3). */
   readonly fetchPage: PageFetch;
+  /** Puts versions on GitHub (slice 4). Null when neither GitHub token is set. */
+  readonly publishing: SitePublishing | null;
+  readonly publishes: PublishStore;
+  /** Sets a client's site up for editing (decision 0003) once it's in a new repository. True when it worked. */
+  readonly setUpEditing?: (actorId: Id, organizationId: Id, input: { readonly name: string; readonly repo: string; readonly branch: string; readonly contentPath: string; readonly photoDir: string }) => Promise<boolean>;
   /** Every client, to start a build for. */
   readonly clients: () => readonly { readonly id: Id; readonly name: string }[];
   /** The email of the one person who may change the model and the cap. */
@@ -161,6 +167,13 @@ export type BuildView = {
   readonly claudeSetUp: boolean;
   readonly images: readonly { readonly id: Id; readonly path: string; readonly kind: string; readonly kindLabel: string; readonly alt: string; readonly size: string; readonly src: string }[];
   readonly canAddImage: boolean;
+  /** Where the next publish goes, once there has been one: "" before. */
+  readonly publishedTo: string;
+  readonly publishes: readonly { readonly version: number; readonly kind: string; readonly where: string; readonly url: string; readonly when: string; readonly by: string }[];
+  readonly suggestedRepo: string;
+  readonly organization: string;
+  readonly githubSetUp: boolean;
+  readonly adminSetUp: boolean;
 };
 
 const ERROR_WORDS: Readonly<Record<string, string>> = {
@@ -219,7 +232,29 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
     claudeSetUp: deps.claude !== null,
     images: deps.images.listFor(build.id).map((one) => ({ id: one.id, path: one.path, kind: one.kind, kindLabel: one.kind === "logo" ? "Logo" : "Photo", alt: one.alt, size: `${one.width} × ${one.height}`, src: `/builder/${build.id}/images/${one.id}` })),
     canAddImage: deps.images.listFor(build.id).length < MAX_IMAGES,
+    ...publishing(deps, build),
   });
+}
+
+/** The going-live part of a build's page (slice 4). */
+function publishing(deps: BuilderDeps, build: Build) {
+  const all = deps.publishes.listFor(build.id);
+  const last = all[0];
+  return {
+    publishedTo: !last ? "" : last.kind === "pull-request" ? `a pull request to ${last.repo}, into ${last.branch}` : `${last.repo}, straight onto ${last.branch}`,
+    publishes: all.map((one) => ({
+      version: one.version,
+      kind: one.kind === "pull-request" ? "Pull request" : one.kind === "new-repo" ? "New repository" : "Commit",
+      where: one.kind === "pull-request" ? `${one.repo}, into ${one.branch}` : `${one.repo}, ${one.branch}`,
+      url: one.url,
+      when: deps.formatWhen(one.at),
+      by: deps.users.get(one.by)?.name ?? "Someone",
+    })),
+    suggestedRepo: suggestedRepoName(deps.clientFacts(build.organizationId)?.name ?? build.name),
+    organization: deps.publishing?.organization ?? "",
+    githubSetUp: deps.publishing !== null,
+    adminSetUp: deps.publishing !== null && deps.publishing.canCreate,
+  };
 }
 
 // ---------------------------------------------------------------------------
