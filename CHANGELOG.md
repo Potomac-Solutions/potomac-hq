@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The newsletter, "Notes from the river" (decision 0010, slice 2). People
+  sign up at `/river`, from a form on potomac.solutions, or through the
+  website's server (`POST /api/site/newsletter` with its token), and are on
+  the list once they press Confirm in the email they get. Each reader
+  belongs to the river stop they signed up from (`src=stop:lakes`). Under
+  Sales → Newsletter, write an issue, send yourself a test, and send it to
+  everyone or some stops; it goes out 50 a minute, each reader once. Every
+  issue carries Potomac's mailing address (needs `HQ_CONTACT_ADDRESS`), a
+  one-click unsubscribe link and a `List-Unsubscribe` header. Leaving forgets
+  the address. For managers and admins (`newsletter.manage`). Migration 0056.
 - Decision 0010, growth tools: the newsletter, where leads come from, free
   landing pages, monthly reports to plan clients, n8n automations, reviews
   and case studies, referral credit, and who looked at a demo, in eight

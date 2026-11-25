@@ -12,6 +12,8 @@ import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapt
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
+import type { NewsletterDeps } from "./newsletter/index.ts";
+import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
 import { siteTokens } from "./public-site/adapters.ts";
@@ -71,6 +73,8 @@ export type Services = {
   readonly monitor: MonitorDeps;
   /** Referral links: short addresses printed as QR codes, and what came of them. */
   readonly referrals: ReferralsDeps;
+  /** "Notes from the river", the newsletter (decision 0010, section 1). */
+  readonly newsletter: NewsletterDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   readonly touches: TouchDeps;
@@ -259,6 +263,23 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), qr: symbologyQr, opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
+  const newsletter: NewsletterDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    subscribers: sqliteSubscriberStore(db),
+    issues: sqliteIssueStore(db),
+    sends: sqliteSendStore(db),
+    tokens: siteTokens,
+    clientByEmail: (email) => {
+      const contact = crm.contacts.byEmail(email);
+      const client = contact ? crm.clients.get(contact.organizationId) : null;
+      return client ? { id: client.id, name: client.name } : null;
+    },
+  };
   const websites: WebsitesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, sites: sqliteContentSiteStore(db), photos: sqlitePhotoStore(db), counties: countyAtlas(), clientName: (id) => crm.clients.get(id)?.name ?? null, publisher: options.sitePublisher ?? null, timeZone: BUSINESS_TIME_ZONE, digest: (text) => sha256Hex(new TextEncoder().encode(text)), random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   // Renewals bill a client through finance: an invoice with one line on one of their projects, sent.
   const billedOf = (id: Id): BilledInvoice | null => {
@@ -328,5 +349,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { notices, webhooks, publicSite, websites, referrals, newsletter, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

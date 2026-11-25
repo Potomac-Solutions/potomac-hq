@@ -400,3 +400,34 @@ start, and `visitor`, the visitor's address) books someone new or emails someone
 already on file a sign-in link. It is open only when "Anyone can sign up at
 /book" is on, hours are set and email works. Each visitor address may try 5
 times an hour and each email 3 times a day.
+
+## The newsletter
+
+Sales → Newsletter (`newsletter.manage`) is "Notes from the river"
+(`docs/decisions/0010-growth-tools.md`, section 1). It needs email (the
+Brevo key) and `HQ_CONTACT_ADDRESS`: every issue ends with Potomac's mailing
+address, which US anti-spam law asks for, and sending refuses to start
+without it. Issues go out a batch of 50 a minute.
+
+People sign up three ways:
+
+- HQ's own page, `HQ_PUBLIC_URL/river`. Add `?src=stop:lakes` (or any stop:
+  `mountains`, `lakes`, `roadside`, `history`, `enterprise`) to put them in
+  that stop.
+- A plain form on potomac.solutions posting to `HQ_PUBLIC_URL/river`, with
+  `email`, `name` (optional), `src`, `return_to` and the empty `website` trap,
+  like the inquiry form. The site must be in `HQ_FORM_ORIGINS`.
+- The website's server, with its token: `POST /api/site/newsletter` (JSON:
+  `email`, `name`, `src`, and `visitor`, the visitor's address). It answers
+  `{ ok: true, status: "check-email", message }`, or `{ ok: false, error,
+  message }` with a sentence to show.
+
+Either way they get an email with a confirm link, and are on the list only
+once they press Confirm. Five tries an hour from one address, three a day
+for one email. The answer is the same whether or not they were already on
+the list.
+
+Every issue carries a one-click unsubscribe link and a `List-Unsubscribe`
+header. Mail apps post to `/river/one-click?t=...`, which needs no cookie
+or Origin.
+

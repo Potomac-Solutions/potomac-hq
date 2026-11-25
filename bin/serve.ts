@@ -29,6 +29,7 @@ import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
+import { sendDueIssues } from "../src/newsletter/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
@@ -277,6 +278,26 @@ const webhookTimer = setInterval(() => {
 }, 60_000);
 webhookTimer.unref();
 
+// The newsletter (decision 0010, section 1): every minute, the next batch of
+// any issue going out. Each reader is marked as the email goes, so a restart
+// never sends twice.
+let busyNewsletter = false;
+const newsletterTimer = email
+  ? setInterval(() => {
+      if (busyNewsletter) return;
+      busyNewsletter = true;
+      const mail = async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message }));
+      sendDueIssues(createServices(db).newsletter, mail, { publicUrl, address: contact.address })
+        .then((sent) => {
+          if (sent.sent + sent.failed > 0) console.log(`Newsletter: sent ${sent.sent}, failed ${sent.failed}.`);
+          if (sent.failed > 0) log(`Newsletter: ${sent.failed} emails could not be sent`);
+        })
+        .catch((error: unknown) => log("Newsletter: the run failed", error))
+        .finally(() => (busyNewsletter = false));
+    }, 60_000)
+  : null;
+newsletterTimer?.unref();
+
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
 if (email) {
@@ -336,6 +357,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopNotices?.();
     clearInterval(taskNoticeTimer);
     clearInterval(webhookTimer);
+    if (newsletterTimer) clearInterval(newsletterTimer);
     stopReminders?.();
     server.close(() => {
       db.close();

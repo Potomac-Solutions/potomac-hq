@@ -37,6 +37,7 @@
         ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: at('/proposals') }] : []),
         ...(can.calls ? [{ label: 'Calls', href: '/calls', current: at('/calls') }] : []),
         ...(can.referrals ? [{ label: 'Referral links', href: '/referrals', current: at('/referrals') }] : []),
+        ...(can.newsletter ? [{ label: 'Newsletter', href: '/newsletter', current: at('/newsletter') }] : []),
       ] },
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },

@@ -44,6 +44,8 @@ import { creditInquiry, referralLinks } from "./referrals/index.ts";
 import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
 import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
+import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
+import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
 import { callRoutes } from "./crm/api/call-routes.ts";
@@ -258,7 +260,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly newsletter: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -291,6 +293,18 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** "Notes from the river" (decision 0010, section 1). */
+  readonly newsletter: {
+    overview(): ReturnType<typeof newsletterOverview>;
+    issue(id: string): ReturnType<typeof issueDetail>;
+    /** Whether a confirm or unsubscribe link works, for the page that offers its button. */
+    confirmWorks(token: string): boolean;
+    unsubscribeWorks(token: string): boolean;
+    /** Whether an issue can be sent: email set up, and a mailing address to put in it. */
+    readonly ready: { readonly email: boolean; readonly address: boolean };
+    /** HQ's own sign-up page, to share. */
+    readonly signUpAddress: string;
+  };
   /** Website content: a client's own site in the portal, and every site for Potomac's people. */
   readonly websites: {
     /** The signed-in client's site, or null when they have none. `wider` steps the service area map out. */
@@ -679,7 +693,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, newsletter: authorize(sessionDeps, actor, "newsletter.manage").ok },
         websites: {
           mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
           all: () => allWebsites(services.websites, actor),
@@ -690,6 +704,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        newsletter: {
+          overview: () => newsletterOverview(services.newsletter, actor),
+          issue: (id) => withId(id, (issueId) => issueDetail(services.newsletter, actor, issueId)),
+          confirmWorks: (token) => confirmLinkWorks(services.newsletter, token),
+          unsubscribeWorks: (token) => unsubscribeLinkWorks(services.newsletter, token),
+          ready: { email: Boolean(config.email), address: contact.address !== "" },
+          signUpAddress: `${(config.publicUrl ?? "").replace(/\/$/, "")}/river`,
+        },
         reports: {
           pipeline: (days) => pipelineReport(crmDeps, actor, date, /^\d{1,3}$/.test(days) ? Number(days) : 90),
           projects: () => projectHealthReport(projectsDeps, actor),
@@ -846,6 +868,20 @@ export async function createApp(config: AppConfig): Promise<App> {
         )
     : null;
 
+  // Other sites whose forms may post here: the inquiry form and the newsletter sign-up.
+  const formOrigins = (config.formOrigins ?? []).map((one) => new URL(one).origin);
+  // The newsletter's confirm link (decision 0010, section 1), when email is set up.
+  const confirmNewsletter: ConfirmMail | null = email
+    ? async (to, link) =>
+        "ok" in
+        (await email.send({
+          channel: "email",
+          to: to.email,
+          subject: "Confirm your subscription to Notes from the river",
+          body: `Hi${to.name ? ` ${to.name}` : ""},\n\nSomeone, probably you, asked to get Notes from the river, the newsletter from Potomac Solutions. Open this link and press Confirm to start. It works for a week:\n\n${link}\n\nIf it wasn't you, ignore this email and you won't hear from us.\n\nMikey and Jayanti\nPotomac Solutions`,
+        }))
+    : null;
+  const newsletterPerEmail = sqliteRateLimit(db, { name: "newsletter-email", max: 3, windowMs: 24 * 60 * 60_000 });
   const forms = new Hono<{ Bindings: { incoming: IncomingMessage } }>();
   // A form someone signed in was not allowed to use is written down (security
   // review, gap 4). Every module refuses with the same words, so this one
@@ -992,7 +1028,6 @@ export async function createApp(config: AppConfig): Promise<App> {
       }
     : null;
   // The inquiry form, from /contact or Potomac's website.
-  const formOrigins = (config.formOrigins ?? []).map((one) => new URL(one).origin);
   forms.route(
     "/",
     inquiryRoutes({
@@ -1030,6 +1065,24 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
+  // The newsletter (decision 0010, section 1): issues for staff, and signing up and leaving for anyone.
+  const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
+  const newsletterFooter = { publicUrl, address: contact.address };
+  forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: (location) => notices.sign(location), footer: newsletterFooter, mail: sendOne }));
+  forms.route(
+    "/",
+    riverRoutes({
+      newsletter: services.newsletter,
+      sign: (location) => notices.sign(location),
+      mailConfirm: confirmNewsletter,
+      publicUrl,
+      returnOrigins: formOrigins,
+      addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
+      allowPerAddress: sqliteRateLimit(db, { name: "newsletter-address", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: newsletterPerEmail,
+      log,
+    }),
+  );
   forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", shareRoutes({ projects: projectsDeps, sign: (location) => notices.sign(location), allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
   forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: (location) => notices.sign(location), secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
@@ -1062,7 +1115,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (!origin || origin === "null") return false;
     try {
       // The inquiry form may also be posted from Potomac's own website.
-      if (formOrigins.includes(new URL(origin).origin) && new URL(req.url ?? "/", "http://hq.invalid").pathname === "/contact") return true;
+      if (formOrigins.includes(new URL(origin).origin) && ["/contact", "/river"].includes(new URL(req.url ?? "/", "http://hq.invalid").pathname)) return true;
       return new URL(origin).host === req.headers.host;
     } catch {
       return false;
@@ -1090,6 +1143,19 @@ export async function createApp(config: AppConfig): Promise<App> {
     }),
   );
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
+  web.route(
+    "/",
+    newsletterApiRoutes({
+      newsletter: services.newsletter,
+      mailConfirm: confirmNewsletter,
+      publicUrl,
+      isSite: (token) => settingsForSite(services.publicSite, token) !== null,
+      allowApi: (incoming) => allowSiteApi(clientAddressOf(incoming as never)),
+      allowPerVisitor: sqliteRateLimit(db, { name: "newsletter-visitor", max: 5, windowMs: 60 * 60_000 }),
+      allowPerEmail: newsletterPerEmail,
+      log,
+    }),
+  );
   web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
@@ -1112,7 +1178,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/river/one-click" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });

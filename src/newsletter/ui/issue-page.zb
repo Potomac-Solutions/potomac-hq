@@ -1,0 +1,76 @@
+<!--
+  One issue of the newsletter: change it while it's a draft, send yourself a
+  test, send it, and see it go out.
+-->
+<script>
+  'use route /newsletter/issues/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/progress-bar.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.newsletter.issue(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.subject, view: view.value, ready: context.newsletter.ready, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .issue-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .issue-actions form { margin: 0; }
+  .issue-text { white-space: pre-wrap; max-width: 40rem; margin: 0; font: inherit; }
+</style>
+<hq-newsletter-issue view={{ id: '', subject: '', body: '', stops: [], audience: '', draft: true, status: '', reach: 0, sent: 0, failed: 0, waiting: 0, started: '', finished: '', stopOptions: [] }} ready={{ email: false, address: false }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Newsletter', href: '/newsletter' }, { label: view.subject, href: '' }]}></breadcrumb-trail>
+    <h1>{view.subject} <status-badge variant={view.status === 'Sent' ? 'success' : view.status === 'Sending' ? 'warning' : 'neutral'}>{view.status}</status-badge></h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section zb-if={view.draft} class="hq-panel" aria-labelledby="issue-send">
+      <h2 id="issue-send">Send it</h2>
+      <p>Goes to: <strong>{view.audience}</strong>, {view.reach} {view.reach === 1 ? 'reader' : 'readers'} on the list now.</p>
+      <alert-banner zb-if={!ready.email} variant="warning">Email isn’t set up, so nothing can be sent yet.</alert-banner>
+      <alert-banner zb-if={ready.email && !ready.address} variant="warning">Set HQ_CONTACT_ADDRESS on the server first. Every issue must carry Potomac’s mailing address.</alert-banner>
+      <div class="issue-actions">
+        <form method="post" action="/newsletter/issues/{view.id}/test"><button class="hq-button secondary" type="submit">Send me a test</button></form>
+        <form method="post" action="/newsletter/issues/{view.id}/send"><button class="hq-button" type="submit">Send to {view.reach} {view.reach === 1 ? 'reader' : 'readers'}</button></form>
+      </div>
+      <p class="hq-small hq-muted" data-spaced>It goes out a batch a minute, each reader once. It can’t be changed after.</p>
+    </section>
+
+    <section zb-else class="hq-panel" aria-labelledby="issue-progress">
+      <h2 id="issue-progress">{view.waiting > 0 ? 'Going out' : 'Sent'}</h2>
+      <progress-bar zb-if={view.waiting > 0} value={view.reach - view.waiting} max={view.reach} label="Sent so far"></progress-bar>
+      <p>{view.sent} sent<span zb-if={view.failed > 0}>, {view.failed} couldn’t be sent</span><span zb-if={view.waiting > 0}>, {view.waiting} still to go</span>. To: {view.audience}.</p>
+      <p class="hq-small hq-muted">Started {view.started}<span zb-if={view.finished}>, finished {view.finished}</span>.</p>
+    </section>
+
+    <section zb-if={view.draft} class="hq-panel" aria-labelledby="issue-edit">
+      <h2 id="issue-edit">Change it</h2>
+      <form method="post" action="/newsletter/issues/{view.id}" class="hq-form">
+        <text-field label="Subject" name="subject" value={view.subject} required={true} maxlength={120}></text-field>
+        <text-field label="What it says" name="body" value={view.body} rows={14} required={true} maxlength={20000}></text-field>
+        <fieldset class="hq-checks">
+          <legend>Who it goes to</legend>
+          <p class="hq-small hq-muted">Tick none for everyone.</p>
+          <zb-each items={view.stopOptions} as="stop" key={stop.value}>
+            <label><input type="checkbox" name="stop-{stop.value}" value="1" checked={stop.checked}> {stop.label}</label>
+          </zb-each>
+        </fieldset>
+        <div><button class="hq-button" type="submit">Save</button></div>
+      </form>
+      <form method="post" action="/newsletter/issues/{view.id}/remove" data-spaced><button class="hq-button secondary" type="submit">Delete draft</button></form>
+    </section>
+
+    <section zb-else class="hq-panel" aria-labelledby="issue-text">
+      <h2 id="issue-text">What it said</h2>
+      <pre class="issue-text">{view.body}</pre>
+    </section>
+  </div>
+</hq-newsletter-issue>
