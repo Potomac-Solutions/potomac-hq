@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Following through from a call (decision 0009, slice 3). The wrap-up panel
+  offers the next six open times; "Book it" books the next call while
+  they're on the line, at the CRM client, and emails them as usual. Ending
+  a call turns next steps, one a line, into to-dos, and can log the call's
+  time to the client's project (ticked already, and billable, when it's
+  billed by the hour).
 - Call guides and talking points (decision 0009, slice 2). The call screen
   shows questions for the kind of call (a first call, a proposal follow-up, a
   project check-in, a renewal or any call), picked from what the client has

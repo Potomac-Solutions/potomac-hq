@@ -254,6 +254,11 @@ puts back what HQ had.
   we're waiting on from them, a late invoice, a site that's down, a renewal
   coming up, and what was said last time. Change the questions under
   Knowledge → Call guides.
+- **Before you hang up.** The wrap-up panel offers the next open times:
+  pick one and "Book it" while they're still on the line, and they're
+  emailed it. When you end the call, type next steps, one a line, and each
+  becomes a to-do for you; and log the call's time to their project (a
+  project billed by the hour is ticked already).
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.

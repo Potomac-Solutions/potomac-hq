@@ -82,6 +82,26 @@ whether it was ticked, and what was said.
   (`call-guide.changed`). A change applies to calls after it; a question
   already answered keeps its words.
 
+### Following through from a call
+
+Decision 0009, slice 3. No new tables.
+
+- **Book another call**: the wrap-up panel offers the next six open times
+  on Potomac's calendar, whether or not booking is open to clients or the
+  public. Booking needs `call.respond`, the open call, and an email on the
+  person's contact. It's a `booking` of kind `public` at the CRM client
+  (`crm_client_id`, and `crm_opportunity_id` when the call is on one), with
+  its own private link, so the person is emailed and can move it as usual.
+  `booking.made` carries `from: "call"` and the `callId`.
+- **Next steps**, one a line on ending (up to 10), each become a to-do for
+  the person at the client and its opportunity, through the to-do service
+  (`task.edit`).
+- **The call's time** can go to one of the client's active projects,
+  through the time service (`time.log`): billable when the project is
+  billed by the hour, which is ticked to start with.
+- These run after the call is logged, each in its own transaction; one
+  that's refused is said in the message, and the rest still happen.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.
