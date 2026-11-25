@@ -89,7 +89,7 @@ export function addInvoiceLine(invoice: Invoice, input: { readonly description: 
 }
 
 /**
- * Takes a credit off a draft (a referral credit, decision 0010): a line with
+ * Takes a credit off a draft (a referral credit, decision 0013): a line with
  * a negative amount. It never makes the invoice zero or less.
  */
 export function addCreditLine(invoice: Invoice, input: { readonly description: string; readonly minor: number }): Result<Invoice, "not-a-draft" | "too-many-lines" | "description-missing" | "description-too-long" | "amount-must-be-positive" | "credit-too-large"> {

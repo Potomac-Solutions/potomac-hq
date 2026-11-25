@@ -1,4 +1,4 @@
--- n8n automations run for clients (decision 0010, section 5), with the runs
+-- n8n automations run for clients (decision 0013, section 5), with the runs
 -- each has checked in with. Only a hash of each one's secret address is kept.
 create table automation (
   id               text primary key,

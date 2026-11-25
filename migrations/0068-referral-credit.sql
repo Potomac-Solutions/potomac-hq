@@ -1,4 +1,4 @@
--- Thanking the person who sent them (decision 0010, section 7): who
+-- Thanking the person who sent them (decision 0013, section 7): who
 -- referred an opportunity, a client's own referral link, and the credit a
 -- client earns when someone they referred pays their first invoice.
 alter table opportunity add column referred_by_org text references client_organization (id);

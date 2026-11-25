@@ -1,0 +1,126 @@
+import type { BuilderSettingsStore, BuildStore, VersionLine } from "../application/ports.ts";
+import type { Build, BuildRequest, BuildVersion, RequestState } from "../domain/build.ts";
+import type { Database } from "../../shared/adapters.ts";
+import type { Id } from "../../shared/index.ts";
+
+type Row = Record<string, unknown>;
+const text = (value: unknown): string => (typeof value === "string" ? value : "");
+const int = (value: unknown): number => (typeof value === "number" ? value : typeof value === "bigint" ? Number(value) : 0);
+
+const toBuild = (row: Row): Build => ({ id: text(row["id"]) as Id, organizationId: text(row["organization_id"]) as Id, name: text(row["name"]), brief: text(row["brief"]), createdBy: text(row["created_by"]) as Id, createdAt: text(row["created_at"]) });
+
+const toRequest = (row: Row): BuildRequest => ({
+  id: text(row["id"]) as Id,
+  buildId: text(row["build_id"]) as Id,
+  askedBy: text(row["asked_by"]) as Id,
+  ask: text(row["ask"]),
+  model: text(row["model"]),
+  state: text(row["state"]) as RequestState,
+  reservedMicros: int(row["reserved_micros"]),
+  costMicros: int(row["cost_micros"]),
+  inputTokens: int(row["input_tokens"]),
+  outputTokens: int(row["output_tokens"]),
+  error: typeof row["error"] === "string" ? row["error"] : null,
+  createdAt: text(row["created_at"]),
+  finishedAt: typeof row["finished_at"] === "string" ? row["finished_at"] : null,
+});
+
+const toLine = (row: Row): VersionLine => ({
+  buildId: text(row["build_id"]) as Id,
+  number: int(row["number"]),
+  requestId: typeof row["request_id"] === "string" ? (row["request_id"] as Id) : null,
+  madeBy: typeof row["made_by"] === "string" ? (row["made_by"] as Id) : null,
+  summary: text(row["summary"]),
+  chars: int(row["chars"]),
+  createdAt: text(row["created_at"]),
+});
+
+const toVersion = (row: Row): BuildVersion => ({ ...toLine(row), filesJson: text(row["files"]) });
+
+export function sqliteBuildStore(db: Database): BuildStore {
+  const insertBuild = db.prepare("insert into build (id, organization_id, name, brief, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)");
+  const saveBrief = db.prepare("update build set name = ?, brief = ?, updated_at = ? where id = ?");
+  const touch = db.prepare("update build set updated_at = ? where id = ?");
+  const getBuild = db.prepare("select * from build where id = ?");
+  const listBuilds = db.prepare(
+    `select b.*, (select count(*) from build_version v where v.build_id = b.id) as versions,
+            exists (select 1 from build_request r where r.build_id = b.id and r.state = 'working') as working
+       from build b order by b.updated_at desc, b.name`,
+  );
+  const insertVersion = db.prepare("insert into build_version (build_id, number, request_id, made_by, summary, files, chars, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+  const versions = db.prepare("select build_id, number, request_id, made_by, summary, chars, created_at from build_version where build_id = ? order by number desc");
+  const version = db.prepare("select * from build_version where build_id = ? and number = ?");
+  const latest = db.prepare("select * from build_version where build_id = ? order by number desc limit 1");
+  const insertRequest = db.prepare(
+    "insert into build_request (id, build_id, asked_by, ask, model, state, reserved_micros, cost_micros, input_tokens, output_tokens, error, created_at, finished_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const finish = db.prepare("update build_request set state = ?, cost_micros = ?, input_tokens = ?, output_tokens = ?, error = ?, finished_at = ? where id = ? and state = 'working'");
+  const request = db.prepare("select * from build_request where id = ?");
+  const requests = db.prepare("select * from build_request where build_id = ? order by created_at, id");
+  const working = db.prepare("select * from build_request where state = 'working' order by created_at");
+  const since = db.prepare("select * from build_request where created_at >= ? order by created_at");
+  return {
+    insert(build) {
+      insertBuild.run(build.id, build.organizationId, build.name, build.brief, build.createdBy, build.createdAt, build.createdAt);
+    },
+    saveBrief(id, name, brief, at) {
+      saveBrief.run(name, brief, at, id);
+    },
+    get(id) {
+      const row = getBuild.get(id);
+      return row ? toBuild(row) : null;
+    },
+    list() {
+      return listBuilds.all().map((row) => ({ ...toBuild(row), updatedAt: text(row["updated_at"]), versions: int(row["versions"]), working: int(row["working"]) === 1 }));
+    },
+    insertVersion(v) {
+      insertVersion.run(v.buildId, v.number, v.requestId, v.madeBy, v.summary, v.filesJson, v.chars, v.createdAt);
+      touch.run(v.createdAt, v.buildId);
+    },
+    versions(buildId) {
+      return versions.all(buildId).map(toLine);
+    },
+    version(buildId, number) {
+      const row = version.get(buildId, number);
+      return row ? toVersion(row) : null;
+    },
+    latest(buildId) {
+      const row = latest.get(buildId);
+      return row ? toVersion(row) : null;
+    },
+    insertRequest(r) {
+      insertRequest.run(r.id, r.buildId, r.askedBy, r.ask, r.model, r.state, r.reservedMicros, r.costMicros, r.inputTokens, r.outputTokens, r.error, r.createdAt, r.finishedAt);
+      touch.run(r.createdAt, r.buildId);
+    },
+    finishRequest(id, f) {
+      finish.run(f.state, f.costMicros, f.inputTokens, f.outputTokens, f.error, f.finishedAt, id);
+    },
+    request(id) {
+      const row = request.get(id);
+      return row ? toRequest(row) : null;
+    },
+    requests(buildId) {
+      return requests.all(buildId).map(toRequest);
+    },
+    working() {
+      return working.all().map(toRequest);
+    },
+    requestsSince(instant) {
+      return since.all(instant).map(toRequest);
+    },
+  };
+}
+
+export function sqliteBuilderSettings(db: Database): BuilderSettingsStore {
+  const read = db.prepare("select model, cap_cents from builder_settings where id = 1");
+  const write = db.prepare("update builder_settings set model = ?, cap_cents = ?, updated_at = ? where id = 1");
+  return {
+    get() {
+      const row = read.get() ?? {};
+      return { model: text(row["model"]) || "claude-opus-5-5", capCents: int(row["cap_cents"]) || 1_000 };
+    },
+    save(settings, at) {
+      write.run(settings.model, settings.capCents, at);
+    },
+  };
+}

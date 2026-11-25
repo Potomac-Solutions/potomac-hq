@@ -1,4 +1,4 @@
-// The newsletter (decision 0010, section 1). Anyone signs up, from the website
+// The newsletter (decision 0013, section 1). Anyone signs up, from the website
 // or HQ's own page, and is on the list once they open the confirm link they
 // are emailed. Potomac's people with `newsletter.manage` see the list, write
 // issues and send them; issues go out in the background, a batch a minute,

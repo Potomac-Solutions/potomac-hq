@@ -1,4 +1,4 @@
-<!-- Writing a review in the portal (decision 0010, section 6). One a client. -->
+<!-- Writing a review in the portal (decision 0013, section 6). One a client. -->
 <script>
   'use route /portal/review'
   import { notFound } from '@zubra/router'

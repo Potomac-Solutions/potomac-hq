@@ -1,4 +1,4 @@
-// n8n automations run for clients (decision 0010, section 5). Potomac's
+// n8n automations run for clients (decision 0013, section 5). Potomac's
 // people add each one to its client (`automation.manage`) and get a secret
 // address for n8n to post to at the end of a run. HQ keeps the runs, notices
 // one that failed or didn't run on time, puts it on Today and emails the

@@ -194,7 +194,7 @@ export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: 
   });
 }
 
-/** Takes a credit off a draft invoice: a line with a negative amount (decision 0010, section 7). */
+/** Takes a credit off a draft invoice: a line with a negative amount (decision 0013, section 7). */
 export function addCreditToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly description: string; readonly minor: number }): Result<Invoice, Refused | "not-a-draft" | "too-many-lines" | "description-missing" | "description-too-long" | "amount-must-be-positive" | "credit-too-large"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {

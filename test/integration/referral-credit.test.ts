@@ -1,4 +1,4 @@
-// Referral credit (decision 0010, slice 8) over real HTTP: a client gets
+// Referral credit (decision 0013, slice 8) over real HTTP: a client gets
 // their own link and sees it in the portal; an inquiry by it is marked as
 // referred by them; when the new client pays, the referrer earns credit; the
 // credit comes off one of the referrer's draft invoices, never all of it;

@@ -1,4 +1,4 @@
-// Free landing pages (decision 0010, section 3). Every client may have one,
+// Free landing pages (decision 0013, section 3). Every client may have one,
 // free for good: an informational page at <name>.potomac.solutions, four
 // rounds of changes and a final approval. Potomac's people record it and its
 // rounds (`free-page.manage`); the client asks for it, sends rounds and

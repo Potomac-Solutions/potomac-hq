@@ -1,4 +1,4 @@
-// n8n automations run for clients (decision 0010, section 5): what each one
+// n8n automations run for clients (decision 0013, section 5): what each one
 // does, how often it should run, and whether it's running. Each checks in at
 // the end of a run; one that failed, or hasn't checked in within its schedule
 // and half again, needs attention.

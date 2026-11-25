@@ -1,4 +1,4 @@
-// Free landing pages in a real browser (decision 0010, slice 4): a client
+// Free landing pages in a real browser (decision 0013, slice 4): a client
 // asks for theirs and sends a round from a phone; Potomac sets it up and sees
 // the round. Each screen is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

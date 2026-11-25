@@ -1,4 +1,4 @@
-// Reviews and case studies (decision 0010, slice 7) over real HTTP: a
+// Reviews and case studies (decision 0013, slice 7) over real HTTP: a
 // client is asked by email and writes a review from the link, once; another
 // writes one in the portal; only one that may be shown is published; a case
 // study with screenshots is written and published; the website reads only
