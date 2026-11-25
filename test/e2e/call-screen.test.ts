@@ -76,6 +76,15 @@ test("a timed call, from Start a call to the call log", async () => {
   assert.match(await timer.innerText(), /^16:0\d/);
   await assertAccessible(page, "the call screen, over time");
 
+  // The guide: a first call for a new client. Ticking and typing save themselves.
+  await page.getByRole("heading", { name: "First call" }).waitFor();
+  await page.getByLabel("What does the business do, and who are its customers?").check();
+  await page.getByText("Answers saved.").waitFor({ timeout: 5000 });
+  await page.getByRole("textbox", { name: "What they said" }).first().fill("Collision repair, local drivers.");
+  const answerSaved = () => t.db.prepare("select asked, answer from call_answer where call_id = ? and position = 1").get(id) as Record<string, unknown> | undefined;
+  for (let tries = 0; tries < 50 && answerSaved()?.["answer"] !== "Collision repair, local drivers."; tries++) await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.deepEqual([answerSaved()?.["asked"], answerSaved()?.["answer"]], [1, "Collision repair, local drivers."]);
+
   // Notes save as they're typed, with nothing pressed.
   await page.getByLabel("Notes").fill("Wants online booking. Quote by Friday.");
   await page.getByText("Notes saved.").waitFor({ timeout: 5000 });
@@ -87,7 +96,7 @@ test("a timed call, from Start a call to the call log", async () => {
   await page.waitForURL((url) => url.pathname === `/clients/${shop.id}`);
   await page.getByText("Call ended and logged.").waitFor();
   assert.match(await text(page), /Call, talked, 1[67] min/);
-  assert.match(await text(page), /Wants online booking\. Quote by Friday\./);
+  assert.match(await text(page), /Wants online booking\. Quote by Friday\. - What does the business do, and who are its customers\? Collision repair, local drivers\./);
   assert.deepEqual(problems, []);
   await context.close();
 });
