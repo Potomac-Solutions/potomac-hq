@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-24
+
+- Fixed: a form that's refused no longer loses what was typed. When the page
+  comes back saying what was wrong, the form is filled in again as it was
+  sent, so only the mistake needs fixing. Passwords, codes and files are
+  never kept, and nothing is kept once a page has loaded.
+- Fixed: hours can be typed as `.25` or `2.`, not only `0.25` and `2`. This
+  goes for task estimates, time, budgets and change requests.
+
 ## [0.15.0] - 2026-11-24
 
 - Import tasks from Trello and Todoist (decision 0007, slice 13). From a

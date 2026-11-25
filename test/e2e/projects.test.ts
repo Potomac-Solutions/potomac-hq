@@ -102,6 +102,7 @@ test("run a project from its pages and the board", async () => {
     await page.getByText("Task added.").waitFor();
   }
   await assertAccessible(page, "a task list");
+
   await page.getByRole("link", { name: "Set up hosting" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/tasks/"));
   await assertAccessible(page, "a task");
@@ -346,4 +347,27 @@ test("the board and the plan work with JavaScript turned off", async () => {
   await page.getByRole("button", { name: "Add milestone" }).click();
   await page.getByText("Milestone added.").waitFor();
   await context.close();
+});
+
+test("a refused form keeps what was typed", async () => {
+  const page = await signedIn.newPage();
+  await page.goto(`${t.origin}/projects/${projectId}/tasks`);
+  // A refused task keeps what was typed, so it needn't be typed again; and
+  // .25 is a quarter of an hour.
+  await page.getByLabel("Title").fill("Order the photos");
+  await page.getByLabel("Details").fill("Dale has the truck shots.");
+  await page.getByLabel("Estimate in hours").fill("1.2.3");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByText("Enter the estimate in hours, like 1.5.").waitFor();
+  assert.equal(await page.getByLabel("Title").inputValue(), "Order the photos");
+  assert.equal(await page.getByLabel("Details").inputValue(), "Dale has the truck shots.");
+  assert.equal(await page.getByLabel("Estimate in hours").inputValue(), "1.2.3");
+  await page.getByLabel("Estimate in hours").fill(".25");
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByText("Task added.").waitFor();
+  assert.equal(await page.getByLabel("Title").inputValue(), "", "once it worked, the form is empty again");
+  assert.equal(t.db.prepare("select estimate_minutes from task where title = 'Order the photos'").get()?.["estimate_minutes"], 15);
+  await page.reload();
+  assert.equal(await page.getByLabel("Title").inputValue(), "", "nothing kept after");
+  await page.close();
 });

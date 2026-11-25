@@ -73,8 +73,56 @@
     event.preventDefault()
     box.focus()
   }
-  onMount(() => document.addEventListener('keydown', quickKey))
-  onUnmount(() => document.removeEventListener('keydown', quickKey))
+  // A refused form keeps what was typed. When a form is sent, this tab keeps
+  // its fields for a moment; if the page that comes back says what was wrong
+  // (?problem=), the form with the same address is filled in again. Passwords,
+  // codes, tokens and files are never kept, and anything kept is gone as soon
+  // as a page loads.
+  const KEPT = 'hq-kept-form'
+  const SECRET = /pass|secret|token|^code$|recovery|otp/i
+  const keepable = (field) => field.name && !field.disabled && !['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'].includes(field.type) && !SECRET.test(field.name)
+  function keepForm(event) {
+    const form = event.target
+    if (!(form instanceof HTMLFormElement) || (form.getAttribute('method') || '').toLowerCase() !== 'post') return
+    const fields = [...form.elements].filter(keepable).map((field) => ({
+      name: field.name,
+      value: field.type === 'checkbox' || field.type === 'radio' ? field.checked : field.type === 'select-multiple' ? [...field.selectedOptions].map((o) => o.value) : field.value,
+    }))
+    try {
+      sessionStorage.setItem(KEPT, JSON.stringify({ action: form.getAttribute('action') || '', fields }))
+    } catch {}
+  }
+  function refill() {
+    let kept = null
+    try {
+      kept = JSON.parse(sessionStorage.getItem(KEPT) || 'null')
+      sessionStorage.removeItem(KEPT)
+    } catch {}
+    if (!kept || !new URL(location.href).searchParams.has('problem')) return
+    const form = [...document.forms].find((one) => (one.getAttribute('action') || '') === kept.action && (one.getAttribute('method') || '').toLowerCase() === 'post')
+    if (!form) return
+    const seen = new Map()
+    for (const { name, value } of kept.fields) {
+      const all = [...form.elements].filter((field) => field.name === name && keepable(field))
+      const index = seen.get(name) ?? 0
+      seen.set(name, index + 1)
+      const field = all.length > 1 ? all[index] : all[0]
+      if (!field) continue
+      if (typeof value === 'boolean') field.checked = value
+      else if (Array.isArray(value)) for (const option of field.options) option.selected = value.includes(option.value)
+      else field.value = value
+    }
+    form.closest('details')?.setAttribute('open', '')
+  }
+  onMount(() => {
+    document.addEventListener('keydown', quickKey)
+    document.addEventListener('submit', keepForm)
+    refill()
+  })
+  onUnmount(() => {
+    document.removeEventListener('keydown', quickKey)
+    document.removeEventListener('submit', keepForm)
+  })
 </script>
 <style>
   :host { display: block; min-height: 100vh; }
