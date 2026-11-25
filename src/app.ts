@@ -225,7 +225,11 @@ export type PageContext = {
     readonly done: string;
     /** The post that reverses the change just made (decision 0014), shown by the shell as Undo. */
     readonly undo: { readonly action: string; readonly fields: readonly { readonly name: string; readonly value: string }[] } | null;
+    /** What the undo puts back, naming the thing changed. */
+    readonly undoLabel: string;
   };
+  /** This person's changes that can still be undone, newest first (decision 0014, section 8). */
+  readonly recentChanges: () => readonly { readonly undo: string; readonly label: string; readonly at: string; readonly when: string }[];
   /** Props for the sign-in page. */
   readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -581,7 +585,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Undo (decision 0014): a page's `undo` is kept in the database and the
   // address carries only its token, then the messages are signed as before.
   const undoStash = sqliteUndoStash(db, services.crm.clock);
-  const signNotice = (location: string): string => notices.sign(stashUndo(location, (action, fields) => undoStash.keep(action, fields)));
+  const signNotice = (location: string): string => notices.sign(stashUndo(location, (action, fields, label) => undoStash.keep(action, fields, label)));
 
   const account = (input: IncomingMessage | string): SignedInAccount | null => {
     const who = staff.session(input);
@@ -702,7 +706,12 @@ export async function createApp(config: AppConfig): Promise<App> {
       const who = account(request.headers.get("cookie") ?? "");
       const user = who ? establishUser(sessionDeps, who) : null;
       const signed = readNotice(new URL(request.url));
-      const notice = { problem: signed.problem, done: signed.done, undo: readUndo(signed.undo) };
+      // The page that shows an Undo makes it this person's (decision 0014, section 8).
+      // One that isn't theirs, used, or too old isn't offered.
+      const offered = readUndo(signed.undo);
+      const undoToken = /^\/undo\/([0-9a-f]{32})$/.exec(offered?.action ?? "")?.[1];
+      const undoLabel = undoToken && user ? undoStash.claim(undoToken, user.id) : "";
+      const notice = { problem: signed.problem, done: signed.done, undo: undoLabel ? offered : null, undoLabel };
       const signIn = { problem: notice.problem, done: notice.done, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
@@ -757,6 +766,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         signedIn: who !== null && !pending,
         user: user && !pending ? { id: user.id, name: user.name } : null,
         notice,
+        recentChanges: () => (user ? undoStash.recent(user.id).map((change) => ({ undo: `/undo/${change.token}`, label: change.label, at: change.at, when: services.formatWhen(change.at) })) : []),
         signIn,
         today: date,
         todayLabel: Temporal.PlainDate.from(date).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
@@ -1169,7 +1179,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // Undo (decision 0014): the kept post is run as if the browser had sent it,
   // through the same route, permission check and activity event.
   forms.post("/undo/:token", async (c) => {
-    const kept = undoStash.take(c.req.param("token"));
+    const kept = undoStash.take(c.req.param("token"), actorOf(c.req.header("cookie") ?? ""));
     if (!kept) return c.redirect(signNotice(`/?problem=${encodeURIComponent("That can’t be undone any more. Undo works once, for a day.")}`), 303);
     const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
     for (const name of ["cookie", "origin", "host", "user-agent"]) {

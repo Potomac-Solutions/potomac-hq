@@ -39,13 +39,13 @@ export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: 
     done: (_v, _id, f) => backTo(f),
     back: (_id, f) => backTo(f),
     message: "Done.",
-    undo: (_v, id, f) => ({ action: `/todos/${id}/reopen`, fields: same(f) }),
+    undo: (todo, id, f) => ({ label: `${todo.title}: ticked off`, action: `/todos/${id}/reopen`, fields: same(f) }),
   });
   post("/todos/:id/reopen", (actor, _f, id) => reopenTodo(deps.todos, actor, id as Id), {
     done: (_v, _id, f) => backTo(f),
     back: (_id, f) => backTo(f),
     message: "Back on the list.",
-    undo: (_v, id, f) => ({ action: `/todos/${id}/done`, fields: same(f) }),
+    undo: (todo, id, f) => ({ label: `${todo.title}: back on the list`, action: `/todos/${id}/done`, fields: same(f) }),
   });
   return app;
 }

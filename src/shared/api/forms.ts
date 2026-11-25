@@ -45,7 +45,15 @@ export type Places<V> = {
 };
 
 /** A form post that reverses one that just worked. Runs through the same route and permission checks as any other post. */
-export type Undo = { readonly action: string; readonly fields: Readonly<Record<string, string>> };
+export type Undo = {
+  readonly action: string;
+  readonly fields: Readonly<Record<string, string>>;
+  /** What the change was, naming the thing changed, for Recent changes ("Menu website: moved to Quoted"). The page's message when not given. */
+  readonly label?: string;
+};
+
+/** The field that carries an undo's label to `stashUndo`. It is never posted. */
+const LABEL = "__label";
 
 const UNDO_ACTION = /^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
@@ -55,23 +63,28 @@ const UNDO_ACTION = /^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/;
  */
 export function withUndo(location: string, undo: Undo | null | undefined): string {
   if (!undo || !UNDO_ACTION.test(undo.action)) return location;
-  const value = `${undo.action}?${new URLSearchParams(undo.fields as Record<string, string>).toString()}`;
+  const value = `${undo.action}?${new URLSearchParams({ ...undo.fields, ...(undo.label ? { [LABEL]: undo.label } : {}) } as Record<string, string>).toString()}`;
   const [path = "", hash = ""] = location.split("#");
   const joined = `${path}${path.includes("?") ? "&" : "?"}undo=${encodeURIComponent(value)}`;
   return hash ? `${joined}#${hash}` : joined;
 }
 
 /**
- * Swaps a location's `undo` for `/undo/<token>`, keeping the post with `keep`.
+ * Swaps a location's `undo` for `/undo/<token>`, keeping the post with `keep`,
+ * labelled with the location's `done` message.
  * A location with no undo comes back as it was.
  */
-export function stashUndo(location: string, keep: (action: string, fields: Readonly<Record<string, string>>) => string): string {
+export function stashUndo(location: string, keep: (action: string, fields: Readonly<Record<string, string>>, label: string) => string): string {
   const url = new URL(location, "http://hq.invalid");
   const raw = url.searchParams.get("undo");
   if (raw === null) return location;
   const undo = readUndo(raw);
   if (undo === null || undo.action.startsWith("/undo/")) url.searchParams.delete("undo");
-  else url.searchParams.set("undo", `/undo/${keep(undo.action, Object.fromEntries(undo.fields.map((field) => [field.name, field.value])))}`);
+  else {
+    const fields = Object.fromEntries(undo.fields.filter((field) => field.name !== LABEL).map((field) => [field.name, field.value]));
+    const label = undo.fields.find((field) => field.name === LABEL)?.value || (url.searchParams.get("done") ?? "");
+    url.searchParams.set("undo", `/undo/${keep(undo.action, fields, label)}`);
+  }
   const local = `${url.pathname}${url.search}${url.hash}`;
   return url.origin === "http://hq.invalid" ? local : `${url.origin}${local}`;
 }

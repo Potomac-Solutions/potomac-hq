@@ -18,6 +18,8 @@ type Answer<V = { id: string }> = { ok: true; value: V } | { ok: false; error: s
 const STAGE_NAMES: Readonly<Record<string, string>> = { new: "New", "consult-booked": "Consult booked", consulted: "Consulted", quoted: "Quoted", won: "Won", lost: "Lost" };
 const ORDER = ["new", "consult-booked", "consulted", "quoted", "won"];
 
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
 /** "Moved to Quoted.", "Moved back to New.", "Reopened at Quoted." */
 function stageMessage(from: string, to: string): string {
   const name = STAGE_NAMES[to] ?? to;
@@ -34,7 +36,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
   const post = <V extends { id: string }>(
     path: string,
     run: (actor: Id | null, form: Record<string, string>, id: Id | null) => Answer<V>,
-    places: { done: (value: V, id: Id | null) => string; back: (id: Id | null) => string; message: string; undo?: (value: V, id: Id | null) => { action: string; fields: Record<string, string> } | null },
+    places: { done: (value: V, id: Id | null) => string; back: (id: Id | null) => string; message: string; undo?: (value: V, id: Id | null) => { action: string; fields: Record<string, string>; label?: string } | null },
   ) =>
     app.post(path, async (c) => {
       const raw = await c.req.parseBody();
@@ -62,13 +64,14 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     done: (_, id) => `/clients/${id}`,
     back: (id) => `/clients/${id}`,
     message: "Status changed.",
-    undo: (client, id) => ({ action: `/clients/${id}/status`, fields: { status: client.from } }),
+    undo: (client, id) => ({ label: `${client.name}: status changed`, action: `/clients/${id}/status`, fields: { status: client.from } }),
   });
 
   post("/clients/:id/demo", (actor, f, id) => crm.setClientDemo(deps.crm, actor, id as Id, f["demo"] === "1"), {
     done: (_, id) => `/clients/${id}`,
     back: (id) => `/clients/${id}`,
     message: "Saved.",
+    undo: (client, id) => ({ label: `${client.name}: ${client.demo ? "marked as a demo" : "no longer a demo"}`, action: `/clients/${id}/demo`, fields: client.demo ? {} : { demo: "1" } }),
   });
 
   post(
@@ -106,7 +109,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null, byHand: form["back"] === "1" });
     const place = answer.ok || answer.error !== "not-found" ? stageReturn(form, parsed.value) : "/clients";
     const undo = answer.ok && answer.value.undoable
-      ? { action: `/opportunities/${parsed.value}/stage`, fields: { to: answer.value.from, back: "1", ...(answer.value.from === "lost" ? { lostReason: answer.value.fromLostReason } : {}), ...(form["returnTo"] === "pipeline" ? { returnTo: "pipeline" } : {}) } }
+      ? { label: `${answer.value.title}: ${lowerFirst(stageMessage(answer.value.from, answer.value.stage).replace(/\.$/, ""))}`, action: `/opportunities/${parsed.value}/stage`, fields: { to: answer.value.from, back: "1", ...(answer.value.from === "lost" ? { lostReason: answer.value.fromLostReason } : {}), ...(form["returnTo"] === "pipeline" ? { returnTo: "pipeline" } : {}) } }
       : null;
     const to = answer.ok ? withUndo(`${place}?done=${encodeURIComponent(stageMessage(answer.value.from, answer.value.stage))}`, undo) : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
     return c.redirect(deps.sign(to), 303);
@@ -117,14 +120,14 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     back: (id) => `/opportunities/${id}`,
     message: "Price saved.",
     // A price can be changed but not cleared, so a first price has nothing to go back to.
-    undo: (o, id) => (o.previous.pricing && o.previous.value ? { action: `/opportunities/${id}/value`, fields: { pricing: o.previous.pricing, amount: (o.previous.value.minor / 100).toFixed(2) } } : null),
+    undo: (o, id) => (o.previous.pricing && o.previous.value ? { label: `${o.title}: price changed`, action: `/opportunities/${id}/value`, fields: { pricing: o.previous.pricing, amount: (o.previous.value.minor / 100).toFixed(2) } } : null),
   });
 
   post("/opportunities/:id/follow-up", (actor, f, id) => crm.setOpportunityFollowUp(deps.crm, actor, id as Id, f["clear"] === "1" ? null : (f["on"] ?? "")), {
     done: (_, id) => `/opportunities/${id}`,
     back: (id) => `/opportunities/${id}`,
     message: "Follow-up saved.",
-    undo: (o, id) => ({ action: `/opportunities/${id}/follow-up`, fields: o.previous.followUpOn ? { on: o.previous.followUpOn } : { clear: "1" } }),
+    undo: (o, id) => ({ label: `${o.title}: follow-up ${o.followUpOn ? "set" : "cleared"}`, action: `/opportunities/${id}/follow-up`, fields: o.previous.followUpOn ? { on: o.previous.followUpOn } : { clear: "1" } }),
   });
 
   post("/opportunities/:id/convert", (actor, _f, id) => crm.convertOpportunity(deps.crm, actor, id as Id), {

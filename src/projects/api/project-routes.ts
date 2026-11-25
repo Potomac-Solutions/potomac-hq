@@ -64,14 +64,14 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
       done: (_, id) => project(id),
       back: (id) => project(id),
       message: "Project saved.",
-      undo: ({ previous: p }, id) => ({ action: `/projects/${id}`, fields: { name: p.name, description: p.description, health: p.health, startOn: p.startOn ?? "", targetOn: p.targetOn ?? "" } }),
+      undo: ({ previous: p }, id) => ({ label: `${p.name}: details saved`, action: `/projects/${id}`, fields: { name: p.name, description: p.description, health: p.health, startOn: p.startOn ?? "", targetOn: p.targetOn ?? "" } }),
     },
   );
   post("/projects/:id/status", (actor, f, id) => projects.setProjectStatus(deps.projects, actor, id as Id, f["status"] ?? ""), {
     done: (_, id) => project(id),
     back: (id) => project(id),
     message: "Status changed.",
-    undo: (changed, id) => (changed.undoable ? { action: `/projects/${id}/status`, fields: { status: changed.from } } : null),
+    undo: (changed, id) => (changed.undoable ? { label: `${changed.name}: status changed`, action: `/projects/${id}/status`, fields: { status: changed.from } } : null),
   });
   post(
     "/projects/:id/owner",
@@ -111,6 +111,7 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     back: (id) => `/tasks/${id}`,
     message: "Task saved.",
     undo: ({ previous: t }, id) => ({
+      label: `${t.title}: details saved`,
       action: `/tasks/${id}`,
       fields: {
         title: t.title,
@@ -136,7 +137,7 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
           ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
           : "Task moved.",
     // Not after a repeating task made its next one: undoing would leave that one behind.
-    undo: (task, id, f) => (task.next ? null : { action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
+    undo: (task, id, f) => (task.next ? null : { label: `${task.title}: moved`, action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
