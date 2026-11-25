@@ -21,10 +21,16 @@ after(async () => {
   await t.stop();
 });
 
-const focused = (page: import("playwright").Page) => page.evaluate(() => {
-  const el = document.activeElement;
-  return el ? `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${el.className && typeof el.className === "string" ? "." + el.className.split(" ")[0] : ""}` : "";
-});
+// Strings, since the tests are type-checked without the DOM's types.
+const focused = async (page: import("playwright").Page) =>
+  String(await page.evaluate(`(() => { const el = document.activeElement; return el ? el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (typeof el.className === "string" && el.className ? "." + el.className.split(" ")[0] : "") : ""; })()`));
+// waitForFunction with a string would be eval in the page, which the CSP refuses.
+type Doc = { readonly document: { readonly activeElement: { readonly id: string; readonly classList: { contains(name: string): boolean } } | null } };
+const focusIs = ({ want }: { want: string }) => {
+  const el = (globalThis as unknown as Doc).document.activeElement;
+  return Boolean(el && (el.id === want || el.classList.contains(want)));
+};
+const inDialog = `Boolean(document.querySelector(".cmd")?.contains(document.activeElement))`;
 
 test("skip link, the command bar as a dialog, Undo and a brought-back draft, from the keyboard", async () => {
   const page = await (await browser.newContext()).newPage();
@@ -47,16 +53,16 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   await page.locator(".cmd-open").focus();
   await page.keyboard.press("/");
   await page.getByRole("dialog", { name: "Go to a page or record" }).waitFor();
-  await page.waitForFunction(() => document.activeElement?.id === "cmd-q", null, { timeout: 2000 });
+  await page.waitForFunction(focusIs, { want: "cmd-q" }, { timeout: 2000 });
   for (let i = 0; i < 6; i += 1) {
     await page.keyboard.press("Tab");
-    assert.ok(await page.evaluate(() => Boolean(document.querySelector(".cmd")?.contains(document.activeElement))), `Tab ${i + 1} stays in the dialog`);
+    assert.ok(await page.evaluate(inDialog), `Tab ${i + 1} stays in the dialog`);
   }
   await page.keyboard.press("Shift+Tab");
-  assert.ok(await page.evaluate(() => Boolean(document.querySelector(".cmd")?.contains(document.activeElement))), "Shift+Tab stays too");
+  assert.ok(await page.evaluate(inDialog), "Shift+Tab stays too");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "detached" });
-  await page.waitForFunction(() => document.activeElement?.classList.contains("cmd-open"), null, { timeout: 2000 });
+  await page.waitForFunction(focusIs, { want: "cmd-open" }, { timeout: 2000 });
 
   // Moving a task offers Undo, announced, and it works from the keyboard.
   if (!task.ok) return;
