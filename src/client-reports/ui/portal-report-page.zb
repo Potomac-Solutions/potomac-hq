@@ -1,0 +1,25 @@
+<!-- A monthly report in the client's portal, as it was sent. -->
+<script>
+  'use route /portal/reports/:id'
+  import { notFound } from '@zubra/router'
+  export async function load({ context, params }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = context.clientReports.portalOne(params.id)
+    if (!view) return notFound()
+    return { title: 'Your month: ' + view.monthText, view }
+  }
+</script>
+<style>
+  .pr-body { white-space: pre-wrap; margin: 0; font: inherit; }
+</style>
+<hq-portal-report view={{ monthText: '', note: '', body: '' }}>
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
+    <h1>Your month: {view.monthText}</h1>
+    <section class="hq-panel" aria-label="The report">
+      <p zb-if={view.note}>{view.note}</p>
+      <pre class="pr-body">{view.body}</pre>
+    </section>
+  </div>
+</hq-portal-report>

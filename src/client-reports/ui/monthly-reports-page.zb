@@ -1,0 +1,53 @@
+<!--
+  Monthly reports to plan clients (decision 0010, section 4): a month's
+  reports, those still to send first.
+-->
+<script>
+  'use route /monthly-reports'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.clientReports.month(url.searchParams.get('month') || '')
+    if (!view.ok) return context.forbidden()
+    return { title: 'Monthly reports', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-monthly-reports view={{ month: '', monthText: '', months: [], lines: [], drafts: 0, planClients: 0 }} done="" problem="">
+  <div class="hq-page">
+    <h1>Monthly reports</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">In the first week of each month HQ drafts a report for every client on a plan (an active ongoing project): their site’s uptime, the work done, what’s coming up and what’s waiting on them. Read each one, add a line of your own if you like, and send it. Nothing goes by itself.</p>
+    <form method="get" action="/monthly-reports" class="hq-form-row">
+      <div class="hq-field">
+        <label for="mr-month">Month</label>
+        <select id="mr-month" name="month">
+          <zb-each items={view.months} as="one" key={one.value}><option value={one.value} selected={one.value === view.month}>{one.label}</option></zb-each>
+        </select>
+      </div>
+      <button class="hq-button secondary" type="submit">Show</button>
+    </form>
+    <section class="hq-panel" aria-labelledby="mr-list" data-spaced>
+      <h2 id="mr-list">{view.monthText}: {view.drafts} to send</h2>
+      <empty-state zb-if={view.lines.length === 0} heading="No reports for this month">{view.planClients === 0 ? 'No client is on a plan yet: give one an ongoing project.' : 'Draft them now, or they’ll be drafted on the 1st.'}</empty-state>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Client</th><th scope="col">State</th><th scope="col">To</th></tr></thead>
+        <tbody>
+          <zb-each items={view.lines} as="line" key={line.id}>
+            <tr>
+              <td><a href="/monthly-reports/{line.id}">{line.clientName}</a></td>
+              <td><status-badge variant={line.draft ? 'warning' : line.status === 'Sent' ? 'success' : 'neutral'}>{line.status}</status-badge><span zb-if={line.sent} class="hq-small hq-muted"> {line.sent}</span></td>
+              <td>{line.to || 'No email on file'}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <form method="post" action="/monthly-reports/draft" data-spaced><button class="hq-button secondary" type="submit">Draft last month’s missing reports now</button></form>
+    </section>
+  </div>
+</hq-monthly-reports>

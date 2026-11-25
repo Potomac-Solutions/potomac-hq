@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Monthly reports to plan clients (decision 0010, slice 5). Each morning in
+  the first week of a month, HQ drafts last month's report for every client
+  with an active ongoing project: their sites' uptime (from monitoring), the
+  milestones finished, updates put live and changes approved, how many tasks
+  were done (never their names), what's coming in the next 60 days, and
+  what's waiting on them. Hours are never shown. Under Delivery → Monthly
+  reports, read each one as the email it will be, add a line of your own,
+  and Send it to the client's primary contact, or Skip it. It's never sent
+  by itself, and it's sent once. Drafts wait on Today. Sent reports are in
+  the client's portal. For managers and admins (`client-report.send`).
+  Migration 0059.
 - Free landing pages (decision 0010, slice 4). Clients ask for theirs in
   the portal, or it's recorded on the client: its address at
   `<name>.potomac.solutions`, where it stands (asked for, being built, ready

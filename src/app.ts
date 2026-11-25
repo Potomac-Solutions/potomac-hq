@@ -48,6 +48,8 @@ import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks
 import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
 import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type PortalFreePage, type SiteArchive } from "./free-pages/index.ts";
 import { freePageDownloads, freePagePortalRoutes, freePageStaffRoutes } from "./free-pages/api/free-page-routes.ts";
+import { monthlyReports, portalReport, portalReports, reportDetail, type PortalReportLine } from "./client-reports/index.ts";
+import { reportRoutes } from "./client-reports/api/report-routes.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
@@ -265,7 +267,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly newsletter: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly newsletter: boolean; readonly monthlyReports: boolean };
   /** What HQ's own users see about the portal. */
   readonly portalAdmin: {
     access(organizationId: string): ReturnType<typeof portalAccess>;
@@ -298,6 +300,14 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Monthly reports to plan clients (decision 0010, section 4). */
+  readonly clientReports: {
+    month(month: string): ReturnType<typeof monthlyReports>;
+    detail(id: string): ReturnType<typeof reportDetail>;
+    /** The signed-in client's sent reports. */
+    portalList(): readonly PortalReportLine[];
+    portalOne(id: string): ReturnType<typeof portalReport>;
+  };
   /** Free landing pages (decision 0010, section 3). */
   readonly freePages: {
     /** A client's, or null for someone who may not see clients. */
@@ -445,6 +455,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
+  // How a client answers a monthly report (decision 0010, section 4).
+  const reportContactLine = contact.phone ? `Reply to this email, or call or text ${contact.phone}.` : "Reply to this email.";
   const themes = Object.entries(THEME_LABELS).map(([value, label]) => ({ value, label }));
 
   const staff = services.staff;
@@ -712,7 +724,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, newsletter: authorize(sessionDeps, actor, "newsletter.manage").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, newsletter: authorize(sessionDeps, actor, "newsletter.manage").ok, monthlyReports: authorize(sessionDeps, actor, "client-report.send").ok },
         websites: {
           mine: (wider) => portalWebsite(services.websites, client, widerOf(wider)),
           all: () => allWebsites(services.websites, actor),
@@ -723,6 +735,15 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        clientReports: {
+          month: (month) => monthlyReports(services.clientReports, actor, month),
+          detail: (id) => withId(id, (reportId) => reportDetail(services.clientReports, actor, reportId, reportContactLine)),
+          portalList: () => portalReports(services.clientReports, client?.organizationId ?? null),
+          portalOne: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? portalReport(services.clientReports, client?.organizationId ?? null, parsed.value) : null;
+          },
+        },
         freePages: {
           forClient: (id) => {
             const parsed = parseId(id);
@@ -1106,6 +1127,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // The newsletter (decision 0010, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
+  forms.route("/", reportRoutes({ reports: services.clientReports, actorOf, sign: (location) => notices.sign(location), mail: sendOne, contactLine: reportContactLine }));
   forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: (location) => notices.sign(location), footer: newsletterFooter, mail: sendOne }));
   forms.route(
     "/",

@@ -198,6 +198,7 @@ Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approv
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+| Read, add a line to, send or skip the monthly reports to plan clients, and draft them now | `client-report.send` | Yes | Yes | No | No (reads their own sent reports in the portal) |
 | Record a client's free landing page, change its address and status, write down a round of changes and mark one done | `free-page.manage` | Yes | Yes | Yes | No (asks for theirs, sends rounds and approves it in the portal) |
 
 Anyone may sign up for the newsletter, confirm, and unsubscribe: the link

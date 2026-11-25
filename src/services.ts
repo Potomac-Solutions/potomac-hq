@@ -15,6 +15,8 @@ import type { ReferralsDeps } from "./referrals/index.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
+import type { ReportsDeps } from "./client-reports/index.ts";
+import { sqliteFactsReader, sqlitePlanClients, sqliteReportStore } from "./client-reports/adapters.ts";
 import { sqliteFreePageStore, sqliteRoundStore } from "./free-pages/adapters.ts";
 import { sqliteLeadStore } from "./leads/adapters.ts";
 import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
@@ -83,6 +85,8 @@ export type Services = {
   readonly leads: LeadsDeps;
   /** Free landing pages and their rounds of changes (decision 0010, section 3). */
   readonly freePages: FreePagesDeps;
+  /** Monthly reports to plan clients (decision 0010, section 4). */
+  readonly clientReports: ReportsDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   readonly touches: TouchDeps;
@@ -236,6 +240,21 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (primary && email) return [{ name: primary.name, email, portal: users.some((one) => one.email === email) }];
     return users.map((one) => ({ name: one.name, email: one.email, portal: true }));
   };
+  const clientReports: ReportsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    zone: BUSINESS_TIME_ZONE,
+    formatWhen,
+    reports: sqliteReportStore(db),
+    facts: sqliteFactsReader(db),
+    planClients: sqlitePlanClients(db),
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    recipientFor: (organizationId) => clientEmails(organizationId)[0] ?? null,
+  };
   const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
   const todos: TodosDeps = {
     users,
@@ -364,7 +383,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, freePages, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, freePages, clientReports, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -383,5 +402,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, newsletter, leads, freePages, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { notices, webhooks, publicSite, websites, referrals, newsletter, leads, freePages, clientReports, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
