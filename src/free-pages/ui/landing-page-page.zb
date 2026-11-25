@@ -49,7 +49,7 @@
         <fieldset class="hq-form">
           <legend>Where it lives</legend>
           <label><input type="radio" name="where" value="potomac" checked={view.where === 'potomac'}> A name on potomac.solutions (free)</label>
-          <text-field label="Name" name="subdomain" value={view.subdomain} maxlength={60} description="The name before .potomac.solutions, like moats-hardware. Leave empty until it’s chosen."></text-field>
+          <text-field label="Address on potomac.solutions" name="subdomain" value={view.subdomain} maxlength={60} description="The name before .potomac.solutions, like moats-hardware. Leave empty until it’s chosen."></text-field>
           <label><input type="radio" name="where" value="own" checked={view.where === 'own'}> Their own domain, which they pay for</label>
           <text-field label="Their domain" name="ownDomain" value={view.ownDomain} maxlength={253} placeholder="betterdaystowing.com"></text-field>
           <p class="hq-small hq-muted">With their own domain, give when it renews and HQ adds it to their Renewals, yearly, ready to bill a week ahead. Leave the date empty if it’s already there.</p>
