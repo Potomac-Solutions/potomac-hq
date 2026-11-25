@@ -4,7 +4,7 @@
 // rounds (`free-page.manage`); the client asks for it, sends rounds and
 // approves it in the portal. Rounds after the free ones are paid work, and
 // the client is told so before they send one.
-import { addressOf, canApprove, canAskForChanges, cleanRepo, cleanSubdomain, FREE_ROUNDS, isApproved, isPageStatus, nextRound, PAGE_STATUS_LABELS, PAGE_STATUSES, PAID_CHANGES, repoText, roundsUsedText, roundText, type FreePage, type PageStatus, type Round, type RoundError, type SubdomainError } from "../domain/free-page.ts";
+import { addressOf, canApprove, canAskForChanges, cleanDomain, cleanRepo, cleanSubdomain, FREE_ROUNDS, isApproved, isPageStatus, nextRound, PAGE_STATUS_LABELS, PAGE_STATUSES, PAID_CHANGES, repoText, roundsUsedText, roundText, type FreePage, type PageStatus, type Round, type DomainError, type RoundError, type SubdomainError } from "../domain/free-page.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { FreePageStore, RoundStore } from "./ports.ts";
@@ -18,6 +18,11 @@ export type FreePagesDeps = ActivityDeps & {
   readonly clientName: (organizationId: Id) => string | null;
   /** The emails and phone numbers a client's contacts and portal users have, for one free page per person. */
   readonly peopleAt: (organizationId: Id) => { readonly emails: readonly string[]; readonly phones: readonly string[] };
+  /**
+   * Adds the client's domain to their renewals, yearly, ready to bill, unless
+   * it's there already (Renewals). Answers whether it was added, or why not.
+   */
+  readonly addDomainRenewal?: (actorId: Id, organizationId: Id, input: { readonly domain: string; readonly renewsOn: string; readonly cost: string; readonly price: string }) => Result<"added" | "already-there", string>;
 };
 
 /** Who is signed in to the portal. */
@@ -52,36 +57,63 @@ function note(deps: FreePagesDeps, who: { readonly actorId: Id } | { readonly cl
 
 // ---------- Potomac's side ----------
 
-export type SetUpInput = { readonly subdomain: string; readonly status: string; readonly repo: string };
-export type SetUpError = Refused | SubdomainError | "subdomain-taken" | "invalid-status" | "repo-invalid" | "already-has-one";
+export type SetUpInput = {
+  readonly subdomain: string;
+  readonly status: string;
+  readonly repo: string;
+  /** "own": on the client's own domain; anything else: a name on potomac.solutions. */
+  readonly where?: string;
+  readonly ownDomain?: string;
+  /** With an own domain: when it renews, what it costs Potomac and what the client is billed, for its renewal. */
+  readonly renewsOn?: string;
+  readonly cost?: string;
+  readonly price?: string;
+};
+export type SetUpError = Refused | SubdomainError | DomainError | "subdomain-taken" | "domain-taken" | "invalid-status" | "repo-invalid" | "already-has-one";
+
+/** A free page that was saved, and what happened to its domain's renewal when one was asked for. */
+export type SetUp = FreePage & { readonly renewal: "added" | "already-there" | "not-asked" | "failed" };
 
 /** Records a client's free page, or changes its address, status or repository. */
-export function setUpFreePage(deps: FreePagesDeps, actorId: Id | null, organizationId: Id, input: SetUpInput): Result<FreePage, SetUpError> {
+export function setUpFreePage(deps: FreePagesDeps, actorId: Id | null, organizationId: Id, input: SetUpInput): Result<SetUp, SetUpError> {
   if (!may(deps, actorId, "free-page.manage")) return err("forbidden");
-  const subdomain = cleanSubdomain(input.subdomain);
+  const own = input.where === "own";
+  // One address: the client's own domain, or a name on potomac.solutions.
+  const subdomain = own ? ok(null) : cleanSubdomain(input.subdomain);
   if (!subdomain.ok) return subdomain;
+  const ownDomain = own ? cleanDomain(input.ownDomain ?? "") : ok(null);
+  if (!ownDomain.ok) return ownDomain;
   if (!isPageStatus(input.status)) return err("invalid-status");
   const status: PageStatus = input.status;
   const repo = cleanRepo(input.repo);
   if (!repo.ok) return repo;
-  return deps.transact(() => {
+  const saved = deps.transact((): Result<FreePage, SetUpError> => {
     if (deps.clientName(organizationId) === null) return err("not-found");
     const taken = subdomain.value ? deps.pages.bySubdomain(subdomain.value) : null;
     if (taken && taken.organizationId !== organizationId) return err("subdomain-taken");
+    const domainTaken = ownDomain.value ? deps.pages.byOwnDomain(ownDomain.value) : null;
+    if (domainTaken && domainTaken.organizationId !== organizationId) return err("domain-taken");
     const at = deps.clock();
     const existing = deps.pages.forOrganization(organizationId);
     if (!existing) {
       if (alreadyHasOne(deps, organizationId)) return err("already-has-one");
-      const page: FreePage = { id: deps.newId(), organizationId, subdomain: subdomain.value, status, repo: repo.value, approvedAt: isApproved(status) ? at : null };
+      const page: FreePage = { id: deps.newId(), organizationId, subdomain: subdomain.value, ownDomain: ownDomain.value, status, repo: repo.value, approvedAt: isApproved(status) ? at : null };
       deps.pages.insert(page, at);
-      note(deps, { actorId }, "free-page.set-up", page, { status, subdomain: page.subdomain ?? "" });
+      note(deps, { actorId }, "free-page.set-up", page, { status, subdomain: page.subdomain ?? "", ownDomain: page.ownDomain ?? "" });
       return ok(page);
     }
-    const page: FreePage = { ...existing, subdomain: subdomain.value, status, repo: repo.value, approvedAt: isApproved(status) ? (existing.approvedAt ?? at) : null };
+    const page: FreePage = { ...existing, subdomain: subdomain.value, ownDomain: ownDomain.value, status, repo: repo.value, approvedAt: isApproved(status) ? (existing.approvedAt ?? at) : null };
     deps.pages.save(page, at);
-    note(deps, { actorId }, "free-page.changed", page, { from: existing.status, status, subdomain: page.subdomain ?? "" });
+    note(deps, { actorId }, "free-page.changed", page, { from: existing.status, status, subdomain: page.subdomain ?? "", ownDomain: page.ownDomain ?? "" });
     return ok(page);
   });
+  if (!saved.ok) return saved;
+  // The domain is the client's to pay for: with a renewal date, it goes on their renewals, ready to bill.
+  // Renewals keep their own transaction, so this follows the page's.
+  const domain = saved.value.ownDomain;
+  if (!domain || !(input.renewsOn ?? "").trim() || !deps.addDomainRenewal) return ok({ ...saved.value, renewal: "not-asked" });
+  const added = deps.addDomainRenewal(actorId, organizationId, { domain, renewsOn: input.renewsOn ?? "", cost: input.cost ?? "", price: input.price ?? "" });
+  return ok({ ...saved.value, renewal: added.ok ? added.value : "failed" });
 }
 
 function addRound(deps: FreePagesDeps, page: FreePage, text: string, who: { readonly actorId: Id } | { readonly client: ClientSide }): Round {
@@ -127,6 +159,9 @@ export type FreePageView = {
   readonly clientName: string;
   readonly exists: boolean;
   readonly subdomain: string;
+  /** "own" when the page is on the client's own domain, "potomac" otherwise. */
+  readonly where: "own" | "potomac";
+  readonly ownDomain: string;
   readonly address: string;
   readonly status: PageStatus | "";
   readonly statusLabel: string;
@@ -148,7 +183,9 @@ function viewOf(deps: FreePagesDeps, organizationId: Id, page: FreePage | null, 
     clientName: deps.clientName(organizationId) ?? "",
     exists: page !== null,
     subdomain: page?.subdomain ?? "",
-    address: addressOf(page?.subdomain ?? null),
+    where: page?.ownDomain ? "own" : "potomac",
+    ownDomain: page?.ownDomain ?? "",
+    address: addressOf(page),
     status: page?.status ?? "",
     statusLabel: page ? PAGE_STATUS_LABELS[page.status] : "",
     repo: repoText(page?.repo ?? null),
@@ -176,7 +213,7 @@ export function allFreePages(deps: FreePagesDeps, actorId: Id | null): Result<re
   return ok(
     deps.pages.list().map((page) => {
       const rounds = deps.rounds.listFor(page.id);
-      return { organizationId: page.organizationId, clientName: deps.clientName(page.organizationId) ?? "", address: addressOf(page.subdomain), statusLabel: PAGE_STATUS_LABELS[page.status], used: roundsUsedText(rounds), open: rounds.filter((one) => one.doneAt === null).length };
+      return { organizationId: page.organizationId, clientName: deps.clientName(page.organizationId) ?? "", address: addressOf(page), statusLabel: PAGE_STATUS_LABELS[page.status], used: roundsUsedText(rounds), open: rounds.filter((one) => one.doneAt === null).length };
     }),
   );
 }
@@ -214,7 +251,7 @@ export function requestFreePage(deps: FreePagesDeps, session: ClientSide | null)
   return deps.transact(() => {
     if (deps.pages.forOrganization(session.organizationId)) return err("already-asked");
     if (alreadyHasOne(deps, session.organizationId)) return err("already-has-one");
-    const page: FreePage = { id: deps.newId(), organizationId: session.organizationId, subdomain: null, status: "requested", repo: null, approvedAt: null };
+    const page: FreePage = { id: deps.newId(), organizationId: session.organizationId, subdomain: null, ownDomain: null, status: "requested", repo: null, approvedAt: null };
     deps.pages.insert(page, deps.clock());
     note(deps, { client: session }, "free-page.requested", page);
     return ok(page);

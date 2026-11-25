@@ -63,19 +63,21 @@ export function retireRenewal(deps: RenewalsDeps, actorId: Id | null, id: Id): R
 
 /**
  * Bills the client for a renewal's coming term: an invoice with one line,
- * sent, on one of their projects, due a week before it renews. Once a term.
+ * sent, on the client alone or on one of their projects, due a week before
+ * it renews. Once a term. `projectId` "" is the client alone.
  * Permissions: `client.edit` and `invoice.edit`.
  */
 export function billRenewal(deps: RenewalsDeps, actorId: Id | null, id: Id, input: { readonly projectId: string }): Result<Renewal, Refused | BillError | "project-missing"> {
   if (!allowed(deps, actorId, "client.edit") || !deps.billing.mayBill(actorId)) return err("forbidden");
   const found = deps.renewals.get(id);
   if (!found || !found.active) return err("not-found");
-  const project = deps.billing.projectsFor(found.organizationId).find((one) => one.id === input.projectId);
-  if (!project) return err("project-missing");
+  const wanted = input.projectId.trim();
+  const project = wanted === "" ? null : deps.billing.projectsFor(found.organizationId).find((one) => one.id === wanted);
+  if (project === undefined) return err("project-missing");
   const bill = billFor(found, deps.today());
   if (!bill.ok) return bill;
   // Finance makes and sends the invoice in its own transactions; then the renewal records it.
-  const sent = deps.billing.send(actorId, found.organizationId, project.id, bill.value);
+  const sent = deps.billing.send(actorId, found.organizationId, project?.id ?? null, bill.value);
   if (!sent.ok) return sent;
   return deps.transact(() => {
     const current = deps.renewals.get(id) ?? found;

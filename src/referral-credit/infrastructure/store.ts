@@ -15,7 +15,7 @@ export function sqliteReferralCreditStore(db: Database): ReferralCreditStore {
     from opportunity o
     where o.referred_by_org is not null and o.referred_by_org <> o.organization_id
       and not exists (select 1 from referral_credit c where c.referred_id = o.organization_id)
-      and exists (select 1 from invoice i join project p on p.id = i.project_id where p.organization_id = o.organization_id and i.status = 'paid')
+      and exists (select 1 from invoice i where i.organization_id = o.organization_id and i.status = 'paid')
       and o.created_at = (select min(o2.created_at) from opportunity o2 where o2.organization_id = o.organization_id and o2.referred_by_org is not null)
     group by o.organization_id`);
   const addCredit = db.prepare("insert into referral_credit (id, referrer_id, referred_id, amount_minor, earned_at) values (?, ?, ?, ?, ?) on conflict do nothing");
@@ -26,7 +26,7 @@ export function sqliteReferralCreditStore(db: Database): ReferralCreditStore {
   const removeUse = db.prepare("delete from referral_credit_use where id = ?");
   const setting = db.prepare("select credit_minor from referral_setting where id = 1");
   const setSetting = db.prepare("insert into referral_setting (id, credit_minor, updated_by, updated_at) values (1, ?, ?, ?) on conflict (id) do update set credit_minor = excluded.credit_minor, updated_by = excluded.updated_by, updated_at = excluded.updated_at");
-  const invoice = db.prepare("select p.organization_id, i.total_minor, i.status from invoice i join project p on p.id = i.project_id where i.id = ?");
+  const invoice = db.prepare("select i.organization_id, i.total_minor, i.status from invoice i where i.id = ?");
   const n = (row: Record<string, unknown> | undefined) => Number(row?.["n"] ?? 0);
   return {
     referredBy(opportunityId) {

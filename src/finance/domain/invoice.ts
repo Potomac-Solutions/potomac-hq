@@ -20,7 +20,10 @@ export type InvoiceLine = { readonly description: string; readonly amount: Money
 
 export type Invoice = {
   readonly id: Id;
-  readonly projectId: Id;
+  /** The client billed. */
+  readonly organizationId: Id;
+  /** The project it is for, or null for a charge on the client alone, such as a domain. */
+  readonly projectId: Id | null;
   /** 1, 2, 3… in the order invoices were made. Shown as INV-0001. */
   readonly number: number;
   readonly kind: InvoiceKind;
@@ -53,11 +56,13 @@ export const depositShare = (minor: number): number => Math.ceil(minor / 3);
 export const invoiceLabel = (number: number): string => `INV-${String(number).padStart(4, "0")}`;
 
 export type InvoiceInput = { readonly kind: string; readonly description: string; readonly amount: string; readonly dueOn?: string | null; readonly note?: string | null };
-export type InvoiceError = "invalid-invoice-kind" | "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive" | "invalid-date" | "note-too-long";
+export type InvoiceError = "project-needed" | "invalid-invoice-kind" | "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive" | "invalid-date" | "note-too-long";
 
 /** A new draft with one line. More lines can be added while it is a draft. */
-export function newInvoice(ids: { readonly id: Id; readonly projectId: Id; readonly number: number; readonly createdBy: Id }, input: InvoiceInput): Result<Invoice, InvoiceError> {
+export function newInvoice(ids: { readonly id: Id; readonly organizationId: Id; readonly projectId: Id | null; readonly number: number; readonly createdBy: Id }, input: InvoiceInput): Result<Invoice, InvoiceError> {
   if (!(INVOICE_KINDS as readonly string[]).includes(input.kind)) return err("invalid-invoice-kind");
+  // A deposit or a balance is against a project's budget; a charge on the client alone is "full" or "other".
+  if (ids.projectId === null && (input.kind === "deposit" || input.kind === "balance")) return err("project-needed");
   const line = invoiceLine(input);
   if (!line.ok) return line;
   const due = (input.dueOn ?? "").trim();

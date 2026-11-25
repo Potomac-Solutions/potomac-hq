@@ -183,7 +183,8 @@ export function sqlitePhaseEstimates(db: Database): PhaseEstimates {
 
 const toInvoice = (r: Row): Invoice => ({
   id: text(r, "id") as Id,
-  projectId: text(r, "project_id") as Id,
+  organizationId: text(r, "organization_id") as Id,
+  projectId: maybe(r, "project_id") as Id | null,
   number: r["number"] as number,
   kind: text(r, "kind") as InvoiceKind,
   status: text(r, "status") as InvoiceStatus,
@@ -206,31 +207,32 @@ const toPayment = (r: Row): Payment => ({
 });
 
 export function sqliteInvoiceStore(db: Database): InvoiceStore {
-  const cols = "id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by";
+  const cols = "id, organization_id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by";
   const next = db.prepare("select coalesce(max(number), 0) + 1 as next from invoice");
-  const insert = db.prepare(`insert into invoice (${cols}, created_at, updated_at) values (${Array(14).fill("?").join(", ")})`);
+  const insert = db.prepare(`insert into invoice (${cols}, created_at, updated_at) values (${Array(15).fill("?").join(", ")})`);
   const update = db.prepare("update invoice set status = ?, lines = ?, total_minor = ?, issued_on = ?, due_on = ?, note = ?, updated_at = ? where id = ?");
-  const joined = `select ${cols.split(", ").map((c) => `i.${c}`).join(", ")}, p.name as project_name, c.name as client_name, c.id as organization_id,
+  const joined = `select ${cols.split(", ").map((c) => `i.${c}`).join(", ")}, coalesce(p.name, '') as project_name, c.name as client_name,
             (select coalesce(sum(amount_minor), 0) from payment y where y.invoice_id = i.id) as paid_minor
-       from invoice i join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id`;
+       from invoice i left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id`;
   const get = db.prepare(`${joined} where i.id = ?`);
   const listForProject = db.prepare(`${joined} where i.project_id = ? order by i.number desc`);
   const list = db.prepare(`${joined} order by i.number`);
+  const listForClient = db.prepare(`${joined} where i.organization_id = ? order by i.number desc`);
   const pcols = "id, invoice_id, amount_minor, currency, method, received_on, reference, recorded_by";
   const insertPayment = db.prepare(`insert into payment (${pcols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const payments = db.prepare(`select ${pcols} from payment where invoice_id = ? order by rowid`);
   const allPayments = db.prepare(
-    `select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, p.name as project_name, c.name as client_name
-       from payment y join invoice i on i.id = y.invoice_id join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id
+    `select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, coalesce(p.name, '') as project_name, c.name as client_name
+       from payment y join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
       order by y.rowid`,
   );
-  const row = (r: Row): InvoiceRow => ({ ...toInvoice(r), projectName: text(r, "project_name"), clientName: text(r, "client_name"), organizationId: text(r, "organization_id") as Id, paidMinor: r["paid_minor"] as number });
+  const row = (r: Row): InvoiceRow => ({ ...toInvoice(r), projectName: text(r, "project_name"), clientName: text(r, "client_name"), paidMinor: r["paid_minor"] as number });
   return {
     nextNumber() {
       return (next.get() as Row)["next"] as number;
     },
     insert(i, at) {
-      insert.run(i.id, i.projectId, i.number, i.kind, i.status, JSON.stringify(i.lines), i.total.minor, i.total.currency, i.issuedOn, i.dueOn, i.note, i.createdBy, at, at);
+      insert.run(i.id, i.organizationId, i.projectId, i.number, i.kind, i.status, JSON.stringify(i.lines), i.total.minor, i.total.currency, i.issuedOn, i.dueOn, i.note, i.createdBy, at, at);
     },
     update(i, at) {
       update.run(i.status, JSON.stringify(i.lines), i.total.minor, i.issuedOn, i.dueOn, i.note, at, i.id);
@@ -244,6 +246,9 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
     },
     list() {
       return (list.all() as Row[]).map(row);
+    },
+    listForClient(organizationId) {
+      return (listForClient.all(organizationId) as Row[]).map(row);
     },
     insertPayment(p, at) {
       insertPayment.run(p.id, p.invoiceId, p.amount.minor, p.amount.currency, p.method, p.receivedOn, p.reference, p.recordedBy, at);

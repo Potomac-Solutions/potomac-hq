@@ -29,6 +29,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-payment-status": "Choose a payment status from the list.",
   "invoice-ref-too-long": "That invoice reference is too long.",
   "invalid-invoice-kind": "Choose what the invoice is for.",
+  "project-needed": "A deposit or a balance goes on a project. Bill this as the full amount or something else.",
   "description-missing": "Enter what the line is for.",
   "description-too-long": "That description is too long.",
   "not-a-draft": "This invoice has been sent, so it can’t change. Void it and make a new one.",

@@ -7,7 +7,7 @@ export function renderInvoicePdf(invoice: InvoiceDocument): Uint8Array<ArrayBuff
   doc.paragraph("Potomac Solutions", { bold: true });
   doc.heading(`Invoice ${invoice.label}`, 1);
   doc.paragraph(`Billed to ${invoice.clientName}`, { muted: true });
-  doc.paragraph(`For ${invoice.projectName}`, { muted: true });
+  if (invoice.projectName) doc.paragraph(`For ${invoice.projectName}`, { muted: true });
   doc.paragraph(`Issued ${invoice.issuedOn}${invoice.dueOn ? `. Due ${invoice.dueOn}` : ""}`, { muted: true });
   doc.space();
   const rows = invoice.lines.map((line) => [line.description, line.amount]);

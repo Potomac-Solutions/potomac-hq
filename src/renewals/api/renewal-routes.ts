@@ -16,7 +16,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "note-too-long": "Keep the note under 500 characters.",
   "not-billed-to-client": "Set what we bill for it first. A renewal with no price is ours to pay.",
   "already-billed": "This renewal is already billed for its coming term.",
-  "project-missing": "Choose the project the invoice goes on. A client with no project needs one first: an ongoing one for their plan works.",
+  "project-missing": "That project isn’t this client’s. Choose one of theirs, or bill the client with no project.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
