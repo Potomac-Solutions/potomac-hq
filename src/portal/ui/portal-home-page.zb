@@ -16,12 +16,13 @@
     const picks = context.booking.invitesForMe().map((invite) => ({ key: 'i-' + invite.id, text: 'Pick times for a call: ' + invite.title, detail: invite.length + ', ' + invite.days + (invite.answered ? '. You picked times; Potomac Solutions will confirm one.' : '. Mark every time you could do.'), href: '/portal/invites/' + invite.id, action: invite.answered ? 'Change times' : 'Pick times' }))
     const website = context.websites.mine()
     const landing = context.freePages.mine()
+    const reports = context.clientReports.portalList()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', landing, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', landing, reports, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -58,6 +59,12 @@
       </ul>
     </section>
 
+    <section zb-if={reports.length > 0} class="hq-panel" id="reports" aria-labelledby="portal-reports">
+      <h2 id="portal-reports">Your monthly reports</h2>
+      <ul>
+        <zb-each items={reports.slice(0, 6)} as="report" key={report.id}><li><a href="/portal/reports/{report.id}">{report.monthText}</a></li></zb-each>
+      </ul>
+    </section>
     <section zb-if={landing && (landing.exists || !website)} class="hq-panel" id="landing-page" aria-labelledby="portal-landing">
       <h2 id="portal-landing">Your free landing page</h2>
       <p zb-if={landing.exists}>{landing.statusLabel}<span zb-if={landing.address}>: <a href={landing.address} rel="noopener noreferrer">{landing.address}</a></span>. {landing.used}.</p>

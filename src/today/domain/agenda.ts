@@ -4,7 +4,7 @@
 // today's follow-ups, to-dos and deadlines, social media posts to put up,
 // opportunities going cold, and renewals this week.
 
-export const AGENDA_KINDS = ["call", "waiting", "site", "follow-up", "todo", "deadline", "social", "cold", "renewal"] as const;
+export const AGENDA_KINDS = ["call", "waiting", "site", "follow-up", "todo", "deadline", "social", "cold", "renewal", "report"] as const;
 export type AgendaKind = (typeof AGENDA_KINDS)[number];
 export const AGENDA_LABELS: Readonly<Record<AgendaKind, string>> = {
   call: "Call",
@@ -16,6 +16,7 @@ export const AGENDA_LABELS: Readonly<Record<AgendaKind, string>> = {
   social: "Social media",
   cold: "Going cold",
   renewal: "Renewal",
+  report: "Monthly report",
 };
 
 export type AgendaItem = {

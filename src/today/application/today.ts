@@ -13,6 +13,7 @@ import { renewalsComingUp, type RenewalsDeps } from "../../renewals/index.ts";
 import { socialToDo, type SocialDeps } from "../../social/index.ts";
 import { daysUntil } from "../../shared/index.ts";
 import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
+import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -28,6 +29,8 @@ export type TodayDeps = {
   readonly monitor: MonitorDeps;
   /** Free landing pages: rounds of changes asked for (decision 0013, section 3). */
   readonly freePages: FreePagesDeps;
+  /** Monthly reports drafted and not yet sent (decision 0013, section 4). */
+  readonly clientReports: ReportsDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -84,6 +87,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
   for (const one of goingCold(deps.crm, actorId)) {
     add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });
   }
+  for (const one of reportsToSend(deps.clientReports, actorId)) add("report", { key: `report-${one.id}`, text: one.text, detail: one.detail, href: `/monthly-reports/${one.id}`, action: "Open", overdue: false, at: one.month });
   for (const one of renewalsComingUp(deps.renewals, actorId)) {
     const days = daysUntil(one.renewsOn, today);
     if (days !== null && days > RENEWAL_DAYS) continue;

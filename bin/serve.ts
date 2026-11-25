@@ -35,6 +35,7 @@ import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
+import { draftMonthlyReports } from "../src/client-reports/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
@@ -227,6 +228,17 @@ const stopInvoiceReminders = email
       { zone: BUSINESS_TIME_ZONE, hour: 9, minute: 7, clock: systemClock, log, name: "invoice reminders" },
     )
   : null;
+
+// Monthly reports to plan clients (decision 0013, section 4): drafted each
+// morning at 08:13 in the first week of a month, for the month before, once
+// each. Never sent by themselves.
+const stopMonthlyReports = scheduleDaily(
+  async () => {
+    const drafted = draftMonthlyReports(createServices(db).clientReports);
+    if (drafted > 0) console.log(`Monthly reports: drafted ${drafted}.`);
+  },
+  { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 13, clock: systemClock, log, name: "monthly reports" },
+);
 
 // The morning email: each person's Today list at 07:03 business time, and
 // once now if the server starts after that. Each person gets it once a day.
@@ -425,6 +437,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopSheet?.();
     stopRetention();
     stopRecurring();
+    stopMonthlyReports();
     clearInterval(siteTimer);
     clearInterval(callTimer);
     clearInterval(lostTimer);
