@@ -1,4 +1,4 @@
--- The monthly report to plan clients (decision 0010, section 4): drafted in
+-- The monthly report to plan clients (decision 0013, section 4): drafted in
 -- the first week of a month for the month before, sent only when someone
 -- presses Send, and kept for the client's portal.
 create table monthly_report (

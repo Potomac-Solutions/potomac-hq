@@ -1,4 +1,4 @@
-// Reviews and case studies in a real browser (decision 0010, slice 7): a
+// Reviews and case studies in a real browser (decision 0013, slice 7): a
 // client writes a review from the emailed link on a phone; Potomac publishes
 // it and writes a case study. Each screen is checked for accessibility.
 import assert from "node:assert/strict";

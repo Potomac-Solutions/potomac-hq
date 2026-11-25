@@ -1,4 +1,4 @@
--- Reviews and case studies (decision 0010, section 6). Nothing here leaves
+-- Reviews and case studies (decision 0013, section 6). Nothing here leaves
 -- HQ until it is published.
 create table review_request (
   id               text primary key,

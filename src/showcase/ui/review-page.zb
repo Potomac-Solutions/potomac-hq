@@ -1,4 +1,4 @@
-<!-- Writing a review from the link Potomac emailed (decision 0010, section 6). Works once, with no scripts. -->
+<!-- Writing a review from the link Potomac emailed (decision 0013, section 6). Works once, with no scripts. -->
 <script>
   'use route /review'
   import '../../shared/ui/zubra/alert-banner.zb'

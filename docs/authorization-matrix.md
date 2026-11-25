@@ -191,9 +191,17 @@ for their own site and it takes effect at once
 `client.view`.
 
 
-### Growth tools (decision 0010)
+### The site builder
 
-Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approval.
+Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the one person whose email is `HQ_SITE_BUILDER_OWNER`.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See builds, start one, ask Claude, restore a version, download a version, see the preview, and see the model, cap and spending | `site.build` | Yes | No | No | No |
+
+### Growth tools (decision 0013)
+
+Decided 2026-11-25 (`docs/decisions/0013-growth-tools.md`). Needs Mikey's approval.
 
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
@@ -314,6 +322,48 @@ downloading it needs `file.download`, as for a deliverable.
 
 Quick add needs `task.edit`, and makes any new labels it names with it,
 as putting labels on a task does. Its box shows only to people who have it.
+
+### Social media (decision 0011)
+
+Decided 2026-11-25 by Mikey.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See clients' social media plans and calendars | `social.view` | Yes | Yes | Yes | No |
+| Set a plan, write posts, send them, record approval, mark them posted | `social.edit` | Yes | Yes | Yes | No |
+
+A client sees and approves only their own organization's posts, in the
+portal, taken from their session (see Client users).
+
+### AI assistance (decision 0012)
+
+Decided 2026-11-25 by Mikey: only he chooses the model and the budget. As
+for the site builder, changing them is the `HQ_SITE_BUILDER_OWNER`'s alone;
+other admins see them.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See the AI settings and what AI has cost (changing them: `HQ_SITE_BUILDER_OWNER` only) | `ai.manage` | Yes | No | No | No |
+
+Every AI feature only drafts, and asking for a draft needs the permission
+the finished thing needs, so AI gives no one more than they already have:
+
+| Feature | Asking for it, seeing it and using it |
+| --- | --- |
+| Call recap | `contact.edit`, and only the person who made the call |
+| Get ready brief | `contact.edit`, and only the person the call is booked with |
+| Lead triage, its reply, and going-cold check-ins | `opportunity.edit` and `contact.edit` |
+| Proposal first draft | `proposal.edit` |
+| Scope check | `finance.edit` |
+| Weekly client update | `project.post-update` |
+| Ask HQ | `knowledge.view`; it reads only the knowledge base and decision log |
+| Receipt reading | `expense.edit` |
+| Site-down diagnosis | Made by HQ itself; seen with `client.view` |
+| Case study and social post drafts | `project.edit` |
+
+Lead triage, the weekly updates and the site-down diagnosis also run by
+themselves, when they're turned on. HQ is then the actor, as it is for an
+inquiry, and the drafts wait for a person.
 
 ## Client users
 

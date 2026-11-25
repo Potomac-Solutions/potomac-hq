@@ -1,6 +1,6 @@
 <!--
   The fields of a review, shared by the emailed link's page and the portal's
-  (decision 0010, section 6). Stars as radio buttons, so it works with no
+  (decision 0013, section 6). Stars as radio buttons, so it works with no
   scripts and every star is reachable by keyboard.
 -->
 <script>

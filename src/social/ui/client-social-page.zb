@@ -1,0 +1,208 @@
+<!--
+  A client's social media (decision 0011): their plan, and one month's
+  calendar of posts and blog posts, from a draft to the client's yes to up
+  on the networks.
+-->
+<script>
+  'use route /clients/:id/social'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import { notFound } from '@zubra/router'
+  export async function load({ context, params, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.social.forClient(params.id, url.searchParams.get('month') ?? '')
+    if (!view) return context.crm.clientDetail(params.id).ok ? context.forbidden() : notFound()
+    return { title: `Social media: ${view.client.name}`, view, done: context.notice.done, problem: context.notice.problem }
+  }
+
+  let copied = ''
+  async function copy(id, text) {
+    try {
+      await navigator.clipboard.writeText(text)
+      copied = id
+    } catch {
+      copied = ''
+    }
+  }
+</script>
+<style>
+  .social-month { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+  .social-month h2 { margin: 0; }
+  .social-posts { list-style: none; margin: 0; padding: 0; }
+  .social-posts > li { padding: 1rem 0; border-top: 1px solid var(--border); display: grid; gap: 0.4rem; }
+  .social-posts > li:first-child { border-top: 0; }
+  .social-posts p { margin: 0; overflow-wrap: anywhere; }
+  .social-words { white-space: pre-wrap; max-width: 65ch; }
+  .social-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; }
+  .social-actions form { margin: 0; }
+  .social-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; border: 0; margin: 0; padding: 0; }
+  .social-checks legend { font-weight: 600; margin-bottom: 0.35rem; padding: 0; }
+  .social-due { border-left: 3px solid var(--warning, #b45309); padding-left: 0.75rem; }
+</style>
+<hq-client-social view={{ client: {}, plan: null, planChoices: [], posts: [], count: {} }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: 'Social media', href: '' }]}></breadcrumb-trail>
+    <h1>Social media: {view.client.name}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" id="plan" aria-labelledby="social-plan">
+      <h2 id="social-plan">Plan</h2>
+      <p zb-if={!view.plan} class="hq-muted">No plan yet. Choose the networks and how much each month, then write the month’s posts.</p>
+      <div zb-else>
+        <p><strong>{view.plan.summary}</strong> <status-badge zb-if={view.plan.paused} variant="neutral">Paused</status-badge></p>
+        <ul class="hq-list">
+          <zb-each items={view.plan.pages} as="page" key={page.network}>
+            <li>{page.label}: <a zb-if={page.pageUrl} href={page.pageUrl} rel="noopener noreferrer" target="_blank">{page.pageUrl}</a><span zb-else class="hq-muted">page not set</span></li>
+          </zb-each>
+        </ul>
+        <p zb-if={view.plan.about} class="social-words hq-small">{view.plan.about}</p>
+      </div>
+      <details zb-if={view.canEdit} class="hq-more" open={!view.plan}>
+        <summary>{view.plan ? 'Change the plan' : 'Set up the plan'}</summary>
+        <form method="post" action="/clients/{view.client.id}/social/plan" class="hq-form">
+          <input type="hidden" name="month" value={view.month}>
+          <zb-each items={view.planChoices} as="choice" key={choice.value}>
+            <label class="hq-check"><input type="checkbox" name="network-{choice.value}" value="1" checked={choice.checked}> {choice.label}</label>
+            <text-field label="{choice.label} page" name="page-{choice.value}" value={choice.pageUrl} description="The address of the client’s page, like facebook.com/feedstore"></text-field>
+          </zb-each>
+          <text-field label="Posts a month" name="postsPerMonth" type="number" value={String(view.plan ? view.plan.postsPerMonth : 8)} required={true}></text-field>
+          <text-field label="Blog posts a month" name="blogsPerMonth" type="number" value={String(view.plan ? view.plan.blogsPerMonth : 1)} required={true}></text-field>
+          <text-field label="About the business" name="about" rows={5} value={view.plan ? view.plan.about : ''} description="How they talk, what to post about, what to stay away from. Shown beside every post you write."></text-field>
+          <label zb-if={view.plan} class="hq-check"><input type="checkbox" name="paused" value="1" checked={view.plan.paused}> Paused: keep the posts, leave it off Today</label>
+          <button class="hq-button" type="submit">Save the plan</button>
+        </form>
+      </details>
+    </section>
+
+    <section zb-if={view.plan} class="hq-panel" aria-labelledby="social-calendar">
+      <div class="social-month">
+        <a class="hq-button secondary" href="/clients/{view.client.id}/social?month={view.previous}">Previous<span class="sr-only"> month</span></a>
+        <h2 id="social-calendar">{view.monthName}</h2>
+        <a class="hq-button secondary" href="/clients/{view.client.id}/social?month={view.next}">Next<span class="sr-only"> month</span></a>
+      </div>
+      <p><strong>{view.count.text}</strong><span zb-if={view.count.over}> · {view.count.over}</span></p>
+      <p zb-if={view.waiting > 0} class="hq-small">{view.waiting} with the client. If they say nothing, they count as approved {view.approvesBy}.</p>
+      <p zb-if={view.changes > 0} class="hq-small"><status-badge variant="warning">Changes asked</status-badge> The client asked to change {view.changes === 1 ? 'one post' : view.changes + ' posts'}. Change them, then send them again.</p>
+      <div zb-if={view.canEdit && (view.drafts > 0 || view.waiting > 0)} class="social-actions">
+        <form zb-if={view.drafts > 0} method="post" action="/clients/{view.client.id}/social/send">
+          <input type="hidden" name="month" value={view.month}>
+          <button class="hq-button" type="submit">Send {view.drafts === 1 ? 'the draft' : view.drafts + ' drafts'} to the client</button>
+        </form>
+        <details zb-if={view.waiting > 0} class="hq-more" id="record">
+          <summary>The client said yes by phone or text</summary>
+          <form method="post" action="/clients/{view.client.id}/social/approve" class="hq-form">
+            <input type="hidden" name="month" value={view.month}>
+            <text-field label="How they said yes" name="how" required={true} description="Like: By text, Tuesday afternoon"></text-field>
+            <button class="hq-button" type="submit">Record their approval</button>
+          </form>
+        </details>
+      </div>
+
+      <empty-state zb-if={view.posts.length === 0} heading="Nothing written for {view.monthName}">Write the month’s posts below. They stay drafts until you send them to the client.</empty-state>
+      <ol zb-else class="social-posts">
+        <zb-each items={view.posts} as="one" key={one.id}>
+          <li id="post-{one.id}" class={one.due ? 'social-due' : ''}>
+            <p><status-badge variant={one.tone}>{one.statusLabel}</status-badge> <strong><time datetime={one.day}>{one.dayText}</time></strong> · {one.kindLabel} · {one.where}<span zb-if={one.due}> · <strong>due to go up</strong></span></p>
+            <p zb-if={one.title}><strong>{one.title}</strong></p>
+            <p class="social-words">{one.words}</p>
+            <p zb-if={one.link} class="hq-small">Link: <a href={one.link} rel="noopener noreferrer" target="_blank">{one.link}</a></p>
+            <p zb-if={one.picture} class="hq-small">Picture: {one.picture}</p>
+            <p zb-if={one.clientNote} class="hq-small"><strong>The client asked:</strong> {one.clientNote}</p>
+            <p zb-if={one.approval} class="hq-small hq-muted">{one.approval}</p>
+            <p zb-if={one.skipReason} class="hq-small hq-muted">Skipped: {one.skipReason}</p>
+            <ul zb-if={one.postedLinks.length > 0} class="hq-list hq-small">
+              <zb-each items={one.postedLinks} as="place" key={place.url}><li>Up on {place.label}: <a href={place.url} rel="noopener noreferrer" target="_blank">{place.url}</a></li></zb-each>
+            </ul>
+            <div zb-if={view.canEdit} class="social-actions">
+              <button zb-if={one.status === 'approved'} class="hq-button secondary" type="button" onclick={() => copy(one.id, one.copyText)}>{copied === one.id ? 'Copied' : 'Copy the words'}<span class="sr-only">: {one.dayText}</span></button>
+              <zb-each items={one.opens} as="open" key={open.label}>
+                <a class="hq-button secondary" href={open.url} rel="noopener noreferrer" target="_blank">Open {open.label}<span class="sr-only"> for {one.dayText}</span></a>
+              </zb-each>
+              <details zb-if={one.status === 'approved'} class="hq-more">
+                <summary>It’s up<span class="sr-only">: {one.dayText}</span></summary>
+                <form method="post" action="/social/posts/{one.id}/posted" class="hq-form">
+                  <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
+                  <zb-each items={one.places} as="place" key={place.value}>
+                    <text-field label="Link on {place.label}" name="link-{place.value}" description="Optional: the address of the post"></text-field>
+                  </zb-each>
+                  <button class="hq-button" type="submit">Mark it up</button>
+                </form>
+              </details>
+              <details zb-if={one.canChange} class="hq-more">
+                <summary>Change<span class="sr-only">: {one.dayText}</span></summary>
+                <form method="post" action="/social/posts/{one.id}" class="hq-form">
+                  <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
+                  <p zb-if={one.status !== 'draft'} class="hq-small hq-muted">Saving makes it a draft again, to send to the client again.</p>
+                  <text-field label="Goes up on" name="day" type="date" value={one.day} required={true}></text-field>
+                  <fieldset zb-if={one.kind === 'post'} class="social-checks">
+                    <legend>Where</legend>
+                    <zb-each items={one.choices} as="choice" key={choice.value}>
+                      <label class="hq-check"><input type="checkbox" name="network-{choice.value}" value="1" checked={choice.checked}> {choice.label}</label>
+                    </zb-each>
+                  </fieldset>
+                  <text-field zb-if={one.kind === 'blog'} label="Title" name="title" value={one.title} required={true}></text-field>
+                  <text-field label="Words" name="words" rows={one.kind === 'blog' ? 14 : 6} value={one.words} required={true} description={one.kind === 'blog' ? 'Up to 20,000 characters' : view.wordsHelp}></text-field>
+                  <text-field label="Link" name="link" value={one.link}></text-field>
+                  <text-field label="Picture" name="picture" value={one.picture} description="What it shows. An Instagram post needs one."></text-field>
+                  <button class="hq-button" type="submit">Save</button>
+                </form>
+              </details>
+              <details zb-if={one.canChange} class="hq-more">
+                <summary>Skip or remove<span class="sr-only">: {one.dayText}</span></summary>
+                <form method="post" action="/social/posts/{one.id}/skip" class="hq-form">
+                  <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
+                  <text-field label="Why it’s not going up" name="reason" required={true}></text-field>
+                  <button class="hq-button secondary" type="submit">Skip it</button>
+                </form>
+                <form method="post" action="/social/posts/{one.id}/remove">
+                  <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
+                  <button class="hq-button secondary" type="submit">Remove it from the calendar</button>
+                </form>
+              </details>
+            </div>
+          </li>
+        </zb-each>
+      </ol>
+    </section>
+
+    <section zb-if={view.plan && view.canEdit} class="hq-panel" id="write" aria-labelledby="social-write">
+      <h2 id="social-write">Write a post</h2>
+      <p zb-if={view.plan.about} class="social-words hq-small hq-muted">{view.plan.about}</p>
+      <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form">
+        <input type="hidden" name="month" value={view.month}>
+        <input type="hidden" name="kind" value="post">
+        <text-field label="Goes up on" name="day" type="date" value={view.suggestDay} required={true}></text-field>
+        <fieldset class="social-checks">
+          <legend>Where</legend>
+          <zb-each items={view.plan.pages} as="page" key={page.network}>
+            <label class="hq-check"><input type="checkbox" name="network-{page.network}" value="1" checked> {page.label}</label>
+          </zb-each>
+        </fieldset>
+        <text-field label="Words" name="words" rows={6} required={true} description={view.wordsHelp}></text-field>
+        <text-field label="Link" name="link"></text-field>
+        <text-field label="Picture" name="picture" description="What it shows. An Instagram post needs one."></text-field>
+        <button class="hq-button" type="submit">Add the draft</button>
+      </form>
+      <details class="hq-more">
+        <summary>Write a blog post</summary>
+        <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form">
+          <input type="hidden" name="month" value={view.month}>
+          <input type="hidden" name="kind" value="blog">
+          <text-field label="Goes up on" name="day" type="date" value={view.suggestDay} required={true}></text-field>
+          <text-field label="Title" name="title" required={true}></text-field>
+          <text-field label="The post" name="words" rows={14} required={true} description="Up to 20,000 characters"></text-field>
+          <text-field label="Link" name="link"></text-field>
+          <text-field label="Picture" name="picture"></text-field>
+          <button class="hq-button" type="submit">Add the blog post as a draft</button>
+        </form>
+      </details>
+    </section>
+  </div>
+</hq-client-social>

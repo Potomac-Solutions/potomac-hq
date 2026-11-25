@@ -1,4 +1,4 @@
-// Reviews and case studies (decision 0010, section 6): what clients say about
+// Reviews and case studies (decision 0013, section 6): what clients say about
 // Potomac, and the story of what was built for them, both kept as drafts
 // until someone publishes them. Only what is published ever leaves HQ.
 import type { Id } from "../../shared/domain/id.ts";
