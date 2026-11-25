@@ -1,4 +1,4 @@
-// Referral credit's forms (decision 0010, section 7).
+// Referral credit's forms (decision 0013, section 7).
 import { Hono } from "hono";
 import { applyReferralCredit, makeClientLink, setCreditAmount, setReferredBy, type ReferralCreditDeps } from "../application/referral-credit.ts";
 import { formPosts, type Id } from "../../shared/index.ts";

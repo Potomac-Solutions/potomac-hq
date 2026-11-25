@@ -1,4 +1,4 @@
-// Who looked at a demo (decision 0010, section 8). The Lab's demo apps, with
+// Who looked at a demo (decision 0013, section 8). The Lab's demo apps, with
 // the sign-in a prospect is given, and a short link of their own for each
 // demo sent to a prospect, so Potomac knows who opened what.
 import type { Id } from "../../shared/domain/id.ts";

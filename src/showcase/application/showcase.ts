@@ -1,4 +1,4 @@
-// Reviews and case studies (decision 0010, section 6). Potomac asks a client
+// Reviews and case studies (decision 0013, section 6). Potomac asks a client
 // for a review; the client writes it from the emailed link or in the portal,
 // and says whether it may be shown. Someone with `review.manage` publishes
 // it, or keeps it back, and writes each client's case study with its

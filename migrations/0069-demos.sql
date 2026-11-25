@@ -1,4 +1,4 @@
--- Who looked at a demo (decision 0010, section 8): the Lab's demos, a link
+-- Who looked at a demo (decision 0013, section 8): the Lab's demos, a link
 -- of its own for each demo sent to a prospect, and each time one is opened.
 create table demo (
   id           text primary key,

@@ -1,4 +1,4 @@
-// A client's free landing page (decision 0010, section 3): its address on
+// A client's free landing page (decision 0013, section 3): its address on
 // potomac.solutions, where it stands, and the rounds of changes the client
 // has asked for. Four rounds are free, then the final approval; changes after
 // that are paid work.

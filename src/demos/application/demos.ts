@@ -1,4 +1,4 @@
-// Who looked at a demo (decision 0010, section 8). Potomac keeps the Lab's
+// Who looked at a demo (decision 0013, section 8). Potomac keeps the Lab's
 // demos and their demo sign-ins (`demo.manage`). From an opportunity, anyone
 // who may log a call (`contact.edit`) emails the contact a link to each demo
 // chosen; each link is its own short address that counts opens and sends

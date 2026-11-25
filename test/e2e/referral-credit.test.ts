@@ -1,4 +1,4 @@
-// Referral credit in a real browser (decision 0010, slice 8): make a client
+// Referral credit in a real browser (decision 0013, slice 8): make a client
 // their own link, take earned credit off one of their draft invoices, and
 // see the link in their portal. Each screen is checked for accessibility.
 import assert from "node:assert/strict";

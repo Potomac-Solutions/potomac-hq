@@ -1,4 +1,4 @@
-// Demo tracking in a real browser (decision 0010, slice 9): add a demo, send
+// Demo tracking in a real browser (decision 0013, slice 9): add a demo, send
 // it from an opportunity, open it on a phone, and see the open. Each screen
 // is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

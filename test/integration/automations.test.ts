@@ -1,4 +1,4 @@
-// Client automations (decision 0010, slice 6) over real HTTP: added to a
+// Client automations (decision 0013, slice 6) over real HTTP: added to a
 // client with a secret check-in address shown once; n8n checks in with ok
 // or failed in the query, a form or JSON; one that fails or doesn't run on
 // time goes on Today and is alerted once, then once more when it recovers;

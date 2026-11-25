@@ -1,4 +1,4 @@
--- Free landing pages (decision 0010, section 3): one per client, its address
+-- Free landing pages (decision 0013, section 3): one per client, its address
 -- on potomac.solutions, and the rounds of changes asked for.
 create table free_page (
   id               text primary key,

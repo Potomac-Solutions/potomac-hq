@@ -1,4 +1,4 @@
--- Where a lead came from on the website (decision 0010, section 2): the
+-- Where a lead came from on the website (decision 0013, section 2): the
 -- first `src`, page and campaign fields seen for each opportunity. Kept once;
 -- later ones are ignored.
 create table lead_touch (

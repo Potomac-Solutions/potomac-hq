@@ -1,4 +1,4 @@
-<!-- Every client automation (decision 0010, section 5), those needing attention first. -->
+<!-- Every client automation (decision 0013, section 5), those needing attention first. -->
 <script>
   'use route /automations'
   import '../../shared/ui/zubra/alert-banner.zb'

@@ -1,4 +1,4 @@
-// Free landing pages (decision 0010, slice 4) over real HTTP: a client asks
+// Free landing pages (decision 0013, slice 4) over real HTTP: a client asks
 // for theirs, Potomac sets it up, the client sends four free rounds and is
 // told before a paid one, approves it and downloads its code; one free page
 // a person; rounds wait on Today until marked done; and who may do what.

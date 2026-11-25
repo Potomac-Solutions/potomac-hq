@@ -1,4 +1,4 @@
-// Thanking the person who sent them (decision 0010, section 7). An
+// Thanking the person who sent them (decision 0013, section 7). An
 // opportunity can say who referred it: a client, picked, or a person, typed
 // in. A client can have their own referral link; a lead that comes by it is
 // marked as theirs. When a referred client pays their first invoice, the

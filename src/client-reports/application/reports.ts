@@ -1,4 +1,4 @@
-// Monthly reports to plan clients (decision 0010, section 4). In the first
+// Monthly reports to plan clients (decision 0013, section 4). In the first
 // week of each month HQ drafts one for every client with an ongoing project,
 // from its own records. Someone with `client-report.send` reads it, adds a
 // line if they like, and sends it, or skips it. Nothing goes by itself. Sent

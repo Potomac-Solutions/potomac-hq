@@ -1,4 +1,4 @@
-// Demo tracking (decision 0010, slice 9) over real HTTP: the Lab's demos
+// Demo tracking (decision 0013, slice 9) over real HTTP: the Lab's demos
 // are kept by managers and admins; demos are emailed from an opportunity,
 // each with a link of its own and the demo sign-in; opens are counted (not a
 // preview's) and shown on the opportunity, and on Today until someone talks

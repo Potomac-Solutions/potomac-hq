@@ -1,4 +1,4 @@
-// The lead sources report in a real browser (decision 0010, slice 3): an
+// The lead sources report in a real browser (decision 0013, slice 3): an
 // inquiry from a river stop shows on the report and on its opportunity.
 // Each screen is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

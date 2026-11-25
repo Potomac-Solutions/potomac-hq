@@ -34,7 +34,7 @@ export type SiteBookingRoutesDeps = WebsiteBookingDeps & {
   readonly allowPerVisitor: (key: string) => boolean;
   readonly allowPerEmail: (key: string) => boolean;
   readonly allowApi: (incoming: Request) => boolean;
-  /** Keeps where on the website the person was, for the newest open opportunity at their new client (decision 0010). */
+  /** Keeps where on the website the person was, for the newest open opportunity at their new client (decision 0013). */
   readonly attribute?: (organizationId: Id, read: (name: string) => string | undefined) => void;
   /** Credits the booking to the referral link whose code the website passed on (`ref`). */
   readonly credit?: (code: string, organizationId: Id) => void;

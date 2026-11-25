@@ -1,5 +1,5 @@
 // Reviews' and case studies' forms, a screenshot for Potomac's people, and
-// what the website reads with its token (decision 0010, section 6).
+// what the website reads with its token (decision 0013, section 6).
 import { Hono } from "hono";
 import { mayManageShowcase, addReview, addShot, askForReview, publicShot, publicShowcase, removeShot, saveCaseStudy, setReviewShown, shotFor, writeReviewByLink, writeReviewInPortal, type ShowcaseDeps, type WriteInput } from "../application/showcase.ts";
 import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";

@@ -1,4 +1,4 @@
-// Thanking the person who sent them (decision 0010, section 7). Who referred
+// Thanking the person who sent them (decision 0013, section 7). Who referred
 // a lead (a client, or a person typed in), and the credit a client earns
 // when someone they referred pays their first invoice.
 import { optionalText } from "../../shared/domain/fields.ts";

@@ -1,5 +1,5 @@
 // A zip of a free page's code, for a client who wants to host it themselves
-// (decision 0010, section 3). GitHub answers the zipball address with a
+// (decision 0013, section 3). GitHub answers the zipball address with a
 // redirect to a short-lived download; both are followed here, with the same
 // token site content uses (read access is enough).
 import type { SiteArchive } from "../application/ports.ts";
