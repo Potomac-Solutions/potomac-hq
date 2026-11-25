@@ -11,6 +11,11 @@ spirit. The open choices are marked **Default**: Claude's pick, to be
 confirmed or changed in review. Built by Claude in the order under
 "Slices", one pull request into `staging` each.
 
+Mikey answered three on 2026-11-25, marked **Confirmed**: most calls are
+30 minutes, but a call he picks up may get 15 ("Most will be 30 minutes
+but if I pick up the phone and can give 15 minutes I may"); a buzz with a
+visual cue for wrapping up; and ending forgotten calls after 3 hours.
+
 ## Context
 
 A call today is three separate things: a phone number to tap on a contact,
@@ -33,8 +38,9 @@ call, Today's follow-ups and the going-cold list. One tap:
 - starts the **timer**, kept on the server, so a reload, a dropped signal
   or switching apps doesn't lose it;
 - sets the **planned length**: a booked call's own length, or
-  **Default:** 15 minutes for any other call. It can be changed during the
-  call in 5-minute steps.
+  **Confirmed:** 30 minutes for any other call. One tap on the call screen
+  makes it 15, 30, 45 or an hour, for a call picked up with only a few
+  minutes to give, and it can be changed in 5-minute steps too.
 
 The screen keeps the phone awake while the call is open (the Screen Wake
 Lock API, where the browser has it). It is built for a phone held in one
@@ -104,8 +110,8 @@ can), and a **Wrapping up** panel moves to the top.
 - At the planned end the timer turns red and counts the overtime up. Nothing
   else interrupts.
 
-**Default:** no sound. Vibration is the only nudge, so the person on the
-line hears nothing.
+**Confirmed:** a buzz and the timer's colour, no sound, so the person on
+the line hears nothing.
 
 ### 4. Ending the call
 
@@ -122,7 +128,7 @@ the summary, already written from the guide's answers, to edit. Saving it:
   by the hour.
 
 A call left open for 3 hours is ended by HQ, logged with its outcome left
-as "talked" and a note saying it was ended automatically. **Default:** 3
+as "talked" and a note saying it was ended automatically. **Confirmed:** 3
 hours.
 
 ### 5. Proposed: calls to make
