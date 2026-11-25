@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The site builder (decision 0010, slice 1). Delivery → Site builder, for
+  admins: start a build for a client with a brief, and Claude makes the
+  first version from it and the client's facts in HQ. Ask for changes in
+  plain words; each answer is a new version, shown in a sandboxed preview
+  at phone, tablet or full width, downloadable as a .zip, and restorable.
+  A request is refused before it is sent if its worst case would pass the
+  monthly cap ($10 to start); what it really cost is recorded. Only
+  `HQ_SITE_BUILDER_OWNER` changes the model and the cap, under Model and
+  cap, which also shows spending by person, build and month. Needs
+  `HQ_ANTHROPIC_API_KEY`. New permission `site.build`, admins only.
+  Migration 0056.
+
 - Decision 0010, the site builder: client websites made with Claude in
   HQ, previewed in a sandbox, kept as versions, with a monthly cap that is
   never crossed, published to a new repository or as a pull request to a

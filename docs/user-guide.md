@@ -293,6 +293,28 @@ puts back what HQ had.
   **Refused attempts** page lists wrong passwords, wrong two-factor codes
   and forms someone tried without permission, for the last 30 days.
 
+## Making a client's website with Claude
+
+Delivery → Site builder (admins only). Choose the client, give the build a
+name and write a brief: what the business does, who its customers are, the
+tone, the pages wanted. The client's name, phone, address and main contact
+come from their page in HQ, so keep those right. Starting asks Claude for
+the first version, which takes a minute or two; the page updates by itself.
+
+The preview shows the site as a visitor would, at phone, tablet or full
+width. Ask for changes in plain words, one thing at a time ("make the hero
+darker", "add a page for towing rates"). Each answer is a new version.
+Show an older one, download any one as a .zip, or make an older one the
+newest again.
+
+Claude only uses the facts it's given. Where something is missing it
+writes a placeholder in square brackets, like [Hours: ask the owner]:
+look for those before a site goes anywhere.
+
+Each request shows what it cost. This month's spending and what's left
+are at the top. A request that could pass the monthly cap isn't sent;
+Mikey can change the cap and the model under Model and cap.
+
 ## Our own website (potomac.solutions)
 
 Company → Our website (admins only). Pick **Coming soon** or **Down for maintenance**
