@@ -7,17 +7,18 @@ import { createZubra } from "@zubra/server";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
+import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, search, setupChecklist, sizeText, statusChecks, type NavHub, type Setup, type StatusCheck } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { sqliteSetupCounts } from "./dashboard/adapters.ts";
+import { sqliteSetupCounts, sqliteStatusCounts } from "./dashboard/adapters.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
@@ -514,6 +515,8 @@ export type PageContext = {
   nav(path: string, search: string): readonly NavHub[];
   /** Pages this person pinned, the one at this address marked; and whether this address is pinned. */
   pins(href: string): { readonly items: readonly { readonly href: string; readonly label: string; readonly current: boolean }[]; readonly here: boolean; readonly href: string };
+  /** System status, for admins; null for anyone else. */
+  status(): { readonly checks: readonly StatusCheck[]; readonly errors: readonly { readonly when: string; readonly message: string }[]; readonly version: string; readonly started: string; readonly database: string; readonly migrations: string } | null;
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
   setup(): Setup | null;
   readonly knowledge: {
@@ -534,6 +537,15 @@ export type PageContext = {
     readonly twoFactor: { readonly required: boolean; readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
   };
 };
+
+/** HQ's own version, from package.json, for System status. */
+const HQ_VERSION: string = (() => {
+  try {
+    return String((JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")) as { version?: unknown }).version ?? "");
+  } catch {
+    return "";
+  }
+})();
 
 /** What every module answers a form someone may not use with. */
 const NOT_ALLOWED = "You don’t have permission to do that.";
@@ -561,7 +573,15 @@ const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {
-  const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
+  // What System status shows of this process: errors and email since it started.
+  const startedAt = new Date().toISOString();
+  const ops = { errors: [] as { at: string; message: string }[], errorCount: 0, sent: 0, failed: 0, lastProblem: "", lastProblemAt: null as string | null };
+  const logTo = config.log ?? ((message, error) => console.error(message, error ?? ""));
+  const log = (message: string, error?: unknown): void => {
+    ops.errorCount += 1;
+    ops.errors = [{ at: new Date().toISOString(), message: message.slice(0, 200) }, ...ops.errors].slice(0, 10);
+    logTo(message, error);
+  };
   const { db } = config;
 
   const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
@@ -675,6 +695,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
 
   const setupCounts = sqliteSetupCounts(db);
+  const statusCounts = sqliteStatusCounts(db);
   const placesFor = services.placesFor;
 
   const handleStaff = staffRoutes({
@@ -1088,6 +1109,37 @@ export async function createApp(config: AppConfig): Promise<App> {
           const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
+        status: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
+          const counts = statusCounts();
+          const view = aiSettingsView(aiDeps, actor);
+          const month = view.ok ? view.value.month : { spent: "?", budget: "?", percent: 0 };
+          const facts = {
+            version: HQ_VERSION,
+            startedAt,
+            now: services.session.clock(),
+            backupsConfigured: config.backups === true,
+            lastBackupAt: counts.lastBackupAt,
+            lastBackupFailedAt: counts.lastBackupFailedAt,
+            emailReady: Boolean(config.email),
+            email: { sent: ops.sent, failed: ops.failed, lastProblem: ops.lastProblem, lastProblemAt: ops.lastProblemAt },
+            errors: { count: ops.errorCount, recent: ops.errors },
+            ai: { keySet: Boolean(config.ai), featuresOn: aiDeps.ai.settings().features.length, spent: month.spent, budget: month.budget, percent: month.percent },
+            publicUrl: config.publicUrl ?? "",
+            contactComplete: Boolean(contact.phone && contact.email && contact.address),
+            clientNotices: config.clientNotices === true,
+            sitePublisher: Boolean(config.sitePublisher),
+            database: counts.database,
+          };
+          return {
+            checks: statusChecks(facts, services.formatWhen),
+            errors: ops.errors.map((one) => ({ when: services.formatWhen(one.at), message: one.message })),
+            version: HQ_VERSION,
+            started: services.formatWhen(startedAt),
+            database: sizeText(counts.database.bytes),
+            migrations: `${counts.database.migrations}, the newest ${counts.database.lastMigration}`,
+          };
+        },
         setup: () => {
           if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
           const counts = setupCounts();
@@ -1137,7 +1189,22 @@ export async function createApp(config: AppConfig): Promise<App> {
     return user && !secondStepDue(user.id, cookieHeader) ? user.id : null;
   };
   // "Forgot your password?" by email, when email is set up.
-  const email = config.email ?? null;
+  // Email, counted for System status.
+  const email = config.email
+    ? {
+        ...config.email,
+        send: async (message: Parameters<EmailConfig["send"]>[0]) => {
+          const sent = await (config.email as EmailConfig).send(message);
+          if ("ok" in sent) ops.sent += 1;
+          else {
+            ops.failed += 1;
+            ops.lastProblem = sent.error.slice(0, 120);
+            ops.lastProblemAt = new Date().toISOString();
+          }
+          return sent;
+        },
+      }
+    : null;
   const resetMail = email
     ? createNotify({
         send: email.send,

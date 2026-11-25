@@ -87,6 +87,7 @@ export const PLACES: readonly Place[] = [
   { key: "people", label: "People", hub: "company", href: "/people", gate: "perm:user.view", words: ["users", "team", "invite", "roles", "jayanti", "accounts"], what: "Who has an HQ account, and their roles" },
   { key: "activity", label: "Audit history", hub: "company", href: "/activity", gate: "perm:activity.view-all", words: ["activity", "log", "audit", "history", "who did"], what: "Everything everyone did" },
   { key: "webhooks", label: "Webhooks", hub: "company", href: "/webhooks", gate: "perm:webhook.manage", words: ["n8n", "integrations", "events"], what: "Webhooks to other tools" },
+  { key: "status", label: "System status", hub: "company", href: "/status", gate: "perm:user.set-roles", words: ["health", "backups", "errors", "email", "server", "logs", "status", "uptime"], what: "Backups, email, errors, AI spend and server settings in one place" },
   { key: "ai-settings", label: "AI model and budget", hub: "company", href: "/settings/ai", gate: "ai:manage", words: ["ai", "claude", "budget", "model", "features", "assistant"], what: "Which AI features are on, the model and the budget" },
   { key: "settings", label: "Settings", hub: "company", href: "/settings", hidden: true, words: ["theme", "dark mode", "password", "two-factor", "2fa", "passkey", "morning email", "account"], what: "Your account: theme, password, two-factor, morning email" },
 ];

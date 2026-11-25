@@ -9,3 +9,4 @@ export { HUBS, matchPlaces, navHubs, placeAt, PLACES, type HubKey, type NavHub, 
 export { setupChecklist, type Setup, type SetupFacts, type SetupItem } from "./domain/setup.ts";
 export { pinsFor, togglePin, type PinsDeps, type PinStore } from "./application/pins.ts";
 export { cleanHref, MAX_PINS, type Pin } from "./domain/pins.ts";
+export { sizeText, statusChecks, type StatusCheck, type StatusFacts } from "./domain/status.ts";
