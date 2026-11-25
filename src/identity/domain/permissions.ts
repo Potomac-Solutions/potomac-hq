@@ -79,6 +79,8 @@ export const PERMISSIONS = [
   // Social media (decision 0011)
   "social.view",
   "social.edit",
+  // AI assistance (decision 0012)
+  "ai.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -95,6 +97,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "public-site.edit",
   "webhook.manage",
   "site.build",
+  "ai.manage",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

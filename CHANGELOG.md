@@ -47,6 +47,23 @@ moves those lines under a version heading. See `docs/conventions.md`.
   never crossed, published to a new repository or as a pull request to a
   client's own. Four slices.
 
+- AI drafts (decision 0012, all phases). With `HQ_ANTHROPIC_API_KEY` set
+  and a feature turned on in Settings → AI, Claude drafts and a person uses
+  or discards: the recap email and next steps after a call, a brief on Get
+  ready, a triage and reply for each new lead (by itself every five
+  minutes), check-ins for deals gone quiet, a proposal's first draft checked
+  against similar finished jobs, a flag and change request for client
+  messages beyond what was agreed (by itself), each active project's weekly
+  update (by itself on Fridays), answers from the knowledge base (Ask HQ),
+  expenses read from receipt photos, a likely cause in site-down alerts, and
+  case studies and social posts (Marketing). Nothing is sent, posted or saved
+  until someone presses the button that says so. Settings → AI sets the model (Claude Haiku 5.5 to start), the monthly budget
+  ($20 to start, a hard stop, a warning at 80%), which features are on and
+  the price guide, and shows every call's cost. AI drafts waiting show on
+  Today and in the sidebar. Only `HQ_SITE_BUILDER_OWNER` changes them; other admins (`ai.manage`)
+  see them. Uses the site builder's `HQ_ANTHROPIC_API_KEY`, with its own
+  budget. Migration 0058.
+
 ## [0.16.0] - 2026-11-25
 
 - The recap email (decision 0009, slice 6). Ending a call where you talked
