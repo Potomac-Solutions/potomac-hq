@@ -206,12 +206,17 @@ Decided 2026-11-25 (`docs/decisions/0013-growth-tools.md`). Needs Mikey's approv
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+| Ask a client for a review, type one in, publish or keep back reviews, and write case studies with their screenshots | `review.manage` | Yes | Yes | No | No (writes their own review, from an emailed link or the portal) |
 | Add, change, pause and remove a client's n8n automations, and make a new check-in address | `automation.manage` | Yes | Yes | No | No (sees their own automations, and whether each is running, in the portal) |
 | Read, add a line to, send or skip the monthly reports to plan clients, and draft them now | `client-report.send` | Yes | Yes | No | No (reads their own sent reports in the portal) |
 | Record a client's free landing page, change its address and status, write down a round of changes and mark one done | `free-page.manage` | Yes | Yes | Yes | No (asks for theirs, sends rounds and approves it in the portal) |
 
 Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
 they were emailed is the only thing that says who they are.
+
+A review is written from an emailed link, whose token is the only key, or
+signed in to the portal, once for the client's own organization. The website
+reads only what is published, with its token.
 
 Automations are seen on a client, on the Automations page and on Today with
 `client.view`. n8n checks in with the automation's secret address alone.

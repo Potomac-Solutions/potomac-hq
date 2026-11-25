@@ -9,6 +9,20 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Reviews and case studies (decision 0013, slice 7). On a client's Reviews
+  and case study page, "Email the link" asks their primary contact for a
+  review. The link works once, for 30 days, and is written on a page of its
+  own: stars, a few words, the name and town to show, and whether it may be
+  shown. Clients can also write one in the portal. Reviews can be typed in
+  from a phone call, Google or Facebook too. Under Sales → Reviews, publish
+  or keep back each one (one its writer said not to show can't be
+  published); waiting ones are on Today. Each client's case study (headline,
+  the problem, what we built, what came of it, the live address, its place
+  on the Work page, and up to 6 screenshots checked by their bytes) is a
+  draft until published. The website reads only what's published from
+  `GET /api/site/showcase`, and screenshots from
+  `/api/site/showcase/files/<id>`, with its token. For managers and admins
+  (`review.manage`). Migration 0067.
 - Automations (decision 0013, slice 6). On a client, add each n8n workflow
   run for them: its name, what it does, its link in n8n and how often it
   runs. HQ shows its secret check-in address once; n8n posts to it at the

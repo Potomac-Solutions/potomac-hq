@@ -1,0 +1,20 @@
+<!-- The frame around writing a review from an emailed link: Potomac's name and nothing of HQ. -->
+<script>
+  'use layout /review root'
+  export async function load() {
+    return { title: 'Review Potomac Solutions' }
+  }
+</script>
+<style>
+  :host { display: block; min-height: 100vh; overflow-wrap: anywhere; }
+  .rv-bar { display: flex; align-items: center; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); }
+  .rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; color: var(--foreground); text-decoration: none; }
+  .rv-brand img { width: 1.75rem; height: 1.75rem; }
+  .rv-main { max-width: 40rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+  .rv-main:focus { outline: none; }
+</style>
+<hq-review-frame>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="rv-bar"><span class="rv-brand"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac Solutions</span></header>
+  <main id="main" class="rv-main" tabindex="-1"><zb-slot></zb-slot></main>
+</hq-review-frame>

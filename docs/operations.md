@@ -469,6 +469,18 @@ Every issue carries a one-click unsubscribe link and a `List-Unsubscribe`
 header. Mail apps post to `/river/one-click?t=...`, which needs no cookie
 or Origin.
 
+## Reviews and case studies
+
+Sales → Reviews (`docs/decisions/0013-growth-tools.md`, section 6). Asking
+for a review needs email. The website reads what's published with its
+token: `GET /api/site/showcase` answers `{ ok, reviews: [{ rating, text,
+name, town, client, source, date }], caseStudies: [{ id, client, headline,
+problem, built, result, url, shots: [{ path, alt }] }] }`, newest reviews
+first and case studies in their order. Each shot's `path` is fetched from
+HQ with the same token (`/api/site/showcase/files/<id>`); the website
+serves it on from its own address. Nothing unpublished is ever in the
+answer.
+
 ## Free landing pages
 
 Delivery → Landing pages, and each client's Free landing page

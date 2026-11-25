@@ -1,0 +1,101 @@
+<!--
+  Reviews and case studies (decision 0013, section 6): reviews waiting to be
+  published or kept back, those shown on the website, and the case studies
+  in their order on the Work page.
+-->
+<script>
+  'use route /reviews'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.showcase.overview()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Reviews', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .rv-list { list-style: none; margin: 0; padding: 0; }
+  .rv-list > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .rv-list > li:first-child { border-top: 0; }
+  .rv-list p { margin: 0 0 0.3rem; }
+  .rv-stars { color: var(--primary); letter-spacing: 0.1em; }
+  .rv-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .rv-actions form { margin: 0; }
+</style>
+<hq-reviews view={{ waiting: [], published: [], hidden: [], studies: [], sources: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Reviews and case studies</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Ask a client for a review from their page, under Reviews and case study. Nothing here is on the website until it’s published, and a review is only published if its writer said it may be shown.</p>
+
+    <section class="hq-panel" aria-labelledby="rv-waiting">
+      <h2 id="rv-waiting">{view.waiting.length === 0 ? 'No reviews waiting' : view.waiting.length + ' waiting'}</h2>
+      <ul zb-if={view.waiting.length > 0} class="rv-list">
+        <zb-each items={view.waiting} as="one" key={one.id}>
+          <li>
+            <p><span class="rv-stars" aria-label="{one.rating} of 5 stars">{one.stars}</span> <a href="/clients/{one.clientId}/showcase">{one.clientName}</a></p>
+            <p>“{one.text}”</p>
+            <p class="hq-small hq-muted">{one.who} · {one.source} · {one.when}<span zb-if={!one.mayPublish}> · <strong>Not to be shown</strong></span></p>
+            <div class="rv-actions">
+              <form zb-if={one.mayPublish} method="post" action="/reviews/{one.id}/publish"><button class="hq-button small" type="submit">Publish<span class="sr-only">: review from {one.who}</span></button></form>
+              <form method="post" action="/reviews/{one.id}/hide"><button class="hq-button secondary small" type="submit">Keep back<span class="sr-only">: review from {one.who}</span></button></form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="rv-published">
+      <h2 id="rv-published">On the website</h2>
+      <p zb-if={view.published.length === 0} class="hq-muted">None published yet.</p>
+      <ul zb-else class="rv-list">
+        <zb-each items={view.published} as="one" key={one.id}>
+          <li>
+            <p><span class="rv-stars" aria-label="{one.rating} of 5 stars">{one.stars}</span> {one.clientName}</p>
+            <p>“{one.text}”</p>
+            <p class="hq-small hq-muted">{one.who} · {one.source}</p>
+            <form method="post" action="/reviews/{one.id}/hide"><button class="hq-button secondary small" type="submit">Take down<span class="sr-only">: review from {one.who}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="rv-studies">
+      <h2 id="rv-studies">Case studies</h2>
+      <empty-state zb-if={view.studies.length === 0} heading="No case studies yet">Write one from a client’s page, under Reviews and case study.</empty-state>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col" class="hq-number">Place</th><th scope="col">Client</th><th scope="col">Headline</th><th scope="col">Screenshots</th><th scope="col">State</th></tr></thead>
+        <tbody>
+          <zb-each items={view.studies} as="study" key={study.id}>
+            <tr>
+              <td class="hq-number">{study.position}</td>
+              <td><a href="/clients/{study.clientId}/showcase">{study.clientName}</a></td>
+              <td>{study.headline}</td>
+              <td>{study.shots}</td>
+              <td><status-badge variant={study.published ? 'success' : 'neutral'}>{study.published ? 'Published' : 'Draft'}</status-badge></td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section zb-if={view.hidden.length > 0} class="hq-panel" aria-labelledby="rv-hidden">
+      <h2 id="rv-hidden">Kept back</h2>
+      <ul class="rv-list">
+        <zb-each items={view.hidden} as="one" key={one.id}>
+          <li>
+            <p><span class="rv-stars" aria-label="{one.rating} of 5 stars">{one.stars}</span> {one.clientName}: “{one.text}”</p>
+            <p class="hq-small hq-muted">{one.who}<span zb-if={!one.mayPublish}> · Not to be shown</span></p>
+            <form zb-if={one.mayPublish} method="post" action="/reviews/{one.id}/publish"><button class="hq-button secondary small" type="submit">Publish<span class="sr-only">: review from {one.who}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-reviews>

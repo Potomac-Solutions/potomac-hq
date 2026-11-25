@@ -18,12 +18,13 @@
     const landing = context.freePages.mine()
     const reports = context.clientReports.portalList()
     const automations = context.automations.mine()
+    const review = context.showcase.mayWrite()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', landing, reports, automations, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', landing, reports, automations, review, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} automations={[]} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} automations={[]} review={false} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -60,6 +61,11 @@
       </ul>
     </section>
 
+    <section zb-if={review && view.projects.length > 0} class="hq-panel" id="review" aria-labelledby="portal-review">
+      <h2 id="portal-review">How did we do?</h2>
+      <p>A few honest words help other small businesses decide, and help us do better.</p>
+      <a class="hq-button portal-big" href="/portal/review">Write a review</a>
+    </section>
     <section zb-if={automations.length > 0} class="hq-panel" id="automations" aria-labelledby="portal-automations">
       <h2 id="portal-automations">Your automations</h2>
       <ul>

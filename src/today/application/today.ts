@@ -15,6 +15,7 @@ import { daysUntil } from "../../shared/index.ts";
 import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
 import { automationsNeedingAttention, type AutomationsDeps } from "../../automations/index.ts";
+import { reviewsWaiting, type ShowcaseDeps } from "../../showcase/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -34,6 +35,8 @@ export type TodayDeps = {
   readonly clientReports: ReportsDeps;
   /** n8n automations that failed or didn't run on time (decision 0013, section 5). */
   readonly automations: AutomationsDeps;
+  /** Reviews waiting to be published or kept back (decision 0013, section 6). */
+  readonly showcase: ShowcaseDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -65,6 +68,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
     add("call", { key: `call-${call.id}`, text: `${call.who}, ${call.when}`, detail: [call.kindLabel, call.topic, call.phone].filter(Boolean).join(" · "), href: call.crmHref || "/calls", action: "Open", overdue: false, at: call.whenIso });
   }
   for (const one of staffWaiting(deps.portal, actorId).items) add("waiting", { key: `waiting-${one.key}`, text: one.text, detail: one.detail, href: one.href, action: one.action, overdue: false, at: one.since });
+  for (const one of reviewsWaiting(deps.showcase, actorId)) add("waiting", { key: `review-${one.id}`, text: `A review from ${one.clientName} to publish`, detail: `${one.stars} ${one.who}`, href: "/reviews", action: "Open", overdue: false, at: "" });
   for (const one of roundsWaiting(deps.freePages, actorId)) add("waiting", { key: `round-${one.key}`, text: one.text, detail: one.detail, href: one.href, action: "Open", overdue: false, at: one.since });
   for (const site of sitesNeedingAttention(deps.monitor, actorId)) {
     if (site.state !== "down") continue;
