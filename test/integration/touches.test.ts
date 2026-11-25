@@ -27,7 +27,7 @@ before(async () => {
 after(() => t.stop());
 
 test("a call that went to voicemail is logged on the opportunity, and sets the next follow-up", async () => {
-  assert.match(textOf(await admin.page(`/opportunities/${opportunityId}`)), /Calls and messages No touches logged yet Log a call, email, text or meeting/);
+  assert.match(textOf(await admin.page(`/opportunities/${opportunityId}`)), /Calls and messages No touches logged yet Start a call .* Log a call, email, text or meeting/);
   assert.equal(doneOf(await admin.post(`/opportunities/${opportunityId}/touches`, { kind: "call", outcome: "voicemail", contactId: ritaId, followUpOn: inDays(3) })), "Logged.");
   const page = textOf(await admin.page(`/opportunities/${opportunityId}`));
   assert.match(page, /Last touch .*: call, left a voicemail/);

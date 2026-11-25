@@ -11,7 +11,7 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), calls: context.crm.callsToMake(), next: context.crm.comingUp(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -30,9 +30,19 @@
   .today-add { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
   .today-add .hq-field { flex: 1 1 16rem; margin: 0; }
   .today-done { list-style: none; margin: 0; padding: 0; }
+  .today-next { border-color: var(--label-amber-fg); }
+  .today-next p { margin: 0.35rem 0 0; }
+  .calls-to-make { list-style: none; margin: 0; padding: 0; }
+  .calls-to-make > li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.7rem 0; border-top: 1px solid var(--border); }
+  .calls-to-make > li:first-child { border-top: 0; }
+  .calls-to-make p { margin: 0; }
+  .calls-to-make form { margin: 0; flex: none; }
+  .calls-to-make .hq-button { min-height: 2.75rem; min-width: 4.5rem; }
+  .calls-why { margin: 0.2rem 0 0; padding-left: 1.1rem; color: var(--muted-foreground); font-size: 0.9rem; }
+  .agenda-overdue .calls-why li:first-child { color: var(--destructive); }
   .today-done li { padding: 0.3rem 0; color: var(--muted-foreground); text-decoration: line-through; }
 </style>
-<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} fresh={[]} can-add={false} done="" problem="">
+<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} fresh={[]} calls={{ items: [], calledToday: 0, canCall: false }} next={null} can-add={false} done="" problem="">
   <div class="hq-page">
     <h1>Today <span class="hq-muted hq-small">{view.dayLabel}</span></h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -48,6 +58,32 @@
         </zb-each>
       </ul>
       <p class="hq-small"><a href="/notices">All notices</a></p>
+    </section>
+    <section zb-if={next} class="hq-panel today-next" aria-labelledby="today-next">
+      <h2 id="today-next">Call {next.startsText}</h2>
+      <p>{next.who}, at {next.when}.</p>
+      <p><a class="hq-button" href={next.href}>Get ready</a></p>
+    </section>
+    <section zb-if={calls.items.length > 0 || calls.calledToday > 0} class="hq-panel" id="calls-to-make" aria-labelledby="today-calls">
+      <h2 id="today-calls">Calls to make</h2>
+      <p zb-if={calls.items.length === 0} class="hq-muted">All called today. Nice work.</p>
+      <ol zb-else class="calls-to-make">
+        <zb-each items={calls.items} as="call" key={call.key}>
+          <li class={call.urgent ? 'agenda-overdue' : ''}>
+            <div class="agenda-body">
+              <p><strong>{call.clientName}</strong></p>
+              <ul class="calls-why"><zb-each items={call.reasons} as="reason" key={reason}><li>{reason}</li></zb-each></ul>
+            </div>
+            <form zb-if={calls.canCall} method="post" action="/phone">
+              <input type="hidden" name={call.field} value={call.id}>
+              <input type="hidden" name="returnTo" value="/today#calls-to-make">
+              <input type="hidden" name="back" value="/today#calls-to-make">
+              <button class="hq-button {call.key === calls.items[0].key ? '' : 'secondary'}" type="submit" aria-label="Call {call.clientName}">Call</button>
+            </form>
+          </li>
+        </zb-each>
+      </ol>
+      <p zb-if={calls.calledToday > 0 && calls.items.length > 0} class="hq-muted hq-small">{calls.calledToday} called already today.</p>
     </section>
     <section class="hq-panel" aria-labelledby="today-list">
       <h2 id="today-list">{view.items.length === 0 ? 'All clear' : 'In order'}</h2>

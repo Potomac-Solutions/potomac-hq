@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -46,6 +46,7 @@ import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./web
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
+import { callRoutes } from "./crm/api/call-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { inviteRoutes } from "./booking/api/invite-routes.ts";
@@ -175,6 +176,23 @@ export type PageContext = {
   readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
     clientTouches(id: string): TouchesView | null;
+    /** The call screen, for the person on the call (decision 0009). */
+    callScreen(id: string): CallScreen | null;
+    /** The call guides (decision 0009, section 2), or null without knowledge.view. */
+    callGuides(): GuidesView | null;
+    /** The voicemail script, as written. */
+    voicemailScript(): ScriptView | null;
+    /** Today's calls to make (decision 0009, section 5). */
+    callsToMake(): CallsToMakeView;
+    /** A booked call starting within 15 minutes (decision 0009, section 6). */
+    comingUp(): ComingUp | null;
+    getReady(bookingId: string): GetReadyView | null;
+    /** An ended call's recap email; "no-email" when the contact has none. */
+    recap(callId: string): RecapView | "no-email" | null;
+    /** Whether HQ can send email. */
+    emailOn: boolean;
+    /** The person's open call, for the shell. */
+    openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
@@ -559,6 +577,33 @@ export async function createApp(config: AppConfig): Promise<App> {
           opportunityTouches: (id) => {
             const parsed = parseId(id);
             const view = parsed.ok ? opportunityTouches(services.touches, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          callScreen: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? callScreen(services.calls, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          openCall: () => openCall(services.calls, actor),
+          callGuides: () => {
+            const view = callGuides(services.calls, actor);
+            return view.ok ? view.value : null;
+          },
+          voicemailScript: () => {
+            const view = voicemailScript(services.calls, actor);
+            return view.ok ? view.value : null;
+          },
+          callsToMake: () => callsToMake(services.calls, actor),
+          comingUp: () => comingUp(services.calls, actor),
+          recap: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? recapFor(services.calls, actor, parsed.value) : null;
+            return view?.ok ? view.value : view && !view.ok && view.error === "no-email" ? "no-email" : null;
+          },
+          emailOn: Boolean(config.email),
+          getReady: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? getReady(services.calls, actor, parsed.value) : null;
             return view?.ok ? view.value : null;
           },
           inquiryServices: () => SERVICE_OPTIONS,
@@ -978,6 +1023,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
+  // The recap email after a call (decision 0009, section 7), when email is set up.
+  const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
+  forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
@@ -990,7 +1038,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, calls: services.calls, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

@@ -1,0 +1,233 @@
+<!--
+  The call screen (decision 0009): a big Dial button, the timer, the planned
+  length with shorter and longer, notes that save as they're typed, and
+  ending the call into the call log. Built for a phone held in one hand.
+  Only the person on the call sees it. Without scripts: dial, the time as
+  the page was made, notes saved with a button, and ending all still work.
+-->
+<script>
+  'use route /phone/:id'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import './call-timer.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import { notFound } from '@zubra/router'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.crm.callScreen(params.id)
+    if (!view) return notFound()
+    // The next open times on Potomac's calendar, for booking another call before hanging up.
+    const open = view.ended ? null : await context.booking.manageTimes()
+    const times = open && open.open ? open.days.flatMap((day) => day.slots.map((slot) => ({ start: slot.start, label: day.label + ', ' + slot.label }))).slice(0, 6) : []
+    return { title: view.contactName ? `Call with ${view.contactName}` : `Call with ${view.clientName}`, view, times, callMinutes: open ? open.callMinutes : 0, done: context.notice.done, problem: context.notice.problem }
+  }
+
+  // Notes save a moment after you stop typing, so a dropped call or a dead
+  // phone loses nothing. Without scripts, "Save notes" does it.
+  let saving = null
+  let saved = ''
+  // The guide's answers save the same way, the whole form at once.
+  let answering = null
+  let answered = ''
+  function answer(event) {
+    const form = event.currentTarget
+    answered = ''
+    if (answering) clearTimeout(answering)
+    answering = setTimeout(async () => {
+      try {
+        const body = new URLSearchParams(new FormData(form))
+        const reply = await fetch(form.getAttribute('action'), { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' })
+        answered = reply.type === 'opaqueredirect' || reply.ok ? 'Answers saved.' : ''
+      } catch {
+        answered = ''
+      }
+    }, event.type === 'change' ? 150 : 1200)
+  }
+  function typed(event) {
+    const box = event.currentTarget
+    saved = ''
+    if (saving) clearTimeout(saving)
+    saving = setTimeout(async () => {
+      try {
+        const body = new URLSearchParams({ note: box.value })
+        const answer = await fetch('/phone/' + view.id + '/note', { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' })
+        saved = answer.type === 'opaqueredirect' || answer.ok ? 'Notes saved.' : ''
+      } catch {
+        saved = ''
+      }
+    }, 1200)
+  }
+</script>
+<style>
+  .call { display: grid; gap: 1rem; max-width: 34rem; }
+  .call h1 { margin: 0; }
+  .call-who { margin: 0.15rem 0 0; color: var(--muted-foreground); }
+  .call-dial { display: flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 3.5rem; font-size: 1.15rem; text-decoration: none; }
+  .call-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0; }
+  .call-plan form { margin: 0; }
+  .call-plan p { margin: 0; flex: 1 1 12rem; }
+  .call-steps { display: flex; gap: 0.5rem; }
+  .call-lengths { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; flex: 1 1 100%; }
+  .call-lengths .hq-button { min-height: 2.75rem; min-width: 4.25rem; }
+  .call-steps .hq-button { min-width: 3rem; min-height: 2.75rem; }
+  .call-wrap ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+  .call-end { display: grid; gap: 0.75rem; }
+  .call-outcomes { display: grid; gap: 0.4rem; border: 0; margin: 0; padding: 0; }
+  .call-outcomes legend { font-weight: 600; margin-bottom: 0.25rem; }
+  .call-outcomes label { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .call-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .call-actions .hq-button { min-height: 3rem; flex: 1 1 10rem; }
+  .call-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .call-points li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.5rem; }
+  .call-questions ol { margin: 0; padding-left: 1.4rem; display: grid; gap: 0.85rem; }
+  .call-question { display: flex; align-items: flex-start; gap: 0.6rem; font-weight: 600; min-height: 2.75rem; padding-top: 0.25rem; }
+  .call-question input { width: 1.35rem; height: 1.35rem; flex: none; margin-top: 0.1rem; }
+  .call-questions textarea { width: 100%; margin-top: 0.35rem; padding: 0.4rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+  .call-switch { margin-top: 1rem; }
+  .call-book fieldset { display: grid; gap: 0.4rem; border: 0; margin: 0.75rem 0 0.5rem; padding: 0; }
+  .call-book legend { font-weight: 600; margin-bottom: 0.25rem; }
+  .call-book label { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .call-book .hq-button { min-height: 2.75rem; }
+  .call-voicemail summary { font-weight: 600; cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; }
+  .call-voicemail p { margin: 0.5rem 0 0; }
+  .call-saved { min-height: 1.25rem; margin: 0; color: var(--muted-foreground); font-size: 0.85rem; }
+</style>
+<hq-call view={null} times={[]} call-minutes={0} done="" problem="">
+  <div class="call">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Call', href: '' }]}></breadcrumb-trail>
+    <div>
+      <h1>{view.contactName || view.clientName}</h1>
+      <p class="call-who" zb-if={view.contactName}>{view.clientName}<span zb-if={view.opportunityTitle}>, about {view.opportunityTitle}</span></p>
+      <p class="call-who" zb-if={!view.contactName && view.opportunityTitle}>About {view.opportunityTitle}</p>
+    </div>
+    <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+
+    <section zb-if={view.ended} class="hq-panel">
+      <p>This call ended {view.endedText}. It’s in the call log.</p>
+      <p><a href="/clients/{view.clientId}#touches">See the call log</a></p>
+    </section>
+
+    <a zb-if={!view.ended && view.dial} class="hq-button call-dial" href={view.dial}>Dial {view.phone}</a>
+    <details zb-if={!view.ended && view.voicemail} class="hq-panel call-voicemail">
+      <summary>If you get their voicemail</summary>
+      <p>{view.voicemail}</p>
+      <p class="hq-muted hq-small">Then end the call as “Left a voicemail”: HQ sets a follow-up two business days from now, or a to-do to call again. <a href="/call-guides#voicemail">Change the script</a></p>
+    </details>
+    <p zb-if={!view.ended && !view.dial} class="hq-muted">No phone number on file. <a href="/clients/{view.clientId}">Add one on the client’s page</a>, or dial from your phone; the timer’s running.</p>
+
+    <call-timer call={view.id} started={view.startedAt} now={view.now} ended={view.ended ? view.endedText : ''} planned={view.plannedMinutes} warn={view.warnMinutes} timer={view.timer} begin={view.clock.phase}></call-timer>
+
+    <div zb-if={!view.ended} class="call-plan">
+      <p>Planned for {view.plannedMinutes} min. Wrap up at {view.wrapUpText}, done by {view.endsText}.</p>
+      <form method="post" action="/phone/{view.id}/length" class="call-lengths" aria-label="How long this call is">
+        <zb-each items={view.lengths} as="length" key={length.minutes}>
+          <button class="hq-button {length.current ? '' : 'secondary'}" type="submit" name="minutes" value={length.minutes} aria-pressed={length.current ? 'true' : 'false'}>{length.label}</button>
+        </zb-each>
+      </form>
+      <div class="call-steps">
+        <form method="post" action="/phone/{view.id}/shorter"><button class="hq-button secondary" type="submit" disabled={!view.canShorter} aria-label="5 minutes shorter">−5</button></form>
+        <form method="post" action="/phone/{view.id}/longer"><button class="hq-button secondary" type="submit" disabled={!view.canLonger} aria-label="5 minutes longer">+5</button></form>
+      </div>
+    </div>
+
+    <p zb-if={view.topic} class="hq-panel"><strong>They booked it about:</strong> {view.topic}</p>
+
+    <section zb-if={view.points.length > 0} class="hq-panel" aria-labelledby="call-points-heading">
+      <h2 id="call-points-heading">Worth raising</h2>
+      <ul class="call-points">
+        <zb-each items={view.points} as="point" key={point.text}>
+          <li>
+            <status-badge zb-if={point.kind === 'waiting-on-us'} variant="danger">They’re waiting</status-badge>
+            <status-badge zb-if={point.kind === 'waiting-on-them'} variant="warning">Waiting on them</status-badge>
+            <status-badge zb-if={point.kind === 'money'} variant="danger">Money</status-badge>
+            <status-badge zb-if={point.kind === 'site'} variant="danger">Site</status-badge>
+            <status-badge zb-if={point.kind === 'renewal'} variant="primary">Renewal</status-badge>
+            <status-badge zb-if={point.kind === 'last-call'} variant="neutral">Last call</status-badge>
+            <span>{point.text}</span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={!view.ended} class="hq-panel call-guide" id="guide" aria-labelledby="call-guide-heading">
+      <h2 id="call-guide-heading">{view.guide.title}</h2>
+      <p class="hq-muted hq-small">{view.guide.hint}. Tick each as you ask it, and jot what they say. It all goes in the call log.</p>
+      <form method="post" action="/phone/{view.id}/answers" class="call-questions" oninput={answer} onchange={answer}>
+        <ol>
+          <zb-each items={view.guide.questions} as="question" key={question.position}>
+            <li>
+              <label class="call-question"><input type="checkbox" name="asked-{question.position}" value="on" checked={question.asked}> <span>{question.text}</span></label>
+              <label class="sr-only" for="answer-{question.position}">What they said</label>
+              <textarea id="answer-{question.position}" name="answer-{question.position}" rows="2" maxlength="1000" placeholder="What they said">{question.answer}</textarea>
+            </li>
+          </zb-each>
+        </ol>
+        <p class="call-saved" aria-live="polite">{answered}</p>
+        <div><button class="hq-button secondary" type="submit">Save answers</button></div>
+      </form>
+      <form method="post" action="/phone/{view.id}/guide" class="hq-form-row call-switch">
+        <div class="hq-field">
+          <label for="call-guide-choice">Use another guide</label>
+          <select id="call-guide-choice" name="situation">
+            <zb-each items={view.guides} as="choice" key={choice.value}><option value={choice.value} selected={choice.value === view.guide.situation}>{choice.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Switch</button>
+      </form>
+      <p class="hq-small"><a href="/call-guides">Change the guides</a></p>
+    </section>
+
+    <section zb-if={!view.ended} class="hq-panel call-wrap {view.clock.phase === 'on' ? '' : 'call-wrap-now'}" id="wrap-up" aria-labelledby="call-wrap-heading">
+      <h2 id="call-wrap-heading">Wrapping up</h2>
+      <p zb-if={view.guide.left > 0}><strong>{view.guide.left} {view.guide.left === 1 ? 'question' : 'questions'} not asked yet.</strong> <a href="#guide">See the guide</a></p>
+      <ul>
+        <li>Say back what you agreed, in a sentence.</li>
+        <li>Say who does what next, and by when.</li>
+        <li>More to talk about? Book another call now, while they’re on the line.</li>
+      </ul>
+      <form zb-if={times.length > 0} method="post" action="/phone/{view.id}/book" class="call-book">
+        <fieldset>
+          <legend>Book another call ({callMinutes} min)</legend>
+          <zb-each items={times} as="time" key={time.start}>
+            <label><input type="radio" name="start" value={time.start} required> {time.label}</label>
+          </zb-each>
+        </fieldset>
+        <button class="hq-button" type="submit">Book it</button>
+        <p class="hq-muted hq-small">They’re emailed the time, with a link to move it. The call carries on.</p>
+      </form>
+      <p zb-if={times.length === 0} class="hq-muted hq-small">No open times to offer here. Set your hours under <a href="/calls/hours">Calls → Hours</a>, or set a follow-up below.</p>
+    </section>
+
+    <form zb-if={!view.ended} method="post" action="/phone/{view.id}/end" class="hq-panel call-end">
+      <div class="hq-field">
+        <label for="call-note">Notes</label>
+        <textarea id="call-note" name="note" rows="6" maxlength="2000" aria-describedby="call-note-help" oninput={typed}>{view.note}</textarea>
+        <p id="call-note-help" class="hq-muted hq-small">Saved as you type. They go in the call log, with the guide’s answers, when you end the call.</p>
+      </div>
+      <p class="call-saved" aria-live="polite">{saved}</p>
+      <fieldset class="call-outcomes">
+        <legend>How it went</legend>
+        <zb-each items={view.outcomes} as="outcome" key={outcome.value}>
+          <label><input type="radio" name="outcome" value={outcome.value} checked={outcome.value === 'reached'}> {outcome.label}</label>
+        </zb-each>
+      </fieldset>
+      <text-field zb-if={view.canFollowUp} label="Next follow-up" name="followUpOn" type="date"></text-field>
+      <text-field zb-if={view.canAddTodos} label="Next steps for you" name="nextSteps" rows={3} description="One a line. Each becomes a to-do for you, at this client."></text-field>
+      <label zb-if={view.recapTo} class="hq-check"><input type="checkbox" name="recap" value="on"> Then write {view.recapTo} a recap email, to read before it goes</label>
+      <fieldset zb-if={view.projects.length > 0} class="call-outcomes">
+        <legend>Log this call’s time</legend>
+        <label><input type="radio" name="logTo" value="" checked={!view.projects.some((project) => project.hourly)}> Don’t log it</label>
+        <zb-each items={view.projects} as="project" key={project.id}>
+          <label><input type="radio" name="logTo" value={project.id} checked={project.hourly && project.id === view.projects.find((one) => one.hourly).id}> To {project.name}<span zb-if={project.hourly} class="hq-muted">, billed by the hour</span></label>
+        </zb-each>
+      </fieldset>
+      <div class="call-actions">
+        <button class="hq-button" type="submit">{view.fromList ? 'End call, back to the list' : 'End call'}</button>
+        <button class="hq-button secondary" type="submit" formaction="/phone/{view.id}/note">Save notes</button>
+      </div>
+    </form>
+  </div>
+</hq-call>

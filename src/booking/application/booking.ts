@@ -5,7 +5,7 @@
 import { calendarFile, cancel, changeable, checkBooker, whenText, type Booking, type BookerError, type BookerInput } from "../domain/booking.ts";
 import { cellLabel, cellsFromRanges, gridRows, paintedIn, rangesFromCells, rangesOn, sameCells } from "../domain/grid.ts";
 import { checkRules, clockLabel, clockValue, DEFAULT_RULES, hoursSummary, isOpen, openSlots, parseClock, WEEKDAY_NAMES, type BookingRules, type Busy, type HoursRange, type OpenDay, type RulesError, type Weekday } from "../domain/hours.ts";
-import { addContact, createClient, createOpportunity, moveOpportunity, SERVICE_OPTIONS, type CrmDeps } from "../../crm/index.ts";
+import { addContact, callParty, createClient, createOpportunity, moveOpportunity, SERVICE_OPTIONS, type CallDeps, type CrmDeps } from "../../crm/index.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { BookingSettings, BookingStore, BusyCalendar, ClosedDay, ManageTokens } from "./ports.ts";
@@ -245,6 +245,55 @@ export async function bookCall(deps: BookingDeps, booker: Booker, start: string)
   });
 }
 
+/**
+ * Books the next call with whoever is on the call screen (decision 0009,
+ * section 3), at a time that's still open, whether or not booking is open to
+ * clients or the public: it's Potomac's own calendar. Booked as from the
+ * booking page at the CRM client, so it has its own link to change it, and the
+ * person is emailed as usual. Needs `call.respond` and to be on the call.
+ */
+export async function bookNextCall(deps: BookingDeps, calls: CallDeps, actorId: Id | null, callId: Id, start: string): Promise<Result<{ readonly booking: Booking; readonly manageToken: string }, BookError | "forbidden" | "not-found" | "call-ended" | "no-hours-yet" | "contact-email-missing" | "time-missing">> {
+  if (!allowed(deps, actorId, "call.respond")) return err("forbidden");
+  const party = callParty(calls, actorId, callId);
+  if (!party.ok) return party;
+  if (!start.trim()) return err("time-missing");
+  const settings = deps.bookings.settings();
+  if (!settings || settings.hours.length === 0) return err("no-hours-yet");
+  if (!party.value.email) return err("contact-email-missing");
+  const who = checkBooker({ name: party.value.contactName, email: party.value.email, phone: party.value.phone || null, topic: `Follow-up to our call with ${party.value.clientName}` });
+  if (!who.ok) return who;
+  const rules = rulesOf(deps, settings);
+  const { others, failed } = await busyIn(deps, rules);
+  if (failed) return err("calendar-failed");
+  return deps.transact(() => {
+    const window = windowOf(deps, rules);
+    const slot = isOpen(rules, [...deps.bookings.booked(window.from, window.to), ...others], deps.clock(), deps.timeZone, start);
+    if (!slot) return err("taken");
+    const booking: Booking = {
+      id: deps.newId(),
+      kind: "public",
+      status: "booked",
+      start: Temporal.Instant.from(start).toString(),
+      end: slot.end,
+      ...who.value,
+      organizationId: null,
+      clientUserId: null,
+      hostId: settings.hostId,
+      linkId: null,
+      business: party.value.clientName,
+      createdAt: deps.clock(),
+      cancelledAt: null,
+      cancelledBy: null,
+      cancelReason: "",
+    };
+    const token = deps.tokens.newToken();
+    deps.bookings.add(booking, deps.tokens.hash(token));
+    deps.bookings.setCrm(booking.id, party.value.organizationId, party.value.opportunityId);
+    recordActivity(deps, { actorId, action: "booking.made", recordType: "booking", recordId: booking.id, context: { kind: booking.kind, start: booking.start, from: "call", callId, organizationId: party.value.organizationId } });
+    return ok({ booking: { ...booking, crmClientId: party.value.organizationId, crmOpportunityId: party.value.opportunityId }, manageToken: token });
+  });
+}
+
 /** Who is changing a call: someone in HQ, a client for their organization, or the holder of the private link. */
 export type Changer = { readonly kind: "staff"; readonly actorId: Id | null } | { readonly kind: "client"; readonly organizationId: Id } | { readonly kind: "link"; readonly token: string };
 
@@ -374,6 +423,8 @@ export type CallLine = {
   readonly changeable: boolean;
   /** From the public page and not in the CRM yet: it can be added. */
   readonly canAddToCrm: boolean;
+  /** At a client in the CRM, so the call screen can log it there (decision 0009). */
+  readonly startable: boolean;
   /** Its opportunity, once added. */
   readonly crmHref: string;
 };
@@ -394,6 +445,7 @@ const lineOf = (deps: BookingDeps, booking: Booking): CallLine => ({
   cancelText: booking.status !== "cancelled" ? "" : `Cancelled by ${booking.cancelledBy === "staff" ? "Potomac" : booking.name}${booking.cancelReason ? `: ${booking.cancelReason}` : ""}`,
   changeable: changeable(booking, deps.clock()),
   canAddToCrm: booking.kind === "public" && !booking.crmClientId,
+  startable: booking.status !== "cancelled" && Boolean(booking.organizationId ?? booking.crmClientId),
   crmHref: booking.crmOpportunityId ? `/opportunities/${booking.crmOpportunityId}` : "",
 });
 

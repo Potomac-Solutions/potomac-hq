@@ -3,6 +3,7 @@
 // step: "left a voicemail, try again Thursday".
 import { newTouch, OUTCOME_LABELS, TOUCH_KIND_LABELS, touchLabel, type Touch, type TouchError, type TouchInput } from "../domain/touch.ts";
 import { setFollowUp } from "../domain/opportunity.ts";
+import { lengthText } from "../domain/call.ts";
 import { COLD_AFTER_DAYS, quietDays } from "../domain/cold.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
@@ -20,19 +21,31 @@ export type LogTouchInput = TouchInput & { readonly contactId?: string | null; r
  * on an open opportunity, is set in the same transaction. Permission:
  * `contact.edit`, and `opportunity.set-follow-up` to set the day.
  */
-export function logTouch(deps: TouchDeps, actorId: Id | null, where: { readonly clientId: Id } | { readonly opportunityId: Id }, input: LogTouchInput): Result<Touch, Refused | TouchError | "contact-not-at-client" | "invalid-date" | "closed"> {
+export function logTouch(deps: TouchDeps, actorId: Id | null, where: TouchWhere, input: LogTouchInput): Result<Touch, LogTouchError> {
+  return deps.transact(() => writeTouch(deps, actorId, where, input));
+}
+
+export type TouchWhere = { readonly clientId: Id } | { readonly opportunityId: Id };
+export type LogTouchError = Refused | TouchError | "contact-not-at-client" | "invalid-date" | "closed";
+
+/**
+ * logTouch's work, inside a transaction the caller holds. A call ended on the
+ * call screen logs itself this way, with its length (decision 0009).
+ */
+export function writeTouch(deps: TouchDeps, actorId: Id | null, where: TouchWhere, input: LogTouchInput, fromCall?: { readonly minutes: number; readonly callId: Id }): Result<Touch, LogTouchError> {
   if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
   const followUp = (input.followUpOn ?? "").trim();
   if (followUp && !allowed(deps, actorId, "opportunity.set-follow-up")) return err("forbidden");
-  return deps.transact(() => {
+  {
     const opportunity = "opportunityId" in where ? deps.opportunities.get(where.opportunityId) : null;
     if ("opportunityId" in where && !opportunity) return err("not-found");
     const organizationId = opportunity ? opportunity.organizationId : (where as { clientId: Id }).clientId;
     if (!deps.clients.get(organizationId)) return err("not-found");
     const contactId = (input.contactId ?? "").trim() || null;
     if (contactId && deps.contacts.get(contactId as Id)?.organizationId !== organizationId) return err("contact-not-at-client");
-    const touch = newTouch({ id: deps.newId(), organizationId, opportunityId: opportunity?.id ?? null, contactId: contactId as Id | null, userId: actorId, happenedAt: deps.clock() }, input);
-    if (!touch.ok) return touch;
+    const made = newTouch({ id: deps.newId(), organizationId, opportunityId: opportunity?.id ?? null, contactId: contactId as Id | null, userId: actorId, happenedAt: deps.clock() }, input);
+    if (!made.ok) return made;
+    const touch = { ok: true as const, value: fromCall ? { ...made.value, ...fromCall } : made.value };
     if (followUp) {
       if (!opportunity) return err("not-found");
       const changed = setFollowUp(opportunity, followUp);
@@ -41,9 +54,9 @@ export function logTouch(deps: TouchDeps, actorId: Id | null, where: { readonly 
       recordActivity(deps, { actorId, action: "opportunity.follow-up-set", recordType: "opportunity", recordId: opportunity.id, context: { on: changed.value.followUpOn } });
     }
     deps.touches.insert(touch.value, deps.clock());
-    recordActivity(deps, { actorId, action: "touch.logged", recordType: "touch", recordId: touch.value.id, context: { clientId: organizationId, kind: touch.value.kind, ...(touch.value.outcome ? { outcome: touch.value.outcome } : {}) } });
+    recordActivity(deps, { actorId, action: "touch.logged", recordType: "touch", recordId: touch.value.id, context: { clientId: organizationId, kind: touch.value.kind, ...(touch.value.outcome ? { outcome: touch.value.outcome } : {}), ...(fromCall ? { minutes: fromCall.minutes, callId: fromCall.callId } : {}) } });
     return ok(touch.value);
-  });
+  }
 }
 
 export type TouchLine = { readonly id: string; readonly label: string; readonly when: string; readonly whenIso: string; readonly who: string; readonly withWhom: string; readonly note: string; readonly opportunityId: string; readonly opportunityTitle: string };
@@ -68,7 +81,7 @@ function view(deps: TouchDeps, actorId: Id, organizationId: Id, touches: readonl
   return {
     items: touches.map((one) => ({
       id: one.id,
-      label: touchLabel(one),
+      label: one.minutes === null ? touchLabel(one) : `${touchLabel(one)}, ${lengthText(one.minutes)}`,
       when: deps.formatWhen(one.happenedAt),
       whenIso: one.happenedAt,
       who: deps.users.get(one.userId)?.name ?? "Someone",

@@ -100,6 +100,12 @@
             <p zb-if={call.topic}>{call.topic}</p>
             <p zb-if={call.cancelled} class="hq-small">{call.cancelText}</p>
             <p zb-if={call.crmHref} class="hq-small"><a href={call.crmHref}>In the CRM</a></p>
+            <p zb-if={call.startable} class="hq-small"><a href="/get-ready/{call.id}">Get ready</a>: what’s worth raising, and the guide.</p>
+            <form zb-if={call.startable} method="post" action="/phone" class="hq-form-row">
+              <input type="hidden" name="bookingId" value={call.id}>
+              <input type="hidden" name="back" value="/calls">
+              <button class="hq-button" type="submit" aria-label="Start the call with {call.who}">Start the call</button>
+            </form>
             <details zb-if={view.canAddToCrm && call.canAddToCrm && !call.cancelled}>
               <summary>Add to the CRM</summary>
               <form method="post" action="/calls/{call.id}/crm" class="hq-form-row">

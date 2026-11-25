@@ -9,6 +9,56 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-25
+
+- The recap email (decision 0009, slice 6). Ending a call where you talked
+  can open a recap email to the contact, drafted from your notes. Read and
+  change it, then "Send recap" or "Skip"; nothing goes until you press it,
+  and it goes once. It's logged in the call log as an email. Migration 0055.
+- Getting ready for a booked call (decision 0009, slice 5). Fifteen minutes
+  before a call booked with you, the top bar and Today say "Call in 12
+  minutes with …: get ready". Its page has why they booked, what's worth
+  raising, the guide the call will start with, and "Start the call". Also
+  on each upcoming call on the Calls page.
+- Calls to make (decision 0009, slice 4). Today lists who to call, one line
+  per client with every reason: calls asked for in the portal, follow-ups
+  due, invoices a week or more late, and deals going cold. "Call" opens the
+  call screen, and ending it goes back to the list, where that client has
+  dropped off. The call screen shows a voicemail script, changed with the
+  call guides. Ending as voicemail or no answer sets the follow-up two
+  business days on, or adds a to-do to call again. Migration 0054.
+- Following through from a call (decision 0009, slice 3). The wrap-up panel
+  offers the next six open times; "Book it" books the next call while
+  they're on the line, at the CRM client, and emails them as usual. Ending
+  a call turns next steps, one a line, into to-dos, and can log the call's
+  time to the client's project (ticked already, and billable, when it's
+  billed by the hour).
+- Call guides and talking points (decision 0009, slice 2). The call screen
+  shows questions for the kind of call (a first call, a proposal follow-up, a
+  project check-in, a renewal or any call), picked from what the client has
+  and switchable. Tick each as it's asked and note what was said; it saves as
+  you type, and the answers go in the call log with the notes. "Worth
+  raising" lists what HQ's records say: what each side is waiting on, a
+  proposal not answered, a late invoice, a site down or a certificate
+  ending, a renewal coming and the last call's note, each only for those
+  who may see it. Guides are changed under Knowledge → Call guides.
+  Migration 0053.
+- The call screen (decision 0009, slice 1). "Start a call" on a client, a
+  contact, an opportunity or a booked call opens a screen with a big Dial
+  button and a timer kept by the server. A call is planned for 30 minutes,
+  or a booked call's length; one tap makes it 15, 45 or an hour, and −5 and
+  +5 fine-tune it. Five minutes
+  before the end (a third of a short call) the timer turns amber, the phone
+  buzzes once with no sound, and a wrap-up list shows; at the end it turns
+  red and counts the overtime. Notes save as they're typed, and the screen
+  stays awake. "End call" logs it in the call log with its length. The top
+  bar leads back to an open call, and a call nobody ended is closed after 3
+  hours. Migration 0052.
+- Decision 0009, call mode: start a call with a timer, a guide of questions
+  with talking points from HQ's records, a warning to wrap up before the
+  planned end, and the call logged with its length; then calls to make,
+  getting ready for booked calls, and a recap email, in six slices.
+
 ## [0.15.1] - 2026-11-24
 
 - Fixed: a form that's refused no longer loses what was typed. When the page

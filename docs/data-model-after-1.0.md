@@ -32,6 +32,121 @@ answer), a note, when, and who logged it. A conversation needs a note; a
 missed call does not. Logged with `contact.edit`; setting the next
 follow-up with it needs `opportunity.set-follow-up`. Event: `touch.logged`.
 
+## Calls
+
+Added by decision 0009, slice 1 (migration 0052). `call`: a call in
+progress, at a client and optionally with a contact, on an opportunity or
+for a booking; who's on it, the number dialed, when it started, the
+planned minutes (5 to 240, in steps of 5; 30 by default, or the booking's
+length; one tap sets 15, 30, 45 or 60), the warning minutes (5, or a third of a call under 15), notes
+kept as they're typed, and when it ended and the touch it was logged as.
+`touch` gains `minutes` and `call_id`.
+
+- One open call per person (a unique index). Starting another answers with
+  the open one.
+- Only the person on the call sees or changes it. Starting, changing and
+  ending need `contact.edit`; a follow-up set on ending needs
+  `opportunity.set-follow-up`.
+- Ending logs the touch and closes the call in one transaction. The length
+  is whole minutes, rounded up.
+- A call left open for 3 hours is ended every five minutes by the server,
+  logged as 180 minutes with a note saying so.
+- A booking from the public page counts as at its CRM client once it's
+  been added to the CRM.
+- Events: `call.started`, `call.length-changed`, `call.ended`,
+  `call.ended-automatically`; `touch.logged` carries `minutes` and `callId`.
+
+### Call guides and talking points
+
+Added by decision 0009, slice 2 (migration 0053). `call_guide`: one guide
+for each situation (first call, proposal follow-up, project check-in,
+renewal, any call), with a title; `call_guide_question`: its questions in
+order, up to 20. `call.guide` is the guide on the call. `call_answer`: for
+a call, a guide and a question's place, the question as it was asked,
+whether it was ticked, and what was said.
+
+- A call starts with the guide that fits: no proposal or project yet is a
+  first call; then a sent proposal, an active project, a renewal in 30
+  days, in that order; otherwise any call. It can be switched; answers are
+  kept per guide, so nothing is lost.
+- Answers save as they're typed. `call.answered` is written the first time
+  a question is ticked; `call.guide-changed` on a switch.
+- Ending writes the notes, then a line for each question asked or
+  answered, in every guide used, into the call log (up to 2,000 characters).
+- Talking points are read, never stored, from projects, proposals,
+  invoices, deliverables, change requests, call requests, messages, sites,
+  renewals and touches. Each needs what its record needs: money
+  `invoice.view`, a proposal `proposal.view` (its total
+  `opportunity.view-value`), projects `project.view`, the rest `client.view`.
+- Guides are read with `knowledge.view` and changed with `knowledge.edit`
+  (`call-guide.changed`). A change applies to calls after it; a question
+  already answered keeps its words.
+
+### Following through from a call
+
+Decision 0009, slice 3. No new tables.
+
+- **Book another call**: the wrap-up panel offers the next six open times
+  on Potomac's calendar, whether or not booking is open to clients or the
+  public. Booking needs `call.respond`, the open call, and an email on the
+  person's contact. It's a `booking` of kind `public` at the CRM client
+  (`crm_client_id`, and `crm_opportunity_id` when the call is on one), with
+  its own private link, so the person is emailed and can move it as usual.
+  `booking.made` carries `from: "call"` and the `callId`.
+- **Next steps**, one a line on ending (up to 10), each become a to-do for
+  the person at the client and its opportunity, through the to-do service
+  (`task.edit`).
+- **The call's time** can go to one of the client's active projects,
+  through the time service (`time.log`): billable when the project is
+  billed by the hour, which is ticked to start with.
+- These run after the call is logged, each in its own transaction; one
+  that's refused is said in the message, and the rest still happen.
+
+### Calls to make
+
+Decision 0009, slice 4 (migration 0054). `call.return_to`: a path in HQ a
+call goes back to when it ends (only `/…`, never `//` or `/\`).
+`call_script`: the voicemail script, with `{name}`, `{me}` and `{about}`.
+
+- Today's calls to make are read, never stored: calls asked for in the
+  portal, follow-ups due (overdue first), invoices 7 or more days late, and
+  opportunities going cold; one line per client with every reason, each
+  only for those who may see it (`opportunity.view`, `invoice.view`). A
+  client with a call logged today drops off, and is counted.
+- A call started from the list goes back to it when it ends.
+- Ending as voicemail or no answer, with no day chosen: on an open
+  opportunity, its follow-up is set two business days on; at a client with
+  no opportunity, a to-do "Call … again" is added for that day.
+- The script is read with `knowledge.view` and changed with
+  `knowledge.edit` (`call-script.changed`).
+
+### Getting ready for a booked call
+
+Decision 0009, slice 5. No new tables.
+
+- A call booked with the person (its host) that starts within 15 minutes,
+  or has started and not ended and hasn't been called, shows in the top
+  bar and on Today with "Get ready". Not while they're on a call.
+- `/get-ready/:booking` shows who, when, why they booked, the talking
+  points (for a client in the CRM) and the guide HQ would start with, and
+  starts the call. Needs `contact.edit`. A booking not in the CRM says to
+  add it first.
+
+### The recap email
+
+Decision 0009, slice 6 (migration 0055). `call.recap_sent_at`: when the
+call's recap went. Ending a call keeps the notes as typed on the call
+(without the guide's answers, which stay in HQ).
+
+- Ticking "Then write them a recap email" when ending a talk opens
+  `/phone/:id/recap`: a draft to the contact on the call, from the notes.
+  Only the person who made the call, after it's ended, to a contact with an
+  email.
+- Nothing is sent until "Send recap" is pressed. It goes once; a refused
+  or failed send keeps the words. It's logged as an email in the call log
+  ("Sent a recap of the call: …") with `call.recap-sent`.
+- With email off, the draft is there to copy, with no Send button.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.

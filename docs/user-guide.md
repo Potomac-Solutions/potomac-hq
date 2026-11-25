@@ -235,6 +235,43 @@ puts back what HQ had.
 - **Calls and messages.** On a client or an opportunity, log each call,
   email, text or meeting. For a call, say how it went. On an opportunity,
   set the next follow-up in the same step: "left a voicemail, try Thursday".
+- **A timed call.** "Start a call" on a client, a contact, an opportunity or
+  a booked call opens the call screen: a big Dial button, and a timer that
+  keeps running if you reload or switch apps. A call is planned for 30
+  minutes (a booked call for its own length). Picked up with only 15
+  minutes to give? Tap "15 min"; 45 and an hour are there too, and −5 and
+  +5 fine-tune it. Five
+  minutes before the end the timer turns amber and the phone buzzes once,
+  with no sound, and the screen shows what to cover before hanging up. At
+  the end it turns red and counts the overtime. Notes save as you type.
+  "End call" logs it with how it went and how long it lasted. While you're
+  on a call, the top bar has a way back to it from any page.
+- **The guide.** Each call starts with questions that fit the client: a
+  first call for a new prospect, a follow-up for a proposal waiting, a
+  check-in for an active project, or a renewal. Tick each as you ask it and
+  jot what they said; it saves as you go and goes in the call log. Above it,
+  "Worth raising" lists what HQ knows: what they're waiting on from us, what
+  we're waiting on from them, a late invoice, a site that's down, a renewal
+  coming up, and what was said last time. Change the questions under
+  Knowledge → Call guides.
+- **Getting ready.** Fifteen minutes before a booked call, the top bar
+  says "Call in 12 minutes with …: get ready". Its page has why they
+  booked, what's worth raising and the guide, and "Start the call".
+- **Calls to make.** Today lists who to call, one line each with every
+  reason: they asked for a call, a follow-up is due, an invoice is a week
+  late, a deal is going cold. Tap "Call" and the call screen opens; end it
+  and you're back at the list, with that client gone from it. Got their
+  voicemail? The script is on the call screen; end it as "Left a voicemail"
+  and HQ sets the follow-up two business days on, or a to-do to call again.
+- **A recap email.** When you end a call where you talked, tick "Then
+  write them a recap email". HQ drafts it from your notes (not the guide's
+  answers); change anything, then "Send recap", or "Skip". It's in the call
+  log once it's gone.
+- **Before you hang up.** The wrap-up panel offers the next open times:
+  pick one and "Book it" while they're still on the line, and they're
+  emailed it. When you end the call, type next steps, one a line, and each
+  becomes a to-do for you; and log the call's time to their project (a
+  project billed by the hour is ticked already).
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.
