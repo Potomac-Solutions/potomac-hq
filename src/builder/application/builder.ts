@@ -42,8 +42,8 @@ export type BuilderDeps = ActivityDeps & {
   readonly setUpEditing?: (actorId: Id, organizationId: Id, input: { readonly name: string; readonly repo: string; readonly branch: string; readonly contentPath: string; readonly photoDir: string }) => Promise<boolean>;
   /** Every client, to start a build for. */
   readonly clients: () => readonly { readonly id: Id; readonly name: string }[];
-  /** The email of the one person who may change the model and the cap. */
-  readonly ownerEmail: string | null;
+  /** The emails of who may change the model and the cap (HQ_SITE_BUILDER_OWNER). Empty: nobody. */
+  readonly ownerEmails: readonly string[];
   readonly timeZone: string;
   readonly formatWhen: (instant: string) => string;
   /** Runs a job after the answer is sent. Its errors are logged by whoever runs it. */
@@ -61,8 +61,9 @@ const may = (deps: BuilderDeps, actorId: Id | null): actorId is Id => actorId !=
 
 /** Whether this person may change the model and the cap. */
 function isOwner(deps: BuilderDeps, actorId: Id | null): boolean {
-  if (!may(deps, actorId) || !deps.ownerEmail) return false;
-  return deps.users.get(actorId)?.email.toLowerCase() === deps.ownerEmail.toLowerCase();
+  if (!may(deps, actorId)) return false;
+  const email = deps.users.get(actorId)?.email.toLowerCase();
+  return email !== undefined && deps.ownerEmails.includes(email);
 }
 
 /** The chosen model, or the default when the stored one is no longer priced. */
@@ -187,6 +188,14 @@ export type BuildView = {
   readonly adminSetUp: boolean;
 };
 
+/** A failed request's words. Its error is a code, or "code: Anthropic's reason". */
+function failedWords(error: string | null): string {
+  const [code = "", ...rest] = (error ?? "").split(": ");
+  const words = ERROR_WORDS[code] ?? "That didn’t work. Ask again.";
+  const reason = rest.join(": ");
+  return reason ? `${words} Anthropic said: “${reason}”` : words;
+}
+
 const ERROR_WORDS: Readonly<Record<string, string>> = {
   refused: "The Claude API refused the request. Check HQ_ANTHROPIC_API_KEY and the account's credit.",
   busy: "Claude was busy or rate-limited. Ask again in a minute.",
@@ -233,7 +242,7 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
       by: nameOf(one.askedBy),
       when: deps.formatWhen(one.createdAt),
       state: one.state,
-      answer: one.state === "working" ? "Claude is working on it…" : one.state === "failed" ? (ERROR_WORDS[one.error ?? ""] ?? "That didn’t work. Ask again.") : (versions.find((v) => v.requestId === one.id)?.summary ?? ""),
+      answer: one.state === "working" ? "Claude is working on it…" : one.state === "failed" ? failedWords(one.error) : (versions.find((v) => v.requestId === one.id)?.summary ?? ""),
       cost: one.state === "working" ? `up to ${dollars(one.reservedMicros)}` : dollars(one.costMicros),
       version: versionOf.get(one.id) ?? null,
     })),
@@ -386,7 +395,8 @@ export function finishRequest(deps: BuilderDeps, requestId: Id, before: SiteFile
   const at = deps.clock();
   deps.transact(() => {
     if (next === null) {
-      deps.builds.finishRequest(request.id, { state: "failed", costMicros: cost, ...tokens, error, finishedAt: at });
+      const reason = !answer.ok && answer.reason ? `: ${answer.reason}` : "";
+      deps.builds.finishRequest(request.id, { state: "failed", costMicros: cost, ...tokens, error: error === null ? null : `${error}${reason}`, finishedAt: at });
       recordActivity(deps, { actorId: null, action: "build.request-failed", recordType: "build", recordId: request.buildId, context: { reason: error ?? "failed", costMicros: cost } });
       return;
     }
@@ -505,7 +515,7 @@ export function builderSettingsView(deps: BuilderDeps, actorId: Id | null): Resu
     model: model.label,
     cap: (settings.capCents / 100).toFixed(2),
     canChange: isOwner(deps, actorId),
-    ownerSet: deps.ownerEmail !== null,
+    ownerSet: deps.ownerEmails.length > 0,
     claudeSetUp: deps.claude !== null,
     budget: budgetLine(deps),
     byPerson: [...totals(month, (one) => one.askedBy)].map(([id, micros]) => ({ name: deps.users.get(id)?.name ?? "Someone", spent: dollars(micros) })),

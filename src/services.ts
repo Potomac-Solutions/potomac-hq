@@ -175,7 +175,8 @@ export type ServiceOptions = {
   /** The site builder's link to Claude. Without it, Claude can't be asked. */
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
-  readonly builderOwner?: string | null;
+  /** HQ_SITE_BUILDER_OWNER: one email or several. */
+  readonly builderOwner?: string | readonly string[] | null;
   /** Signs the site builder's preview addresses. Without it, a key made for this process. */
   readonly previewSecret?: string;
   /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
@@ -187,6 +188,8 @@ export type ServiceOptions = {
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
   readonly aiModel?: AiModel | null;
 };
+
+const ownersOf = (owner: string | readonly string[] | null | undefined): readonly string[] => (owner == null ? [] : typeof owner === "string" ? [owner.toLowerCase()] : owner.map((one) => one.toLowerCase()));
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
   const clock = options.clock ?? systemClock;
@@ -454,7 +457,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       return { name: client.name, phone: client.phone, address: client.address, website: client.website, contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone, title: contact.title } : null };
     },
     clients: () => crm.clients.list().map((one) => ({ id: one.id, name: one.name })).sort((a, b) => a.name.localeCompare(b.name)),
-    ownerEmail: options.builderOwner ?? null,
+    ownerEmails: ownersOf(options.builderOwner),
     timeZone: BUSINESS_TIME_ZONE,
     runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
     // The cap is shared with the AI drafts (Mikey, 2026-11-25): what they spent this month counts too.
@@ -561,7 +564,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     monthStart: () => startOfDay(`${today().slice(0, 7)}-01`),
     ai: aiStore,
     model: options.aiModel ?? null,
-    ownerEmail: options.builderOwner ?? null,
+    ownerEmails: ownersOf(options.builderOwner),
     // One budget, shared with the site builder (Mikey, 2026-11-25): its cap, and what it has spent.
     sharedBudget: () => ({ capCents: builder.settings.get().capCents, builderSpent: builderSpentThisMonth(builder) }),
     records: sqliteAiRecords(db),

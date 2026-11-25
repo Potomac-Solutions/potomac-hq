@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- `HQ_SITE_BUILDER_OWNER` takes several emails separated by commas, so both
+  founders can change Settings → AI and the site builder's model and cap.
+  Each must still be an admin. One email works as before.
+- When the Claude API refuses a request, the site builder and the AI drafts
+  now show Anthropic's own reason (such as a model the key can't use or a
+  limit passed), not just "refused". Only the error message is kept, never
+  the rest of the response.
+
 ## [0.17.0] - 2026-11-25
 
 - Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep

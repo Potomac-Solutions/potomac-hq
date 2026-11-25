@@ -3,6 +3,17 @@
 // answer saying what went wrong, so a page or a job carries on without AI.
 import type { AiModel, ModelAnswer, ModelRequest } from "../application/ports.ts";
 
+/** Anthropic's error message from a refused request's body, on one line. "" when absent. */
+export function anthropicReason(raw: string): string {
+  try {
+    const body = JSON.parse(raw) as { error?: { message?: unknown } };
+    const message = typeof body.error?.message === "string" ? body.error.message : "";
+    return message.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+  } catch {
+    return "";
+  }
+}
+
 const API = "https://api.anthropic.com/v1/messages";
 const TIMEOUT_MS = 60_000;
 
@@ -57,7 +68,11 @@ export function claudeModel(apiKey: string, fetchFn: Fetch = fetch as unknown as
       }
       const inputCount = Number(body.usage?.input_tokens ?? 0) || 0;
       const outputCount = Number(body.usage?.output_tokens ?? 0) || 0;
-      if (status !== 200) return { ok: false, problem: PROBLEMS[status] ?? `Claude answered ${status}.`, inputCount, outputCount };
+      if (status !== 200) {
+        const reason = anthropicReason(raw);
+        const problem = PROBLEMS[status] ?? `Claude answered ${status}.`;
+        return { ok: false, problem: reason ? `${problem} Anthropic said: “${reason}”` : problem, inputCount, outputCount };
+      }
       const text = (body.content ?? []).filter((one) => one.type === "text").map((one) => one.text ?? "").join("");
       if (!text) return { ok: false, problem: "Claude's answer was empty.", inputCount, outputCount };
       if (body.stop_reason === "max_tokens") return { ok: false, problem: "Claude's answer was cut off.", inputCount, outputCount };

@@ -24,8 +24,8 @@ export type AiDeps = ActivityDeps & {
   /** The first instant of this month in the business time zone. */
   readonly monthStart: () => string;
   readonly formatWhen: (instant: string) => string;
-  /** The one person who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Null: nobody. */
-  readonly ownerEmail: string | null;
+  /** Who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Empty: nobody. */
+  readonly ownerEmails: readonly string[];
   /**
    * The monthly budget, one cap shared with the site builder (Mikey,
    * 2026-11-25): the cap in cents, and what the site builder has spent of it
@@ -199,7 +199,7 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   return ok({
     keySet: deps.model !== null,
     canChange: isOwner(deps, actorId),
-    ownerSet: deps.ownerEmail !== null,
+    ownerSet: deps.ownerEmails.length > 0,
     model: listed ? settings.model : "other",
     models: [...KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })), { value: "other", label: "Another model" }],
     other: listed ? { id: "", input: "", output: "" } : { id: settings.model, input: perMillion(settings.price.input), output: perMillion(settings.price.output) },
@@ -214,8 +214,12 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   });
 }
 
-/** The owner: an admin whose email is HQ_SITE_BUILDER_OWNER. */
-const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmail">, actorId: Id | null): boolean => may(deps, actorId, "ai.manage") && deps.ownerEmail !== null && deps.users.get(actorId as Id)?.email.toLowerCase() === deps.ownerEmail.toLowerCase();
+/** An owner: an admin whose email is in HQ_SITE_BUILDER_OWNER. */
+const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmails">, actorId: Id | null): boolean => {
+  if (!may(deps, actorId, "ai.manage")) return false;
+  const email = deps.users.get(actorId as Id)?.email.toLowerCase();
+  return email !== undefined && deps.ownerEmails.includes(email);
+};
 
 /** Saves Settings → AI: the owner alone. A change applies from the next call. */
 export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: SettingsInput): Result<AiSettings, "forbidden" | SettingsError> {

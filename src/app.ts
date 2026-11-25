@@ -140,7 +140,7 @@ export type AppConfig = {
   /** The site builder's link to Claude (decision 0010). Without it, Claude can't be asked. */
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
-  readonly builderOwner?: string | null;
+  readonly builderOwner?: string | readonly string[] | null;
   /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
   readonly builderRepos?: RepoReader | null;
   /** Puts site builder versions on GitHub. Without it, versions can only be downloaded. */

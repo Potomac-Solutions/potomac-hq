@@ -24,14 +24,31 @@ export function claudeConfigFrom(env: NodeJS.ProcessEnv): ClaudeConfig | null {
 }
 
 /**
- * The one person who may change the model and the cap: an email.
+ * Who may change the model, the cap and Settings → AI: one email, or several
+ * separated by commas (both founders). Empty: nobody.
  *   HQ_SITE_BUILDER_OWNER
  */
-export function builderOwnerFrom(env: NodeJS.ProcessEnv): string | null {
-  const email = (env["HQ_SITE_BUILDER_OWNER"] ?? "").trim().toLowerCase();
-  if (!email) return null;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("HQ_SITE_BUILDER_OWNER must be an email address.");
-  return email;
+export function builderOwnersFrom(env: NodeJS.ProcessEnv): readonly string[] {
+  const emails = (env["HQ_SITE_BUILDER_OWNER"] ?? "").split(",").map((one) => one.trim().toLowerCase()).filter(Boolean);
+  for (const email of emails) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("HQ_SITE_BUILDER_OWNER must be an email address, or several separated by commas.");
+  }
+  return [...new Set(emails)];
+}
+
+/**
+ * Anthropic's own words for a refused request: the error message from its
+ * JSON body, on one line and at most 300 characters. It names the problem
+ * (a model, a limit, the credit) and doesn't quote the request. "" when absent.
+ */
+export function anthropicReason(raw: string): string {
+  try {
+    const body = JSON.parse(raw) as { error?: { message?: unknown } };
+    const message = typeof body.error?.message === "string" ? body.error.message : "";
+    return message.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+  } catch {
+    return "";
+  }
 }
 
 const failure = (status: number): ClaudeError => (status === 429 || status === 529 || status === 503 ? "busy" : status === 400 || status === 401 || status === 403 || status === 404 || status === 413 ? "refused" : "failed");
@@ -61,10 +78,10 @@ export function claudeApi(config: ClaudeConfig, deps: { readonly fetch?: typeof 
       } catch {
         return { ok: false, error: "failed", ...counts() };
       }
-      // A refused request is not billed. Its body is never kept: it may quote the request.
+      // A refused request is not billed. Only Anthropic's error message is kept, which says why.
       if (!response.ok || !response.body) {
-        await response.body?.cancel().catch(() => undefined);
-        return { ok: false, error: failure(response.status), ...counts() };
+        const reason = anthropicReason(await response.text().catch(() => ""));
+        return { ok: false, error: failure(response.status), ...(reason ? { reason } : {}), ...counts() };
       }
       const decoder = new TextDecoder();
       let buffer = "";
