@@ -356,7 +356,8 @@
           <text-field label="Description" name="description" required={true} maxlength={300} placeholder="Domain name betterdaystowing.com, one year"></text-field>
           <text-field label="Amount, in dollars" name="amount" required={true} inputmode="decimal" placeholder="25.00"></text-field>
           <text-field label="Due on (optional)" name="dueOn" type="date"></text-field>
-          <div><button class="hq-button" type="submit">Draft the invoice</button></div>
+          <label class="hq-check"><input type="checkbox" name="send"> Send it now: it goes straight to the client’s portal</label>
+          <div><button class="hq-button" type="submit">Save the invoice</button></div>
         </form>
       </details>
     </section>

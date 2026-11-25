@@ -71,8 +71,8 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
   );
   post(
     "/clients/:id/invoices",
-    (actor, f, id) => finance.createClientInvoice(deps.finance, actor, id as Id, { kind: f["kind"] ?? "other", description: f["description"] ?? "", amount: f["amount"] ?? "", dueOn: f["dueOn"] ?? null, note: f["note"] ?? null }),
-    { done: (made) => invoice(made.id), back: (id) => `/clients/${id ?? ""}#invoices`, message: "Invoice drafted. Check it, then send it." },
+    (actor, f, id) => finance.createClientInvoice(deps.finance, actor, id as Id, { kind: f["kind"] ?? "other", description: f["description"] ?? "", amount: f["amount"] ?? "", dueOn: f["dueOn"] ?? null, note: f["note"] ?? null }, { send: f["send"] === "on" }),
+    { done: (made) => invoice(made.id), back: (id) => `/clients/${id ?? ""}#invoices`, message: (made) => (made.status === "sent" ? "Invoice sent. It’s in the client’s portal." : "Invoice drafted. Check it, then send it.") },
   );
   post("/invoices/:id/lines", (actor, f, id) => finance.addLineToInvoice(deps.finance, actor, id as Id, { description: f["description"] ?? "", amount: f["amount"] ?? "" }), {
     done: (_, id) => invoice(id),
@@ -108,6 +108,9 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
   post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
   post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => `${money(made.projectId)}#recurring`, back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
   post("/invoices/:id/send", (actor, _f, id) => finance.sendInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice sent. Download the PDF to give it to the client." });
+  post("/invoices/:id/promise", (actor, f, id) => finance.promiseInvoicePayment(deps.finance, actor, id as Id, { on: f["on"] ?? "", note: f["note"] ?? null }), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.promisedOn ? "Saved. Today will remind you that day." : "The promise is cleared.") });
+  post("/invoices/:id/pay-link", (actor, f, id) => finance.setInvoicePayLink(deps.finance, actor, id as Id, f["link"] ?? ""), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.payLink ? "Saved. The client sees “Pay by card” in their portal." : "The link is removed.") });
+  post("/invoices/:id/write-off", (actor, f, id) => finance.writeOffInvoice(deps.finance, actor, id as Id, { note: f["note"] ?? "" }), { done: (_, id) => invoice(id), back: (id) => `${invoice(id)}#follow-up`, message: "Written off. It’s no longer owed." });
   post("/invoices/:id/void", (actor, _f, id) => finance.voidInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice voided." });
   post(
     "/invoices/:id/payments",

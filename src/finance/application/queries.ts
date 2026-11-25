@@ -267,7 +267,7 @@ function invoiceRowView(invoice: InvoiceRow, today = "9999-12-31"): InvoiceRowVi
     label: invoiceLabel(invoice.number),
     kindLabel: INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind,
     status: invoice.status,
-    statusLabel: INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status,
+    statusLabel: invoice.writtenOffOn ? "Written off" : (INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status),
     total: formatMoney(invoice.total),
     paid: formatMoney(usd(invoice.paidMinor)),
     owed: formatMoney(usd(invoice.total.minor - invoice.paidMinor)),
@@ -361,7 +361,11 @@ export type InvoiceView = {
   readonly lines: readonly { readonly key: string; readonly description: string; readonly amount: string }[];
   readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly methodLabel: string; readonly reference: string }[];
   readonly owedPlain: string;
-  readonly can: { readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean };
+  readonly can: { readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean; readonly promise: boolean; readonly payLink: boolean; readonly writeOff: boolean };
+  /** When the client promised to pay, and what they said. */
+  readonly promise: { readonly on: string; readonly when: string; readonly note: string; readonly due: boolean } | null;
+  readonly payLink: string;
+  readonly writtenOff: { readonly on: string; readonly note: string } | null;
   readonly methods: readonly Option[];
   readonly today: string;
 };
@@ -385,7 +389,13 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
       send: edit && invoice.status === "draft",
       void: edit && (invoice.status === "draft" || invoice.status === "sent") && invoice.paidMinor === 0,
       pay: invoice.status === "sent" && may(deps, actorId, "payment.record"),
+      promise: edit && invoice.status === "sent",
+      payLink: edit && (invoice.status === "draft" || invoice.status === "sent"),
+      writeOff: edit && invoice.status === "sent",
     },
+    promise: invoice.promisedOn ? { on: invoice.promisedOn, when: friendlyDay(invoice.promisedOn, today), note: invoice.promiseNote, due: invoice.status === "sent" && invoice.promisedOn <= today } : null,
+    payLink: invoice.payLink ?? "",
+    writtenOff: invoice.writtenOffOn ? { on: invoice.writtenOffOn, note: invoice.writtenOffNote } : null,
     methods: options(METHOD_LABELS),
     today,
   });
@@ -730,4 +740,24 @@ export async function syncFinanceSheet(deps: FinanceDeps, target: SheetTarget): 
     recordActivity(deps, { actorId: null, action: "finance.sheet-synced", recordType: "export", recordId: deps.newId(), context: { rows } });
   });
   return { rows };
+}
+
+/** What money asks of Potomac's people on Today: payments promised for today or before, still owed. `invoice.view`. */
+export type MoneyFollowUp = { readonly key: string; readonly text: string; readonly detail: string; readonly href: string; readonly action: string; readonly overdue: boolean; readonly at: string };
+
+export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly MoneyFollowUp[] {
+  if (!may(deps, actorId, "invoice.view")) return [];
+  const today = deps.today();
+  return deps.invoices
+    .list()
+    .filter((one) => one.status === "sent" && one.promisedOn !== null && one.promisedOn <= today)
+    .map((one) => ({
+      key: `promise-${one.id}`,
+      text: `${one.clientName} promised to pay ${invoiceLabel(one.number)}`,
+      detail: `${formatMoney(usd(one.total.minor - one.paidMinor))} owed · promised for ${friendlyDay(one.promisedOn as string, today)}${one.promiseNote ? ` · “${one.promiseNote}”` : ""}`,
+      href: `/invoices/${one.id}#follow-up`,
+      action: "Follow up",
+      overdue: (one.promisedOn as string) < today,
+      at: one.promisedOn as string,
+    }));
 }

@@ -20,7 +20,7 @@
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: null, client: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: null, client: {}, promise: null, payLink: '', writtenOff: null, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={view.project ? [{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }] : [{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}#invoices` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
@@ -39,7 +39,10 @@
         <dt>Due</dt><dd>{i.dueOn || "Not set"}</dd>
         <dt>Total</dt><dd>{i.total}</dd>
         <dt>Received</dt><dd>{i.paid}</dd>
-        <dt>Owed</dt><dd><strong>{i.status === "void" ? "Nothing: void" : i.owed}</strong></dd>
+        <dt>Owed</dt><dd><strong>{view.writtenOff ? "Nothing: written off" : i.status === "void" ? "Nothing: void" : i.owed}</strong></dd>
+        <dt zb-if={view.writtenOff}>Written off</dt><dd zb-if={view.writtenOff}>{view.writtenOff.on}: {view.writtenOff.note}</dd>
+        <dt zb-if={view.promise}>Promised</dt><dd zb-if={view.promise}>{view.promise.when}<span zb-if={view.promise.note}>: {view.promise.note}</span> <status-badge zb-if={view.promise.due} variant="warning">Due today or past</status-badge></dd>
+        <dt zb-if={view.payLink}>Card payment link</dt><dd zb-if={view.payLink}><a href={view.payLink} rel="noopener noreferrer" target="_blank">{view.payLink}</a></dd>
         <dt zb-if={i.note}>Note</dt><dd zb-if={i.note} class="hq-prose">{i.note}</dd>
       </dl>
       <div class="hq-actions" data-spaced>
@@ -52,6 +55,31 @@
         </form>
       </div>
       <p zb-if={i.draft} class="hq-muted hq-small" data-spaced>A draft can still change. Sending gives it today’s date and locks it.</p>
+    </section>
+
+    <section zb-if={view.can.promise || view.can.payLink || view.can.writeOff} class="hq-panel" id="follow-up" aria-labelledby="invoice-follow-up">
+      <h2 id="invoice-follow-up">Following it up</h2>
+      <form zb-if={view.can.promise} method="post" action="/invoices/{i.id}/promise" class="hq-form">
+        <h3>When they said they’d pay</h3>
+        <p class="hq-small hq-muted">From a call or a message. Today reminds you that day if it’s still owed. Leave the day empty to clear it.</p>
+        <text-field label="Promised for" name="on" type="date" value={view.promise ? view.promise.on : ''}></text-field>
+        <text-field label="What they said (optional)" name="note" maxlength={300} value={view.promise ? view.promise.note : ''}></text-field>
+        <div><button class="hq-button secondary" type="submit">Save the promise</button></div>
+      </form>
+      <form zb-if={view.can.payLink} method="post" action="/invoices/{i.id}/pay-link" class="hq-form" data-spaced>
+        <h3>Card payment link</h3>
+        <p class="hq-small hq-muted">Make a payment link for this amount in your payment service, then paste it here. The client sees “Pay by card” in their portal. Leave it empty to remove it.</p>
+        <text-field label="Link" name="link" type="url" maxlength={500} value={view.payLink} placeholder="https://"></text-field>
+        <div><button class="hq-button secondary" type="submit">Save the link</button></div>
+      </form>
+      <details zb-if={view.can.writeOff} data-spaced>
+        <summary>Write it off</summary>
+        <p class="hq-small hq-muted">For money that won’t come. It stops being owed and reads “Written off”, kept apart from a voided mistake. Payments already received stay.</p>
+        <form method="post" action="/invoices/{i.id}/write-off" class="hq-form">
+          <text-field label="Why" name="note" required={true} maxlength={300} placeholder="Business closed; no reply since September."></text-field>
+          <div><button class="hq-button secondary" type="submit">Write it off</button></div>
+        </form>
+      </details>
     </section>
 
     <section class="hq-panel" aria-labelledby="invoice-lines">

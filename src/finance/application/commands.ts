@@ -3,7 +3,7 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
-import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
@@ -11,7 +11,7 @@ import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
-import type { ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { BillingStore, ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
   Pick<CrmDeps, "opportunities" | "clients"> & {
@@ -20,6 +20,7 @@ export type FinanceDeps = ProjectsDeps &
     readonly finance: FinanceStore;
     readonly invoices: InvoiceStore;
     readonly recurring: RecurringStore;
+    readonly billing: BillingStore;
     readonly phaseEstimates: PhaseEstimates;
     readonly changes: ChangeRequestStore;
   };
@@ -199,7 +200,7 @@ export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: 
  * An invoice on a client with no project: a domain, a one-off charge. Its kind
  * is "full" or "other"; a deposit or a balance needs a project. `invoice.edit`.
  */
-export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
+export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput, options: { readonly send?: boolean } = {}): Result<Invoice, Refused | InvoiceError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
     if (!deps.clients.get(organizationId)) return err("not-found");
@@ -207,7 +208,13 @@ export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organ
     if (!invoice.ok) return invoice;
     deps.invoices.insert(invoice.value, deps.clock());
     recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
-    return ok(invoice.value);
+    if (!options.send) return ok(invoice.value);
+    // Drafted and sent in one step, for a small charge like a domain.
+    const sent = sendInvoice(invoice.value, deps.today());
+    if (!sent.ok) return ok(invoice.value);
+    deps.invoices.update(sent.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: sent.value.id, context: { organizationId, number: sent.value.number, minor: sent.value.total.minor } });
+    return ok(sent.value);
   });
 }
 
@@ -305,6 +312,32 @@ export function voidInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId:
     return ok(voided.value);
   });
 }
+
+/** One change to a sent invoice by Potomac, checked and logged. */
+function changeInvoice<E extends string>(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, action: string, change: (invoice: Invoice) => Result<Invoice, E>, context: (changed: Invoice) => Record<string, unknown>): Result<Invoice, Refused | E> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const changed = change(invoice);
+    if (!changed.ok) return changed;
+    deps.invoices.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action, recordType: "invoice", recordId: invoiceId, context: { organizationId: invoice.organizationId, projectId: invoice.projectId, number: invoice.number, ...context(changed.value) } });
+    return ok(changed.value);
+  });
+}
+
+/** The client said when they'll pay: Today asks on that day if it's still owed. An empty day clears it. */
+export const promiseInvoicePayment = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly on: string; readonly note?: string | null }): Result<Invoice, Refused | PromiseError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.promised", (invoice) => promisePayment(invoice, input), (changed) => ({ promisedOn: changed.promisedOn }));
+
+/** A card payment link Potomac made itself; the portal shows "Pay by card". Empty clears it. */
+export const setInvoicePayLink = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, link: string): Result<Invoice, Refused | PayLinkError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.pay-link-set", (invoice) => setPayLink(invoice, link), (changed) => ({ hasLink: changed.payLink !== null }));
+
+/** Money that won't come: voided and marked written off, with why. */
+export const writeOffInvoice = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly note: string }): Result<Invoice, Refused | WriteOffError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.written-off", (invoice) => writeOff(invoice, input, deps.today()), (changed) => ({ owedMinor: Math.max(0, changed.total.minor - (deps.invoices.get(changed.id)?.paidMinor ?? 0)) }));
 
 /** Records money received against a sent invoice. When it is paid in full, the project's payment status follows. */
 export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: PaymentInput): Result<{ invoice: Invoice; payment: Payment }, Refused | PaymentError> {

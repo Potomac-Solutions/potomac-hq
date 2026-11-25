@@ -1,3 +1,4 @@
+import type { PrepaidBlock } from "../domain/prepaid.ts";
 import type { ChangeRequest } from "../domain/change-request.ts";
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
@@ -110,4 +111,24 @@ export type ChangeRequestStore = {
   get(id: Id): ChangeRequest | null;
   /** A project's changes, newest first. */
   listFor(projectId: Id): ChangeRequest[];
+};
+
+/** Billing extras (decision 0017, third part): how clients pay, prepaid hours, receipts and statements sent. */
+export type BillingStore = {
+  /** How clients pay, in Potomac's words, for the portal. "" until set. */
+  payInstructions(): string;
+  setPayInstructions(text: string, by: Id, at: string): void;
+  insertBlock(block: PrepaidBlock, at: string): void;
+  blocksFor(organizationId: Id): PrepaidBlock[];
+  /** Clients with any prepaid block. */
+  clientsWithBlocks(): Id[];
+  /** Minutes logged on a client's projects on or after a day, removed entries left out. */
+  minutesSince(organizationId: Id, since: string): number;
+  /** Payments recorded at or after a moment with no receipt sent yet, oldest first. */
+  paymentsWithoutReceipt(since: string): { readonly payment: Payment; readonly invoiceId: Id }[];
+  markReceipt(paymentId: Id, at: string, sentTo: string): void;
+  statementSent(organizationId: Id, month: string): boolean;
+  markStatement(organizationId: Id, month: string, at: string, sentTo: string): void;
+  /** A client's payments received in a year, by day. */
+  paymentsForClient(organizationId: Id, year: number): { readonly payment: Payment; readonly invoiceNumber: number; readonly projectName: string; readonly forWhat: string }[];
 };
