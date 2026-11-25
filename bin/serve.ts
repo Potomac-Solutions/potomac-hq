@@ -278,7 +278,7 @@ const webhookTimer = setInterval(() => {
 }, 60_000);
 webhookTimer.unref();
 
-// The newsletter (decision 0010, section 1): every minute, the next batch of
+// The newsletter (decision 0013, section 1): every minute, the next batch of
 // any issue going out. Each reader is marked as the email goes, so a restart
 // never sends twice.
 let busyNewsletter = false;

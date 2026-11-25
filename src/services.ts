@@ -75,9 +75,9 @@ export type Services = {
   readonly monitor: MonitorDeps;
   /** Referral links: short addresses printed as QR codes, and what came of them. */
   readonly referrals: ReferralsDeps;
-  /** "Notes from the river", the newsletter (decision 0010, section 1). */
+  /** "Notes from the river", the newsletter (decision 0013, section 1). */
   readonly newsletter: NewsletterDeps;
-  /** Where leads come from on the website (decision 0010, section 2). */
+  /** Where leads come from on the website (decision 0013, section 2). */
   readonly leads: LeadsDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;

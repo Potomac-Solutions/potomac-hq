@@ -191,9 +191,9 @@ for their own site and it takes effect at once
 `client.view`.
 
 
-### Growth tools (decision 0010)
+### Growth tools (decision 0013)
 
-Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approval.
+Decided 2026-11-25 (`docs/decisions/0013-growth-tools.md`). Needs Mikey's approval.
 
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |

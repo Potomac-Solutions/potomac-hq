@@ -74,7 +74,7 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
-  // Growth tools (decision 0010)
+  // Growth tools (decision 0013)
   "newsletter.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

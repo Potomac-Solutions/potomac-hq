@@ -413,7 +413,7 @@ times an hour and each email 3 times a day.
 ## The newsletter
 
 Sales → Newsletter (`newsletter.manage`) is "Notes from the river"
-(`docs/decisions/0010-growth-tools.md`, section 1). It needs email (the
+(`docs/decisions/0013-growth-tools.md`, section 1). It needs email (the
 Brevo key) and `HQ_CONTACT_ADDRESS`: every issue ends with Potomac's mailing
 address, which US anti-spam law asks for, and sending refuses to start
 without it. Issues go out a batch of 50 a minute.

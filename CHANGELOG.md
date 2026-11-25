@@ -9,7 +9,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
-- Where leads come from (decision 0010, slice 3). The inquiry form and the
+- Where leads come from (decision 0013, slice 3). The inquiry form and the
   website's booking keep where on potomac.solutions the person was: `src`
   (a river stop, a Lab demo, a Work page, the planner, the blog or the
   newsletter), `page`, and `utm_source`, `utm_medium` and `utm_campaign`.
@@ -18,8 +18,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   365 days, and how many had a call, got a proposal and were won, with the
   value won for those who may see values. HQ's own `/contact?src=...` passes
   `src` on, and the website's booking now credits a referral link's `ref`.
-  Migration 0057.
-- The newsletter, "Notes from the river" (decision 0010, slice 2). People
+  Migration 0063.
+- The newsletter, "Notes from the river" (decision 0013, slice 2). People
   sign up at `/river`, from a form on potomac.solutions, or through the
   website's server (`POST /api/site/newsletter` with its token), and are on
   the list once they press Confirm in the email they get. Each reader
@@ -28,8 +28,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   everyone or some stops; it goes out 50 a minute, each reader once. Every
   issue carries Potomac's mailing address (needs `HQ_CONTACT_ADDRESS`), a
   one-click unsubscribe link and a `List-Unsubscribe` header. Leaving forgets
-  the address. For managers and admins (`newsletter.manage`). Migration 0056.
-- Decision 0010, growth tools: the newsletter, where leads come from, free
+  the address. For managers and admins (`newsletter.manage`). Migration 0062.
+- Decision 0013, growth tools: the newsletter, where leads come from, free
   landing pages, monthly reports to plan clients, n8n automations, reviews
   and case studies, referral credit, and who looked at a demo, in eight
   slices.

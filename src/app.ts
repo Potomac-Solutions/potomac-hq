@@ -294,13 +294,13 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
-  /** Where leads came from on the website (decision 0010, section 2). */
+  /** Where leads came from on the website (decision 0013, section 2). */
   readonly leads: {
     /** Where an opportunity came from, or null when the site said nothing. */
     origin(opportunityId: string): LeadOrigin | null;
     sources(days: string): ReturnType<typeof leadSources>;
   };
-  /** "Notes from the river" (decision 0010, section 1). */
+  /** "Notes from the river" (decision 0013, section 1). */
   readonly newsletter: {
     overview(): ReturnType<typeof newsletterOverview>;
     issue(id: string): ReturnType<typeof issueDetail>;
@@ -884,7 +884,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   // Other sites whose forms may post here: the inquiry form and the newsletter sign-up.
   const formOrigins = (config.formOrigins ?? []).map((one) => new URL(one).origin);
-  // The newsletter's confirm link (decision 0010, section 1), when email is set up.
+  // The newsletter's confirm link (decision 0013, section 1), when email is set up.
   const confirmNewsletter: ConfirmMail | null = email
     ? async (to, link) =>
         "ok" in
@@ -1052,7 +1052,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
       returnOrigins: formOrigins,
-      // Where on the website they were (decision 0010, section 2).
+      // Where on the website they were (decision 0013, section 2).
       attribute: (opportunityId, read) => void keepLeadTouch(services.leads, { opportunityId }, touchFields(read)),
       // An inquiry that came by a referral link is counted for that link.
       credit: (code, opportunityId) => void creditInquiry(services.referrals, code, opportunityId),
@@ -1081,7 +1081,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
-  // The newsletter (decision 0010, section 1): issues for staff, and signing up and leaving for anyone.
+  // The newsletter (decision 0013, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
   forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: (location) => notices.sign(location), footer: newsletterFooter, mail: sendOne }));
