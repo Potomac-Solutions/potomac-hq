@@ -57,6 +57,7 @@ and Variables tabs:
 | Volume | Attached to the service, mounted at `/data` |
 | `HQ_DATABASE_PATH` | `/data/hq.db`. It must start with `/data/`: a relative path is inside the read-only app folder |
 | `RAILWAY_RUN_UID` | `0` |
+| `KIT_READ_TOKEN` | A GitHub token that can read `Potomac-Solutions/potomac-kit` (fine-grained, Contents: read-only). The build installs the private kit with it; without it the build stops at `npm ci` |
 | `PORT` | `3000`, the same as the domain's target port. Without it Railway uses 8080 and the domain answers 502 |
 | Replicas | 1 |
 | Start command | Empty. The `Dockerfile` runs `bin/start.sh` |
@@ -83,7 +84,7 @@ Do it for the test environment first, then again for production.
 ### In Railway
 
 1. Make a project with two environments, `test` and `production`.
-2. Add a service from the GitHub repository `Potomac-Solutions/potomac-hq`.
+2. Add a service from HQ's GitHub repository.
    Turn **off** Railway's own deploy-on-push for it: CI deploys, so that
    nothing ships before its checks pass.
 3. Add a **volume** to the service, mounted at `/data`. The database is one
@@ -115,6 +116,7 @@ Do it for the test environment first, then again for production.
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
 | `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
+| `HQ_GITHUB_ADMIN_TOKEN` | A fine-grained GitHub token that may make repositories in the organization and write to them (see "The site builder") | For new repositories from the site builder |
 | `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
@@ -364,6 +366,25 @@ reserved, since Claude may have billed it.
 
 The preview is served by HQ at `/builder/preview/…`, sandboxed and only by
 an address the build page signs, good for an hour. It is never public.
+
+Reworking a client's existing repository reads it with `HQ_GITHUB_TOKEN`
+(see "Site content"), so that token must be allowed to read the
+repository. Reworking from an address needs nothing: HQ reads public https
+pages only, never one inside a private network.
+
+Publishing a version to GitHub needs one of two more tokens:
+
+- `HQ_GITHUB_ADMIN_TOKEN`, to make new private repositories: a
+  fine-grained token for the Potomac-Solutions organization with access to
+  **All repositories** and **Administration** and **Contents** read and
+  write. It makes the repository and commits to it. Keep it apart from the
+  everyday token, which can stay limited to the client sites it edits.
+- `HQ_GITHUB_TOKEN` (above), for pull requests to a client's own
+  repository: it also needs **Pull requests: read and write** there.
+
+`HQ_GITHUB_ORG` names the organization if it isn't Potomac-Solutions.
+Commits are made as each token's owner. A new repository isn't online
+until it's connected to Railway or Netlify as a static site, once, by hand.
 
 Without the key HQ starts and says "The site builder can't ask Claude".
 Builds can still be seen and downloaded.

@@ -1,0 +1,72 @@
+<!--
+  Adds a photo or the logo to a build (decision 0010, slice 2). Before it is
+  sent, the picture is shrunk in the browser, as a website's photos are
+  (decision 0003): a photo to 1,600 pixels on its long side as a JPEG, a
+  logo to 800 as a PNG, keeping its see-through background. Redrawing it
+  also drops where and when a photo was taken. Without scripts it is sent as
+  it is, and HQ refuses one that is too big.
+-->
+<script>
+  // action: where the form posts.
+  async function shrink(event) {
+    const form = event.currentTarget
+    const input = form.querySelector('input[type=file]')
+    const file = input && input.files && input.files[0]
+    if (!file || form.dataset.ready === 'yes' || !window.createImageBitmap || !window.DataTransfer || !form.reportValidity()) return
+    event.preventDefault()
+    const button = form.querySelector('button[type=submit]')
+    if (button) button.disabled = true
+    const logo = (form.querySelector('input[name=kind]:checked') || {}).value === 'logo'
+    try {
+      const picture = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      const scale = Math.min(1, (logo ? 800 : 1600) / Math.max(picture.width, picture.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(picture.width * scale))
+      canvas.height = Math.max(1, Math.round(picture.height * scale))
+      const pen = canvas.getContext('2d')
+      if (!logo) {
+        // White behind a see-through picture, which a JPEG would otherwise turn black.
+        pen.fillStyle = '#fff'
+        pen.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      pen.drawImage(picture, 0, 0, canvas.width, canvas.height)
+      const small = await new Promise((resolve) => canvas.toBlob(resolve, logo ? 'image/png' : 'image/jpeg', 0.85))
+      if (small) {
+        const files = new DataTransfer()
+        files.items.add(new File([small], logo ? 'logo.png' : 'photo.jpg', { type: logo ? 'image/png' : 'image/jpeg' }))
+        input.files = files.files
+      }
+    } catch {
+      // Not a picture the browser can read. HQ says so when it arrives.
+    }
+    form.dataset.ready = 'yes'
+    if (button) button.disabled = false
+    form.submit()
+  }
+</script>
+<style>
+  :host { display: block; }
+  .kinds { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; border: 0; margin: 0; padding: 0; }
+  .kinds legend { padding: 0; margin-bottom: 0.35rem; font-weight: 600; }
+  .kinds label { display: inline-flex; gap: 0.4rem; align-items: center; }
+</style>
+<image-upload action="">
+  <form method="post" action={action} enctype="multipart/form-data" class="hq-form" onsubmit={shrink}>
+    <fieldset class="kinds">
+      <legend>What is it?</legend>
+      <label><input type="radio" name="kind" value="photo" checked> A photo</label>
+      <label><input type="radio" name="kind" value="logo"> The logo</label>
+    </fieldset>
+    <div class="hq-field">
+      <label for="bi-image">Choose a picture</label>
+      <input id="bi-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="bi-image-rule">
+      <p id="bi-image-rule" class="hq-muted hq-small">A JPEG, PNG or WebP. A phone’s photo is shrunk before it’s sent.</p>
+    </div>
+    <div class="hq-field">
+      <label for="bi-alt">What it shows</label>
+      <input id="bi-alt" name="alt" maxlength="200" required aria-describedby="bi-alt-help">
+      <p id="bi-alt-help" class="hq-muted hq-small">Claude reads this to know where it fits, and the site uses it as the picture’s description. Like: A flatbed loading a pickup on Route 50 at dusk.</p>
+    </div>
+    <div><button class="hq-button" type="submit">Add picture</button></div>
+  </form>
+</image-upload>

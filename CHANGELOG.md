@@ -15,7 +15,34 @@ moves those lines under a version heading. See `docs/conventions.md`.
   other's spending before it asks, and Settings → AI shows both. Settings →
   AI no longer has a budget of its own. The nightly retention run discards
   an AI receipt draft nobody used after 30 days, with its picture. Every
-  other choice in decision 0012 is confirmed. Migration 0059.
+  other choice in decision 0012 is confirmed. Migration 0062.
+- The container builds again now that the kit is private. The build
+  installs it with `KIT_READ_TOKEN` in a throwaway stage, so the image that
+  ships carries no token. Railway needs the same variable on HQ's service
+  (docs/operations.md, "Railway settings that work"), and CI passes its
+  secret to the container build.
+- The kit now installs from its renamed private repository,
+  `Potomac-Solutions/potomac-kit`. Examples and tests use a made-up
+  `Potomac-Solutions/example-site` in place of real client repositories.
+- Going live from the site builder (decision 0010, slice 4). "Put it on
+  GitHub" sends the newest version to a new private repository under
+  Potomac-Solutions (with `HQ_GITHUB_ADMIN_TOKEN`), or as a branch and pull
+  request to a client's own repository, never onto its deploy branch.
+  Later versions go the same way. A new repository is set up for client
+  editing (decision 0003) when HQ's everyday token can see it. Migration
+  0061.
+
+- Rework a site a client already has (decision 0010, slice 3). From its
+  repository on GitHub or its address on the web: a plain HTML repository
+  becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
+  site is read as reference for Claude to rewrite as plain files, and a
+  repository's pictures come along at their old paths. Migration 0060.
+
+- Pictures in the site builder (decision 0010, slice 2). Add a build's
+  photos and its logo, each with what it shows; a photo is shrunk in the
+  browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
+  each one's path, size and what it shows, and the preview and the .zip
+  carry them. Migration 0059.
 
 - Social media (decision 0011), for clients on social media marketing. A
   plan on the client's page: Facebook, Instagram and LinkedIn with each

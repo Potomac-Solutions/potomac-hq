@@ -36,7 +36,7 @@
   "dependencies": {
     "@hono/node-server": "2.1.11",
     "@journey-to-code/symbology": "0.2.0",
-    "@potomac-solutions/kit": "github:potomac-solutions/kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
+    "@potomac-solutions/kit": "github:Potomac-Solutions/potomac-kit#41d3587e7b8c85088c834896e8983a955a8a0c64",
     "@zubra/compiler": "6.0.5",
     "@zubra/router": "6.0.5",
     "@zubra/runtime": "6.0.5",

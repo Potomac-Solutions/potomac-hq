@@ -6,16 +6,16 @@ import { cleanRepo, discarded, publishedAs, repoPathFor, sentBack, siteSetup, sr
 
 const live: SiteContent = { notice: "", gallery: [{ id: "0190a000-0000-7000-8000-000000000001" as Id, src: "/gallery/a.webp", alt: "A", title: "A", caption: "", extra: {} }], reviews: [], extra: {} };
 const changed: SiteContent = { ...live, notice: "Closed Friday." };
-const site: ContentSite = { id: "0190a000-0000-7000-8000-00000000000a" as Id, organizationId: "0190a000-0000-7000-8000-00000000000b" as Id, name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "nu-finish-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", published: live, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", siteUrl: "", launch: { mode: "live", opensAt: null, message: "" }, previewKey: null, serviceArea: null };
+const site: ContentSite = { id: "0190a000-0000-7000-8000-00000000000a" as Id, organizationId: "0190a000-0000-7000-8000-00000000000b" as Id, name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "example-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", published: live, publishedAt: null, publishedCommit: null, draft: null, draftState: "none", submittedAt: null, submittedBy: null, note: "", siteUrl: "", launch: { mode: "live", opensAt: null, message: "" }, previewKey: null, serviceArea: null };
 
 test("a repository is owner/name, or its address on GitHub", () => {
-  assert.deepEqual(cleanRepo("Potomac-Solutions/nu-finish-site"), { ok: true, value: { owner: "Potomac-Solutions", name: "nu-finish-site" } });
-  assert.deepEqual(cleanRepo(" https://github.com/Potomac-Solutions/nu-finish-site.git/ "), { ok: true, value: { owner: "Potomac-Solutions", name: "nu-finish-site" } });
-  for (const bad of ["", "nu-finish-site", "a/b/c", "-bad/repo", "owner/..", "owner/re po", "https://gitlab.com/a/b", "owner/repo?x=1"]) assert.equal(cleanRepo(bad).ok, false, bad);
+  assert.deepEqual(cleanRepo("Potomac-Solutions/example-site"), { ok: true, value: { owner: "Potomac-Solutions", name: "example-site" } });
+  assert.deepEqual(cleanRepo(" https://github.com/Potomac-Solutions/example-site.git/ "), { ok: true, value: { owner: "Potomac-Solutions", name: "example-site" } });
+  for (const bad of ["", "example-site", "a/b/c", "-bad/repo", "owner/..", "owner/re po", "https://gitlab.com/a/b", "owner/repo?x=1"]) assert.equal(cleanRepo(bad).ok, false, bad);
 });
 
 test("setting a site up fills in the usual places, and refuses a path that leaves the repository", () => {
-  assert.deepEqual(siteSetup({ name: " Nu Finish website ", repo: "Potomac-Solutions/nu-finish-site" }), { ok: true, value: { name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "nu-finish-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", siteUrl: "" } });
+  assert.deepEqual(siteSetup({ name: " Nu Finish website ", repo: "Potomac-Solutions/example-site" }), { ok: true, value: { name: "Nu Finish website", repo: { owner: "Potomac-Solutions", name: "example-site", branch: "main" }, contentPath: "src/content/site.json", photoDir: "public/gallery", siteUrl: "" } });
   const base = { name: "Site", repo: "a/b" };
   assert.deepEqual(siteSetup({ ...base, name: "" }), { ok: false, error: "name-missing" });
   assert.deepEqual(siteSetup({ ...base, repo: "nope" }), { ok: false, error: "repo-invalid" });

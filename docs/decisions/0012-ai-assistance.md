@@ -38,7 +38,7 @@ typed from receipts. HQ already holds the facts each of those needs.
   start.
 - **One budget, shared with the site builder.** **Confirmed** ("Shared
   budget"): the site builder's monthly cap is the one budget for everything
-  HQ asks Claude, set at $20 by migration 0059 and changed under Site builder
+  HQ asks Claude, set at $20 by migration 0062 and changed under Site builder
   → Model and cap. Each side counts what the other spent before it asks.
   Settings → AI shows the cap, what AI drafts spent and what the site
   builder spent. Each keeps its own model.
@@ -113,7 +113,7 @@ Migration 0058:
 - `ai_setting`: one row. The model, its prices in millionths of a dollar per
   million tokens (and Haiku 5.5's dearer rate past 100,000 input tokens), the
   features on, the price guide, and who changed it last. The budget is
-  `builder_settings.cap_cents`, set to $20 by migration 0059.
+  `builder_settings.cap_cents`, set to $20 by migration 0062.
 - `ai_usage`: every call, with its token counts and cost.
 - `ai_draft`: what AI wrote, its status (waiting, used or discarded), the
   fingerprint of the records it came from, and a receipt's picture until the

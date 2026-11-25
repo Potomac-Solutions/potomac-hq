@@ -59,7 +59,7 @@ test("a client changes their own site, and Potomac publishes it", async () => {
   await staff.goto(`${t.origin}/clients/${client.id}`);
   await staff.getByText("Set up website editing").click();
   await staff.getByLabel("What to call it").fill("Nu Finish website");
-  await staff.getByLabel("Repository").fill("Potomac-Solutions/nu-finish-site");
+  await staff.getByLabel("Repository").fill("Potomac-Solutions/example-site");
   await assertAccessible(staff, "a client's page, setting up website editing");
   await staff.getByRole("button", { name: "Set up and read the site" }).click();
   await staff.getByText("Set up. HQ read the site’s photos").waitFor();

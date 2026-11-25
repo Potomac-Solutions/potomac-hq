@@ -27,8 +27,8 @@ function dosTime(at: Date): { readonly time: number; readonly date: number } {
   };
 }
 
-/** A zip of these files, each under `folder/`. Names are UTF-8. */
-export function zipFiles(files: Readonly<Record<string, string>>, folder: string, at: Date): Uint8Array<ArrayBuffer> {
+/** A zip of these files, text or bytes, each under `folder/`. Names are UTF-8. */
+export function zipFiles(files: Readonly<Record<string, string | Uint8Array>>, folder: string, at: Date): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const { time, date } = dosTime(at);
   const locals: Uint8Array[] = [];
@@ -36,7 +36,7 @@ export function zipFiles(files: Readonly<Record<string, string>>, folder: string
   let offset = 0;
   for (const [path, text] of Object.entries(files)) {
     const name = encoder.encode(`${folder}/${path}`);
-    const body = encoder.encode(text);
+    const body = typeof text === "string" ? encoder.encode(text) : text;
     const crc = crc32(body);
     const local = new Uint8Array(30 + name.length);
     const l = new DataView(local.buffer);

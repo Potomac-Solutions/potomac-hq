@@ -1,4 +1,5 @@
 import type { Build, BuildRequest, BuildVersion, RequestState } from "../domain/build.ts";
+import type { BuildImage } from "../domain/image.ts";
 import type { Id } from "../../shared/index.ts";
 
 /** A version without its files: for lists. */
@@ -6,6 +7,9 @@ export type VersionLine = Omit<BuildVersion, "filesJson">;
 
 export type BuildStore = {
   insert(build: Build): void;
+  /** Keeps the old site's text, shown to Claude while the build has no files. */
+  setReference(id: Id, from: string, text: string): void;
+  reference(id: Id): { readonly from: string; readonly text: string } | null;
   saveBrief(id: Id, name: string, brief: string, at: string): void;
   get(id: Id): Build | null;
   /** Every build, the most recently changed first. */
@@ -61,4 +65,72 @@ export type PreviewTokens = {
   make(buildId: Id, version: number): string;
   /** What a token is for, or null when it is wrong or expired. */
   read(token: string): { readonly buildId: Id; readonly version: number } | null;
+};
+
+/** A build's photos and logo, with their bytes (decision 0010, slice 2). */
+export type ImageStore = {
+  insert(image: BuildImage, body: Uint8Array): void;
+  get(id: Id): BuildImage | null;
+  /** The image at a path in a build's site. */
+  atPath(buildId: Id, path: string): BuildImage | null;
+  body(id: Id): Uint8Array | null;
+  /** A build's images, oldest first. */
+  listFor(buildId: Id): BuildImage[];
+  remove(id: Id): void;
+};
+
+export type RepoError = "github-not-set-up" | "repo-refused" | "repo-missing" | "repo-failed";
+
+/** Reads a repository through GitHub (decision 0010, slice 3). Never throws. */
+export type RepoReader = {
+  /** The branch read (the default when none is given) and every file in it. */
+  tree(repo: { readonly owner: string; readonly name: string; readonly branch: string | null }): Promise<{ readonly ok: true; readonly value: { readonly branch: string; readonly files: readonly { readonly path: string; readonly size: number; readonly sha: string }[] } } | { readonly ok: false; readonly error: RepoError }>;
+  blob(repo: { readonly owner: string; readonly name: string }, sha: string): Promise<{ readonly ok: true; readonly value: Uint8Array } | { readonly ok: false; readonly error: RepoError }>;
+};
+
+export type PageError = "address-invalid" | "address-private" | "unreachable" | "too-large";
+
+/** Reads one public web address, refusing anything inside a private network. */
+export type PageFetch = (url: string) => Promise<{ readonly ok: true; readonly value: { readonly status: number; readonly text: string } } | { readonly ok: false; readonly error: PageError | string }>;
+
+export type PublishError = "everyday-not-set-up" | "admin-not-set-up" | "repo-refused" | "repo-missing" | "repo-changed" | "repo-failed" | "repo-exists";
+type PublishResult<T> = Promise<{ readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: PublishError }>;
+export type RepoName = { readonly owner: string; readonly name: string };
+
+/**
+ * Puts a version on GitHub (decision 0010, slice 4). `admin` calls use the
+ * token that may make repositories; the rest use HQ's everyday one. Never throws.
+ */
+export type SitePublishing = {
+  /** The organization new repositories are made under. */
+  readonly organization: string;
+  /** Whether it has the token that makes repositories. */
+  readonly canCreate: boolean;
+  /** Makes a private repository with a first commit on its main branch, and answers that branch. */
+  createRepo(name: string, description: string): PublishResult<{ readonly branch: string }>;
+  defaultBranch(repo: RepoName, admin: boolean): PublishResult<string>;
+  /** One commit on `branch`, on top of what's there; made from `from` first when it's a new branch. Never forced. */
+  commit(repo: RepoName, change: { readonly branch: string; readonly from: string | null; readonly message: string; readonly write: readonly { readonly path: string; readonly bytes: Uint8Array }[] }, admin: boolean): PublishResult<{ readonly commit: string }>;
+  pullRequest(repo: RepoName, request: { readonly head: string; readonly base: string; readonly title: string; readonly body: string }): PublishResult<{ readonly url: string; readonly number: number }>;
+};
+
+/** A publish, as recorded. */
+export type Publish = {
+  readonly id: Id;
+  readonly buildId: Id;
+  readonly version: number;
+  /** new-repo: the first publish made the repository; commit: a later one to it; pull-request: to a client's own repository. */
+  readonly kind: "new-repo" | "commit" | "pull-request";
+  readonly repo: string;
+  readonly branch: string;
+  readonly commit: string;
+  readonly url: string;
+  readonly by: Id;
+  readonly at: string;
+};
+
+export type PublishStore = {
+  insert(publish: Publish): void;
+  /** A build's publishes, newest first. */
+  listFor(buildId: Id): Publish[];
 };

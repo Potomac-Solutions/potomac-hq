@@ -664,10 +664,25 @@ Decision 0010, slice 1 (migration 0056).
   millionths of a dollar. A failed request is still counted. `error` is a
   code, never the API's words.
 - `builder_settings`: one row, the model and the monthly cap in cents.
+- `build_image` (slice 2, migration 0059): a photo or the logo uploaded to a
+  build, with its bytes, its type and size read from its own header, what
+  it shows, and its path in the site (`images/logo-<12 hex>.png`), made
+  from its id. Shared by every version of the build: the preview and the
+  zip serve it beside the version's files. Removing one deletes it. A
+  picture from a reworked repository keeps its old path instead.
+- `build.reference_from` and `build.reference` (slice 3, migration 0060):
+  where a reworked build was read from, and the old site's text, shown to
+  Claude only while the build has no files.
+- `build_publish` (slice 4, migration 0061): each version put on GitHub.
+  `kind` is `new-repo` (the publish that made the repository), `commit` (a
+  later one onto it) or `pull-request` (to a client's own repository);
+  `branch` is the branch committed onto, or for a pull request the branch
+  it goes into. The newest decides where the next goes.
 
 Events: `build.started`, `build.brief-changed`, `build.asked` (with what
 was reserved), `build.version-made` and `build.request-failed` (by HQ
-itself, with the cost), `build.restored`, `builder.settings-changed`. No
+itself, with the cost), `build.restored`, `build.image-added`, `build.image-removed`,
+`build.published`, `builder.settings-changed`. No
 event carries the brief, the request's words or any file.
 
 ## AI assistance
@@ -685,7 +700,7 @@ Added by decision 0012 (migration 0058). The API key is never stored: it is
   `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
   AI wrote, only the feature, model, counts and cost.
 - The budget is the site builder's `builder_settings.cap_cents`, one cap
-  for both (set to $20 by migration 0059). Each counts the other's spending:
+  for both (set to $20 by migration 0062). Each counts the other's spending:
   `ai_usage.cost` and `build_request` costs this month.
 - An unused receipt draft is discarded by the retention run after 30 days,
   and its `attachment` cleared.
