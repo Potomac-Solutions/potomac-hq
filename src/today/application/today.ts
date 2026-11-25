@@ -13,6 +13,7 @@ import { renewalsComingUp, type RenewalsDeps } from "../../renewals/index.ts";
 import { daysUntil } from "../../shared/index.ts";
 import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
+import { automationsNeedingAttention, type AutomationsDeps } from "../../automations/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -29,6 +30,8 @@ export type TodayDeps = {
   readonly freePages: FreePagesDeps;
   /** Monthly reports drafted and not yet sent (decision 0010, section 4). */
   readonly clientReports: ReportsDeps;
+  /** n8n automations that failed or didn't run on time (decision 0010, section 5). */
+  readonly automations: AutomationsDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -65,6 +68,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
     if (site.state !== "down") continue;
     add("site", { key: `site-${site.id}`, text: `${site.host} is down`, detail: `${site.clientName}. ${site.lastResult}`, href: "/sites", action: "Open", overdue: false, at: "" });
   }
+  for (const one of automationsNeedingAttention(deps.automations, actorId)) add("site", { key: `automation-${one.id}`, text: `${one.name}: ${one.state === "failed" ? "failed" : "didn’t run on time"}`, detail: [one.clientName, one.lastMessage].filter(Boolean).join(". "), href: `/clients/${one.organizationId}#automations`, action: "Open", overdue: false, at: "" });
   const followUps = followUpsDue(deps.crm, actorId, today);
   for (const one of followUps.ok ? followUps.value.items : []) {
     add("follow-up", { key: `follow-up-${one.id}`, text: `${one.title}`, detail: `${one.clientName} · ${one.followUpText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: one.overdue, at: one.followUpOn });

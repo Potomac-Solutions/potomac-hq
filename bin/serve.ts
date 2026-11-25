@@ -31,6 +31,7 @@ import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
 import { draftMonthlyReports } from "../src/client-reports/index.ts";
+import { checkAutomations } from "../src/automations/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
@@ -245,6 +246,18 @@ const siteTimer = setInterval(() => {
 }, 5 * 60_000);
 siteTimer.unref();
 
+// Automations (decision 0010, section 5): every five minutes, mark those
+// that didn't run on time, and email the alert address about each change.
+let checkingAutomations = false;
+const automationTimer = setInterval(() => {
+  if (checkingAutomations) return;
+  checkingAutomations = true;
+  checkAutomations(createServices(db).automations, siteAlert, publicUrl)
+    .catch((error: unknown) => log("Automations: the check failed", error))
+    .finally(() => (checkingAutomations = false));
+}, 5 * 60_000);
+automationTimer.unref();
+
 // Calls nobody ended (decision 0009, section 4): every five minutes, end any
 // call open for 3 hours and log it, so call lengths stay honest.
 const callTimer = setInterval(() => {
@@ -367,6 +380,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopMonthlyReports();
     clearInterval(siteTimer);
     clearInterval(callTimer);
+    clearInterval(automationTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();

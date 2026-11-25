@@ -1,0 +1,39 @@
+<!-- Every client automation (decision 0010, section 5), those needing attention first. -->
+<script>
+  'use route /automations'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.automations.all()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Automations', items: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-automations items={[]} done="" problem="">
+  <div class="hq-page">
+    <h1>Automations</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">The n8n workflows run for clients. Each checks in at the end of a run; one that fails, or doesn’t run on time, goes on Today and is emailed to the alert address. Add one from the client’s page.</p>
+    <empty-state zb-if={items.length === 0} heading="No automations yet">Add one on a client’s page, under Automations.</empty-state>
+    <table zb-else tabindex="0" class="hq-table">
+      <thead><tr><th scope="col">Automation</th><th scope="col">Client</th><th scope="col">Runs</th><th scope="col">State</th><th scope="col">Last run</th></tr></thead>
+      <tbody>
+        <zb-each items={items} as="one" key={one.id}>
+          <tr>
+            <td>{one.name}</td>
+            <td><a href="/clients/{one.organizationId}#automations">{one.clientName}</a></td>
+            <td>{one.every}</td>
+            <td><status-badge variant={one.attention ? 'danger' : one.state === 'ok' ? 'success' : 'neutral'}>{one.stateLabel}</status-badge></td>
+            <td>{one.lastRun || 'Never'}<span zb-if={one.lastMessage} class="hq-small hq-muted"><br>{one.lastMessage}</span></td>
+          </tr>
+        </zb-each>
+      </tbody>
+    </table>
+  </div>
+</hq-automations>

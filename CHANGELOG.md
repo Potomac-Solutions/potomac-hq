@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Automations (decision 0010, slice 6). On a client, add each n8n workflow
+  run for them: its name, what it does, its link in n8n and how often it
+  runs. HQ shows its secret check-in address once; n8n posts to it at the
+  end of a run with `status=ok` or `status=failed` (and a `message`), in the
+  query, a form or JSON. HQ keeps the last 50 runs. One that failed, or
+  hasn't checked in within its schedule and half again, goes on Today and
+  is emailed to `HQ_ALERT_EMAIL` once, and again when it's running. Pausing
+  one stops it being late. Clients see theirs, and whether each is running,
+  in the portal, without the n8n link or the address. Delivery →
+  Automations lists them all. For managers and admins
+  (`automation.manage`); anyone may see them. Migration 0060.
 - Monthly reports to plan clients (decision 0010, slice 5). Each morning in
   the first week of a month, HQ drafts last month's report for every client
   with an active ongoing project: their sites' uptime (from monitoring), the

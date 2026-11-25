@@ -222,7 +222,9 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options" && pattern !== "/api/site/booking" && pattern !== "/api/site/newsletter" && !pattern.startsWith("/river") && !pattern.startsWith("/s/"));
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options" && pattern !== "/api/site/booking" && pattern !== "/api/site/newsletter" && !pattern.startsWith("/river") && !pattern.startsWith("/hooks/") && !pattern.startsWith("/s/"));
+  // n8n's check-in address answers only to an automation's secret: anything else is not found.
+  assert.equal((await ann.post(`/hooks/automations/${"a".repeat(43)}`, { status: "ok" })).status, 404);
   // The website's newsletter address answers only to its token.
   assert.equal((await ann.post("/api/site/newsletter", { email: "x@example.com" })).status, 401);
   // A comment through a share link needs a working link with comment rights; anything else is not found.

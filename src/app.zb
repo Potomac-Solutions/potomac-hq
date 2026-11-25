@@ -50,6 +50,7 @@
         { label: 'Sites', href: '/sites', current: at('/sites') },
         { label: 'Site content', href: '/websites', current: at('/websites') },
         { label: 'Landing pages', href: '/landing-pages', current: at('/landing-pages') },
+        { label: 'Automations', href: '/automations', current: at('/automations') },
         ...(can.monthlyReports ? [{ label: 'Monthly reports', href: '/monthly-reports', current: at('/monthly-reports') }] : []),
       ] },
       { label: 'Finance', links: [
