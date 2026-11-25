@@ -15,19 +15,19 @@ moves those lines under a version heading. See `docs/conventions.md`.
   request to a client's own repository, never onto its deploy branch.
   Later versions go the same way. A new repository is set up for client
   editing (decision 0003) when HQ's everyday token can see it. Migration
-  0060.
+  0061.
 
 - Rework a site a client already has (decision 0010, slice 3). From its
   repository on GitHub or its address on the web: a plain HTML repository
   becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
   site is read as reference for Claude to rewrite as plain files, and a
-  repository's pictures come along at their old paths. Migration 0059.
+  repository's pictures come along at their old paths. Migration 0060.
 
 - Pictures in the site builder (decision 0010, slice 2). Add a build's
   photos and its logo, each with what it shows; a photo is shrunk in the
   browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
   each one's path, size and what it shows, and the preview and the .zip
-  carry them. Migration 0058.
+  carry them. Migration 0059.
 
 - Social media (decision 0011), for clients on social media marketing. A
   plan on the client's page: Facebook, Instagram and LinkedIn with each
@@ -60,6 +60,23 @@ moves those lines under a version heading. See `docs/conventions.md`.
   HQ, previewed in a sandbox, kept as versions, with a monthly cap that is
   never crossed, published to a new repository or as a pull request to a
   client's own. Four slices.
+
+- AI drafts (decision 0012, all phases). With `HQ_ANTHROPIC_API_KEY` set
+  and a feature turned on in Settings → AI, Claude drafts and a person uses
+  or discards: the recap email and next steps after a call, a brief on Get
+  ready, a triage and reply for each new lead (by itself every five
+  minutes), check-ins for deals gone quiet, a proposal's first draft checked
+  against similar finished jobs, a flag and change request for client
+  messages beyond what was agreed (by itself), each active project's weekly
+  update (by itself on Fridays), answers from the knowledge base (Ask HQ),
+  expenses read from receipt photos, a likely cause in site-down alerts, and
+  case studies and social posts (Marketing). Nothing is sent, posted or saved
+  until someone presses the button that says so. Settings → AI sets the model (Claude Haiku 5.5 to start), the monthly budget
+  ($20 to start, a hard stop, a warning at 80%), which features are on and
+  the price guide, and shows every call's cost. AI drafts waiting show on
+  Today and in the sidebar. Only `HQ_SITE_BUILDER_OWNER` changes them; other admins (`ai.manage`)
+  see them. Uses the site builder's `HQ_ANTHROPIC_API_KEY`, with its own
+  budget. Migration 0058.
 
 ## [0.16.0] - 2026-11-25
 

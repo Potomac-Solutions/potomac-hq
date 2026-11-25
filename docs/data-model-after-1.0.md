@@ -664,16 +664,16 @@ Decision 0010, slice 1 (migration 0056).
   millionths of a dollar. A failed request is still counted. `error` is a
   code, never the API's words.
 - `builder_settings`: one row, the model and the monthly cap in cents.
-- `build_image` (slice 2, migration 0058): a photo or the logo uploaded to a
+- `build_image` (slice 2, migration 0059): a photo or the logo uploaded to a
   build, with its bytes, its type and size read from its own header, what
   it shows, and its path in the site (`images/logo-<12 hex>.png`), made
   from its id. Shared by every version of the build: the preview and the
   zip serve it beside the version's files. Removing one deletes it. A
   picture from a reworked repository keeps its old path instead.
-- `build.reference_from` and `build.reference` (slice 3, migration 0059):
+- `build.reference_from` and `build.reference` (slice 3, migration 0060):
   where a reworked build was read from, and the old site's text, shown to
   Claude only while the build has no files.
-- `build_publish` (slice 4, migration 0060): each version put on GitHub.
+- `build_publish` (slice 4, migration 0061): each version put on GitHub.
   `kind` is `new-repo` (the publish that made the repository), `commit` (a
   later one onto it) or `pull-request` (to a client's own repository);
   `branch` is the branch committed onto, or for a pull request the branch
@@ -684,3 +684,22 @@ was reserved), `build.version-made` and `build.request-failed` (by HQ
 itself, with the cost), `build.restored`, `build.image-added`, `build.image-removed`,
 `build.published`, `builder.settings-changed`. No
 event carries the brief, the request's words or any file.
+
+## AI assistance
+
+Added by decision 0012 (migration 0058). The API key is never stored: it is
+`HQ_ANTHROPIC_API_KEY` on the server.
+
+| Table | Holds |
+| --- | --- |
+| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the monthly budget in cents, the features turned on, the price guide, and who changed it last |
+| `ai_usage` | Every call: the feature and record, the model, tokens in and out, the cost in millionths of a dollar, who asked (empty when HQ ran it by itself), whether a usable answer came, and the draft it made |
+| `ai_draft` | What AI wrote, as the feature's JSON: `waiting`, `used` or `discarded`, the fingerprint of the records it came from, and a receipt's picture until the draft is decided |
+
+- Events: `ai.settings-changed`, `ai.drafted`, `ai.failed`,
+  `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
+  AI wrote, only the feature, model, counts and cost.
+- A recap draft is marked used when its recap is sent (`call.recap-sent`).
+  A brief, an answer from Ask HQ and a site-down diagnosis are used where
+  they're shown; a scope check that finds nothing out of scope is discarded
+  by HQ, and kept so the message isn't checked twice.

@@ -114,9 +114,9 @@ Do it for the test environment first, then again for production.
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
-| `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder |
+| `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
 | `HQ_GITHUB_ADMIN_TOKEN` | A fine-grained GitHub token that may make repositories in the organization and write to them (see "The site builder") | For new repositories from the site builder |
-| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap | For the site builder |
+| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
