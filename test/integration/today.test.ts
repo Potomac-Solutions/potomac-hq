@@ -36,7 +36,7 @@ test("an overdue follow-up, today's to-do and a renewal this week, in that order
   await mikey.post("/todos", { title: "Call the bank about the business account", dueOn: day(0), back: "today" });
   await mikey.post("/todos", { title: "Not until next week", dueOn: day(6) });
   const page = textOf(await mikey.page("/today"));
-  assert.match(page, /3 things today, 1 overdue\. In order Overdue follow up Online orders Elk Diner · .* Log a call : Online orders Done: Call the bank about the business account To-do Call the bank about the business account .* Renewal elkdiner\.com renews Elk Diner/);
+  assert.match(page, /3 things today, 1 overdue\. Calls to make .* In order Overdue follow up Online orders Elk Diner · .* Log a call : Online orders Done: Call the bank about the business account To-do Call the bank about the business account .* Renewal elkdiner\.com renews Elk Diner/);
   assert.doesNotMatch(page, /Not until next week/);
 });
 

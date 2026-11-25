@@ -39,8 +39,13 @@ test("a timed call, from Start a call to the call log", async () => {
   const hours = await page.request.post(`${t.origin}/calls/hours`, { form: { ...allWeek, "call-minutes": "30", "gap-minutes": "0", "notice-hours": "1", "days-ahead": "14" }, headers: { origin: t.origin }, maxRedirects: 0 });
   assert.equal(hours.status(), 303);
 
-  await page.goto(`${t.origin}/clients/${shop.id}`);
-  await page.getByRole("button", { name: "Start a call", exact: true }).click();
+  // A follow-up due today puts them on the calls to make; call from there.
+  const deal = unwrap(crm.createOpportunity(t.services.crm, mikey, shop.id, { title: "New website", leadSource: "referral" }));
+  t.db.prepare("update opportunity set follow_up_on = ? where id = ?").run(Temporal.Now.plainDateISO("America/New_York").toString(), deal.id);
+  await page.goto(`${t.origin}/today`);
+  await page.getByRole("heading", { name: "Calls to make" }).waitFor();
+  await assertAccessible(page, "Today with calls to make");
+  await page.getByRole("button", { name: "Call Hensley Body Shop" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/phone/"));
   const id = new URL(page.url()).pathname.split("/")[2] ?? "";
   await page.getByRole("link", { name: "Dial 304-555-0100" }).waitFor();
@@ -104,9 +109,11 @@ test("a timed call, from Start a call to the call log", async () => {
   // End it, with a next step for later.
   await page.getByLabel("Next steps for you").fill("Send the quote");
   await page.getByLabel("Talked").check();
-  await page.getByRole("button", { name: "End call" }).click();
-  await page.waitForURL((url) => url.pathname === `/clients/${shop.id}`);
+  await page.getByRole("button", { name: "End call, back to the list" }).click();
+  await page.waitForURL((url) => url.pathname === "/today");
   await page.getByText("Call ended and logged. 1 to-do added.").waitFor();
+  assert.match(await text(page), /1 called already today\.|All called today/);
+  await page.goto(`${t.origin}/opportunities/${deal.id}`);
   assert.match(await text(page), /Call, talked, 1[67] min/);
   assert.match(await text(page), /Wants online booking\. Quote by Friday\. - What does the business do, and who are its customers\? Collision repair, local drivers\./);
   assert.deepEqual(problems, []);
