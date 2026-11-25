@@ -6,6 +6,7 @@
 -->
 <script>
   'use route /get-ready/:id'
+  import '../../shared/ui/parts/model-pick.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
@@ -15,7 +16,7 @@
     if (stop) return stop
     const view = context.crm.getReady(params.id)
     if (!view) return notFound()
-    return { title: `Get ready: ${view.name}`, view, brief: context.ai.brief(params.id), briefState: context.ai.state('call-brief'), done: context.notice.done, problem: context.notice.problem }
+    return { title: `Get ready: ${view.name}`, view, brief: context.ai.brief(params.id), briefState: context.ai.state('call-brief'), aiModels: context.ai.models(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -27,7 +28,7 @@
   .ready-guide { margin: 0.5rem 0 0; padding-left: 1.4rem; display: grid; gap: 0.3rem; }
   .ready-start .hq-button { min-height: 3.25rem; width: 100%; font-size: 1.1rem; }
 </style>
-<hq-get-ready view={null} brief={null} brief-state={{ on: false, why: '' }} done="" problem="">
+<hq-get-ready ai-models={[]} view={null} brief={null} brief-state={{ on: false, why: '' }} done="" problem="">
   <div class="ready">
     <breadcrumb-trail items={[{ label: 'Calls', href: '/calls' }, { label: 'Get ready', href: '' }]}></breadcrumb-trail>
     <div>
@@ -45,6 +46,7 @@
       <p zb-if={brief} class="hq-muted hq-small">Written by AI {brief.when} from HQ’s records.<span zb-if={brief.stale}> Something has changed since: write it again for the latest.</span></p>
       <p zb-if={briefState.why} class="hq-muted hq-small">{briefState.why}</p>
       <form zb-if={briefState.on} method="post" action="/get-ready/{view.bookingId}/ai">
+        <model-pick models={aiModels} field-id="brief-model"></model-pick>
         <button class="hq-button secondary" type="submit">{brief ? 'Write the brief again' : 'Write a brief with AI'}</button>
       </form>
     </section>

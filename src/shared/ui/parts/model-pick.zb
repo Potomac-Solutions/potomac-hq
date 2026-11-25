@@ -1,0 +1,18 @@
+<!--
+  Which Claude model to ask with, for this one request: the models allowed
+  up to the ceiling set in Settings → AI, starting on the usual one. Sends
+  `model`. Shows nothing when there's only one to pick. `models` is a list
+  of `{ id, label, selected }`; `field-id` keeps the label's id unique.
+-->
+<style>
+  .model-pick { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; }
+  .model-pick select { max-width: 100%; }
+</style>
+<model-pick models={[]} field-id="model-pick">
+  <span zb-if={models.length > 1} class="model-pick hq-small">
+    <label for={fieldId}>Model</label>
+    <select id={fieldId} name="model">
+      <zb-each items={models} as="option" key={option.id}><option value={option.id} selected={option.selected}>{option.label}</option></zb-each>
+    </select>
+  </span>
+</model-pick>

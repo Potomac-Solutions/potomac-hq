@@ -5,6 +5,7 @@
 -->
 <script>
   'use route /builder/:id'
+  import '../../shared/ui/parts/model-pick.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
@@ -29,6 +30,7 @@
   }
 </script>
 <style>
+  .ask-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
   .build-grid { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 70rem) { .build-grid { grid-template-columns: minmax(0, 1.6fr) minmax(20rem, 1fr); align-items: start; } }
   .preview-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
@@ -111,7 +113,7 @@
             <label for="build-ask">What should change?</label>
             <textarea id="build-ask" name="ask" rows="4" maxlength="2000" required disabled={view.working || !view.claudeSetUp} placeholder="Make the hero darker and add a page for towing rates."></textarea>
             <p class="hq-small hq-muted">Claude sees the brief, the client’s facts and every file, and changes only what you ask. Each request reserves its most it could cost; you’re charged what it really used.</p>
-            <div><button class="hq-button" type="submit" disabled={view.working || !view.claudeSetUp}>{view.working ? 'Claude is working…' : 'Ask Claude'}</button></div>
+            <div class="ask-row"><model-pick models={view.models} field-id="build-model"></model-pick><button class="hq-button" type="submit" disabled={view.working || !view.claudeSetUp}>{view.working ? 'Claude is working…' : 'Ask Claude'}</button></div>
           </form>
         </section>
         <section id="versions" class="hq-panel" aria-labelledby="build-versions">

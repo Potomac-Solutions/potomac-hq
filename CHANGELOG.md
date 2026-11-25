@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Pick a model per request (decision 0012, added). Settings → AI has a new
+  "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
+  button, on Ask HQ and beside "Ask Claude" in the site builder, a Model
+  list offers the models up to it, starting on the usual one. HQ's own jobs
+  keep using the usual model. Claude Fable 5.2 is now a known model.
+  Migration 0071.
+
 - `HQ_SITE_BUILDER_OWNER` takes several emails separated by commas, so both
   founders can change Settings → AI and the site builder's model and cap.
   Each must still be an admin. One email works as before.

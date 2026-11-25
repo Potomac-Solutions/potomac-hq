@@ -3,7 +3,7 @@
 // back to the page with the draft on it. Nothing here sends or changes
 // anything without someone pressing the button that says so.
 import { Hono } from "hono";
-import { discardDraft, draftDone, saveAiSettings, type AiDeps } from "../application/ai.ts";
+import { choosingModel, discardDraft, draftDone, saveAiSettings, type AiDeps } from "../application/ai.ts";
 import {
   addRecapSteps,
   askHq,
@@ -50,6 +50,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "model-invalid": "Choose a model, or type another model’s id: lower case letters, digits, dots and dashes.",
   "price-invalid": "Give the other model’s prices in dollars per million tokens, like 0.10.",
   "price-guide-too-long": "Keep the price guide under 4,000 characters.",
+  "ceiling-invalid": "Choose the highest model anyone may pick from the list.",
   "opportunity-closed": "That deal is already won or lost.",
   "project-closed": "That project isn’t active.",
 };
@@ -78,6 +79,8 @@ export function aiRoutes(deps: Deps): Hono {
     posts(path, (actor, form, id, files) => (actor === null ? { ok: false as const, error: "forbidden" } : run(actor, form, id, files)), places);
   const ai = deps.ai;
   const aiDeps: AiDeps = ai;
+  /** Asking for a draft: with the model picked on the form, up to the ceiling. */
+  const asking = (f: FormFields): FeaturesDeps => choosingModel(ai, f["model"] ?? "");
   const features = (f: FormFields): string[] =>
     Object.keys(f)
       .filter((name) => name.startsWith("feature-") && f[name] === "on")
@@ -85,7 +88,7 @@ export function aiRoutes(deps: Deps): Hono {
 
   post(
     "/settings/ai",
-    (actor, f) => saveAiSettings(aiDeps, actor, { model: f["model"] ?? "", otherModel: f["otherModel"] ?? "", otherInput: f["otherInput"] ?? "", otherOutput: f["otherOutput"] ?? "", features: features(f), priceGuide: f["priceGuide"] ?? "" }),
+    (actor, f) => saveAiSettings(aiDeps, actor, { model: f["model"] ?? "", otherModel: f["otherModel"] ?? "", otherInput: f["otherInput"] ?? "", otherOutput: f["otherOutput"] ?? "", features: features(f), priceGuide: f["priceGuide"] ?? "", ...(f["ceiling"] !== undefined ? { ceiling: f["ceiling"] } : {}) }),
     { done: () => "/settings/ai", back: () => "/settings/ai", message: "AI settings saved. They apply from the next call." },
   );
 
@@ -94,15 +97,15 @@ export function aiRoutes(deps: Deps): Hono {
   post("/ai/drafts/:id/done", (actor, _f, id) => draftDone(aiDeps, actor, id as Id), { done: (_v, _id, f) => backOr(f, "/drafts"), back: (_id, f) => backOr(f, "/drafts"), message: "Marked done." });
 
   // Phase 1: calls.
-  post("/phone/:id/recap/ai", (actor, f, id) => draftCallRecap(ai, actor, id as Id, f["transcript"] ?? ""), { done: (_v, id) => `/phone/${id ?? ""}/recap`, back: (id) => `/phone/${id ?? ""}/recap`, message: "Drafted. Read it through and change anything before it goes." });
+  post("/phone/:id/recap/ai", (actor, f, id) => draftCallRecap(asking(f), actor, id as Id, f["transcript"] ?? ""), { done: (_v, id) => `/phone/${id ?? ""}/recap`, back: (id) => `/phone/${id ?? ""}/recap`, message: "Drafted. Read it through and change anything before it goes." });
   post("/ai/drafts/:id/steps", (actor, _f, id) => addRecapSteps(ai, actor, id as Id), { done: (_v, _id, f) => backOr(f, "/todos"), back: (_id, f) => backOr(f, "/todos"), message: (added) => (added === 1 ? "Added 1 to-do." : `Added ${added} to-dos.`) });
-  post("/get-ready/:id/ai", (actor, _f, id) => draftCallBrief(ai, actor, id as Id), { done: (_v, id) => `/get-ready/${id ?? ""}#brief`, back: (id) => `/get-ready/${id ?? ""}`, message: "Brief written." });
+  post("/get-ready/:id/ai", (actor, f, id) => draftCallBrief(asking(f), actor, id as Id), { done: (_v, id) => `/get-ready/${id ?? ""}#brief`, back: (id) => `/get-ready/${id ?? ""}`, message: "Brief written." });
 
   // Phase 2: sales.
   const deal = (id: Id | null) => `/opportunities/${id ?? ""}#ai`;
-  post("/opportunities/:id/ai/triage", (actor, _f, id) => triageDeal(ai, actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Triaged." });
-  post("/opportunities/:id/ai/check-in", (actor, _f, id) => draftCheckIn(ai, actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Check-in drafted. Read it before it goes." });
-  post("/opportunities/:id/ai/proposal", (actor, _f, id) => draftProposal(ai, actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Proposal drafted. Start it to edit before it’s sent." });
+  post("/opportunities/:id/ai/triage", (actor, f, id) => triageDeal(asking(f), actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Triaged." });
+  post("/opportunities/:id/ai/check-in", (actor, f, id) => draftCheckIn(asking(f), actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Check-in drafted. Read it before it goes." });
+  post("/opportunities/:id/ai/proposal", (actor, f, id) => draftProposal(asking(f), actor, id as Id), { done: (_v, id) => deal(id), back: (id) => deal(id), message: "Proposal drafted. Start it to edit before it’s sent." });
   post("/ai/drafts/:id/send", (actor, f, id) => sendDealEmail(ai, deps.mail, actor, id as Id, { subject: f["subject"] ?? "", body: f["body"] ?? "" }), { done: (_v, _id, f) => backOr(f, "/drafts"), back: (_id, f) => backOr(f, "/drafts"), message: "Sent, and logged on the deal." });
   post("/ai/drafts/:id/note", (actor, _f, id) => noteTriage(ai, actor, id as Id), { done: (_v, _id, f) => backOr(f, "/drafts"), back: (_id, f) => backOr(f, "/drafts"), message: "Kept as a note on the deal." });
   post("/ai/drafts/:id/spam", (actor, _f, id) => closeAsSpam(ai, actor, id as Id), { done: (_v, _id, f) => backOr(f, "/drafts"), back: (_id, f) => backOr(f, "/drafts"), message: "Closed as lost: spam." });
@@ -111,16 +114,16 @@ export function aiRoutes(deps: Deps): Hono {
   // Phase 3: delivery.
   const project = (id: Id | null) => `/projects/${id ?? ""}#ai`;
   post("/ai/drafts/:id/change", (actor, _f, id) => useScopeDraft(ai, actor, id as Id), { done: (draft) => `/projects/${draft.recordId}/money#changes`, back: (_id, f) => backOr(f, "/drafts"), message: "Change request drafted. Check it, then send it to the client." });
-  post("/projects/:id/ai/update", (actor, _f, id) => draftWeeklyUpdate(ai, actor, id as Id), { done: (_v, id) => project(id), back: (id) => project(id), message: "Update drafted. Read it before it’s posted." });
+  post("/projects/:id/ai/update", (actor, f, id) => draftWeeklyUpdate(asking(f), actor, id as Id), { done: (_v, id) => project(id), back: (id) => project(id), message: "Update drafted. Read it before it’s posted." });
   post("/ai/drafts/:id/post", (actor, f, id) => postWeeklyUpdate(ai, actor, id as Id, f["body"] ?? ""), { done: (draft) => `/projects/${draft.recordId}#updates`, back: (_id, f) => backOr(f, "/drafts"), message: "Posted to the client’s portal." });
-  post("/ask", (actor, f) => askHq(ai, actor, f["question"] ?? ""), { done: () => "/ask#answer", back: () => "/ask", message: "Answered." });
+  post("/ask", (actor, f) => askHq(asking(f), actor, f["question"] ?? ""), { done: () => "/ask#answer", back: () => "/ask", message: "Answered." });
 
   // Phase 4: money and admin.
-  post("/projects/:id/ai/receipt", (actor, _f, id, files) => readReceiptFile(ai, actor, id as Id, files["receipt"] ?? null), { done: (_v, id) => `/projects/${id ?? ""}/money#ai`, back: (id) => `/projects/${id ?? ""}/money#ai`, message: "Receipt read. Check it, then add the expense." });
+  post("/projects/:id/ai/receipt", (actor, f, id, files) => readReceiptFile(asking(f), actor, id as Id, files["receipt"] ?? null), { done: (_v, id) => `/projects/${id ?? ""}/money#ai`, back: (id) => `/projects/${id ?? ""}/money#ai`, message: "Receipt read. Check it, then add the expense." });
   post("/ai/drafts/:id/expense", (actor, f, id) => useReceiptDraft(ai, actor, id as Id, { category: f["category"] ?? "", amount: f["amount"] ?? "", on: f["on"] ?? "", note: f["note"] ?? "" }), { done: (draft) => `/projects/${draft.recordId}/money`, back: (_id, f) => backOr(f, "/drafts"), message: "Expense added, with the receipt." });
 
   // Phase 5: marketing.
-  post("/projects/:id/ai/case-study", (actor, _f, id) => draftCaseStudy(ai, actor, id as Id), { done: () => "/marketing", back: (id) => project(id), message: "Case study drafted." });
-  post("/projects/:id/ai/posts", (actor, _f, id) => draftSocialPosts(ai, actor, id as Id), { done: () => "/marketing", back: (id) => project(id), message: "Posts drafted." });
+  post("/projects/:id/ai/case-study", (actor, f, id) => draftCaseStudy(asking(f), actor, id as Id), { done: () => "/marketing", back: (id) => project(id), message: "Case study drafted." });
+  post("/projects/:id/ai/posts", (actor, f, id) => draftSocialPosts(asking(f), actor, id as Id), { done: () => "/marketing", back: (id) => project(id), message: "Posts drafted." });
   return app;
 }

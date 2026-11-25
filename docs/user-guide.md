@@ -385,6 +385,15 @@ read it, change it and press the button that sends, posts or saves it, or
 discard it. **AI drafts** in the sidebar, and a line on Today, show what's
 waiting for you.
 
+**Picking a model.** Next to each "Draft" button, on Ask HQ, and in the site
+builder beside "Ask Claude", a Model list lets you pick a model for that one
+request. It starts on the usual model and offers only models up to the
+highest one the owner allows in Settings → AI ("Highest model anyone may
+pick"). A dearer model writes better and costs more, from the same shared
+monthly budget. HQ's own jobs (lead triage, scope checks, Friday updates)
+always use the usual model. The list doesn't show when there's only one
+model to pick.
+
 - **After a call:** on the recap page, "Draft with AI" writes the recap email
   and the next steps from your notes (paste a transcript if you have one).
   "Add these as to-dos" adds the steps.

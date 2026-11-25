@@ -18,6 +18,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "ask-too-long": "Keep a request under 2,000 characters. Ask for one thing at a time.",
   "claude-not-set-up": "HQ has no Claude API key, so it can’t ask Claude. Set HQ_ANTHROPIC_API_KEY on the server.",
   "busy-build": "Claude is still working on this site. Wait for that answer first.",
+  "model-not-allowed": "That model is above the highest allowed in Settings → AI. Pick another.",
   "over-cap": "That could pass this month’s cap, so it wasn’t sent. Ask for something smaller, or the owner can raise the cap.",
   "already-newest": "That is already the newest version.",
   "model-unknown": "Choose one of the models listed.",
@@ -94,7 +95,7 @@ export function builderRoutes(deps: BuilderRoutesDeps): Hono {
           ? `Published to ${made.publish.repo}, a new private repository.${made.editing === "set-up" ? " The client can edit it in their portal." : made.editing === "failed" ? " Set up website editing on the client’s page later." : ""}`
           : `Published to ${made.publish.repo}. Its host rebuilds it in a minute or two.`,
   });
-  post("/builder/:id/ask", (actor, f, id) => builder.askClaude(deps.builder, actor, id as Id, f["ask"] ?? ""), { done: (_b, id) => page(id), back: (id) => `${page(id)}#ask`, message: "Sent. Claude is working on it. This page updates when it’s ready." });
+  post("/builder/:id/ask", (actor, f, id) => builder.askClaude(deps.builder, actor, id as Id, f["ask"] ?? "", f["model"] ?? ""), { done: (_b, id) => page(id), back: (id) => `${page(id)}#ask`, message: "Sent. Claude is working on it. This page updates when it’s ready." });
   post("/builder/:id/brief", (actor, f, id) => builder.saveBrief(deps.builder, actor, id as Id, { name: f["name"] ?? "", brief: f["brief"] ?? "" }), { done: (_b, id) => `${page(id)}#brief`, back: (id) => `${page(id)}#brief`, message: "Saved. Claude uses it from the next request." });
   post("/builder/:id/restore", (actor, f, id) => builder.restoreVersion(deps.builder, actor, id as Id, versionOf(f["version"])), { done: (_b, id) => page(id), back: (id) => `${page(id)}#versions`, message: "Restored as the newest version." });
   post("/builder/:id/images", (actor, f, id, files) => builder.addImage(deps.builder, actor, id as Id, { kind: f["kind"] ?? "", alt: f["alt"] ?? "", bytes: files["image"]?.bytes ?? null }), { done: (_i, id) => `${page(id)}#images`, back: (id) => `${page(id)}#add-image`, message: "Added. Claude can use it from your next request." });

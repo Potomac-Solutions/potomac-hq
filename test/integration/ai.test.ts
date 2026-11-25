@@ -279,3 +279,17 @@ test("both founders may change the settings when HQ_SITE_BUILDER_OWNER lists bot
   const jo = await signIn(t, "jo2@example.com", "Jo Admin", ["admin"]);
   assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5" }), "problem"), /permission/);
 });
+
+test("a draft can be asked of a model picked on the form, up to the ceiling; HQ's own jobs use the usual one", async () => {
+  await mikey.post("/settings/ai", { model: "claude-haiku-5-5", ceiling: "claude-sonnet-5-5", "feature-ask": "on" });
+  const page = await mikey.page("/ask");
+  assert.match(page, /<option value="claude-haiku-5-5" selected/);
+  assert.match(page, /<option value="claude-sonnet-5-5"/);
+  assert.doesNotMatch(page, /<option value="claude-opus-5-5"/);
+  await mikey.post("/ask", { question: "What did we decide about deposits?", model: "claude-sonnet-5-5" });
+  assert.equal(t.db.prepare("select model from ai_usage order by at desc, rowid desc limit 1").get()?.["model"], "claude-sonnet-5-5");
+  await mikey.post("/ask", { question: "And quotes?", model: "claude-opus-5-5" });
+  assert.equal(t.db.prepare("select model from ai_usage order by at desc, rowid desc limit 1").get()?.["model"], "claude-haiku-5-5", "above the ceiling: the usual model");
+  assert.match(textOf(await mikey.page("/settings/ai")), /Highest model anyone may pick/);
+  assert.match(query(await mikey.post("/settings/ai", { model: "claude-haiku-5-5", ceiling: "gpt-9" }), "problem"), /highest model/);
+});

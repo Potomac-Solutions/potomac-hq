@@ -89,7 +89,7 @@ import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./
 import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
-import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
+import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
@@ -156,6 +156,8 @@ export type AiPageContext = {
   /** Whether a feature's button shows, and if not, why (empty when it's simply off or not theirs). */
   state(feature: string): FeatureState;
   readonly canManage: boolean;
+  /** The models this person may pick for a draft, up to the ceiling, the usual one selected. */
+  models(): readonly { readonly id: string; readonly label: string; readonly selected: boolean }[];
   settings(): ReturnType<typeof aiSettingsView>;
   drafts(): DraftsView;
   /** How many drafts wait for this person, without reading what each is about. */
@@ -616,6 +618,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const aiContext = (actor: Id | null): AiPageContext => ({
     state: (feature) => (isFeature(feature) ? featureState(aiDeps, actor, feature) : { on: false, why: "" }),
     canManage: actor !== null && authorize(sessionDeps, actor, "ai.manage").ok,
+    models: () => modelOptions(aiDeps),
     settings: () => aiSettingsView(aiDeps, actor),
     drafts: () => waitingDrafts(aiDeps, actor, (draft) => describeDraft(aiDeps, draft)),
     draftCount: () => waitingDrafts(aiDeps, actor, () => "").items.length,
