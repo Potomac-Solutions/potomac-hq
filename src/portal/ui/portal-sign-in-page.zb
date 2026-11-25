@@ -30,7 +30,7 @@
     <details class="hq-panel" open={false}>
       <summary>Forgot your password, or rather not type one?</summary>
       <form method="post" action="/portal/sign-in-link" class="hq-form" data-spaced>
-        <text-field label="Your email" name="email" type="email" autocomplete="email" required={true} description="We’ll email you a link to sign in. It works once, for a week."></text-field>
+        <text-field label="Send the link to" name="email" type="email" autocomplete="email" required={true} description="The address your portal uses. The link works once, for a week."></text-field>
         <div><button class="hq-button secondary" type="submit">Email me a link</button></div>
       </form>
     </details>
