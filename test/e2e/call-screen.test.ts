@@ -49,6 +49,12 @@ test("a timed call, from Start a call to the call log", async () => {
   assert.match(await timer.innerText(), /On the call/);
   assert.equal(await page.getByRole("region", { name: "Wrapping up" }).isVisible(), false, "the wrap-up panel waits");
 
+  // Picked up with only 15 minutes to give: one tap.
+  assert.match(await text(page), /Planned for 30 min\./);
+  await page.getByRole("button", { name: "15 min" }).click();
+  await page.getByText("Planned for 15 minutes.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "15 min" }).getAttribute("aria-pressed"), "true");
+
   // Two seconds before wrapping up: it turns amber, buzzes once and says so.
   t.db.prepare("update call set started_at = ? where id = ?").run(new Date(Date.now() - (10 * 60 - 2) * 1000).toISOString(), id);
   await page.reload();

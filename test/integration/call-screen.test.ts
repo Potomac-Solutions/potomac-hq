@@ -43,17 +43,17 @@ test("a phone number becomes a tel: address", () => {
   assert.equal(crm.dialAddress("call me"), "");
 });
 
-test("start a call from a client: the screen dials, times and plans 15 minutes", async () => {
+test("start a call from a client: the screen dials, times and plans 30 minutes, or 15 in one tap", async () => {
   assert.match(textOf(await mikey.page(`/clients/${shopId}`)), /Start a call A timer, notes, and a nudge to wrap up/);
   const started = await mikey.post("/phone", { clientId: shopId });
   assert.equal(started.status, 303);
   assert.equal(query(started, "done"), "The timer's running.");
   const id = path(started).split("/")[2] ?? "";
   const row = callRow(id);
-  assert.deepEqual([row["contact_id"], row["phone"], row["planned_minutes"], row["warn_minutes"]], [daleId, "304-555-0100", 15, 5], "the primary contact, and their number");
+  assert.deepEqual([row["contact_id"], row["phone"], row["planned_minutes"], row["warn_minutes"]], [daleId, "304-555-0100", 30, 5], "the primary contact, and their number");
   const html = await mikey.page(`/phone/${id}`);
   assert.match(html, /href="tel:\+13045550100"/);
-  assert.match(textOf(html), /Dale Hensley Hensley Body Shop .*Dial 304-555-0100 .*0:0\d On the call Planned for 15 min\. Wrap up at \d{1,2}:\d\d [AP]M, done by \d{1,2}:\d\d [AP]M\./);
+  assert.match(textOf(html), /Dale Hensley Hensley Body Shop .*Dial 304-555-0100 .*0:0\d On the call Planned for 30 min\. Wrap up at \d{1,2}:\d\d [AP]M, done by \d{1,2}:\d\d [AP]M\./);
   assert.match(textOf(await mikey.page("/clients")), /On a call with Hensley Body Shop/, "the top bar leads back to it");
   assert.doesNotMatch(textOf(html), /On a call with/, "but not on the call screen itself");
 
@@ -65,6 +65,12 @@ test("start a call from a client: the screen dials, times and plans 15 minutes",
   assert.equal((await sam.get(`/phone/${id}`)).status, 404);
   assert.equal(query(await sam.post(`/phone/${id}/end`, { outcome: "reached", note: "x" }), "problem"), "That record doesn’t exist.");
 
+  // One tap for a call with only 15 minutes to give; the same length again is no change.
+  assert.match(textOf(html), /15 min 30 min 45 min 1 h/);
+  assert.equal(query(await mikey.post(`/phone/${id}/length`, { minutes: "15" }), "done"), "Planned for 15 minutes.");
+  await mikey.post(`/phone/${id}/length`, { minutes: "15" });
+  assert.match(query(await mikey.post(`/phone/${id}/length`, { minutes: "17" }), "problem"), /5 minutes to 4 hours/);
+  assert.match(await mikey.page(`/phone/${id}`), /aria-pressed="true"[^>]*>15 min</);
   // Shorter and longer, 5 minutes at a time, the warning moving with it.
   assert.equal(query(await mikey.post(`/phone/${id}/shorter`, {}), "done"), "Planned for 10 minutes.");
   assert.deepEqual([callRow(id)["planned_minutes"], callRow(id)["warn_minutes"]], [10, 3]);
@@ -95,7 +101,7 @@ test("start a call from a client: the screen dials, times and plans 15 minutes",
   assert.match(textOf(await mikey.page(`/phone/${id}`)), /This call ended .*It’s in the call log\./);
   assert.match(query(await mikey.post(`/phone/${id}/note`, { note: "late" }), "problem"), /That call has ended/);
   const kinds = t.db.prepare("select action from activity_event where record_id = ? order by rowid").all(id).map((row) => row["action"]);
-  assert.deepEqual(kinds, ["call.started", "call.length-changed", "call.length-changed", "call.length-changed", "call.length-changed", "call.ended"]);
+  assert.deepEqual(kinds, ["call.started", "call.length-changed", "call.length-changed", "call.length-changed", "call.length-changed", "call.length-changed", "call.ended"]);
 });
 
 test("from an opportunity it's logged there, with a follow-up; a voicemail needs no note", async () => {
