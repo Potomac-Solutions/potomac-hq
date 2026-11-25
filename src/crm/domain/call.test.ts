@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { addBusinessDays, fillScript, readReturnTo, startsText, callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
+import { addBusinessDays, draftRecap, fillScript, readRecap, readReturnTo, startsText, callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
 
 const AT = "2026-11-25T15:00:00.000Z";
 const ids = { id: "c1" as Id, organizationId: "o1" as Id, contactId: null, opportunityId: null, bookingId: null, userId: "u1" as Id, phone: "304-555-0100", startedAt: AT };
@@ -101,4 +101,20 @@ test("a booked call's start reads plainly", () => {
   assert.equal(startsText(later(1), AT), "in 1 minute");
   assert.equal(startsText(later(0, 20), AT), "now");
   assert.equal(startsText(AT, later(4)), "4 minutes ago");
+});
+
+test("the recap HQ drafts: thanks, the notes, a sign-off", () => {
+  assert.deepEqual(draftRecap({ name: "Dale Hensley", me: "Mikey Nichols", notes: "Online booking first.\nQuote by Friday." }), {
+    subject: "Thanks for the call today",
+    body: "Hi Dale,\n\nThanks for the call today.\n\nHere's what we covered:\n\nOnline booking first.\nQuote by Friday.\n\nIf I missed anything, just reply to this email.\n\nTalk soon,\nMikey\nPotomac Solutions",
+  });
+  assert.doesNotMatch(draftRecap({ name: "", me: "Mikey", notes: "" }).body, /covered/);
+});
+
+test("a recap needs a subject and a body", () => {
+  assert.deepEqual(readRecap({ subject: "  Our call \n today ", body: " Hi\r\nthere " }), { ok: true, value: { subject: "Our call today", body: "Hi\nthere" } });
+  assert.deepEqual(readRecap({ subject: "", body: "x" }), { ok: false, error: "subject-missing" });
+  assert.deepEqual(readRecap({ subject: "x".repeat(151), body: "x" }), { ok: false, error: "subject-too-long" });
+  assert.deepEqual(readRecap({ subject: "x", body: " " }), { ok: false, error: "body-missing" });
+  assert.deepEqual(readRecap({ subject: "x", body: "x".repeat(4001) }), { ok: false, error: "body-too-long" });
 });
