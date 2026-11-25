@@ -67,7 +67,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
   small changes go through with **Undo**. It is a feature in Settings → AI
   (off to start), shares the monthly AI budget, and takes a model picked
   beside the box up to the ceiling. Conversations are kept 90 days.
-  Migration 0074.
+  Migration 0073.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"

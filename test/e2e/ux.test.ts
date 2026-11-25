@@ -177,7 +177,7 @@ test("an edit can be undone; done messages fade; a typed form asks before you le
     asked = dialog.type() === "beforeunload";
     void dialog.dismiss();
   });
-  await page.getByRole("link", { name: "Today", exact: true }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home", exact: true }).click();
   await page.waitForTimeout(500);
   assert.ok(asked, "leaving with a typed form asks");
   assert.match(page.url(), /\/tasks\//, "and staying stays");

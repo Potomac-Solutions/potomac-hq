@@ -1,4 +1,4 @@
-// The assistant's conversations, actions and preferences (migration 0074).
+// The assistant's conversations, actions and preferences (migration 0073).
 import type { Ask, Block } from "../domain/assistant.ts";
 import type { ActionStatus, AssistantStore, StoredAction, StoredMessage, Undo } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
