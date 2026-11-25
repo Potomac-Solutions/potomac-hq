@@ -7,6 +7,8 @@ being able to drag back would be nicer. Use more visual cues when dragging
 too." Built on one branch, reviewed by Mikey before it merges into
 `staging`. Sections 4 to 7 were added the same day, when Mikey asked for
 all eleven follow-ups Claude proposed ("all of these in the same branch").
+Sections 8 and 9 followed: "make sure it's intuitive and allows mistakes to
+be reverted... improve this tooling further yet."
 
 ## Context
 
@@ -118,10 +120,39 @@ cursor said so, and only the column under the card lit up while dragging.
   the column under it lights up, and the page scrolls near the edges.
   Mouse dragging is unchanged.
 
+### 8. Recent changes, and undo that is yours alone
+
+- **Recent changes** (`/history`, in the sidebar, the palette and G then H)
+  lists the changes you made in the last day that can still be undone,
+  newest first, each named ("Menu website: moved to consulted", "Order the
+  sign: details saved") with its own Undo. It shows one per thing changed:
+  undoing an older change to the same thing would put back something a
+  newer change already replaced, so only the newest is offered.
+- An undo belongs to the person whose page first shows it. Only they can
+  use it, and only their changes are listed. Someone else's token isn't
+  offered and is refused.
+- The Undo bar names the change it puts back, instead of repeating the
+  page's message, and links to Recent changes.
+- A client's demo flag can be undone too.
+
+### 9. Undo send
+
+- Sending, publishing, sharing or voiding something that leaves HQ waits
+  eight seconds, with "Sending…" (or "Publishing…", "Sharing…",
+  "Voiding…", "Cancelling the call…") and Undo, before the post goes. That
+  covers invoices, proposals, change requests, monthly reports, the
+  newsletter, AI drafts, deliverables, reviews, sites and booked calls.
+  Undo or Ctrl+Z says "Not sent." and nothing is posted.
+- As with removals, leaving the page sends it straight away, it is done in
+  the browser for every such button at once, and without JavaScript it is
+  immediate. Settings and the client portal are left alone.
+
 ## Not in this decision
 
-- Undo for edits not listed in section 2, such as a client's or contact's
-  details, and a history of more than the last change.
+- Undo for edits not listed in sections 2 and 8. (Clients and contacts have
+  no edit forms yet; when they do, their saves should offer Undo.)
+- Undoing a change after it was sent or published. Section 9 holds those
+  before they go instead.
 - Moving cards without the page reloading at all. HQ's pages are made on
   the server; section 5 makes the reload keep your place and animate
   instead.

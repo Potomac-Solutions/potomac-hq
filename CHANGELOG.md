@@ -29,6 +29,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
   "Go to…") that also moves deals, a shortcut list (?), G-then-letter
   jumps, moving board and pipeline cards with Space and the arrow keys, and
   dragging cards by the grip on a phone.
+- Recent changes and undo send (decision 0014, sections 8 and 9). A new
+  Recent changes page (sidebar, Ctrl+K, G then H) lists your changes from
+  the last day that can still be undone, one per thing, each with Undo.
+  An undo is now usable only by the person who made the change, and the
+  Undo bar names what it puts back. Send, publish, share, void and
+  call-cancel buttons wait eight seconds with Undo before anything leaves
+  HQ. A client's demo flag can be undone.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"

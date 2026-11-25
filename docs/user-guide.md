@@ -48,7 +48,12 @@ for a day. It isn't offered when putting it back wouldn't be allowed, such
 as a repeating task whose next one was already made.
 
 **Remove** buttons hide the item at once and wait six seconds, with Undo,
-before anything is removed.
+before anything is removed. **Send**, **Publish**, **Share** and **Void**
+buttons wait eight seconds, with Undo, before anything leaves HQ.
+
+**Recent changes** (in the sidebar, or G then H) lists what you changed in
+the last day that can still be put back, each with its own Undo, so a
+mistake you notice later can still be undone.
 
 ## Getting around by keyboard
 
