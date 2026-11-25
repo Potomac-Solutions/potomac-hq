@@ -25,6 +25,7 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | A refused attempt (wrong password or code, a form someone was not allowed to use) | 90 days | Long enough to see a pattern. It can come from anyone, so it is not kept for good like the activity log |
 | One-time links (setup, invite, password reset) that expired or were used | 30 days after they stopped working | The same |
 | Invites to HQ that nobody used | 30 days | The link stopped working after 7 |
+| An AI receipt draft nobody used or discarded, and its picture (decision 0012) | 30 days, then discarded by HQ | Decided by Mikey 2026-11-25. A receipt that was used is kept with its expense, as a tax record |
 
 A run that removes something writes one activity event with the counts. A
 run that removes nothing writes none.

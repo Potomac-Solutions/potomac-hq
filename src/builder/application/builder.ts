@@ -48,6 +48,11 @@ export type BuilderDeps = ActivityDeps & {
   readonly formatWhen: (instant: string) => string;
   /** Runs a job after the answer is sent. Its errors are logged by whoever runs it. */
   readonly runLater: (job: () => Promise<void>) => void;
+  /**
+   * What the AI drafts (decision 0012) have spent this month, in micro-dollars.
+   * The cap is one budget shared with them (Mikey, 2026-11-25), so it counts too.
+   */
+  readonly alsoSpent?: () => number;
 };
 
 /** The settings have one record; their activity events point at this fixed id. */
@@ -66,17 +71,23 @@ function currentModel(deps: BuilderDeps) {
   return modelById(settings.model) ?? modelById(DEFAULT_MODEL) ?? (MODELS[0] as NonNullable<ReturnType<typeof modelById>>);
 }
 
-/** What this month has spent: finished requests at their cost, working ones at what they reserved. */
-function spentThisMonth(deps: BuilderDeps): number {
+/** What the site builder has spent this month: finished requests at their cost, working ones at what they reserved. */
+export function builderSpentThisMonth(deps: Pick<BuilderDeps, "builds" | "clock" | "timeZone">): number {
   return deps.builds.requestsSince(monthStart(deps.clock(), deps.timeZone)).reduce((sum, one) => sum + (one.state === "working" ? one.reservedMicros : one.costMicros), 0);
 }
 
-export type BudgetLine = { readonly spent: string; readonly cap: string; readonly left: string; readonly percent: number };
+/** What this month has spent against the shared cap: the site builder and the AI drafts together. */
+function spentThisMonth(deps: BuilderDeps): number {
+  return builderSpentThisMonth(deps) + (deps.alsoSpent?.() ?? 0);
+}
+
+export type BudgetLine = { readonly spent: string; readonly cap: string; readonly left: string; readonly percent: number; readonly drafts: string };
 
 function budgetLine(deps: BuilderDeps): BudgetLine {
   const spent = spentThisMonth(deps);
   const cap = centsToMicros(deps.settings.get().capCents);
-  return { spent: dollars(spent), cap: dollars(cap), left: dollars(Math.max(0, cap - spent)), percent: cap === 0 ? 100 : Math.min(100, Math.round((spent / cap) * 100)) };
+  const drafts = deps.alsoSpent?.() ?? 0;
+  return { spent: dollars(spent), cap: dollars(cap), left: dollars(Math.max(0, cap - spent)), percent: cap === 0 ? 100 : Math.min(100, Math.round((spent / cap) * 100)), drafts: drafts > 0 ? dollars(drafts) : "" };
 }
 
 // ---------------------------------------------------------------------------

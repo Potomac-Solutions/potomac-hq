@@ -26,7 +26,20 @@ export type AiDeps = ActivityDeps & {
   readonly formatWhen: (instant: string) => string;
   /** The one person who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Null: nobody. */
   readonly ownerEmail: string | null;
+  /**
+   * The monthly budget, one cap shared with the site builder (Mikey,
+   * 2026-11-25): the cap in cents, and what the site builder has spent of it
+   * this month in micro-dollars.
+   */
+  readonly sharedBudget: () => { readonly capCents: number; readonly builderSpent: number };
 };
+
+/** This month against the shared cap: what AI drafts spent, what the site builder spent, and the cap. */
+function thisMonth(deps: Pick<AiDeps, "ai" | "monthStart" | "sharedBudget">): { readonly drafts: number; readonly builder: number; readonly total: number; readonly capCents: number } {
+  const shared = deps.sharedBudget();
+  const drafts = deps.ai.spentSince(deps.monthStart());
+  return { drafts, builder: shared.builderSpent, total: drafts + shared.builderSpent, capCents: shared.capCents };
+}
 
 /** What a person needs to ask for, see and use each feature's drafts. */
 export const FEATURE_PERMISSION: { readonly [K in Feature]: readonly string[] } = {
@@ -84,7 +97,8 @@ export async function draftWith<T>(deps: AiDeps, actorId: Id | null, request: Dr
   const settings = deps.ai.settings();
   if (!deps.model) return err("no-key");
   if (!settings.features.includes(request.feature)) return err("feature-off");
-  if (!mayCall(deps.ai.spentSince(deps.monthStart()), settings.budgetMinor, mostItCouldCost(settings, request.prompt))) return err("budget-reached");
+  const month = thisMonth(deps);
+  if (!mayCall(month.total, month.capCents, mostItCouldCost(settings, request.prompt))) return err("budget-reached");
   const answer = await deps.model.ask({ model: settings.model, system: request.prompt.system, user: request.prompt.user, maxOutput: request.prompt.maxOutput, ...(request.prompt.attachments ? { attachments: request.prompt.attachments } : {}) });
   const read = answer.ok ? request.read(answer.text) : null;
   const cost = costOf(settings.price, answer.inputCount, answer.outputCount);
@@ -158,10 +172,10 @@ export type AiSettingsView = {
   readonly models: readonly { readonly value: string; readonly label: string }[];
   /** A model HQ doesn't list: its id and prices as typed. Empty for a listed one. */
   readonly other: { readonly id: string; readonly input: string; readonly output: string };
-  readonly budget: string;
   readonly features: readonly { readonly key: Feature; readonly label: string; readonly what: string; readonly phase: string; readonly on: boolean }[];
   readonly priceGuide: string;
-  readonly month: { readonly spent: string; readonly budget: string; readonly percent: number; readonly state: BudgetState; readonly calls: number; readonly failed: number };
+  /** The shared cap: everything spent, what AI drafts and the site builder each spent, the cap, and this month's draft calls. */
+  readonly month: { readonly spent: string; readonly drafts: string; readonly builder: string; readonly budget: string; readonly percent: number; readonly state: BudgetState; readonly calls: number; readonly failed: number };
   readonly recent: readonly { readonly when: string; readonly feature: string; readonly model: string; readonly cost: string; readonly outcome: string; readonly ok: boolean }[];
   readonly updated: string;
 };
@@ -169,11 +183,10 @@ export type AiSettingsView = {
 const perMillion = (micros: number): string => (micros / 1_000_000).toFixed(6).replace(/\.?0+$/, "");
 
 export function monthUsage(deps: AiDeps): AiSettingsView["month"] {
-  const settings = deps.ai.settings();
-  const spent = deps.ai.spentSince(deps.monthStart());
+  const month = thisMonth(deps);
   const counts = deps.ai.countSince(deps.monthStart());
-  const budgetMicros = settings.budgetMinor * 10_000;
-  return { spent: dollarsText(spent), budget: dollarsText(budgetMicros), percent: budgetMicros === 0 ? 100 : Math.min(100, Math.floor((spent * 100) / budgetMicros)), state: budgetState(spent, settings.budgetMinor), calls: counts.calls, failed: counts.failed };
+  const budgetMicros = month.capCents * 10_000;
+  return { spent: dollarsText(month.total), drafts: dollarsText(month.drafts), builder: dollarsText(month.builder), budget: dollarsText(budgetMicros), percent: budgetMicros === 0 ? 100 : Math.min(100, Math.floor((month.total * 100) / budgetMicros)), state: budgetState(month.total, month.capCents), calls: counts.calls, failed: counts.failed };
 }
 
 const OUTCOME: Record<string, string> = { waiting: "Draft waiting", used: "Used", discarded: "Discarded" };
@@ -190,7 +203,6 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
     model: listed ? settings.model : "other",
     models: [...KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })), { value: "other", label: "Another model" }],
     other: listed ? { id: "", input: "", output: "" } : { id: settings.model, input: perMillion(settings.price.input), output: perMillion(settings.price.output) },
-    budget: (settings.budgetMinor / 100).toFixed(2).replace(/\.00$/, ""),
     features: FEATURES.map((key) => ({ key, ...FEATURE_TEXT[key], on: settings.features.includes(key) })),
     priceGuide: settings.priceGuide,
     month: monthUsage(deps),
@@ -218,7 +230,7 @@ export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: Settings
       action: "ai.settings-changed",
       recordType: "ai-setting",
       recordId: "ai-setting" as Id,
-      context: { model: read.value.model, budgetMinor: read.value.budgetMinor, features: [...read.value.features], modelWas: before.model, budgetWas: before.budgetMinor, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
+      context: { model: read.value.model, features: [...read.value.features], modelWas: before.model, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
     });
     return ok(read.value);
   });
@@ -266,8 +278,8 @@ export function featureState(deps: AiDeps, actorId: Id | null, feature: Feature)
   if (!mayUse(deps, actorId, feature) || actorId === null) return { on: false, why: "" };
   if (!deps.ai.settings().features.includes(feature)) return { on: false, why: "" };
   if (!deps.model) return { on: false, why: "AI needs HQ_ANTHROPIC_API_KEY set on the server." };
-  const settings = deps.ai.settings();
-  if (budgetState(deps.ai.spentSince(deps.monthStart()), settings.budgetMinor) === "reached") return { on: false, why: "Budget reached: AI is paused until the first of the month, or until the budget is raised in Settings → AI." };
+  const month = thisMonth(deps);
+  if (budgetState(month.total, month.capCents) === "reached") return { on: false, why: "Budget reached: AI is paused until the first of the month, or until the owner raises the cap under Site builder → Model and cap." };
   return { on: true, why: "" };
 }
 
