@@ -191,6 +191,14 @@ for their own site and it takes effect at once
 `client.view`.
 
 
+### The site builder
+
+Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the one person whose email is `HQ_SITE_BUILDER_OWNER`.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See builds, start one, ask Claude, restore a version, download a version, see the preview, and see the model, cap and spending | `site.build` | Yes | No | No | No |
+
 ### Platform (v1.0)
 
 Decided 2026-11-16 while Mikey was away. Needs his approval.

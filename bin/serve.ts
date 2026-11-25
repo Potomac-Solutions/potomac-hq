@@ -14,6 +14,8 @@
 //   HQ_CLIENT_NOTICES  "on" to email clients when something is waiting in the portal; needs email
 //   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
 //   HQ_GITHUB_TOKEN    reads and publishes client sites' content on GitHub; off when unset
+//   HQ_ANTHROPIC_API_KEY   the site builder's Claude API key; the builder can't ask Claude when unset
+//   HQ_SITE_BUILDER_OWNER  the email of the one person who may change the builder's model and cap
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
@@ -35,6 +37,8 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
+import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
+import { failLostRequests } from "../src/builder/index.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -102,8 +106,15 @@ const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo
 const github = githubConfigFrom(process.env);
 console.log(github ? "Client sites' content is published to GitHub." : "Site content can't be set up or published: HQ_GITHUB_TOKEN is not set.");
 
+// The site builder (decision 0010): Claude, if a key is set, and who may change its model and cap.
+const claudeConfig = claudeConfigFrom(process.env);
+const builderOwner = builderOwnerFrom(process.env);
+console.log(claudeConfig ? `The site builder asks Claude.${builderOwner ? "" : " Nobody can change its model or cap: HQ_SITE_BUILDER_OWNER is not set."}` : "The site builder can't ask Claude: HQ_ANTHROPIC_API_KEY is not set.");
+
 const app = await createApp({
   db,
+  claude: claudeConfig ? claudeApi(claudeConfig) : null,
+  builderOwner,
   sitePublisher: github ? githubPublisher(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
@@ -230,6 +241,20 @@ const siteTimer = setInterval(() => {
 }, 5 * 60_000);
 siteTimer.unref();
 
+// Site builder requests lost when HQ restarted mid-answer (decision 0010):
+// failed and counted at what they reserved, now and every five minutes.
+const failLost = () => {
+  try {
+    const lost = failLostRequests(createServices(db).builder);
+    if (lost > 0) console.log(`Site builder: ${lost} lost ${lost === 1 ? "request" : "requests"} marked failed.`);
+  } catch (error) {
+    log("Site builder: marking lost requests failed", error);
+  }
+};
+failLost();
+const lostTimer = setInterval(failLost, 5 * 60_000);
+lostTimer.unref();
+
 // Calls nobody ended (decision 0009, section 4): every five minutes, end any
 // call open for 3 hours and log it, so call lengths stay honest.
 const callTimer = setInterval(() => {
@@ -331,6 +356,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopRecurring();
     clearInterval(siteTimer);
     clearInterval(callTimer);
+    clearInterval(lostTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();

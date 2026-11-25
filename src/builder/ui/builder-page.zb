@@ -1,0 +1,77 @@
+<!--
+  The site builder (decision 0010): every build, and starting one for a
+  client. Admins only, because asking Claude spends Potomac's money.
+-->
+<script>
+  'use route /builder'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/progress-bar.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.builder.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Site builder', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .builds { list-style: none; margin: 0; padding: 0; }
+  .builds > li { display: grid; gap: 0.2rem; padding: 0.8rem 0; border-top: 1px solid var(--border); }
+  .builds > li:first-child { border-top: 0; }
+  .builds p { margin: 0; overflow-wrap: anywhere; }
+  .start { display: grid; gap: 1rem; max-width: 40rem; }
+  .budget-note { margin: 0.4rem 0 0; }
+</style>
+<hq-builder view={{ builds: [], clients: [], budget: { spent: '', cap: '', left: '', percent: 0 }, model: '', claudeSetUp: true }} done="" problem="">
+  <div class="hq-page">
+    <h1>Site builder</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Make a client’s website with Claude: write a brief, see it in a preview, and ask for changes until it’s right. Every answer is kept as a version.</p>
+    <alert-banner zb-if={!view.claudeSetUp} variant="warning">HQ has no Claude API key, so it can’t ask Claude yet. Set HQ_ANTHROPIC_API_KEY on the server.</alert-banner>
+    <section class="hq-panel" aria-labelledby="builder-budget">
+      <h2 id="builder-budget">This month</h2>
+      <progress-bar value={view.budget.percent} max={100} label={view.budget.spent + ' of ' + view.budget.cap + ' spent'}></progress-bar>
+      <p class="hq-small hq-muted budget-note">{view.budget.left} left. Using {view.model}. A request that could pass the cap isn’t sent. <a href="/builder/settings">Model and cap</a></p>
+    </section>
+    <section class="hq-panel" aria-labelledby="builder-all">
+      <h2 id="builder-all">Builds</h2>
+      <empty-state zb-if={view.builds.length === 0} heading="No builds yet">Start one below for any client.</empty-state>
+      <ul zb-else class="builds">
+        <zb-each items={view.builds} as="one" key={one.id}>
+          <li>
+            <p><strong><a href="/builder/{one.id}">{one.name}</a></strong> · {one.client} <status-badge zb-if={one.working} variant="primary">Claude is working</status-badge></p>
+            <p class="hq-small hq-muted">{one.versions === 1 ? '1 version' : one.versions + ' versions'} · changed {one.updated}</p>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+    <form id="start" method="post" action="/builder" class="hq-panel start" aria-labelledby="builder-start">
+      <h2 id="builder-start">Start a build</h2>
+      <div class="hq-field">
+        <label for="build-client">Client</label>
+        <select id="build-client" name="organizationId" required>
+          <option value="">Choose a client</option>
+          <zb-each items={view.clients} as="client" key={client.id}>
+            <option value={client.id}>{client.name}</option>
+          </zb-each>
+        </select>
+      </div>
+      <div class="hq-field">
+        <label for="build-name">Name</label>
+        <input id="build-name" name="name" maxlength="80" required placeholder="Better Days Towing website">
+      </div>
+      <div class="hq-field">
+        <label for="build-brief">Brief</label>
+        <textarea id="build-brief" name="brief" rows="8" maxlength="4000" aria-describedby="build-brief-help"></textarea>
+        <p id="build-brief-help" class="hq-small hq-muted">What the business does, who its customers are, the tone, the pages wanted, colours to use or avoid. The client’s name, phone, address and main contact come from HQ.</p>
+      </div>
+      <p class="hq-small hq-muted">Starting asks Claude for the first version straight away.</p>
+      <div><button class="hq-button" type="submit">Start and make the first version</button></div>
+    </form>
+  </div>
+</hq-builder>

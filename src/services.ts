@@ -14,6 +14,8 @@ import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/ind
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
+import type { BuilderDeps, Claude } from "./builder/index.ts";
+import { previewTokens, sqliteBuilderSettings, sqliteBuildStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
 import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
@@ -73,6 +75,8 @@ export type Services = {
   readonly referrals: ReferralsDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
+  /** The site builder: client websites made with Claude (decision 0010). */
+  readonly builder: BuilderDeps;
   readonly touches: TouchDeps;
   /** The call screen: a timed call, logged with its length (decision 0009). */
   readonly calls: CallDeps;
@@ -121,6 +125,14 @@ export type ServiceOptions = {
   readonly webhookKey?: string;
   /** HQ's own address, for links in webhook payloads. */
   readonly publicUrl?: string;
+  /** The site builder's link to Claude. Without it, Claude can't be asked. */
+  readonly claude?: Claude | null;
+  /** The email of the one person who may change the site builder's model and cap. */
+  readonly builderOwner?: string | null;
+  /** Signs the site builder's preview addresses. Without it, a key made for this process. */
+  readonly previewSecret?: string;
+  /** Runs a job after the answer is sent: a request to Claude. Errors go to the log. */
+  readonly runLater?: (job: () => Promise<void>) => void;
 };
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -279,6 +291,29 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     invoice: billedOf,
     mayBill: (actorId) => authorize({ users }, actorId, "invoice.edit").ok,
   };
+  // What a client's public website may say about them: nothing more private (decision 0010).
+  const builder: BuilderDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    builds: sqliteBuildStore(db),
+    settings: sqliteBuilderSettings(db),
+    claude: options.claude ?? null,
+    previewTokens: previewTokens(options.previewSecret ?? crypto.randomUUID() + crypto.randomUUID()),
+    clientFacts: (id) => {
+      const client = crm.clients.get(id);
+      if (!client) return null;
+      const contact = crm.contacts.listFor(id).find((one) => one.isPrimary) ?? null;
+      return { name: client.name, phone: client.phone, address: client.address, website: client.website, contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone, title: contact.title } : null };
+    },
+    clients: () => crm.clients.list().map((one) => ({ id: one.id, name: one.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    ownerEmail: options.builderOwner ?? null,
+    timeZone: BUSINESS_TIME_ZONE,
+    runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
+  };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
   const calendarLinks = sqliteCalendarLinkStore(db);
@@ -328,5 +363,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { notices, webhooks, publicSite, websites, builder, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

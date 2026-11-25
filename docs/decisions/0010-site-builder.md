@@ -58,8 +58,9 @@ line or two what it did. That answer becomes the next version.
   time.
 - Claude may only write files under the build: text files of the kinds a
   static site uses (`.html`, `.css`, `.js`, `.json`, `.svg`, `.txt`,
-  `.xml`, `.webmanifest`), paths without `..` or a leading `/`, at most 60
-  files and 600 KB of text in a version. An answer that breaks a rule is
+  `.xml`, `.webmanifest`), paths without `..`, a leading `/` or a part
+  starting with a dot, at most 60 files and 400,000 characters of text in a
+  version, with an `index.html` once there are any files. An answer that breaks a rule is
   refused whole, the request is marked failed, and its cost still counts.
 - **Default:** the site Claude writes follows the 0003 content shape from
   the start: `content/site.json` holds the notice, the gallery and the
@@ -76,7 +77,11 @@ line or two what it did. That answer becomes the next version.
 The newest version shows in a frame beside the conversation, at phone,
 tablet or full width. It is served by HQ at a staff-only address:
 
-- Only people with `site.build` can open it.
+- Only people with `site.build` can open it. The frame is sandboxed into
+  an origin of its own, so the browser sends it no cookies; its address
+  carries the right instead: the build, the version and an expiry an hour
+  away, signed with HQ's secret. Only the build page, which checks
+  `site.build`, makes one.
 - It is **sandboxed**: the frame has `sandbox="allow-scripts"` and the
   response carries `Content-Security-Policy: sandbox allow-scripts`, so the
   page runs in an origin of its own, cannot read HQ's cookies or pages, and
@@ -91,7 +96,8 @@ This keeps decision 0003's rule: HQ never serves a client's public site.
 
 - **The key** is `HQ_ANTHROPIC_API_KEY`, set on Railway. It never goes in
   the database, a page or a log.
-- **The model and the monthly cap** are in **Settings → Site builder**.
+- **The model and the monthly cap** are in **Site builder → Model and cap**
+  (`/builder/settings`).
   Only the person whose email is `HQ_SITE_BUILDER_OWNER` (Mikey) can
   change them; other admins see them. **Default**: an environment setting
   names the owner, because HQ has no role above admin and Jayanti will be
@@ -159,17 +165,20 @@ a client who wants to host it themselves.
 
 Migration `0056-site-builder.sql`:
 
-- `build`: client, name, brief, state (`idle`, `working`), who started it,
-  repository and branch once published, timestamps.
+- `build`: client, name, brief, who started it, timestamps. Whether it is
+  working is read from its requests. The repository and branch are added
+  with slice 4.
 - `build_version`: build, number, made by (a person or `claude`), the
   request that made it, Claude's summary, the files as one JSON object,
   total size.
 - `build_request`: build, person, the text asked, model, state (`working`,
-  `done`, `failed`, `refused`), reserved cost, input and output tokens,
-  real cost in micro-dollars, error, timestamps.
+  `done`, `failed`), reserved cost, input and output tokens, real cost in
+  micro-dollars, error, timestamps. A request refused before sending (over
+  the cap, no key) is never recorded. One left working 20 minutes, lost
+  when HQ restarted, is failed and counted at what it reserved.
 - `build_image` (slice 2): build, path, type, width, height, what it
   shows, bytes.
-- Settings rows for the model and the cap.
+- `builder_settings`: the model and the cap, one row.
 
 Decision 0008's unmerged task-keys migration also planned to take 0056.
 When 0008 resumes it takes the next free number.
