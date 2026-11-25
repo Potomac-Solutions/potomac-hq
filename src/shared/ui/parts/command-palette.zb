@@ -23,6 +23,7 @@
     { key: 'j', href: '/projects', label: 'Projects' },
     { key: 'b', href: '/board', label: 'Board' },
     { key: 'm', href: '/money', label: 'Money' },
+    { key: 'h', href: '/history', label: 'Recent changes' },
   ]
   const SHORTCUTS = [
     { keys: 'Ctrl K', what: 'Open the command palette (⌘K on a Mac)' },
