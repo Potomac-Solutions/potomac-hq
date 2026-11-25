@@ -1,6 +1,8 @@
 // What AI may do in HQ, and what it may spend (decision 0012). One row of
-// settings: the model, its prices, the monthly budget, which features are on,
-// and Potomac's price guide that lead triage reads. Every feature starts off.
+// settings: the model, its prices, which features are on, and Potomac's price
+// guide that lead triage reads. Every feature starts off. The monthly budget
+// is one cap shared with the site builder (Mikey, 2026-11-25): it is kept with
+// the site builder's settings, and both count what the other spent.
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 import { DEFAULT_MODEL, knownModel, readModelId, readPrice, type ModelPrice } from "./models.ts";
 
@@ -41,23 +43,19 @@ export const FEATURE_TEXT: { readonly [K in Feature]: { readonly label: string; 
 export type AiSettings = {
   readonly model: string;
   readonly price: ModelPrice;
-  /** The most HQ may spend on AI in a calendar month, in cents. */
-  readonly budgetMinor: number;
   readonly features: readonly Feature[];
   /** What Potomac charges, in its own words: lead triage reads it. */
   readonly priceGuide: string;
 };
 
-/** The starting point (decision 0012, confirmed by Mikey on Nov 25): Haiku 5.5, $20 a month, everything off. */
+/** The starting point (decision 0012, confirmed by Mikey on Nov 25): Haiku 5.5, everything off. */
 export const DEFAULT_SETTINGS: AiSettings = {
   model: DEFAULT_MODEL,
   price: { input: 100_000, output: 500_000, long: { above: 100_000, input: 500_000, output: 2_500_000 } },
-  budgetMinor: 2000,
   features: [],
   priceGuide: "",
 };
 
-export const MAX_BUDGET_MINOR = 100_000;
 export const MAX_PRICE_GUIDE = 4000;
 
 export type SettingsInput = {
@@ -67,13 +65,11 @@ export type SettingsInput = {
   readonly otherModel?: string;
   readonly otherInput?: string;
   readonly otherOutput?: string;
-  /** Dollars a month, like "20" or "12.50". */
-  readonly budget: string;
   readonly features: readonly string[];
   readonly priceGuide?: string;
 };
 
-export type SettingsError = "model-invalid" | "price-invalid" | "budget-invalid" | "price-guide-too-long";
+export type SettingsError = "model-invalid" | "price-invalid" | "price-guide-too-long";
 
 export function readSettings(input: SettingsInput): Result<AiSettings, SettingsError> {
   let model: string;
@@ -92,15 +88,10 @@ export function readSettings(input: SettingsInput): Result<AiSettings, SettingsE
     model = id.value;
     price = knownModel(id.value)?.price ?? { input: inPrice.value, output: outPrice.value };
   } else return err("model-invalid");
-  const budget = input.budget.trim().replace(/^\$/, "");
-  if (!/^\d{1,4}(\.\d{1,2})?$/.test(budget)) return err("budget-invalid");
-  const [whole = "0", part = ""] = budget.split(".");
-  const budgetMinor = Number(whole) * 100 + Number(part.padEnd(2, "0"));
-  if (budgetMinor > MAX_BUDGET_MINOR) return err("budget-invalid");
   const priceGuide = (input.priceGuide ?? "").trim().replace(/\r\n/g, "\n");
   if (priceGuide.length > MAX_PRICE_GUIDE) return err("price-guide-too-long");
   const features = FEATURES.filter((one) => input.features.includes(one));
-  return ok({ model, price, budgetMinor, features, priceGuide });
+  return ok({ model, price, features, priceGuide });
 }
 
 export type BudgetState = "ok" | "warning" | "reached";

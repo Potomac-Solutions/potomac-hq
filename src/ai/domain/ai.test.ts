@@ -17,24 +17,22 @@ test("what a call costs: Haiku 5.5 at $0.10 and $0.50 a million, five times that
   assert.equal(dollarsText(0), "$0.00");
 });
 
-test("settings: a known model takes its prices; another model needs its own; a budget in dollars", () => {
-  const haiku = readSettings({ model: "claude-haiku-5-5", budget: "20", features: ["call-recap", "nonsense", "ask"] });
+test("settings: a known model takes its prices; another model needs its own", () => {
+  const haiku = readSettings({ model: "claude-haiku-5-5", features: ["call-recap", "nonsense", "ask"] });
   assert.ok(haiku.ok);
-  assert.equal(haiku.value.budgetMinor, 2000);
   assert.deepEqual(haiku.value.features, ["call-recap", "ask"]);
   assert.equal(haiku.value.price.input, 100_000);
-  const other = readSettings({ model: "other", otherModel: "claude-haiku-6", otherInput: "$0.20", otherOutput: "1", budget: "$12.50", features: [] });
+  const other = readSettings({ model: "other", otherModel: "claude-haiku-6", otherInput: "$0.20", otherOutput: "1", features: [] });
   assert.ok(other.ok);
-  assert.deepEqual([other.value.model, other.value.price, other.value.budgetMinor], ["claude-haiku-6", { input: 200_000, output: 1_000_000 }, 1250]);
-  assert.deepEqual(readSettings({ model: "other", otherModel: "Bad Model!", otherInput: "1", otherOutput: "1", budget: "1", features: [] }), { ok: false, error: "model-invalid" });
-  assert.deepEqual(readSettings({ model: "other", otherModel: "claude-x", otherInput: "", otherOutput: "1", budget: "1", features: [] }), { ok: false, error: "price-invalid" });
-  assert.deepEqual(readSettings({ model: "gpt", budget: "1", features: [] }), { ok: false, error: "model-invalid" });
-  for (const budget of ["", "-1", "1001", "ten", "1.234"]) assert.deepEqual(readSettings({ model: "claude-haiku-5-5", budget, features: [] }), { ok: false, error: "budget-invalid" }, budget);
-  assert.deepEqual(readSettings({ model: "claude-haiku-5-5", budget: "0", features: [], priceGuide: "x".repeat(4001) }), { ok: false, error: "price-guide-too-long" });
+  assert.deepEqual([other.value.model, other.value.price], ["claude-haiku-6", { input: 200_000, output: 1_000_000 }]);
+  assert.deepEqual(readSettings({ model: "other", otherModel: "Bad Model!", otherInput: "1", otherOutput: "1", features: [] }), { ok: false, error: "model-invalid" });
+  assert.deepEqual(readSettings({ model: "other", otherModel: "claude-x", otherInput: "", otherOutput: "1", features: [] }), { ok: false, error: "price-invalid" });
+  assert.deepEqual(readSettings({ model: "gpt", features: [] }), { ok: false, error: "model-invalid" });
+  assert.deepEqual(readSettings({ model: "claude-haiku-5-5", features: [], priceGuide: "x".repeat(4001) }), { ok: false, error: "price-guide-too-long" });
   assert.deepEqual(readPrice("1001"), { ok: false, error: "price-invalid" });
 });
 
-test("the budget: a warning from 80%, a hard stop at 100%, and no call that could go past it", () => {
+test("the shared budget: a warning from 80%, a hard stop at 100%, and no call that could go past it", () => {
   assert.equal(budgetState(0, 2000), "ok");
   assert.equal(budgetState(15_999_999, 2000), "ok");
   assert.equal(budgetState(16_000_000, 2000), "warning");

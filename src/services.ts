@@ -14,7 +14,7 @@ import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/ind
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import type { BuilderDeps, Claude } from "./builder/index.ts";
+import { builderSpentThisMonth, type BuilderDeps, type Claude } from "./builder/index.ts";
 import { previewTokens, sqliteBuilderSettings, sqliteBuildStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -331,6 +331,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ownerEmail: options.builderOwner ?? null,
     timeZone: BUSINESS_TIME_ZONE,
     runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
+    // The cap is shared with the AI drafts (Mikey, 2026-11-25): what they spent this month counts too.
+    alsoSpent: () => aiStore.spentSince(startOfDay(`${today().slice(0, 7)}-01`)),
   };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
@@ -396,6 +398,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ai: aiStore,
     model: options.aiModel ?? null,
     ownerEmail: options.builderOwner ?? null,
+    // One budget, shared with the site builder (Mikey, 2026-11-25): its cap, and what it has spent.
+    sharedBudget: () => ({ capCents: builder.settings.get().capCents, builderSpent: builderSpentThisMonth(builder) }),
     records: sqliteAiRecords(db),
     links: {
       recap(actorId, callId) {
