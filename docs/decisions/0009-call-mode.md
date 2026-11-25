@@ -146,6 +146,11 @@ Fifteen minutes before a booked call (**Default**), Today and the bell
 show it with **Get ready**: the talking points, the guide HQ would pick,
 and the reason they gave when booking. The call screen opens from there.
 
+Changed while building it (slice 5): the top bar shows it, on every page,
+instead of the bell. The bell's notices are each about a task (decision
+0007, section 8), and a booked call isn't one; the top bar is where "On a
+call" already shows, and is seen without opening anything.
+
 ### 7. Proposed: the recap email
 
 After a call where you talked, the summary can be sent to the client as a
