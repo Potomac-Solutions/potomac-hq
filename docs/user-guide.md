@@ -39,12 +39,30 @@ The full list is in the article "Authorization matrix".
 
 ## Undo
 
-After a move or a status change, an **Undo** bar appears at the bottom of
-the screen. Press it, or Ctrl+Z (⌘Z on a Mac) when you're not typing, to put
-things back. Undo works for pipeline stages, client and project status,
-task moves on the board, and ticking off to-dos. It isn't offered when
-putting it back wouldn't be allowed: a deal marked lost (mark it lost again
-with a reason), or a repeating task whose next one was already made.
+After a move, a status change or an edit, an **Undo** bar appears at the
+bottom of the screen. Press it, or Ctrl+Z (⌘Z on a Mac) when you're not
+typing, to put things back. Undo works for pipeline stages, client and
+project status, task moves on the board, ticking off to-dos, and saving a
+task's or project's details or a deal's price or follow-up. It works once,
+for a day. It isn't offered when putting it back wouldn't be allowed, such
+as a repeating task whose next one was already made.
+
+**Remove** buttons hide the item at once and wait six seconds, with Undo,
+before anything is removed.
+
+## Getting around by keyboard
+
+- **Ctrl+K** (⌘K), or **Go to…** in the top bar: go to any page, client,
+  deal, project, task or invoice, or move a deal on ("Move Feed store site
+  to Quoted").
+- **?** shows every shortcut. **G** then a letter jumps to a page: **P**
+  Pipeline, **C** Clients, **B** Board, **T** Today and more. **/** searches.
+- On the pipeline or the board, focus a card and press **Space**, the
+  **arrow keys**, then **Space** again to move it. **Escape** puts it back.
+- On a phone, drag a card by its grip (the dots on its left edge).
+
+After you save or move something, HQ keeps your place on the page. If you
+leave a page with something typed and not saved, it asks first.
 
 ## A lead comes in
 

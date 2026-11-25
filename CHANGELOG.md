@@ -18,6 +18,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
   is clearer on the pipeline and the board: a grip on each card, the card
   lifts and fades while dragged, columns it can go to are outlined with
   "Drop to move here", and pipeline columns it can't go to are dimmed.
+- More undo and easier getting around (decision 0014, sections 4 to 7).
+  Undo also covers saving a task's or project's details and a deal's price
+  or follow-up, and reopening a lost deal; it is kept server-side behind a
+  one-time token (`/undo/<token>`, migration 0072). Remove buttons hide the
+  item and wait six seconds with Undo before sending. After a post HQ keeps
+  your scroll and focus, cards slide to their new place where the browser
+  supports view transitions, forms can't be sent twice, leaving a typed form
+  asks first, and green messages fade. New: a command palette (Ctrl+K or
+  "Go to…") that also moves deals, a shortcut list (?), G-then-letter
+  jumps, moving board and pipeline cards with Space and the arrow keys, and
+  dragging cards by the grip on a phone.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"

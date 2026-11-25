@@ -1,11 +1,12 @@
-# 0014. Undo, moving back, and clearer dragging
+# 0014. Undo, moving back, clearer dragging, and keyboard and touch
 
 Status: decided 2026-11-25 at Mikey's request: "I want to be able to undo
 changes if I mess up a click. Pipeline is a one way street but I want to be
 able to move back to new if I mess up... undo would be nice everywhere...
 being able to drag back would be nicer. Use more visual cues when dragging
 too." Built on one branch, reviewed by Mikey before it merges into
-`staging`.
+`staging`. Sections 4 to 7 were added the same day, when Mikey asked for
+all eleven follow-ups Claude proposed ("all of these in the same branch").
 
 ## Context
 
@@ -47,10 +48,18 @@ cursor said so, and only the column under the card lit up while dragging.
 - Undo is offered for: opportunity stages (pipeline and the opportunity's
   page), client status, project status, task moves on the board, and ticking
   off or reopening a to-do.
-- It is not offered when the reverse isn't allowed: back into lost (that
-  needs a reason), a project status that can't go back, or a repeating task
-  whose next one was made when it was finished.
+- Also for edits: a task's details, a project's details, an opportunity's
+  price (once it had one) and its follow-up date. Undo posts the old values
+  back through the same edit form.
+- Reopening a lost deal can be undone: the reason it had goes back with it.
+- It is not offered when the reverse isn't allowed: a project status that
+  can't go back, or a repeating task whose next one was made when it was
+  finished.
 - Undo covers the last change only. There is no history to step through.
+- The post is kept in the database (`undo_stash`, migration 0072) and the
+  page's address carries only a random token, so old values of any length
+  fit: a task's description, a lost reason. A token works once, for a day,
+  and `/undo/<token>` runs the kept post as if the browser had sent it.
 
 ### 3. Dragging
 
@@ -63,10 +72,56 @@ cursor said so, and only the column under the card lit up while dragging.
 - Each pipeline card has a Back button beside "Move to …" for keyboards and
   touch.
 
+### 4. Removing waits for Undo
+
+- Any Remove or Archive button (except under Settings, such as a passkey)
+  hides the item at once and shows "Removed. Undo" for six seconds. Only
+  then is the removal sent, as the form would have sent it, so the page
+  says what happened. Undo, or Ctrl+Z, puts it back and nothing is sent.
+- Leaving the page, or removing something else, sends a waiting removal
+  straight away in the background.
+- This is done in the browser for every removal at once, so no module's
+  removal had to change. Without JavaScript a removal is immediate, as
+  before.
+
+### 5. Keeping your place
+
+- After a form post that comes back to the same page, the scroll position
+  comes back, and focus returns to the moved card or the button that was
+  pressed.
+- Where the browser supports cross-page view transitions, cards that moved
+  slide to their new place instead of the page flashing. Other pages change
+  as before. Honours reduced motion.
+- A form can't be sent twice: a second press while it's on its way does
+  nothing, and the button shows it's busy.
+- Leaving a page with a form you've typed in and not sent asks first.
+- Green "done" messages fade after six seconds (not while the pointer or
+  focus is on them). Problems stay.
+
+### 6. Keyboard
+
+- **Ctrl+K** (⌘K), or "Go to…" in the top bar, opens the command palette:
+  HQ's pages, everything search finds, and for an opportunity it finds the
+  move on to its next stage or back one, posted as the page's own form.
+  Quick add and search are in it too. It reads `/palette.json`, which only
+  answers what search and the opportunity page already would.
+- **?** lists every shortcut. **G** then a letter goes to a page (T Today,
+  W My work, D Dashboard, P Pipeline, C Clients, J Projects, B Board,
+  M Money), if it's in that person's navigation. **/** goes to search.
+- A pipeline or board card can be focused and moved: Space picks it up,
+  ← and → choose a column (on the pipeline, only where it may go), Space
+  drops it, Escape puts it back. A screen reader hears each step.
+
+### 7. Touch
+
+- A card's grip is a handle for a finger: drag it and the card follows,
+  the column under it lights up, and the page scrolls near the edges.
+  Mouse dragging is unchanged.
+
 ## Not in this decision
 
-- Undo for edits to text (a client's details, a task's description) and for
-  deletes. Those need the old values kept; worth a follow-up if mis-clicks
-  there turn out to matter.
-- Dragging on touch screens. Browsers don't send drag events for touch; the
-  buttons and menus work there.
+- Undo for edits not listed in section 2, such as a client's or contact's
+  details, and a history of more than the last change.
+- Moving cards without the page reloading at all. HQ's pages are made on
+  the server; section 5 makes the reload keep your place and animate
+  instead.
