@@ -163,11 +163,13 @@ potomac.solutions' server calls with its token.
   their portal under "Send a friend our way". An inquiry or booking through
   it is marked as referred by that client.
 - **Credit.** When a referred client pays their first invoice, the
-  referring client earns a credit. **Default:** $25 each, set in Money →
-  Settings. Credits show on the client page and in their portal. **Apply
-  credit** on a draft invoice for that client adds a "Referral credit" line
-  for up to what is owed; it never makes an invoice zero or less, and a
-  credit is used once.
+  referring client earns a credit. **Default:** $25 each, set on the
+  Referral links page (changed while building it: that's where the rest of
+  referrals live, not Money). Credits show on the client page and in their
+  portal. **Take credit off** on a draft invoice for that client adds a
+  "Referral credit" line. **Default:** it covers all but the invoice's last
+  dollar, since an invoice can't be zero; what's left waits for the next
+  one, and a credit is used once.
 
 ### 8. Who looked at a demo
 

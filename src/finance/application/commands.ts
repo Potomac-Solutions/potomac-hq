@@ -3,7 +3,7 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
-import { addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
@@ -191,6 +191,20 @@ export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: 
     deps.invoices.insert(invoice.value, deps.clock());
     recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { projectId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
     return ok(invoice.value);
+  });
+}
+
+/** Takes a credit off a draft invoice: a line with a negative amount (decision 0010, section 7). */
+export function addCreditToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly description: string; readonly minor: number }): Result<Invoice, Refused | "not-a-draft" | "too-many-lines" | "description-missing" | "description-too-long" | "amount-must-be-positive" | "credit-too-large"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const changed = addCreditLine(invoice, input);
+    if (!changed.ok) return changed;
+    deps.invoices.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action: "invoice.credit-added", recordType: "invoice", recordId: invoiceId, context: { projectId: invoice.projectId, number: invoice.number, credit: input.minor, minor: changed.value.total.minor } });
+    return ok(changed.value);
   });
 }
 

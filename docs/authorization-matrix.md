@@ -206,6 +206,11 @@ Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approv
 Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
 they were emailed is the only thing that says who they are.
 
+Referral credit needs no key of its own: who referred an opportunity is
+set with `opportunity.edit`; a client's own link, and what a referral earns,
+with `referral.manage`; taking credit off a draft invoice with
+`invoice.edit`. A client sees their own link and credit in the portal.
+
 A review is written from an emailed link, whose token is the only key, or
 signed in to the portal, once for the client's own organization. The website
 reads only what is published, with its token.

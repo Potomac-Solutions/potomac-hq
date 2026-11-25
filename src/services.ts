@@ -7,7 +7,7 @@ import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
@@ -18,6 +18,9 @@ import type { FreePagesDeps } from "./free-pages/index.ts";
 import type { ReportsDeps } from "./client-reports/index.ts";
 import type { AutomationsDeps } from "./automations/index.ts";
 import type { ShowcaseDeps } from "./showcase/index.ts";
+import type { ReferralCreditDeps } from "./referral-credit/index.ts";
+import { sqliteReferralCreditStore } from "./referral-credit/adapters.ts";
+import { addReferralLink } from "./referrals/index.ts";
 import { sqliteCaseStudyStore, sqliteRequestStore, sqliteReviewStore } from "./showcase/adapters.ts";
 import { sqliteAutomationStore } from "./automations/adapters.ts";
 import { sqliteFactsReader, sqlitePlanClients, sqliteReportStore } from "./client-reports/adapters.ts";
@@ -95,6 +98,8 @@ export type Services = {
   readonly automations: AutomationsDeps;
   /** Reviews and case studies (decision 0010, section 6). */
   readonly showcase: ShowcaseDeps;
+  /** Who referred a lead, clients' own links, and the credit they earn (decision 0010, section 7). */
+  readonly referralCredit: ReferralCreditDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   readonly touches: TouchDeps;
@@ -386,6 +391,21 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     invoice: billedOf,
     mayBill: (actorId) => authorize({ users }, actorId, "invoice.edit").ok,
   };
+  const referralCredit: ReferralCreditDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    store: sqliteReferralCreditStore(db),
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    opportunityExists: (id) => crm.opportunities.get(id) !== null,
+    makeLink: (actorId, input) => addReferralLink(referrals, actorId, input),
+    applyCredit: (actorId, invoiceId, minor) => addCreditToInvoice(finance, actorId, invoiceId, { description: "Referral credit: thank you for sending a friend our way", minor }),
+    siteUrl: `${(options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "")}/`,
+    clientOptions: () => crm.clients.list().filter((one) => one.status !== "former").map((one) => ({ id: one.id, name: one.name })),
+  };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
   const calendarLinks = sqliteCalendarLinkStore(db);
@@ -435,5 +455,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, newsletter, leads, freePages, clientReports, automations, showcase, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { notices, webhooks, publicSite, websites, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

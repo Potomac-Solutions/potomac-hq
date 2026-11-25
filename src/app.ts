@@ -54,6 +54,8 @@ import { allAutomations, clientAutomations, portalAutomations, type ClientAutoma
 import { automationHookRoutes, automationRoutes } from "./automations/api/automation-routes.ts";
 import { automationSecretPage } from "./automations/ui/views.ts";
 import { caseStudyFor, mayWriteReview, reviewLink, showcase } from "./showcase/index.ts";
+import { clientReferrals, creditAmount, creditFor, markReferredByLink, portalReferrals, referredByView, type ClientReferralsView } from "./referral-credit/index.ts";
+import { referralCreditRoutes } from "./referral-credit/api/referral-credit-routes.ts";
 import { reviewWritingRoutes, showcaseApiRoutes, showcaseDownloads, showcaseStaffRoutes, type AskMail } from "./showcase/api/showcase-routes.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
@@ -305,6 +307,16 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Who referred a lead, clients' own links, and referral credit (decision 0010, section 7). */
+  readonly referralCredit: {
+    referredBy(opportunityId: string): ReturnType<typeof referredByView>;
+    forClient(organizationId: string): ClientReferralsView | null;
+    forInvoice(invoiceId: string): ReturnType<typeof creditFor>;
+    /** What a referral earns, for those who may change it; null for anyone else. */
+    amount(): string | null;
+    /** The signed-in client's own link and credit. */
+    mine(): ClientReferralsView | null;
+  };
   /** Reviews and case studies (decision 0010, section 6). */
   readonly showcase: {
     overview(): ReturnType<typeof showcase>;
@@ -756,6 +768,22 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        referralCredit: {
+          referredBy: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? referredByView(services.referralCredit, actor, parsed.value) : null;
+          },
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientReferrals(services.referralCredit, actor, parsed.value, (config.publicUrl ?? "").replace(/\/$/, "")) : null;
+          },
+          forInvoice: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? creditFor(services.referralCredit, actor, parsed.value) : null;
+          },
+          amount: () => creditAmount(services.referralCredit, actor),
+          mine: () => portalReferrals(services.referralCredit, client?.organizationId ?? null, (config.publicUrl ?? "").replace(/\/$/, "")),
+        },
         showcase: {
           overview: () => showcase(services.showcase, actor),
           forClient: (id) => withId(id, (organizationId) => caseStudyFor(services.showcase, actor, organizationId)),
@@ -1131,7 +1159,10 @@ export async function createApp(config: AppConfig): Promise<App> {
       // Where on the website they were (decision 0010, section 2).
       attribute: (opportunityId, read) => void keepLeadTouch(services.leads, { opportunityId }, touchFields(read)),
       // An inquiry that came by a referral link is counted for that link.
-      credit: (code, opportunityId) => void creditInquiry(services.referrals, code, opportunityId),
+      credit: (code, opportunityId) => {
+        // Counted for the link; and, for a client's own link, marked as referred by them (decision 0010).
+        if (creditInquiry(services.referrals, code, opportunityId)) markReferredByLink(services.referralCredit, opportunityId);
+      },
       notify: async (inquiry) => {
         const to = config.inquiryEmail;
         if (!email || !to) return;
@@ -1173,6 +1204,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           body: `Hi ${to.name.split(/\s+/)[0] ?? ""},\n\nThank you for trusting Potomac Solutions with ${clientName || "your business"}'s work. Would you tell others how it went? It takes a minute: a few stars, a few words, and whether we may show it on our website.\n\n${link}\n\nThe link works once, for 30 days. If you'd rather not, ignore this email: no hard feelings.\n\nMikey and Jayanti\nPotomac Solutions`,
         }))
     : null;
+  forms.route("/", referralCreditRoutes({ credit: services.referralCredit, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", showcaseStaffRoutes({ showcase: services.showcase, actorOf, sign: (location) => notices.sign(location), publicUrl, mail: askMail }));
   forms.route("/", reviewWritingRoutes({ showcase: services.showcase, sign: (location) => notices.sign(location), clientOf }));
   forms.route("/", automationRoutes({ automations: services.automations, actorOf, sign: (location) => notices.sign(location), publicUrl, secretPage: (view) => renderPage("Check-in address", automationSecretPage(view)) }));
@@ -1252,7 +1284,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       attribute: (organizationId, read) => void keepLeadTouch(services.leads, { organizationId }, touchFields(read)),
       credit: (code, organizationId) => {
         const opportunityId = services.leads.leads.newestOpenAt(organizationId);
-        if (opportunityId) creditInquiry(services.referrals, code, opportunityId);
+        if (opportunityId && creditInquiry(services.referrals, code, opportunityId)) markReferredByLink(services.referralCredit, opportunityId);
       },
     }),
   );
