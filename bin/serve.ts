@@ -43,6 +43,7 @@ import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
 import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
 import { failLostRequests } from "../src/builder/index.ts";
+import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
 import { claudeModel } from "../src/ai/adapters.ts";
@@ -127,6 +128,7 @@ const app = await createApp({
   claude: claudeConfig ? claudeApi(claudeConfig) : null,
   builderOwner,
   sitePublisher: github ? githubPublisher(github) : null,
+  siteArchive: github ? githubArchive(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
   ...(busyCalendar ? { busyCalendar } : {}),

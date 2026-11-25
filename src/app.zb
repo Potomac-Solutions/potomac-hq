@@ -54,6 +54,7 @@
         { label: 'Site content', href: '/websites', current: at('/websites') },
         ...(can.siteBuilder ? [{ label: 'Site builder', href: '/builder', current: at('/builder') }] : []),
         ...(can.social ? [{ label: 'Social media', href: '/social', current: at('/social') }] : []),
+        { label: 'Landing pages', href: '/landing-pages', current: at('/landing-pages') },
       ] },
       { label: 'Finance', links: [
         ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),

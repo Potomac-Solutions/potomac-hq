@@ -206,9 +206,15 @@ Decided 2026-11-25 (`docs/decisions/0013-growth-tools.md`). Needs Mikey's approv
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+| Record a client's free landing page, change its address and status, write down a round of changes and mark one done | `free-page.manage` | Yes | Yes | Yes | No (asks for theirs, sends rounds and approves it in the portal) |
 
 Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
 they were emailed is the only thing that says who they are.
+
+Free landing pages are seen on a client with `client.view`. A client user
+holds no key: signed in, they ask for their own organization's page, send it
+rounds and approve it, and download its code once approved. Their
+organization comes from their session alone.
 
 ### Platform (v1.0)
 

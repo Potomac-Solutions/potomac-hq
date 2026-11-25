@@ -83,6 +83,7 @@ export const PERMISSIONS = [
   "ai.manage",
   // Growth tools (decision 0013)
   "newsletter.manage",
+  "free-page.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
