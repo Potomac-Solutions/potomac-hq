@@ -1,5 +1,6 @@
 <!--
-  The dashboard: the company at a glance. A row of figures, each a link to
+  Home (decision 0015): the assistant's box first, then Get HQ ready for
+  admins, then the company at a glance. A row of figures, each a link to
   its page; then what needs someone (clients waiting, down sites, follow-ups,
   deadlines, budgets, projects) beside what is coming and what happened
   (calls, renewals, the pipeline, hours, clients' doings, recent activity).
@@ -13,6 +14,7 @@
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/stat-card.zb'
   import '../../shared/ui/zubra/progress-bar.zb'
+  import '../../shared/ui/parts/assistant-panel.zb'
 
   export async function load({ context }) {
     const stop = context.guard()
@@ -61,6 +63,9 @@
       problem: context.notice.problem,
       remindTwoFactor: context.settings.remindTwoFactor,
       setup: context.setup(),
+      chat: context.assistant(),
+      chatModels: context.ai.models(),
+      chatManage: context.ai.canManage,
     }
   }
 
@@ -91,12 +96,13 @@
   .hq-setup-list li.done strong { text-decoration: line-through; color: var(--muted-foreground); }
   .hq-setup-list .hq-scope { display: block; margin: 0.1rem 0 0; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="" setup={null}>
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="" setup={null} chat={null} chat-models={[]} chat-manage={false}>
  <div class="hq-page">
   <div class="hq-head">
     <div><h1>Home</h1><p>{today}</p></div>
     <div class="hq-head-actions"><a class="hq-button" href="/today">Work today’s list</a></div>
   </div>
+  <assistant-panel zb-if={chat && (chat.on || chat.why || chat.lines.length > 0 || chatManage)} view={chat} models={chatModels} can-manage={chatManage}></assistant-panel>
   <div zb-if={done || problem || remindTwoFactor} class="hq-notices">
     <alert-banner zb-if={remindTwoFactor} variant="warning" heading="Turn on two-factor sign-in">You're an admin, so your password alone opens everything in HQ, including who can sign in. <a href="/settings#two-factor">Turn it on</a> in Settings. It takes a minute and an app on your phone.</alert-banner>
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>

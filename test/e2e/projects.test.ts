@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { PDF, testApp, wonProject, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -41,7 +41,7 @@ test("run a project from its pages and the board", async () => {
   await page.goto(t.origin + "/");
   await page.getByRole("heading", { name: "Active projects: 1" }).waitFor();
   await assertAccessible(page, "the dashboard with projects");
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
+  await sidebar(page, "Projects");
   await page.waitForURL((url) => url.pathname === "/projects");
   await assertAccessible(page, "the projects list");
   await page.getByRole("link", { name: "Bakery website" }).click();

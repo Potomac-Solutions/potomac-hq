@@ -62,7 +62,15 @@ import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts"
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
-import { ceilingDollars, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
+import { sqliteAssistantStore } from "./assistant/adapters.ts";
+import { PLACES, search, type Place } from "./dashboard/index.ts";
+import { followUpsDue } from "./crm/index.ts";
+import { staffWaiting } from "./portal/index.ts";
+import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
+import { quickAdd, quickAddPreview } from "./projects/index.ts";
+import { createClient, createOpportunity } from "./crm/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -72,6 +80,21 @@ import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
+
+/** What a module's refusal means, in words the assistant passes on (decision 0015). */
+const ASSISTANT_PROBLEMS: Readonly<Record<string, string>> = {
+  forbidden: "You don't have permission to do that.",
+  "not-found": "That record doesn't exist, or you can't see it.",
+  "not-understood": "Quick add couldn't read that line.",
+  "project-closed": "That project isn't active.",
+  "person-not-found": "There's nobody in HQ by that name.",
+  "invalid-status": "That isn't a status a task can have.",
+  "note-missing": "Say what was said.",
+  "note-too-long": "The note is too long.",
+  "name-missing": "Give the client a name.",
+  "title-missing": "Give it a title.",
+  closed: "That deal is already won or lost.",
+};
 
 /** "Due today" and the times people read are worked out here (docs/data-model.md). */
 export const BUSINESS_TIME_ZONE = "America/New_York";
@@ -144,6 +167,10 @@ export type Services = {
   readonly morning: MorningDeps;
   /** AI assistance (decision 0012): settings, budget, and the drafts each feature writes. */
   readonly ai: FeaturesDeps;
+  /** The assistant on Home (decision 0015). */
+  readonly assistant: AssistantDeps;
+  /** The pages a person may open (decision 0015): the sidebar, search and the assistant read it. */
+  readonly placesFor: (actorId: Id | null) => readonly Place[];
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -612,5 +639,114 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       expenseCategories: EXPENSE_CATEGORIES,
     },
   };
-  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  // The pages a person may open (decision 0015). Each page still checks for itself.
+  const placesFor = (actorId: Id | null): readonly Place[] => {
+    if (actorId === null) return [];
+    const allows = (gate: string | undefined): boolean => {
+      if (!gate) return true;
+      if (gate.startsWith("perm:")) return authorize({ users }, actorId, gate.slice(5)).ok;
+      const manage = authorize({ users }, actorId, "ai.manage").ok;
+      if (gate === "ai:manage") return manage;
+      if (gate === "ai:drafts") return manage || waitingDrafts(ai, actorId, () => "").items.length > 0;
+      if (gate.startsWith("ai:")) return gate.slice(3).split("|").some((feature) => isFeature(feature) && featureState(ai, actorId, feature).on);
+      return false;
+    };
+    return PLACES.filter((place) => allows(place.gate));
+  };
+
+  // What the assistant may do (decision 0015), each through its own module.
+  const may = (actorId: Id, permission: string) => authorize({ users }, actorId, permission).ok;
+  const failed = (error: string) => ({ ok: false as const, error: ASSISTANT_PROBLEMS[error] ?? error });
+  const actions: AssistantActions = {
+    find(actorId, query) {
+      const found = search(searchDeps, actorId, query, placesFor(actorId));
+      const idOf = (href: string) => /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/.exec(href)?.[1] ?? "";
+      return {
+        pages: found.pages.map((page) => ({ name: page.label, address: page.href, what: page.what })),
+        records: found.groups.flatMap((group) => group.hits.map((hit) => ({ kind: group.label, id: idOf(hit.href), name: hit.name, about: hit.context, status: hit.extra, address: hit.href }))),
+      };
+    },
+    due(actorId) {
+      const follow = followUpsDue(crm, actorId, today());
+      return {
+        clientsWaiting: staffWaiting(portal, actorId).items.map((item) => ({ what: item.text, detail: item.detail, address: item.href })),
+        followUps: follow.ok ? follow.value.items.map((item) => ({ deal: item.title, client: item.clientName, due: item.followUpText, overdue: item.overdue, address: `/opportunities/${item.id}` })) : [],
+        toDos: todosDueFor(todos, actorId).map((line) => ({ id: line.id, title: line.title, due: line.when, client: line.clientName, address: line.href })),
+      };
+    },
+    knowledge(actorId, query) {
+      if (!may(actorId, "knowledge.view")) return { articles: [] };
+      return { articles: ai.records.articles(query.split(/[^A-Za-z0-9]+/).filter(Boolean), 3).map((one) => ({ title: one.title, address: `/knowledge/${one.slug}`, text: one.body.slice(0, 1500) })) };
+    },
+    preview(actorId, line) {
+      const view = quickAddPreview(projects, actorId, { text: line, skip: [] });
+      if (!view.ok) return { canSave: false, says: "", problem: "You may not add tasks." };
+      const parts = view.value.parts.filter((part) => !part.problem).map((part) => part.says);
+      const problem = view.value.problem || view.value.parts.find((part) => part.problem)?.problem || "";
+      return { canSave: view.value.canSave, says: [`Add ${view.value.kind === "" ? "a to-do" : view.value.kind.toLowerCase()}: “${view.value.title}”`, ...parts].join(" · "), problem };
+    },
+    quickAdd(actorId, line) {
+      const added = quickAdd(projects, actorId, { text: line, skip: [] });
+      return added.ok ? { ok: true, value: { href: added.value.href } } : failed(added.error);
+    },
+    task(actorId, id) {
+      if (!may(actorId, "task.view")) return null;
+      const task = projects.tasks.get(id);
+      return task ? { title: task.title, status: task.status, done: task.status === "done", href: `/tasks/${task.id}` } : null;
+    },
+    moveTask(actorId, id, to) {
+      const moved = moveTaskStatus(projects, actorId, id, to);
+      return moved.ok || moved.error === "unchanged" ? { ok: true, value: { href: `/tasks/${id}` } } : failed(moved.error);
+    },
+    setDone(actorId, id, done) {
+      const changed = done ? completeTodo(todos, actorId, id) : reopenTodo(todos, actorId, id);
+      return changed.ok ? { ok: true, value: { href: `/tasks/${id}` } } : failed(changed.error);
+    },
+    record(actorId, on, id) {
+      if (on === "client") {
+        const client = may(actorId, "client.view") ? crm.clients.get(id) : null;
+        return client ? { name: client.name, href: `/clients/${client.id}` } : null;
+      }
+      if (on === "opportunity") {
+        const deal = may(actorId, "opportunity.view") ? crm.opportunities.get(id) : null;
+        return deal ? { name: `${deal.title} (${crm.clients.get(deal.organizationId)?.name ?? "a client"})`, href: `/opportunities/${deal.id}` } : null;
+      }
+      const project = may(actorId, "project.view") ? projectStore.get(id) : null;
+      return project ? { name: project.name, href: `/projects/${project.id}` } : null;
+    },
+    addNote(actorId, on, id, body) {
+      const recordType = on === "client" ? "client-organization" : on;
+      const added = addNote(notes, actorId, { recordType, recordId: id, body });
+      return added.ok ? { ok: true, value: { href: on === "client" ? `/clients/${id}` : `/${on === "opportunity" ? "opportunities" : "projects"}/${id}` } } : failed(added.error);
+    },
+    logContact(actorId, where, input) {
+      const logged = logTouch(touches, actorId, where, { kind: input.kind, outcome: input.outcome || null, note: input.note || null, followUpOn: input.followUpOn || null });
+      return logged.ok ? { ok: true, value: { href: "opportunityId" in where ? `/opportunities/${where.opportunityId}` : `/clients/${where.clientId}` } } : failed(logged.error);
+    },
+    addClient(actorId, input) {
+      const made = createClient(crm, actorId, { name: input.name, website: input.website || null, phone: input.phone || null, address: input.address || null });
+      return made.ok ? { ok: true, value: { href: `/clients/${made.value.id}` } } : failed(made.error);
+    },
+    openDeal(actorId, clientId, input) {
+      const made = createOpportunity(crm, actorId, clientId, { title: input.title, leadSource: input.leadSource, service: input.service || null, summary: input.summary || null });
+      return made.ok ? { ok: true, value: { href: `/opportunities/${made.value.id}` } } : failed(made.error);
+    },
+  };
+  const assistant: AssistantDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    store: sqliteAssistantStore(db),
+    actions,
+    talk: async (actorId, pick, request) => {
+      const answer = await converseWith(choosingModel(ai, pick), actorId, request);
+      return answer.ok ? { ok: true, value: { blocks: answer.value.blocks } } : answer;
+    },
+    todayText: () => Temporal.PlainDate.from(today()).toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+    state: (actorId) => featureState(ai, actorId, "assistant"),
+  };
+
+  return { ai, assistant, placesFor, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

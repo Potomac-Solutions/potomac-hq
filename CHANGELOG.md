@@ -22,6 +22,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
   Every line is worked out from HQ itself; the panel folds at three
   quarters and goes away when all are done. `bin/serve.ts` tells HQ whether
   backups are configured.
+- **The assistant** on Home (decision 0015): say what needs to happen in
+  plain words. It finds records and pages, reads the knowledge base and
+  checks what's due by itself; every change it proposes (quick add a task
+  or to-do, move a task, tick off or reopen a to-do, add a note, log a call
+  or message, add a client, open a deal) shows a card and happens on **Do
+  it**, as you, through the same services as the buttons. A setting lets
+  small changes go through with **Undo**. It is a feature in Settings → AI
+  (off to start), shares the monthly AI budget, and takes a model picked
+  beside the box up to the ceiling. Conversations are kept 90 days.
+  Migration 0072.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"

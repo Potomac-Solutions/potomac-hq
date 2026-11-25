@@ -116,7 +116,7 @@ export function setupChecklist(facts: SetupFacts): Setup {
       why: facts.aiKeySet ? "The key is set. Turn on the features you want, the assistant included." : "Set HQ_ANTHROPIC_API_KEY on the server, then turn on the features you want.",
       done: facts.aiKeySet && facts.aiFeaturesOn > 0,
       href: "/settings/ai",
-      action: "Open AI settings",
+      action: "Turn on AI features",
     },
   ];
   const doneCount = items.filter((item) => item.done).length;

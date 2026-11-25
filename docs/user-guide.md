@@ -423,6 +423,34 @@ builder → Model and cap). At the budget, AI drafts and the site builder stop
 until the first of the month or until the cap is raised; HQ works as usual
 without them. A receipt draft nobody uses is discarded after 30 days.
 
+## Finding your way, and the assistant
+
+The sidebar is eight hubs: **Home**, **Today**, **Clients**, **Work**,
+**Sites**, **Money**, **Growth** and **Company**. The hub you're in is open;
+tap another to open it. Settings is in the top bar. Can't find a page? Type
+what it does in the search box ("booking hours", "dark mode", "invoices"):
+**Pages** come first.
+
+Admins see **Get HQ ready** on Home until everything on it is done. Each
+line ticks itself when HQ can see it's true.
+
+**The assistant** is the box at the top of Home, once it's turned on in
+Settings → AI. Say what needs to happen in plain words: "add a to-do to call
+Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
+"where do I set my hours?", "what's due today?".
+
+- It looks things up by itself: records, pages, the knowledge base, what's
+  due.
+- Every change shows a card first. Nothing happens until you tap **Do it**.
+- It acts as you, so it can't do anything you can't. What it does shows in
+  Audit history as yours.
+- Under **How changes are made** you can let small changes (moving a task,
+  ticking off or reopening a to-do) go straight through, each with
+  **Undo** for a day.
+- It can't send, post, pay or delete. For those it links the page.
+- **New chat** starts over. Conversations are kept 90 days.
+- It uses the same monthly AI budget as the drafts and the site builder.
+
 ## Habits that keep HQ worth using
 
 1. If a client said it, it goes in a note the same day.

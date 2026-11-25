@@ -70,7 +70,7 @@ export const PLACES: readonly Place[] = [
 
   { key: "money", label: "Money", hub: "money", href: "/money", also: ["/invoices"], gate: "perm:finance.view", words: ["invoices", "payments", "billing", "expenses", "recurring", "deposit"], what: "Invoices, payments and expenses" },
   { key: "profit", label: "Profit and loss", hub: "money", href: "/money/profit", hidden: true, gate: "perm:finance.view", words: ["p&l", "profit", "loss", "taxes", "income"], what: "Profit and loss by month" },
-  { key: "renewals", label: "Renewals", hub: "money", href: "/renewals", words: ["domains", "hosting", "renew", "expiring"], what: "Domains and plans coming up for renewal" },
+  { key: "renewals", label: "Renewals", hub: "sites", href: "/renewals", words: ["domains", "hosting", "renew", "expiring"], what: "Domains and plans coming up for renewal" },
   { key: "reports", label: "Reports", hub: "money", href: "/reports", gate: "perm:report.view", words: ["budget", "health", "estimate vs actual", "analytics"], what: "Pipeline, project health and budget reports" },
   { key: "lead-sources", label: "Lead sources", hub: "money", href: "/reports/lead-sources", hidden: true, gate: "perm:report.view", words: ["where leads come from", "utm", "sources", "marketing"], what: "Where leads came from" },
 

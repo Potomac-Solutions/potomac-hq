@@ -39,7 +39,7 @@ test("hidden pages stay out of the sidebar; on one, the listed page it sits unde
 });
 
 test("only Home is a hub of one link; a hub left with one other page still folds", () => {
-  const hubs = navHubs(PLACES.filter((place) => place.hub !== "money" || place.key === "renewals"), "/");
+  const hubs = navHubs(PLACES.filter((place) => place.hub !== "money" || place.key === "reports"), "/");
   assert.equal(hubs.find((hub) => hub.key === "home")?.single, true);
   assert.equal(hubs.find((hub) => hub.key === "money")?.single, false);
 });

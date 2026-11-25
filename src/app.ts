@@ -11,7 +11,7 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, navHubs, PLACES, recentActivity, search, setupChecklist, type NavHub, type Place, type Setup } from "./dashboard/index.ts";
+import { auditHistory, navHubs, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
@@ -90,6 +90,8 @@ import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./
 import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
+import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
+import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -517,6 +519,8 @@ export type PageContext = {
     revision(slug: string, number: string): ReturnType<typeof articleRevision>;
   };
   readonly ai: AiPageContext;
+  /** The assistant on Home (decision 0015): the conversation, its cards, and whether it's on. */
+  assistant(): ChatView;
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
@@ -667,22 +671,8 @@ export async function createApp(config: AppConfig): Promise<App> {
     marketing: () => marketingQueue(aiDeps, actor),
   });
 
-  // The pages a person may open (decision 0015): the sidebar, search and the
-  // assistant all read this. Each page still checks for itself.
   const setupCounts = sqliteSetupCounts(db);
-  const placesFor = (actor: Id | null): readonly Place[] => {
-    if (actor === null) return [];
-    const ai = aiContext(actor);
-    const allows = (gate: string | undefined): boolean => {
-      if (!gate) return true;
-      if (gate.startsWith("perm:")) return authorize(sessionDeps, actor, gate.slice(5)).ok;
-      if (gate === "ai:manage") return ai.canManage;
-      if (gate === "ai:drafts") return ai.canManage || ai.draftCount() > 0;
-      if (gate.startsWith("ai:")) return gate.slice(3).split("|").some((feature) => ai.state(feature).on);
-      return false;
-    };
-    return PLACES.filter((place) => allows(place.gate));
-  };
+  const placesFor = services.placesFor;
 
   const handleStaff = staffRoutes({
     refused: (draft) => recordRefusal(refusedDeps, draft),
@@ -1119,6 +1109,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
         ai: aiContext(actor),
+        assistant: () => chatView(services.assistant, actor),
         settings: { theme: actor ? users.themeOf(actor) : "system", themes, morningEmail: { on: actor ? users.morningEmailOf(actor) : false, emailSetUp: Boolean(config.email), address: user?.email ?? "" }, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
@@ -1374,6 +1365,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", assistantRoutes({ assistant: services.assistant, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));

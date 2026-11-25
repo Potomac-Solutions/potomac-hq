@@ -30,10 +30,10 @@ The sidebar becomes **eight hubs**, in the order of a job:
 | Today | Today, My work, AI drafts |
 | Clients | Pipeline, Clients, Proposals, Calls, Monthly reports |
 | Work | Projects, Board, Timeline, All work, pinned filters, Labels, Time |
-| Sites | Sites, Site content, Site builder, Landing pages, Automations |
-| Money | Money, Renewals, Reports |
+| Sites | Sites, Site content, Site builder, Landing pages, Automations, Renewals |
+| Money | Money, Reports |
 | Growth | Newsletter, Social media, Marketing, Referral links, Reviews, Demos, Our website |
-| Company | Knowledge, Ask HQ, People, Audit history, Webhooks, AI model and budget, Settings |
+| Company | Knowledge, Ask HQ, People, Audit history, Webhooks, AI model and budget (Settings stays in the top bar) |
 
 The hub you're in is open; the others are folded to one line each and open
 with a tap. Nothing is removed: every page keeps its address, and a hub
@@ -70,17 +70,20 @@ Home opens on a box: **What needs to happen?** Type it in plain words.
   happens on one tap. This keeps decision 0012's rule that AI only drafts
   and a person acts.
 - **Confirmed:** a setting, **Let small changes go through without
-  asking**, lets small internal changes (adding a task or to-do, moving a
-  task, ticking a to-do off) happen right away, each with **Undo**.
-  Anything with money in it, anything a client sees, and anything that
-  can't be undone always asks. **Default:** off, set per person.
+  asking**, lets small internal changes happen right away, each with
+  **Undo** for a day. **Default:** "small" means a change with an exact
+  undo: moving a task, ticking off or reopening a to-do. Adding a task or
+  to-do asks, because HQ has no way to take one back out. Anything with
+  money in it, anything a client sees, and anything that can't be undone
+  always asks. **Default:** off, set per person.
 - **Confirmed:** it shares the one monthly AI budget with the drafts and
   the site builder, and is a feature switched on in Settings → AI like the
   others. It uses the usual model unless a model is picked beside the box,
   up to the ceiling (#165).
 - **Default:** one running conversation per person, the last 20 messages
-  sent each time; **New chat** starts over. Conversations are kept 90
-  days, then removed by `npm run retention`.
+  sent each time; **New chat** starts over and cancels cards still
+  waiting. Conversations are kept 90 days, then removed by
+  `npm run retention`.
 - **Default:** at most 4 lookups per message before it answers, so a
   message can't spend more than a few cents.
 
@@ -89,8 +92,8 @@ What it can do at first (**Default**, more as they're asked for):
 | Kind | Actions |
 | --- | --- |
 | Look (no card) | Find records and pages; what's waiting today; search the knowledge base |
-| Small (card, or straight through with the setting) | Quick add a task or to-do in quick add's own words; move a task; tick off or reopen a to-do |
-| Always asks | Add a note; log a call or message; add a client; open a deal |
+| Small (card, or straight through with the setting) | Move a task; tick off or reopen a to-do |
+| Always asks | Quick add a task or to-do in quick add's own words; add a note; log a call or message; add a client; open a deal |
 | Anything else | A link to the page that does it, filled in where the page allows |
 
 ## Slices
