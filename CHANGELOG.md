@@ -9,6 +9,21 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Social media (decision 0011), for clients on social media marketing. A
+  plan on the client's page: Facebook, Instagram and LinkedIn with each
+  page's address, 8 posts and 1 blog post a month unless set otherwise,
+  and notes about the business. A calendar per month to write posts and
+  blog posts against the plan, checked for each network's limit, an
+  Instagram post needing its picture. "Send to the client" puts the month
+  in their portal under "Your social media" and on "Waiting on you"; they
+  approve it in one go or ask for changes post by post, and anything
+  unanswered for 3 days counts as approved (checked hourly). A yes by
+  phone or text can be recorded. Approved posts due show on Today with
+  "Copy the words", "Open Facebook" and "It's up" with links, which the
+  client sees. Asks for changes show on Today as Waiting on you.
+  Delivery → Social media lists every client's month. New permissions
+  `social.view` and `social.edit` for every role. Migration 0057.
+
 - The site builder (decision 0010, slice 1). Delivery → Site builder, for
   admins: start a build for a client with a brief, and Claude makes the
   first version from it and the client's facts in HQ. Ask for changes in
