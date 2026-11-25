@@ -34,6 +34,17 @@
   const canDrop = (index) => from !== -1 && (index < from || index === from + 1)
   const columnAt = (index) => view.columns.find((column) => column.index === index)
 
+  // The card goes to its new column at once, sliding there, while the server
+  // makes the move; the page that comes back has the final word.
+  function slide(card, list) {
+    if (!card || !list) return
+    const first = card.getBoundingClientRect()
+    list.prepend(card)
+    const last = card.getBoundingClientRect()
+    card.setAttribute('aria-busy', 'true')
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    card.animate([{ transform: 'translate(' + (first.left - last.left) + 'px, ' + (first.top - last.top) + 'px)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
+  }
   function moveTo(id, column) {
     const allowed = column && canDrop(column.index)
     end()
@@ -44,6 +55,7 @@
     if (!to || form.dataset.now === column.stage) return false
     to.value = column.stage
     if (back) back.value = Number(form.dataset.index) > column.index ? '1' : ''
+    slide(form.closest('li'), document.querySelector('section.hq-column[data-index="' + column.index + '"] .hq-cards'))
     form.requestSubmit()
     return true
   }
@@ -182,6 +194,7 @@
   .hq-card.hq-card-held { opacity: 1; border-style: solid; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent), 0 12px 28px rgb(0 0 0 / 0.18); }
   .hq-card.hq-card-lifted { z-index: 30; transition: none; opacity: 0.95; border-style: solid; border-color: var(--ring); box-shadow: 0 18px 40px rgb(0 0 0 / 0.25); }
   .hq-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .hq-card[aria-busy=true] { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent); }
   /* The grip is the handle for a finger: a strip down the card's left edge. */
   .hq-grip-handle { position: absolute; inset: 0 auto 0 0; width: 1.6rem; display: flex; justify-content: center; padding-top: 0.85rem; touch-action: none; cursor: grab; }
   .hq-card p { margin: 0; }

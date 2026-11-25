@@ -21,6 +21,17 @@
   const statusAt = (index) => board.columns[index]
   const indexOf = (status) => board.columns.findIndex((column) => column.status === status)
 
+  // The card goes to its new column at once, sliding there, while the server
+  // makes the move; the page that comes back has the final word.
+  function slide(card, list) {
+    if (!card || !list) return
+    const first = card.getBoundingClientRect()
+    list.prepend(card)
+    const last = card.getBoundingClientRect()
+    card.setAttribute('aria-busy', 'true')
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    card.animate([{ transform: 'translate(' + (first.left - last.left) + 'px, ' + (first.top - last.top) + 'px)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
+  }
   function moveTo(id, status) {
     const allowed = from !== '' && status && status !== from
     end()
@@ -29,6 +40,7 @@
     const select = form ? form.querySelector('select') : null
     if (!select || select.dataset.now === status) return false
     select.value = status
+    slide(form.closest('li'), document.querySelector('section.board-column[data-status="' + status + '"] .board-cards'))
     form.requestSubmit()
     return true
   }
@@ -158,6 +170,7 @@
   .board-card.board-card-held { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent), 0 12px 28px rgb(0 0 0 / 0.18); }
   .board-card.board-card-lifted { z-index: 30; transition: none; opacity: 0.95; border-color: var(--ring); box-shadow: 0 18px 40px rgb(0 0 0 / 0.25); }
   .board-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .board-card[aria-busy=true] { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent); }
   .board-grip-handle { position: absolute; inset: 0 auto 0 0; width: 1.5rem; display: flex; justify-content: center; padding-top: 0.8rem; touch-action: none; cursor: grab; }
   @media (prefers-reduced-motion: reduce) { .board-card, .board-column { transition: none; } .board-card[draggable=true]:hover { transform: none; } }
   .board-card p { margin: 0; }
