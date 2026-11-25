@@ -1,6 +1,6 @@
 // Today: one list, in order, of what wants doing today across HQ. Booked
 // calls, what clients are waiting on, sites that are down, follow-ups due,
-// to-dos, project deadlines, opportunities going cold and renewals this week. Each part shows only to
+// to-dos, project deadlines, social media posts, opportunities going cold and renewals this week. Each part shows only to
 // someone who may see it, by the permission its own module checks. The same
 // list is the morning email.
 import { headline, orderAgenda, AGENDA_LABELS, type AgendaItem, type AgendaKind } from "../domain/agenda.ts";
@@ -10,6 +10,7 @@ import { sitesNeedingAttention, type MonitorDeps } from "../../monitor/index.ts"
 import { staffWaiting, type PortalDeps } from "../../portal/index.ts";
 import { upcomingDeadlines, type ProjectsDeps } from "../../projects/index.ts";
 import { renewalsComingUp, type RenewalsDeps } from "../../renewals/index.ts";
+import { socialToDo, type SocialDeps } from "../../social/index.ts";
 import { daysUntil } from "../../shared/index.ts";
 import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
@@ -25,12 +26,13 @@ export type TodayDeps = {
   readonly portal: PortalDeps;
   readonly projects: ProjectsDeps;
   readonly renewals: RenewalsDeps;
+  readonly social: SocialDeps;
   readonly monitor: MonitorDeps;
-  /** Free landing pages: rounds of changes asked for (decision 0010, section 3). */
+  /** Free landing pages: rounds of changes asked for (decision 0013, section 3). */
   readonly freePages: FreePagesDeps;
-  /** Monthly reports drafted and not yet sent (decision 0010, section 4). */
+  /** Monthly reports drafted and not yet sent (decision 0013, section 4). */
   readonly clientReports: ReportsDeps;
-  /** n8n automations that failed or didn't run on time (decision 0010, section 5). */
+  /** n8n automations that failed or didn't run on time (decision 0013, section 5). */
   readonly automations: AutomationsDeps;
   readonly timeZone: string;
   readonly today: () => string;
@@ -79,6 +81,12 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
   const deadlines = upcomingDeadlines(deps.projects, actorId, 0);
   for (const one of deadlines.ok ? deadlines.value.items : []) {
     add("deadline", { key: `deadline-${one.key}`, text: `${one.kind}: ${one.title}`, detail: `${one.projectName} · ${one.dueText}`, href: one.href, action: "Open", overdue: one.overdue, at: one.dueOn });
+  }
+  // Social media (decision 0011): a client's asks are something they're waiting on; approved posts due are to put up.
+  for (const one of socialToDo(deps.social, actorId)) {
+    const href = `/clients/${one.organizationId}/social?month=${one.day.slice(0, 7)}#post-${one.id}`;
+    if (one.kind === "changes") add("waiting", { key: `social-${one.id}`, text: one.text, detail: one.detail, href, action: "Change it", overdue: false, at: one.day });
+    else add("social", { key: `social-${one.id}`, text: one.text, detail: one.detail, href, action: "Put it up", overdue: one.overdue, at: one.day });
   }
   for (const one of goingCold(deps.crm, actorId)) {
     add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });

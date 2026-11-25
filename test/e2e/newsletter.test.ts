@@ -1,4 +1,4 @@
-// The newsletter in a real browser (decision 0010, slice 2): someone signs up
+// The newsletter in a real browser (decision 0013, slice 2): someone signs up
 // and confirms on a phone, then an admin writes an issue and sees it on its
 // way. Each screen is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

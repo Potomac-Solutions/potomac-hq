@@ -1,4 +1,4 @@
-// The newsletter's forms and addresses (decision 0010, section 1).
+// The newsletter's forms and addresses (decision 0013, section 1).
 //   Staff: issues and the list, under /newsletter.
 //   Anyone: signing up at /river, confirming, and leaving.
 //   The website's server: POST /api/site/newsletter with its token.

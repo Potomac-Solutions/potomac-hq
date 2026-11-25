@@ -1,4 +1,4 @@
-// "Notes from the river", Potomac's newsletter (decision 0010, section 1).
+// "Notes from the river", Potomac's newsletter (decision 0013, section 1).
 // Who is on the list and from which river stop they signed up, what an issue
 // is, and how an issue reads with its footer.
 import type { Id } from "../../shared/domain/id.ts";

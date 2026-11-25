@@ -1,4 +1,4 @@
-// Monthly reports in a real browser (decision 0010, slice 5): draft last
+// Monthly reports in a real browser (decision 0013, slice 5): draft last
 // month's, read one and add a line; the client reads a sent one in the
 // portal. Each screen is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

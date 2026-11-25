@@ -1,0 +1,85 @@
+<!--
+  The site builder's model and monthly cap (decision 0010, section 4), and
+  what has been spent. Every admin sees it; only the person named in
+  HQ_SITE_BUILDER_OWNER can change it.
+-->
+<script>
+  'use route /builder/settings'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/progress-bar.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.builder.settings()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Site builder: model and cap', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .settings-form { display: grid; gap: 1rem; max-width: 36rem; }
+  .spend { width: 100%; border-collapse: collapse; }
+  .spend th, .spend td { text-align: left; padding: 0.4rem 0.5rem; border-top: 1px solid var(--border); }
+  .spend td.hq-number, .spend th.hq-number { text-align: right; }
+  .spend-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+</style>
+<hq-builder-settings view={{ models: [], budget: {}, byPerson: [], byBuild: [], months: [] }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Site builder', href: '/builder' }, { label: 'Model and cap' }]}></breadcrumb-trail>
+    <h1>Model and cap</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.claudeSetUp} variant="warning">HQ has no Claude API key. Set HQ_ANTHROPIC_API_KEY on the server.</alert-banner>
+    <alert-banner zb-if={!view.ownerSet} variant="warning">Nobody can change these until HQ_SITE_BUILDER_OWNER is set to the owner’s email on the server.</alert-banner>
+    <section class="hq-panel" aria-labelledby="cap-month">
+      <h2 id="cap-month">This month</h2>
+      <progress-bar value={view.budget.percent} max={100} label={view.budget.spent + ' of ' + view.budget.cap + ' spent'}></progress-bar>
+      <p class="hq-small hq-muted">{view.budget.left} left. Before each request HQ adds up the most it could cost; if that would pass the cap, it isn’t sent. The month starts on the 1st, Eastern time.</p>
+    </section>
+    <form method="post" action="/builder/settings" class="hq-panel settings-form" aria-labelledby="cap-settings">
+      <h2 id="cap-settings">Model and monthly cap</h2>
+      <div class="hq-field">
+        <label for="cap-model">Model</label>
+        <select id="cap-model" name="model" disabled={!view.canChange}>
+          <zb-each items={view.models} as="model" key={model.id}>
+            <option value={model.id} selected={model.selected}>{model.label}: {model.price}</option>
+          </zb-each>
+        </select>
+      </div>
+      <div class="hq-field">
+        <label for="cap-amount">Monthly cap, in dollars</label>
+        <input id="cap-amount" name="cap" inputmode="decimal" value={view.cap} required disabled={!view.canChange}>
+      </div>
+      <p zb-if={!view.canChange} class="hq-small hq-muted">Only the owner can change these.</p>
+      <div zb-if={view.canChange}><button class="hq-button" type="submit">Save</button></div>
+    </form>
+    <div class="spend-grid">
+      <section class="hq-panel" aria-labelledby="spend-person">
+        <h2 id="spend-person">This month, by person</h2>
+        <p zb-if={view.byPerson.length === 0} class="hq-muted">Nothing yet.</p>
+        <table zb-else class="spend">
+          <thead><tr><th scope="col">Person</th><th scope="col" class="hq-number">Spent</th></tr></thead>
+          <tbody><zb-each items={view.byPerson} as="row" key={row.name}><tr><td>{row.name}</td><td class="hq-number">{row.spent}</td></tr></zb-each></tbody>
+        </table>
+      </section>
+      <section class="hq-panel" aria-labelledby="spend-build">
+        <h2 id="spend-build">This month, by build</h2>
+        <p zb-if={view.byBuild.length === 0} class="hq-muted">Nothing yet.</p>
+        <table zb-else class="spend">
+          <thead><tr><th scope="col">Build</th><th scope="col" class="hq-number">Spent</th></tr></thead>
+          <tbody><zb-each items={view.byBuild} as="row" key={row.name}><tr><td>{row.name}</td><td class="hq-number">{row.spent}</td></tr></zb-each></tbody>
+        </table>
+      </section>
+      <section class="hq-panel" aria-labelledby="spend-months">
+        <h2 id="spend-months">The last six months</h2>
+        <p zb-if={view.months.length === 0} class="hq-muted">Nothing yet.</p>
+        <table zb-else class="spend">
+          <thead><tr><th scope="col">Month</th><th scope="col" class="hq-number">Requests</th><th scope="col" class="hq-number">Spent</th></tr></thead>
+          <tbody><zb-each items={view.months} as="row" key={row.month}><tr><td>{row.month}</td><td class="hq-number">{row.requests}</td><td class="hq-number">{row.spent}</td></tr></zb-each></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+</hq-builder-settings>

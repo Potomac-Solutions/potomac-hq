@@ -114,6 +114,8 @@ Do it for the test environment first, then again for production.
 | `HQ_BACKUP_R2_ACCOUNT_ID`, `HQ_BACKUP_R2_BUCKET`, `HQ_BACKUP_R2_ACCESS_KEY_ID`, `HQ_BACKUP_R2_SECRET_ACCESS_KEY`, `HQ_BACKUP_R2_PREFIX` | The R2 bucket. Use prefix `test` and `production` | For backups |
 | `HQ_SHEETS_SPREADSHEET_ID`, `HQ_SHEETS_SERVICE_ACCOUNT` | The Google Sheet and a service account's key | Optional |
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
+| `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
+| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
@@ -348,6 +350,33 @@ up on the client's page in HQ.
 Without the token HQ starts and says "Site content can't be set up or
 published". Everything else works.
 
+## The site builder
+
+Admins make client websites with Claude under Delivery → Site builder
+(`docs/decisions/0010-site-builder.md`). It needs two variables:
+
+- `HQ_ANTHROPIC_API_KEY`: a key from platform.claude.com → API keys. Give
+  it its own workspace in the Claude Console, with its own spend limit
+  there too, as a second stop behind HQ's.
+- `HQ_SITE_BUILDER_OWNER`: Mikey's email, exactly as his HQ account has it.
+  Only he can change the model and the monthly cap, under Site builder →
+  Model and cap. Every admin can see them and what's been spent.
+
+A new install uses Claude Opus 5.5 with a $10 monthly cap. Before each
+request HQ adds this month's spending to the most the request could cost
+(every output token it may write), and doesn't send it if that would pass
+the cap. What a request really cost is recorded when it's done.
+
+A request runs in the background, inside HQ. If HQ restarts in the middle,
+the request is marked failed after 20 minutes and counted at what it
+reserved, since Claude may have billed it.
+
+The preview is served by HQ at `/builder/preview/…`, sandboxed and only by
+an address the build page signs, good for an hour. It is never public.
+
+Without the key HQ starts and says "The site builder can't ask Claude".
+Builds can still be seen and downloaded.
+
 ## Dependency updates
 
 Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:
@@ -413,7 +442,7 @@ times an hour and each email 3 times a day.
 ## The newsletter
 
 Sales → Newsletter (`newsletter.manage`) is "Notes from the river"
-(`docs/decisions/0010-growth-tools.md`, section 1). It needs email (the
+(`docs/decisions/0013-growth-tools.md`, section 1). It needs email (the
 Brevo key) and `HQ_CONTACT_ADDRESS`: every issue ends with Potomac's mailing
 address, which US anti-spam law asks for, and sending refuses to start
 without it. Issues go out a batch of 50 a minute.
@@ -443,14 +472,14 @@ or Origin.
 ## Free landing pages
 
 Delivery → Landing pages, and each client's Free landing page
-(`docs/decisions/0010-growth-tools.md`, section 3). "Download its code"
+(`docs/decisions/0013-growth-tools.md`, section 3). "Download its code"
 zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
 read access to that repository too. Without the token there is no download.
 
 ## Automations
 
 Delivery → Automations, and each client's Automations
-(`docs/decisions/0010-growth-tools.md`, section 5). Adding one shows its
+(`docs/decisions/0013-growth-tools.md`, section 5). Adding one shows its
 check-in address once. In n8n, the workflow's last node is an HTTP Request
 posting to it with `?status=ok`; an Error Trigger workflow posts to it with
 `?status=failed` and a `message`. HQ checks every five minutes, and emails

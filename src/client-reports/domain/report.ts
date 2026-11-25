@@ -1,4 +1,4 @@
-// The monthly report to a plan client (decision 0010, section 4): what their
+// The monthly report to a plan client (decision 0013, section 4): what their
 // month looked like (the site up, the work done, what's coming, what's
 // waiting on them), in plain words, from HQ's own records. Hours are left
 // out: the plans are unlimited support.

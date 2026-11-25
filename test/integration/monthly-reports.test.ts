@@ -1,4 +1,4 @@
-// Monthly reports to plan clients (decision 0010, slice 5) against a real
+// Monthly reports to plan clients (decision 0013, slice 5) against a real
 // database and over real HTTP: drafted for clients on a plan only, from
 // uptime, work done, what's coming and what's waiting; sent only when Send
 // is pressed, once, to the primary contact; shown in their portal; skipped;

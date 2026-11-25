@@ -1,4 +1,4 @@
-// Client automations in a real browser (decision 0010, slice 6): add one on
+// Client automations in a real browser (decision 0013, slice 6): add one on
 // a client, copy its check-in address, see it check in and fail. Each screen
 // is checked for accessibility, light and dark.
 import assert from "node:assert/strict";

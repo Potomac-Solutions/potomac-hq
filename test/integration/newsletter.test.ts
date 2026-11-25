@@ -1,4 +1,4 @@
-// The newsletter (decision 0010, slice 2) over real HTTP: signing up from
+// The newsletter (decision 0013, slice 2) over real HTTP: signing up from
 // HQ's page, the website's form and the website's server; confirming by the
 // emailed link; writing, testing and sending an issue a batch at a time;
 // leaving by the link or by a mail app's one-click post; and who may do what.
