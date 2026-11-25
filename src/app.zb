@@ -12,6 +12,9 @@
   // user-avatar is the shell's alone; the account actions are a plain link
   // and a plain button, not action-button.
   import './shared/ui/zubra/user-avatar.zb'
+  // Decision 0014: keeping your place, sending once, delayed removals, and the command palette.
+  import './shared/ui/parts/page-keeper.zb'
+  import './shared/ui/parts/command-palette.zb'
   import { onMount, onUnmount } from '@zubra/runtime'
 
   export async function load({ context, url }) {
@@ -81,6 +84,10 @@
   }
 
   let menu = false
+  // The top bar's "Go to…" opens the command palette, as Ctrl+K does.
+  function openPalette() {
+    document.dispatchEvent(new CustomEvent('hq-palette'))
+  }
   // The change just made can be put back (decision 0014): an Undo bar, and Ctrl+Z or ⌘Z.
   let undoHidden = false
   function undoKey(event) {
@@ -190,6 +197,8 @@
   .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
   .hq-bell { gap: 0.35rem; }
+  .hq-palette-open { gap: 0.45rem; flex: none; color: var(--muted-foreground); }
+  .hq-palette-open kbd { font: inherit; font-size: 0.72rem; padding: 0 0.3rem; border: 1px solid var(--border); border-radius: 0.25rem; }
   .hq-on-call { gap: 0.4rem; color: var(--label-green-fg); background: var(--label-green-bg); border-color: transparent; font-weight: 600; }
   .hq-ready { color: var(--label-amber-fg); background: var(--label-amber-bg); border-color: transparent; font-weight: 600; }
   .hq-on-call-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
@@ -218,7 +227,7 @@
     .hq-nav { display: none; padding-bottom: 0.5rem; }
     .hq-side.open .hq-nav { display: grid; }
     .hq-top { position: static; padding: 0.6rem 1rem; flex-wrap: wrap; }
-    .hq-who, .hq-account user-avatar { display: none; }
+    .hq-who, .hq-account user-avatar, .hq-palette-open kbd { display: none; }
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
@@ -253,6 +262,7 @@
           <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
           <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">
         </form>
+        <button type="button" class="hq-account-action hq-palette-open" aria-keyshortcuts="Control+K Meta+K" onclick={openPalette}>Go to… <kbd>Ctrl K</kbd></button>
         <div class="hq-account">
           <a zb-if={onCall} class="hq-account-action hq-on-call" href={onCall.href}><span class="hq-on-call-dot" aria-hidden="true"></span>{onCall.label}</a>
           <a zb-if={ready} class="hq-account-action hq-ready" href={ready.href}>{ready.label}</a>
@@ -278,6 +288,7 @@
       <kbd aria-hidden="true">Ctrl Z</kbd>
       <button type="button" class="hq-undo-close" aria-label="Dismiss" onclick={() => (undoHidden = true)}>×</button>
     </div>
+    <command-palette groups={groups} adding={adding}></command-palette>
   </div>
   <div zb-else>
     <header class="hq-signed-out">
@@ -287,4 +298,5 @@
       <zb-slot></zb-slot>
     </main>
   </div>
+  <page-keeper></page-keeper>
 </hq-app>
