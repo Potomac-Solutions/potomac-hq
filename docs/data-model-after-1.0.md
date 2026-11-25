@@ -102,6 +102,24 @@ Decision 0009, slice 3. No new tables.
 - These run after the call is logged, each in its own transaction; one
   that's refused is said in the message, and the rest still happen.
 
+### Calls to make
+
+Decision 0009, slice 4 (migration 0054). `call.return_to`: a path in HQ a
+call goes back to when it ends (only `/…`, never `//` or `/\`).
+`call_script`: the voicemail script, with `{name}`, `{me}` and `{about}`.
+
+- Today's calls to make are read, never stored: calls asked for in the
+  portal, follow-ups due (overdue first), invoices 7 or more days late, and
+  opportunities going cold; one line per client with every reason, each
+  only for those who may see it (`opportunity.view`, `invoice.view`). A
+  client with a call logged today drops off, and is counted.
+- A call started from the list goes back to it when it ends.
+- Ending as voicemail or no answer, with no day chosen: on an open
+  opportunity, its follow-up is set two business days on; at a client with
+  no opportunity, a to-do "Call … again" is added for that day.
+- The script is read with `knowledge.view` and changed with
+  `knowledge.edit` (`call-script.changed`).
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.
