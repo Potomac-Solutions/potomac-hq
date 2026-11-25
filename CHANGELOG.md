@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Decision 0010, growth tools: the newsletter, where leads come from, free
+  landing pages, monthly reports to plan clients, n8n automations, reviews
+  and case studies, referral credit, and who looked at a demo, in eight
+  slices.
+
 ## [0.16.0] - 2026-11-25
 
 - The recap email (decision 0009, slice 6). Ending a call where you talked
