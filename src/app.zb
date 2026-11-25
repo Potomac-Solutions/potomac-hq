@@ -1,6 +1,6 @@
 <!--
   The shell around every page. Signed in: a sidebar with the Potomac mark and
-  HQ's sections in groups, a top bar with search and the signed-in person's
+  HQ's pages in hubs (decision 0015), the hub you're in open, a top bar with search and the signed-in person's
   account, then the page. On a narrow screen the sidebar folds behind a Menu
   button. Signed out, a bar with the mark alone.
 -->
@@ -25,59 +25,12 @@
     const ready = next && path !== next.href ? { href: next.href, label: 'Call ' + next.startsText + ' with ' + next.who + ': get ready' } : null
     // AI drafts waiting for this person (decision 0012).
     const aiDrafts = context.user ? context.ai.draftCount() : 0
-    const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
-    // Sections in the order of a job: find the work, do the work, get paid, run the company.
-    const groups = [
-      { label: '', links: [
-        { label: 'Today', href: '/today', current: at('/today') },
-        { label: 'My work', href: '/todos', current: at('/todos') },
-        { label: 'Dashboard', href: '/', current: at('/') },
-        ...(aiDrafts > 0 || context.ai.canManage ? [{ label: aiDrafts > 0 ? `AI drafts (${aiDrafts})` : 'AI drafts', href: '/drafts', current: at('/drafts') }] : []),
-      ] },
-      { label: 'Sales', links: [
-        { label: 'Pipeline', href: '/pipeline', current: at('/pipeline', '/opportunities') },
-        { label: 'Clients', href: '/clients', current: at('/clients') },
-        ...(can.proposals ? [{ label: 'Proposals', href: '/proposals', current: at('/proposals') }] : []),
-        ...(can.calls ? [{ label: 'Calls', href: '/calls', current: at('/calls') }] : []),
-        ...(can.referrals ? [{ label: 'Referral links', href: '/referrals', current: at('/referrals') }] : []),
-        ...(can.newsletter ? [{ label: 'Newsletter', href: '/newsletter', current: at('/newsletter') }] : []),
-        ...(can.reviews ? [{ label: 'Reviews', href: '/reviews', current: at('/reviews') }] : []),
-        ...(can.demos ? [{ label: 'Demos', href: '/demos', current: at('/demos') }] : []),
-      ] },
-      { label: 'Delivery', links: [
-        { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
-        { label: 'Board', href: '/board', current: at('/board') },
-        { label: 'Timeline', href: '/timeline', current: at('/timeline') },
-        { label: 'All work', href: '/work', current: at('/work') && url.search === '' },
-        ...context.projects.pinned().map((pin) => ({ label: pin.name, href: pin.href, current: path === '/work' && url.search === pin.href.slice('/work'.length), pinned: true })),
-        { label: 'Labels', href: '/labels', current: at('/labels') },
-        ...(can.time ? [{ label: 'Time', href: '/time', current: at('/time') }] : []),
-        { label: 'Sites', href: '/sites', current: at('/sites') },
-        { label: 'Site content', href: '/websites', current: at('/websites') },
-        ...(can.siteBuilder ? [{ label: 'Site builder', href: '/builder', current: at('/builder') }] : []),
-        ...(can.social ? [{ label: 'Social media', href: '/social', current: at('/social') }] : []),
-        { label: 'Landing pages', href: '/landing-pages', current: at('/landing-pages') },
-        { label: 'Automations', href: '/automations', current: at('/automations') },
-        ...(can.monthlyReports ? [{ label: 'Monthly reports', href: '/monthly-reports', current: at('/monthly-reports') }] : []),
-      ] },
-      { label: 'Finance', links: [
-        ...(can.money ? [{ label: 'Money', href: '/money', current: at('/money', '/invoices') }] : []),
-        { label: 'Renewals', href: '/renewals', current: at('/renewals') },
-        ...(can.reports ? [{ label: 'Reports', href: '/reports', current: at('/reports') }] : []),
-      ] },
-      { label: 'Company', links: [
-        { label: 'Knowledge', href: '/knowledge', current: at('/knowledge') },
-        ...(can.publicSite ? [{ label: 'Our website', href: '/our-website', current: at('/our-website') }] : []),
-        ...(can.people ? [{ label: 'People', href: '/people', current: at('/people') }] : []),
-        ...(can.audit ? [{ label: 'Audit history', href: '/activity', current: at('/activity') }] : []),
-        ...(can.webhooks ? [{ label: 'Webhooks', href: '/webhooks', current: at('/webhooks') }] : []),
-        ...(context.ai.state('ask').on ? [{ label: 'Ask HQ', href: '/ask', current: at('/ask') }] : []),
-        ...(context.ai.state('case-study').on || context.ai.state('social-posts').on ? [{ label: 'Marketing', href: '/marketing', current: at('/marketing') }] : []),
-        ...(context.ai.canManage ? [{ label: 'AI model and budget', href: '/settings/ai', current: at('/settings/ai') }] : []),
-      ] },
-    ]
+    // The sidebar (decision 0015): HQ's pages in eight hubs, the one you're in
+    // open. The list of pages and who may open each lives in one place.
+    const groups = context.user ? context.nav(path, url.search) : []
+    const draftHub = aiDrafts > 0 ? 'today' : ''
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, aiDrafts, draftHub, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
   }
 
   let menu = false
@@ -154,11 +107,18 @@
   .hq-side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem 0.75rem 1.25rem; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
   .hq-side-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0.5rem; }
   .hq-menu { display: none; height: 2.25rem; padding: 0 0.8rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--sidebar-foreground); background: transparent; border: 1px solid var(--sidebar-border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
-  .hq-nav { display: grid; gap: 1.1rem; }
-  .hq-nav h2 { margin: 0 0 0.3rem; padding: 0 0.6rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; color: var(--sidebar-muted); }
-  .hq-nav ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
-  .hq-nav a { display: block; padding: 0.4rem 0.6rem; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); font-size: 0.9rem; font-weight: 500; text-decoration: none; border-left: 3px solid transparent; }
-  .hq-nav a:hover { background: color-mix(in srgb, var(--sidebar-accent) 60%, transparent); }
+  .hq-nav { display: grid; gap: 0.15rem; }
+  .hq-nav summary, .hq-hub-one { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.6rem; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); font-size: 0.95rem; font-weight: 650; text-decoration: none; cursor: pointer; list-style: none; }
+  .hq-nav summary::-webkit-details-marker { display: none; }
+  .hq-nav summary::after { content: ""; margin-left: auto; width: 0.45rem; height: 0.45rem; border-right: 2px solid var(--sidebar-muted); border-bottom: 2px solid var(--sidebar-muted); transform: rotate(-45deg); transition: transform 120ms ease; }
+  .hq-nav details[open] > summary::after { transform: rotate(45deg); }
+  .hq-nav summary:hover, .hq-hub-one:hover { background: color-mix(in srgb, var(--sidebar-accent) 60%, transparent); }
+  .hq-hub.current > details > summary, .hq-hub.current > .hq-hub-one { color: #9fd6fb; }
+  .hq-hub-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; font-size: 0.75rem; font-weight: 700; color: var(--primary-foreground); background: var(--primary); border-radius: 999px; }
+  .hq-nav summary:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 1px; }
+  .hq-nav ul { display: grid; gap: 1px; margin: 0.1rem 0 0.5rem 0.6rem; padding: 0 0 0 0.35rem; list-style: none; border-left: 1px solid var(--sidebar-border); }
+  .hq-nav ul a { display: block; padding: 0.4rem 0.6rem; border-radius: calc(var(--radius) - 2px); color: var(--sidebar-foreground); font-size: 0.9rem; font-weight: 500; text-decoration: none; border-left: 3px solid transparent; }
+  .hq-nav ul a:hover { background: color-mix(in srgb, var(--sidebar-accent) 60%, transparent); }
   .hq-nav a[aria-current=page] { background: var(--sidebar-accent); font-weight: 650; border-left-color: #6cc0f5; }
   .hq-side a:focus-visible, .hq-menu:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 1px; }
 
@@ -196,7 +156,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
+<hq-app who="" groups={[]} ai-drafts={0} draft-hub="" searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -205,14 +165,17 @@
         <button type="button" class="hq-menu" aria-expanded={menu ? 'true' : 'false'} aria-controls="hq-nav" onclick={() => (menu = !menu)}>Menu</button>
       </div>
       <nav class="hq-nav" id="hq-nav" aria-label="Main">
-        <zb-each items={groups} as="group" key={group.label || 'top'}>
-          <div>
-            <h2 zb-if={group.label}>{group.label}</h2>
-            <ul>
-              <zb-each items={group.links} as="link" key={link.href}>
-                <li><a href={link.href} aria-current={link.current ? 'page' : null}>{link.label}</a></li>
-              </zb-each>
-            </ul>
+        <zb-each items={groups} as="hub" key={hub.key}>
+          <div class="hq-hub" class:current={hub.current}>
+            <a zb-if={hub.links.length === 1} class="hq-hub-one" href={hub.links[0].href} aria-current={hub.links[0].current ? 'page' : null}>{hub.label}</a>
+            <details zb-else open={hub.open}>
+              <summary>{hub.label}<span zb-if={hub.key === draftHub} class="hq-hub-count">{aiDrafts}<span class="sr-only"> AI drafts waiting</span></span></summary>
+              <ul>
+                <zb-each items={hub.links} as="link" key={link.href}>
+                  <li><a href={link.href} aria-current={link.current ? 'page' : null}>{link.label}</a></li>
+                </zb-each>
+              </ul>
+            </details>
           </div>
         </zb-each>
       </nav>
@@ -221,7 +184,7 @@
       <header class="hq-top">
         <form zb-if={!searching} method="get" action="/search" role="search" class="hq-find">
           <label class="sr-only" for="hq-find-q">Search HQ</label>
-          <input id="hq-find-q" name="q" type="search" placeholder="Search clients, projects, invoices…" autocomplete="off" maxlength="100">
+          <input id="hq-find-q" name="q" type="search" placeholder="Search pages, clients, projects, invoices…" autocomplete="off" maxlength="100">
         </form>
         <form zb-if={adding} method="get" action="/add" class="hq-quick">
           <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>

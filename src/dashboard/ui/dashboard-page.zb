@@ -46,7 +46,7 @@
       showOver: over.ok,
       stages: pipeline.ok ? pipeline.value.columns.map((column) => ({ stage: column.stage, label: column.label, count: column.items.length })) : [],
       openCount: pipeline.ok ? pipeline.value.openCount : 0,
-      title: 'Dashboard',
+      title: 'Home',
       followUps,
       fromClients: fromClients.items,
       waiting: waiting.items,
@@ -83,7 +83,7 @@
 <hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="">
  <div class="hq-page">
   <div class="hq-head">
-    <div><h1>Dashboard</h1><p>{today}</p></div>
+    <div><h1>Home</h1><p>{today}</p></div>
     <div class="hq-head-actions"><a class="hq-button" href="/today">Work today’s list</a></div>
   </div>
   <div zb-if={done || problem || remindTwoFactor} class="hq-notices">

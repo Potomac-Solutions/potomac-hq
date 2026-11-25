@@ -11,7 +11,7 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
+import { auditHistory, navHubs, PLACES, recentActivity, search, type NavHub, type Place } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
@@ -504,6 +504,8 @@ export type PageContext = {
   };
   readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
   readonly search: (q: string) => ReturnType<typeof search>;
+  /** The sidebar's hubs for this person and address (decision 0015). `search` is the address's `?…`, for pinned filters. */
+  nav(path: string, search: string): readonly NavHub[];
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
     article(slug: string): ReturnType<typeof articleDetail>;
@@ -659,6 +661,22 @@ export async function createApp(config: AppConfig): Promise<App> {
     },
     marketing: () => marketingQueue(aiDeps, actor),
   });
+
+  // The pages a person may open (decision 0015): the sidebar, search and the
+  // assistant all read this. Each page still checks for itself.
+  const placesFor = (actor: Id | null): readonly Place[] => {
+    if (actor === null) return [];
+    const ai = aiContext(actor);
+    const allows = (gate: string | undefined): boolean => {
+      if (!gate) return true;
+      if (gate.startsWith("perm:")) return authorize(sessionDeps, actor, gate.slice(5)).ok;
+      if (gate === "ai:manage") return ai.canManage;
+      if (gate === "ai:drafts") return ai.canManage || ai.draftCount() > 0;
+      if (gate.startsWith("ai:")) return gate.slice(3).split("|").some((feature) => ai.state(feature).on);
+      return false;
+    };
+    return PLACES.filter((place) => allows(place.gate));
+  };
 
   const handleStaff = staffRoutes({
     refused: (draft) => recordRefusal(refusedDeps, draft),
@@ -1065,7 +1083,16 @@ export async function createApp(config: AppConfig): Promise<App> {
           list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
           twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
         },
-        search: (q) => search(services.search, actor, q),
+        search: (q) => search(services.search, actor, q, placesFor(actor)),
+        nav: (path, query) => {
+          const pinned = actor ? pinnedFilters(projectsDeps, actor) : [];
+          // All work with a filter in the address: a pinned filter's link, or no link at all.
+          const filtered = path === "/work" && query !== "";
+          const atPin = filtered ? (pinned.find((pin) => pin.href === "/work" + query)?.href ?? "#none") : null;
+          const hubs = navHubs(placesFor(actor), path, { extra: { work: pinned.map((pin) => ({ label: pin.name, href: pin.href, current: false })) }, currentHref: atPin });
+          const drafts = actor ? aiContext(actor).draftCount() : 0;
+          return drafts === 0 ? hubs : hubs.map((hub) => ({ ...hub, links: hub.links.map((link) => (link.href === "/drafts" ? { ...link, label: `AI drafts (${drafts})` } : link)) }));
+        },
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),

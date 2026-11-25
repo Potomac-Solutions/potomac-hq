@@ -34,7 +34,7 @@ const runJobs = async () => {
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Better Days Towing</title><link rel="stylesheet" href="site.css"></head>
 <body><main><h1>Better Days Towing</h1><p id="reach">checking</p><p><a href="tel:301-555-0100">Call 301-555-0100</a></p></main>
 <script>
-  fetch("/", { credentials: "include" }).then((r) => r.text()).then((html) => { document.getElementById("reach").textContent = html.includes("Dashboard") ? "reached HQ" : "no HQ" }).catch(() => { let cookie = ""; try { cookie = document.cookie } catch {} document.getElementById("reach").textContent = "no HQ" + (cookie ? " but a cookie" : "") })
+  fetch("/", { credentials: "include" }).then((r) => r.text()).then((html) => { document.getElementById("reach").textContent = html.includes("Sign out") ? "reached HQ" : "no HQ" }).catch(() => { let cookie = ""; try { cookie = document.cookie } catch {} document.getElementById("reach").textContent = "no HQ" + (cookie ? " but a cookie" : "") })
 </script></body></html>`;
 
 before(async () => {

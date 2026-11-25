@@ -84,15 +84,15 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
   await page.waitForURL((url) => url.pathname === "/");
 
   // The dashboard, in the shell. The v0.1 gate: your own sign-in is in the activity panel.
-  await page.getByRole("heading", { name: "Dashboard", level: 1 }).waitFor();
+  await page.getByRole("heading", { name: "Home", level: 1 }).waitFor();
   // The first admin has no two-factor sign-in yet, so the reminder is there too.
   assert.equal(await page.locator("[role=status]", { hasText: /signed in/i }).count(), 1);
   assert.equal(await page.locator("[role=status]", { hasText: "Turn on two-factor sign-in" }).count(), 1);
   const activity = page.getByRole("region", { name: "Recent activity" });
   assert.match((await activity.textContent()) ?? "", /Mikey Nichols signed in/);
   assert.match((await activity.textContent()) ?? "", /Mikey Nichols was added as a user/);
-  assert.equal(await page.getByRole("link", { name: "Dashboard" }).getAttribute("aria-current"), "page");
-  assert.equal(await page.title(), "Dashboard");
+  assert.equal(await page.getByRole("link", { name: "Home", exact: true }).getAttribute("aria-current"), "page");
+  assert.equal(await page.title(), "Home");
   await assertAccessible(page, "the dashboard");
 
   // Keyboard: the first Tab stop is the skip link, and it moves focus to the page's content.
@@ -108,7 +108,7 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
   await page.getByRole("heading", { name: "There is no page at this address" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Sign out" }).count(), 1);
   await assertAccessible(page, "the 404 page");
-  await page.getByRole("link", { name: "Back to the dashboard" }).click();
+  await page.getByRole("link", { name: "Back to Home" }).click();
   await page.waitForURL((url) => url.pathname === "/");
 
   // Settings, then the change password page, written by the kit.
@@ -143,7 +143,7 @@ test("set up the first admin, use the shell, sign out, and sign back in", async 
   await page.keyboard.type(PASSWORD);
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname === "/" && !url.searchParams.has("problem"));
-  await page.getByRole("heading", { name: "Dashboard", level: 1 }).waitFor();
+  await page.getByRole("heading", { name: "Home", level: 1 }).waitFor();
 
   // Nothing was blocked by the content security policy, and nothing failed to
   // load. The 401 and 404 pages' own statuses are the expected exceptions.

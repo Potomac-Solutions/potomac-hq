@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The sidebar is eight hubs (decision 0015): Home, Today, Clients, Work,
+  Sites, Money, Growth and Company. The hub you're in is open; the others
+  fold to one line and open with a tap. Every page keeps its address. The
+  dashboard is now Home. One list in code names every page, its hub, the
+  words people use for it and who may open it.
+- Search finds pages as well as records: "where do I set my hours",
+  "invoices" or "dark mode" offer the page that does it, under **Pages**.
+
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
   button, on Ask HQ and beside "Ask Claude" in the site builder, a Model

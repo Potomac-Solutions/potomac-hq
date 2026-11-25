@@ -1,6 +1,7 @@
 <!--
-  Search: one box for clients, contacts, opportunities, projects, tasks,
-  proposals, invoices and articles. The same box is in the top bar.
+  Search: one box for HQ's pages (decision 0015), clients, contacts,
+  opportunities, projects, tasks, proposals, invoices and articles. The same
+  box is in the top bar.
 -->
 <script>
   'use route /search'
@@ -22,12 +23,12 @@
   .search-box { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
   .search-field { flex: 1 1 14rem; min-width: 0; }
 </style>
-<hq-search view={{ groups: [], tips: [] }}>
+<hq-search view={{ pages: [], groups: [], tips: [] }}>
   <div class="hq-page">
     <h1>Search</h1>
     <form method="get" action="/search" role="search" class="search-box">
       <div class="hq-field search-field">
-        <label for="search-q">Find a client, contact, project, task, proposal, invoice or article</label>
+        <label for="search-q">Find a page, client, contact, project, task, proposal, invoice or article</label>
         <input id="search-q" name="q" type="search" value={view.q} autocomplete="off" maxlength="100">
       </div>
       <button class="hq-button" type="submit">Search</button>
@@ -37,6 +38,15 @@
     <ul zb-if={view.tips.length > 0} class="hq-muted">
       <zb-each items={view.tips} as="tip" key={tip}><li>{tip}</li></zb-each>
     </ul>
+
+    <section zb-if={view.pages.length > 0} class="hq-panel" aria-labelledby="search-pages">
+      <h2 id="search-pages">Pages</h2>
+      <ul class="search-hits">
+        <zb-each items={view.pages} as="page" key={page.key}>
+          <li><a href={page.href}>{page.label}</a> <span class="hq-muted">{page.what}</span></li>
+        </zb-each>
+      </ul>
+    </section>
 
     <zb-each items={view.groups} as="group" key={group.kind}>
       <section class="hq-panel" aria-labelledby="search-{group.kind}">
