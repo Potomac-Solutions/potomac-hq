@@ -240,3 +240,13 @@ test("the old site goes in the message as reference", () => {
   const text = userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], reference: { from: "github.com/a/b", text: '<source from="index.html">\n<h1>Old</h1>\n</source>' }, ask: "Go." });
   assert.match(text, /<old_site from="github.com\/a\/b">\n<source from="index.html">\n<h1>Old<\/h1>\n<\/source>\n<\/old_site>/);
 });
+
+test("a new repository is named for the client, and checked", async () => {
+  const { checkRepoName, commitMessage, pullBranch, suggestedRepoName } = await import("./publish.ts");
+  assert.equal(suggestedRepoName("Better Days Towing, LLC"), "better-days-towing-llc-site");
+  assert.equal(suggestedRepoName("!!!"), "client-site");
+  assert.deepEqual(checkRepoName(" bdt-site "), { ok: true, value: "bdt-site" });
+  for (const bad of ["", "a b", "..", "x.git", "a/b"]) assert.equal(checkRepoName(bad).ok, false, bad);
+  assert.equal(pullBranch(4), "hq/site-builder-v4");
+  assert.match(commitMessage("BDT", 4, "Darker."), /^BDT: version 4\n\nDarker\.\n\nPublished from the Potomac HQ site builder\.$/);
+});
