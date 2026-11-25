@@ -9,6 +9,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Decision 0010, the site builder: client websites made with Claude in
+  HQ, previewed in a sandbox, kept as versions, with a monthly cap that is
+  never crossed, published to a new repository or as a pull request to a
+  client's own. Four slices.
+
 ## [0.16.0] - 2026-11-25
 
 - The recap email (decision 0009, slice 6). Ending a call where you talked
