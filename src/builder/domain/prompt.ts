@@ -18,7 +18,7 @@ Rules for every site:
 - Real text, never pictures of text.
 - Never invent facts about the business: no made-up reviews, prices, awards, years in business, staff names, certifications or addresses. Use only the facts given. Where a fact is needed and missing, write a clearly marked placeholder like [Hours: ask the owner] so a person fills it in.
 - The client's gallery, notice and reviews live in content/site.json, shaped {"notice": "", "gallery": [{"src": "", "alt": "", "title": "", "caption": ""}], "testimonials": [{"quote": "", "by": ""}]}. Pages read it with fetch and show it, and show nothing for an empty list. Keep that shape whenever you change it; the client edits it later. Leave gallery and testimonials empty unless you are given real ones.
-- Images: use only the image paths you are given. When there are none, design without photos (colour, type, shapes, inline SVG) rather than pointing at files that don't exist.
+- Images: use only the images listed in <images>, by their exact path, with the alt text given, and width and height attributes from their size. A logo belongs in the header. Never invent an image path. When there are none, design without photos (colour, type, shapes, inline SVG). You cannot write or change image files; they are uploaded by a person.
 - Forms can't send anywhere yet: a contact form uses a mailto: link or tel: link instead, from the facts given.
 
 When asked for a change, change only what is asked and keep everything else as it was. Write each changed file whole. Remove a file only when it should no longer exist. In summary, say in one or two plain sentences what you did and anything a person should check or fill in.`;
@@ -57,12 +57,17 @@ export type ClientFacts = {
 
 export type PastTurn = { readonly ask: string; readonly summary: string };
 
+/** An image uploaded to the build, as Claude is told of it. */
+export type PromptImage = { readonly path: string; readonly kind: string; readonly width: number; readonly height: number; readonly alt: string };
+
 export type PromptInput = {
   readonly facts: ClientFacts;
   readonly brief: string;
   readonly files: SiteFiles;
   /** Earlier requests on this build and what Claude said it did, oldest first. */
   readonly history: readonly PastTurn[];
+  /** Photos and a logo uploaded to the build. */
+  readonly images?: readonly PromptImage[];
   readonly ask: string;
 };
 
@@ -94,6 +99,11 @@ export function userMessage(input: PromptInput): string {
     for (const turn of input.history.slice(-HISTORY_TURNS)) parts.push(`Asked: ${turn.ask}`, `You did: ${turn.summary}`, "");
     parts.push("</earlier_requests>", "");
   }
+  const images = input.images ?? [];
+  parts.push("<images>");
+  if (images.length === 0) parts.push("(None uploaded.)");
+  for (const image of images) parts.push(`${image.path} | ${image.kind} | ${image.width}x${image.height} | shows: ${image.alt}`);
+  parts.push("</images>", "");
   const paths = Object.keys(input.files);
   if (paths.length === 0) {
     parts.push("<current_site>", "(There are no files yet. This is the first version.)", "</current_site>");
