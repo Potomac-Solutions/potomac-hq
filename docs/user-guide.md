@@ -466,6 +466,23 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 - **New chat** starts over. Conversations are kept 90 days.
 - It uses the same monthly AI budget as the drafts and the site builder.
 
+## Day to day, a little easier (decision 0016)
+
+- **Notices** → *What's emailed, and when*: right away, the 7 AM digest, or
+  never, for each kind, and quiet hours.
+- **All work**: tick rows, then *With the ticked ones* to move, give, date or
+  label them together.
+- **What changed here** at the bottom of a client, deal, invoice, task or
+  proposal.
+- **Settings** → *Phone alerts and the HQ app*: install HQ on your phone and
+  turn on alerts for it.
+- Managers: **Team workload** under Work.
+- Admins: **System status** under Company; **View as a manager / member** on
+  People (read-only, Stop viewing at the top); and a **weekly email** on
+  Mondays.
+- Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
+  straight from the email when work is shared with them.
+
 ## Habits that keep HQ worth using
 
 1. If a client said it, it goes in a note the same day.

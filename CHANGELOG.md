@@ -58,6 +58,23 @@ moves those lines under a version heading. See `docs/conventions.md`.
   limit passed), not just "refused". Only the error message is kept, never
   the rest of the response.
 
+- Quality of life (decision 0016):
+  - **System status** for admins: backups, email, errors, AI spend and
+    server settings in one place.
+  - **What changed here** on clients, deals, invoices, tasks and proposals.
+  - **Notice settings**: right away, a 7 AM digest or never for each kind,
+    and quiet hours (migration 0076).
+  - **Many at once** on All work (move, give, date, label), and marking
+    several draft invoices sent.
+  - **Team workload** for managers and admins.
+  - **View as a manager or member**, read-only, for admins.
+  - **The weekly owner email**, Mondays at 7:23.
+  - **HQ on a phone**: install to the home screen, and alerts for client
+    messages and call requests, calls about to start, sites down and
+    notices (migration 0077; `npm run push:keygen`, `HQ_VAPID_*`).
+  - **The portal**: Email me a link to sign in (self-serve password reset),
+    and approving a deliverable from the email in one tap.
+
 ## [0.17.0] - 2026-11-25
 
 - Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep
