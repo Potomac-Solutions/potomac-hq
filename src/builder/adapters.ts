@@ -2,3 +2,4 @@
 export { sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore } from "./infrastructure/stores.ts";
 export { builderOwnerFrom, claudeApi, claudeConfigFrom, type ClaudeConfig } from "./infrastructure/claude.ts";
 export { previewTokens } from "./infrastructure/preview-tokens.ts";
+export { builderGithub, type BuilderGithubConfig } from "./infrastructure/github.ts";

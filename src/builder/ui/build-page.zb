@@ -62,7 +62,7 @@
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Site builder', href: '/builder' }, { label: view.name }]}></breadcrumb-trail>
     <h1>{view.name}</h1>
-    <p class="hq-muted">For <a href="/clients/{view.organizationId}">{view.client}</a> · {view.model} · {view.budget.left} left this month of {view.budget.cap}</p>
+    <p class="hq-muted">For <a href="/clients/{view.organizationId}">{view.client}</a>{view.referenceFrom ? ' · reworked from ' + view.referenceFrom : ''} · {view.model} · {view.budget.left} left this month of {view.budget.cap}</p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>

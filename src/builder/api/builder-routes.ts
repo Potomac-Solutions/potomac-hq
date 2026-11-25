@@ -2,6 +2,7 @@
 // (decision 0010).
 import { Hono } from "hono";
 import * as builder from "../application/builder.ts";
+import { startRework } from "../application/rework.ts";
 import type { BuilderDeps } from "../application/builder.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 
@@ -27,6 +28,17 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "alt-missing": "Say what the picture shows, for someone who can’t see it.",
   "alt-too-long": "Keep what it shows under 200 characters.",
   "too-many-images": "A build holds up to 30 pictures. Remove one first.",
+  "source-invalid": "Choose whether to read a repository or an address.",
+  "repo-invalid": "Enter the repository as owner/name, like Potomac-Solutions/better-days-towing.",
+  "branch-invalid": "That isn’t a branch name. Leave it empty for the repository’s main branch.",
+  "address-invalid": "Enter the site’s https address, like betterdaystowing.com.",
+  "address-private": "That address is inside a private network, so HQ won’t read it.",
+  "address-unreadable": "HQ couldn’t read a web page at that address. Check it opens in a browser.",
+  "github-not-set-up": "HQ has no GitHub token, so it can’t read repositories. Set HQ_GITHUB_TOKEN on the server, or rework from the site’s address.",
+  "repo-refused": "GitHub refused. Check that HQ’s token may read this repository.",
+  "repo-missing": "GitHub has no such repository or branch, or HQ’s token can’t see it.",
+  "repo-failed": "HQ couldn’t reach GitHub. Try again in a minute.",
+  "nothing-to-read": "That repository has no pages, code or pictures HQ can read.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
@@ -48,6 +60,20 @@ export function builderRoutes(deps: BuilderRoutesDeps): Hono {
     back: () => "/builder#start",
     message: (made) => (made.first.ok ? "Started. Claude is making the first version. This page updates when it’s ready." : `Started, but Claude wasn’t asked yet. ${messageFor(made.first.error)}`),
   });
+  post(
+    "/builder/rework",
+    (actor, f) => startRework(deps.builder, actor, { organizationId: f["organizationId"] ?? "", name: f["name"] ?? "", brief: f["brief"] ?? "", source: f["source"] ?? "", repo: f["repo"] ?? "", branch: f["branch"] ?? "", address: f["address"] ?? "" }),
+    {
+      done: (made) => `/builder/${made.build.id}`,
+      back: () => "/builder#rework",
+      message: (made) => {
+        const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+        const what = made.read.asIs ? `${plural(made.read.files, "file")}, kept as version 1` : made.read.pages > 0 ? plural(made.read.pages, "page") : plural(made.read.files, "file");
+        const read = `Read ${what}${made.read.pictures ? ` and ${plural(made.read.pictures, "picture")}` : ""}.`;
+        return made.first.ok ? `${read} Claude is reworking it now. This page updates when it’s ready.` : `${read} Claude wasn’t asked yet. ${messageFor(made.first.error)}`;
+      },
+    },
+  );
   post("/builder/:id/ask", (actor, f, id) => builder.askClaude(deps.builder, actor, id as Id, f["ask"] ?? ""), { done: (_b, id) => page(id), back: (id) => `${page(id)}#ask`, message: "Sent. Claude is working on it. This page updates when it’s ready." });
   post("/builder/:id/brief", (actor, f, id) => builder.saveBrief(deps.builder, actor, id as Id, { name: f["name"] ?? "", brief: f["brief"] ?? "" }), { done: (_b, id) => `${page(id)}#brief`, back: (id) => `${page(id)}#brief`, message: "Saved. Claude uses it from the next request." });
   post("/builder/:id/restore", (actor, f, id) => builder.restoreVersion(deps.builder, actor, id as Id, versionOf(f["version"])), { done: (_b, id) => page(id), back: (id) => `${page(id)}#versions`, message: "Restored as the newest version." });
