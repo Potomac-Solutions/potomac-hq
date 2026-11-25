@@ -109,9 +109,15 @@ test("a timed call, from Start a call to the call log", async () => {
   // End it, with a next step for later.
   await page.getByLabel("Next steps for you").fill("Send the quote");
   await page.getByLabel("Talked").check();
+  await page.getByLabel("Then write Dale Hensley a recap email, to read before it goes").check();
   await page.getByRole("button", { name: "End call, back to the list" }).click();
-  await page.waitForURL((url) => url.pathname === "/today");
+  // The recap first, to read; nothing goes until Send. Skip goes back to the list.
+  await page.waitForURL((url) => url.pathname.endsWith("/recap"));
   await page.getByText("Call ended and logged. 1 to-do added.").waitFor();
+  assert.match(await page.getByLabel("Message").inputValue(), /^Hi Dale,\n\nThanks for the call today\./);
+  await assertAccessible(page, "the recap email");
+  await page.getByRole("link", { name: "Skip", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/today");
   assert.match(await text(page), /1 called already today\.|All called today/);
   await page.goto(`${t.origin}/opportunities/${deal.id}`);
   assert.match(await text(page), /Call, talked, 1[67] min/);
