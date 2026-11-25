@@ -57,6 +57,11 @@ Only `staging` may be merged into `main`. CI refuses anything else.
 - Every application service checks permission and writes an activity event in
   the change that adds it.
 - Schema changes go through versioned migrations only.
+- Decision and migration numbers are claimed by merging into `staging`, not
+  by opening a branch. Before a branch merges, check the highest numbers on
+  `staging`; if yours is taken, take the next free ones and rename the
+  files, the "decision NNNN" mentions and the changelog lines. A stack of
+  branches renumbers once, on its base, after its slices have landed there.
 - A decision not covered by the roadmap or `docs/` is asked, not guessed.
 
 ## Checks
