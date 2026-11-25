@@ -4,7 +4,7 @@
 -- archives what came before. Changes it proposes are actions: waiting for a
 -- tap, done, cancelled, failed or undone. Nothing here changes a record by
 -- itself; every change goes through the owning module's own service.
--- (#166 also numbers 0072 and 0073: whichever merges second renumbers.)
+-- Numbered after #166's 0072 and 0073, which merge first.
 create table assistant_message (
   id          text primary key,
   user_id     text not null references user (id),
