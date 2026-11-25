@@ -191,6 +191,17 @@ for their own site and it takes effect at once
 `client.view`.
 
 
+### Growth tools (decision 0010)
+
+Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approval.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+
+Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
+they were emailed is the only thing that says who they are.
+
 ### Platform (v1.0)
 
 Decided 2026-11-16 while Mikey was away. Needs his approval.

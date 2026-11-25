@@ -74,6 +74,8 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // Growth tools (decision 0010)
+  "newsletter.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -116,6 +118,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "site.publish",
   "label.manage",
   "project.share",
+  "newsletter.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

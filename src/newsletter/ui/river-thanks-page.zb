@@ -1,0 +1,14 @@
+<!-- After confirming. -->
+<script>
+  'use route /river/thanks'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    return { title: 'You’re on the list', done: context.notice.done }
+  }
+</script>
+<hq-river-thanks done="">
+  <h1>You’re on the list</h1>
+  <alert-banner variant="success">{done || 'You’re on the list.'}</alert-banner>
+  <p>Thanks for reading. The next Notes from the river will find you. Every one has a link at the bottom to leave.</p>
+  <p><a href="https://potomac.solutions">Back to potomac.solutions</a></p>
+</hq-river-thanks>

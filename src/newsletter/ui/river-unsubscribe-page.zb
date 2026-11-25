@@ -1,0 +1,26 @@
+<!--
+  The unsubscribe link in every issue. Opening it changes nothing; pressing
+  Unsubscribe takes the person off and forgets their email.
+-->
+<script>
+  'use route /river/unsubscribe'
+  export async function load({ context, url }) {
+    const token = url.searchParams.get('t') ?? ''
+    const works = context.newsletter.unsubscribeWorks(token)
+    return { title: works ? 'Unsubscribe' : 'Link not working', works, token: works ? token : '' }
+  }
+</script>
+<hq-river-unsubscribe works={false} token="">
+  <div zb-if={works}>
+    <h1>Unsubscribe from Notes from the river</h1>
+    <p>Press the button and we’ll stop emailing you, and forget your address.</p>
+    <form method="post" action="/river/unsubscribe">
+      <input type="hidden" name="t" value={token}>
+      <button class="hq-button portal-big" type="submit">Unsubscribe</button>
+    </form>
+  </div>
+  <div zb-else>
+    <h1>That link doesn’t work</h1>
+    <p>Reply to any issue and we’ll take you off by hand.</p>
+  </div>
+</hq-river-unsubscribe>

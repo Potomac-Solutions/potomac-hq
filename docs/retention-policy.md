@@ -40,6 +40,7 @@ run that removes nothing writes none.
 | Knowledge base articles and every revision | Always | Archived, never deleted |
 | Removed time entries and expenses | Always | Marked removed and kept, so the record shows what was changed |
 | User accounts that were turned off | Always | The activity log names them |
+| Newsletter readers (email, first name, the stop they signed up from) | Until they unsubscribe, or ask by phone or email | Decision 0010. Unsubscribing clears the email and name and keeps only a one-way hash of the address, so no issue ever reaches them again by mistake. "Forget" on the Newsletter page removes even that. A sign-up nobody confirmed is kept with the rest, and its link stops working after a week |
 
 ## Backups
 

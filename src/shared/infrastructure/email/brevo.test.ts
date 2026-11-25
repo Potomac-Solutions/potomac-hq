@@ -28,6 +28,13 @@ test("an email is one POST to Brevo with the key in its header and plain text", 
   });
 });
 
+test("extra headers go with the message, for the newsletter's one-click unsubscribe", async () => {
+  const fake = fakeFetch(201);
+  const send = brevoSender({ apiKey: "xkeysib-test", from: { email: "hq@potomac.solutions", name: "Potomac HQ" } }, { fetch: fake.fn });
+  await send({ channel: "email", to: "ann@example.com", subject: "Notes", body: "Hi", headers: { "List-Unsubscribe": "<https://hq.example/river/one-click?t=x>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } });
+  assert.deepEqual(JSON.parse(fake.calls[0]?.init.body as string).headers, { "List-Unsubscribe": "<https://hq.example/river/one-click?t=x>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" });
+});
+
 test("a refusal comes back as a code with the status only", async () => {
   const send = brevoSender({ apiKey: "xkeysib-test", from: { email: "hq@potomac.solutions", name: "HQ" } }, { fetch: fakeFetch(401).fn });
   const result = await send({ channel: "email", to: "a@example.com", subject: "s", body: "b" });
