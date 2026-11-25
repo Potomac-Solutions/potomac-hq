@@ -110,7 +110,15 @@ export function placeAt(places: readonly Place[], path: string): Place | null {
 }
 
 export type NavLink = { readonly label: string; readonly href: string; readonly current: boolean };
-export type NavHub = { readonly key: HubKey; readonly label: string; readonly open: boolean; readonly current: boolean; readonly href: string; readonly links: readonly NavLink[] };
+export type NavHub = {
+  readonly key: HubKey;
+  readonly label: string;
+  readonly open: boolean;
+  readonly current: boolean;
+  /** A hub that is one page of the same name (Home): shown as that link alone. */
+  readonly single: boolean;
+  readonly links: readonly NavLink[];
+};
 
 /**
  * The sidebar for a viewer: each hub with the pages they may open, the hub
@@ -123,7 +131,10 @@ export function navHubs(
   path: string,
   options: { readonly extra?: Readonly<Record<string, readonly NavLink[]>>; readonly currentHref?: string | null } = {},
 ): readonly NavHub[] {
-  const here = placeAt(allowed, path);
+  const found = placeAt(allowed, path);
+  // On a page the sidebar doesn't list (Calendar hours), the listed page it
+  // sits under (Calls) is the current one.
+  const here = found?.hidden ? (allowed.find((place) => !place.hidden && place.hub === found.hub && found.href.startsWith(place.href + "/")) ?? found) : found;
   const currentHub = here?.hub ?? null;
   return HUBS.flatMap((hub) => {
     const places = allowed.filter((place) => place.hub === hub.key && !place.hidden);
@@ -133,8 +144,8 @@ export function navHubs(
       return [{ label: place.label, href: place.href, current }, ...(options.extra?.[place.key] ?? [])];
     });
     const marked = options.currentHref ? links.map((link) => ({ ...link, current: link.href === options.currentHref })) : links;
-    const first = places[0] as Place;
-    return [{ key: hub.key, label: hub.label, open: hub.key === currentHub, current: hub.key === currentHub, href: first.href, links: marked }];
+    const single = marked.length === 1 && marked[0]?.label === hub.label;
+    return [{ key: hub.key, label: hub.label, open: hub.key === currentHub, current: hub.key === currentHub, single, links: marked }];
   });
 }
 

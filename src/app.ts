@@ -11,11 +11,12 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, navHubs, PLACES, recentActivity, search, type NavHub, type Place } from "./dashboard/index.ts";
+import { auditHistory, navHubs, PLACES, recentActivity, search, setupChecklist, type NavHub, type Place, type Setup } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
+import { sqliteSetupCounts } from "./dashboard/adapters.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
@@ -149,6 +150,8 @@ export type AppConfig = {
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set (decision 0012). Without it, AI is off. */
   readonly ai?: AiModel | null;
+  /** Whether nightly backups are configured (HQ_BACKUP_*), for Get HQ ready. */
+  readonly backups?: boolean;
 };
 
 /** What a page sees of AI (decision 0012). Each part is null when there's nothing, or this person may not see it. */
@@ -506,6 +509,8 @@ export type PageContext = {
   readonly search: (q: string) => ReturnType<typeof search>;
   /** The sidebar's hubs for this person and address (decision 0015). `search` is the address's `?…`, for pinned filters. */
   nav(path: string, search: string): readonly NavHub[];
+  /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
+  setup(): Setup | null;
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
     article(slug: string): ReturnType<typeof articleDetail>;
@@ -664,6 +669,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   // The pages a person may open (decision 0015): the sidebar, search and the
   // assistant all read this. Each page still checks for itself.
+  const setupCounts = sqliteSetupCounts(db);
   const placesFor = (actor: Id | null): readonly Place[] => {
     if (actor === null) return [];
     const ai = aiContext(actor);
@@ -1084,6 +1090,20 @@ export async function createApp(config: AppConfig): Promise<App> {
           twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
         },
         search: (q) => search(services.search, actor, q, placesFor(actor)),
+        setup: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
+          const counts = setupCounts();
+          return setupChecklist({
+            ...counts,
+            backupsConfigured: config.backups === true,
+            now: services.session.clock(),
+            emailReady: Boolean(config.email),
+            contact,
+            twoFactorOn: twoFactorDeps.twoFactor.get(actor)?.confirmed === true,
+            aiKeySet: Boolean(config.ai),
+            aiFeaturesOn: aiDeps.ai.settings().features.length,
+          });
+        },
         nav: (path, query) => {
           const pinned = actor ? pinnedFilters(projectsDeps, actor) : [];
           // All work with a filter in the address: a pinned filter's link, or no link at all.

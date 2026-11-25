@@ -12,6 +12,7 @@
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/stat-card.zb'
+  import '../../shared/ui/zubra/progress-bar.zb'
 
   export async function load({ context }) {
     const stop = context.guard()
@@ -59,6 +60,7 @@
       done: context.notice.done,
       problem: context.notice.problem,
       remindTwoFactor: context.settings.remindTwoFactor,
+      setup: context.setup(),
     }
   }
 
@@ -79,8 +81,17 @@
   .hq-stages li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; border-top: 1px solid var(--border); }
   .hq-stages li:first-child { border-top: 0; }
   .hq-panel > p:last-child { margin-bottom: 0; }
+  .hq-setup summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; cursor: pointer; }
+  .hq-setup summary h2 { display: inline; margin: 0; }
+  .hq-setup progress-bar { margin: 0.75rem 0 0.25rem; }
+  .hq-setup-list { display: grid; gap: 0; margin: 0.5rem 0 0; padding: 0; list-style: none; }
+  .hq-setup-list li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; gap: 0.25rem 0.6rem; align-items: start; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+  .hq-setup-mark { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-top: 0.1rem; border: 2px solid var(--border); border-radius: 50%; font-size: 0.75rem; font-weight: 700; }
+  .hq-setup-list li.done .hq-setup-mark { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+  .hq-setup-list li.done strong { text-decoration: line-through; color: var(--muted-foreground); }
+  .hq-setup-list .hq-scope { display: block; margin: 0.1rem 0 0; }
 </style>
-<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="">
+<hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="" setup={null}>
  <div class="hq-page">
   <div class="hq-head">
     <div><h1>Home</h1><p>{today}</p></div>
@@ -91,6 +102,19 @@
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
     <alert-banner zb-if={done} variant="success">{done}</alert-banner>
   </div>
+  <details zb-if={setup && !setup.finished} class="hq-panel hq-setup" open={!setup.mostlyDone}>
+    <summary><h2 id="get-ready">Get HQ ready</h2> <span class="hq-muted">{setup.doneCount} of {setup.total} done</span></summary>
+    <progress-bar value={setup.doneCount} max={setup.total} label="Setup" show-value={false}></progress-bar>
+    <ul class="hq-setup-list" aria-labelledby="get-ready">
+      <zb-each items={setup.items} as="item" key={item.key}>
+        <li class:done={item.done}>
+          <span class="hq-setup-mark" aria-hidden="true">{item.done ? '✓' : ''}</span>
+          <span><strong>{item.label}</strong><span class="sr-only">{item.done ? ': done' : ': not yet'}</span><span class="hq-scope">{item.why}</span></span>
+          <a zb-if={!item.done} class="hq-button secondary small" href={item.href}>{item.action}<span class="sr-only">: {item.label}</span></a>
+        </li>
+      </zb-each>
+    </ul>
+  </details>
   <div class="hq-stats">
     <zb-each items={stats} as="stat" key={stat.key}>
       <a href={stat.href}><stat-card label={stat.label} value={stat.value} period={stat.period}></stat-card></a>

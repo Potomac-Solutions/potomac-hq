@@ -6,3 +6,4 @@ export type { AuditFilter, AuditReader, AuditRow } from "./application/ports.ts"
 export { search, type SearchDeps, type SearchView } from "./application/search.ts";
 export type { SearchHit, SearchKind, SearchReader } from "./application/ports.ts";
 export { HUBS, matchPlaces, navHubs, placeAt, PLACES, type HubKey, type NavHub, type NavLink, type Place } from "./domain/places.ts";
+export { setupChecklist, type Setup, type SetupFacts, type SetupItem } from "./domain/setup.ts";

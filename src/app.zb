@@ -167,7 +167,7 @@
       <nav class="hq-nav" id="hq-nav" aria-label="Main">
         <zb-each items={groups} as="hub" key={hub.key}>
           <div class="hq-hub" class:current={hub.current}>
-            <a zb-if={hub.links.length === 1} class="hq-hub-one" href={hub.links[0].href} aria-current={hub.links[0].current ? 'page' : null}>{hub.label}</a>
+            <a zb-if={hub.single} class="hq-hub-one" href={hub.links[0].href} aria-current={hub.links[0].current ? 'page' : null}>{hub.label}</a>
             <details zb-else open={hub.open}>
               <summary>{hub.label}<span zb-if={hub.key === draftHub} class="hq-hub-count">{aiDrafts}<span class="sr-only"> AI drafts waiting</span></span></summary>
               <ul>

@@ -29,11 +29,19 @@ test("the hub of the page you're on is open, with its page current; others are f
   assert.equal(hubs.filter((hub) => hub.open).length, 1);
 });
 
-test("hidden pages stay out of the sidebar, and on one the hub still opens with nothing marked", () => {
+test("hidden pages stay out of the sidebar; on one, the listed page it sits under is current", () => {
   const hubs = navHubs(PLACES, "/calls/hours");
   const clients = hubs.find((hub) => hub.key === "clients");
   assert.equal(clients?.open, true);
   assert.ok(!clients?.links.some((link) => link.href === "/calls/hours"));
+  assert.equal(clients?.links.find((link) => link.current)?.href, "/calls");
+  assert.equal(navHubs(PLACES, "/clients/import").find((hub) => hub.open)?.links.find((link) => link.current)?.href, "/clients");
+});
+
+test("only Home is a hub of one link; a hub left with one other page still folds", () => {
+  const hubs = navHubs(PLACES.filter((place) => place.hub !== "money" || place.key === "renewals"), "/");
+  assert.equal(hubs.find((hub) => hub.key === "home")?.single, true);
+  assert.equal(hubs.find((hub) => hub.key === "money")?.single, false);
 });
 
 test("a hub with no page the viewer may open is left out", () => {
