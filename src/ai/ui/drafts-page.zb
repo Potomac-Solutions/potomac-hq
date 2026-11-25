@@ -1,0 +1,43 @@
+<!--
+  Drafts (decision 0010): everything AI has written that's waiting for a
+  person, that this person may use. Each goes to where it's used; any can be
+  discarded here.
+-->
+<script>
+  'use route /drafts'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    return { title: 'AI drafts', view: context.ai.drafts(), canManage: context.ai.canManage, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .ai-drafts { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+  .ai-drafts li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border, #e4e4e7); padding-bottom: 0.75rem; }
+  .ai-drafts form { margin: 0; }
+</style>
+<hq-ai-drafts view={{ items: [], month: null }} can-manage={false} done="" problem="">
+  <div class="hq-page">
+    <h1>AI drafts</h1>
+    <p class="hq-muted">What AI has drafted, waiting for you to read, change and use. Nothing here has gone anywhere.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p zb-if={view.month} class="hq-small">This month: {view.month.spent} of {view.month.budget}. <a href="/settings/ai">AI settings</a></p>
+    <section class="hq-panel" aria-labelledby="drafts-waiting">
+      <h2 id="drafts-waiting">Waiting</h2>
+      <empty-state zb-if={view.items.length === 0} heading="Nothing waiting">Drafts show here when AI writes them, or when HQ triages a lead or drafts Friday’s updates by itself.</empty-state>
+      <ul zb-else class="ai-drafts">
+        <zb-each items={view.items} as="draft" key={draft.id}>
+          <li>
+            <span><a href={draft.href}><strong>{draft.feature}</strong></a>: {draft.what}<br><span class="hq-muted hq-small">{draft.by}, {draft.when}</span></span>
+            <form method="post" action="/ai/drafts/{draft.id}/discard"><input type="hidden" name="back" value="/drafts"><button class="hq-button secondary" type="submit">Discard</button></form>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-ai-drafts>

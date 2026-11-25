@@ -1,0 +1,91 @@
+<!--
+  AI on a deal (decision 0010): triage, a check-in and a proposal's first
+  draft. Each is a draft: the email goes only when Send is pressed, and the
+  proposal starts as a draft to edit. `ai` is what `context.ai.deal(id)`
+  returns; `states` says which buttons show.
+-->
+<script>
+  import '../zubra/status-badge.zb'
+  import '../zubra/text-field.zb'
+</script>
+<style>
+  .ai-deal { display: grid; gap: 1rem; }
+  .ai-asks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ai-asks form, .ai-row form { margin: 0; }
+  .ai-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .ai-draft { border-top: 1px solid var(--border); padding-top: 1rem; display: grid; gap: 0.75rem; }
+  .ai-facts { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
+  .ai-facts dt { font-weight: 600; }
+  .ai-facts dd { margin: 0; }
+  .ai-lines { width: 100%; border-collapse: collapse; }
+  .ai-lines th, .ai-lines td { text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border); }
+  .ai-lines td.num, .ai-lines th.num { text-align: right; }
+  .ai-pre { white-space: pre-wrap; margin: 0; }
+</style>
+<ai-deal-panel ai={{ triage: null, checkIn: null, proposal: null }} states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} opportunity-id="" open={false} email-on={false}>
+  <section zb-if={ai.triage || ai.checkIn || ai.proposal || (open && (states.triage.on || states.checkIn.on || states.proposal.on)) || states.triage.why || states.checkIn.why || states.proposal.why} class="hq-panel ai-deal" id="ai" aria-labelledby="ai-deal-heading">
+    <h2 id="ai-deal-heading">AI drafts</h2>
+    <p class="hq-muted hq-small">AI only drafts. Nothing goes to the client until you press Send.</p>
+    <p zb-if={states.triage.why || states.checkIn.why || states.proposal.why} class="hq-muted hq-small">{states.triage.why || states.checkIn.why || states.proposal.why}</p>
+    <div zb-if={open} class="ai-asks">
+      <form zb-if={states.triage.on} method="post" action="/opportunities/{opportunityId}/ai/triage"><button class="hq-button secondary" type="submit">{ai.triage ? 'Triage again' : 'Triage with AI'}</button></form>
+      <form zb-if={states.checkIn.on} method="post" action="/opportunities/{opportunityId}/ai/check-in"><button class="hq-button secondary" type="submit">Draft a check-in</button></form>
+      <form zb-if={states.proposal.on} method="post" action="/opportunities/{opportunityId}/ai/proposal"><button class="hq-button secondary" type="submit">Draft a proposal</button></form>
+    </div>
+
+    <div zb-if={ai.triage} class="ai-draft">
+      <h3>Triage <status-badge zb-if={ai.triage.spam} variant="danger">Looks like spam</status-badge> <status-badge zb-if={!ai.triage.spam && ai.triage.urgency === 'high'} variant="warning">Urgent</status-badge></h3>
+      <dl class="ai-facts">
+        <dt>They need</dt><dd>{ai.triage.need}</dd>
+        <dt>Service</dt><dd>{ai.triage.serviceLabel}</dd>
+        <dt>Price range</dt><dd>{ai.triage.priceRange || 'Not given'}</dd>
+        <dt>Business</dt><dd>{ai.triage.businessType || 'Not given'}</dd>
+        <dt>Urgency</dt><dd>{ai.triage.urgency}</dd>
+        <dt>Why</dt><dd>{ai.triage.reason}</dd>
+      </dl>
+      <div class="ai-row">
+        <form method="post" action="/ai/drafts/{ai.triage.id}/note"><input type="hidden" name="back" value="/opportunities/{opportunityId}#ai"><button class="hq-button secondary" type="submit">Keep as a note</button></form>
+        <form zb-if={ai.triage.spam && open} method="post" action="/ai/drafts/{ai.triage.id}/spam"><input type="hidden" name="back" value="/opportunities/{opportunityId}"><button class="hq-button secondary" type="submit">Close as spam</button></form>
+      </div>
+      <form method="post" action="/ai/drafts/{ai.triage.id}/send" class="hq-form">
+        <input type="hidden" name="back" value="/opportunities/{opportunityId}#touches">
+        <h4>Reply</h4>
+        <text-field label="Subject" name="subject" value={ai.triage.reply.subject} required={true} maxlength={150}></text-field>
+        <text-field label="Message" name="body" value={ai.triage.reply.body} rows={10} required={true} maxlength={4000}></text-field>
+        <p zb-if={!emailOn} class="hq-muted hq-small">Email isn’t set up here, so copy it into your own email.</p>
+        <div class="ai-row"><button zb-if={emailOn} class="hq-button" type="submit">Send reply</button></div>
+      </form>
+      <form method="post" action="/ai/drafts/{ai.triage.id}/discard"><input type="hidden" name="back" value="/opportunities/{opportunityId}"><button class="hq-button secondary" type="submit">Discard triage</button></form>
+    </div>
+
+    <div zb-if={ai.checkIn} class="ai-draft">
+      <h3>Check-in</h3>
+      <form method="post" action="/ai/drafts/{ai.checkIn.id}/send" class="hq-form">
+        <input type="hidden" name="back" value="/opportunities/{opportunityId}#touches">
+        <text-field label="Subject" name="subject" value={ai.checkIn.subject} required={true} maxlength={150}></text-field>
+        <text-field label="Message" name="body" value={ai.checkIn.body} rows={8} required={true} maxlength={4000}></text-field>
+        <p zb-if={!emailOn} class="hq-muted hq-small">Email isn’t set up here, so copy it into your own email.</p>
+        <div class="ai-row"><button zb-if={emailOn} class="hq-button" type="submit">Send check-in</button></div>
+      </form>
+      <form method="post" action="/ai/drafts/{ai.checkIn.id}/discard"><input type="hidden" name="back" value="/opportunities/{opportunityId}"><button class="hq-button secondary" type="submit">Discard check-in</button></form>
+    </div>
+
+    <div zb-if={ai.proposal} class="ai-draft">
+      <h3>Proposal: {ai.proposal.title}</h3>
+      <p class="ai-pre">{ai.proposal.scope}</p>
+      <table zb-if={ai.proposal.lines.length} class="ai-lines">
+        <thead><tr><th scope="col">Line</th><th scope="col" class="num">Hours or units</th><th scope="col" class="num">Rate</th></tr></thead>
+        <tbody>
+          <zb-each items={ai.proposal.lines} as="line" index="i" key={i}>
+            <tr><td>{line.item}</td><td class="num">{line.quantity} {line.kind === 'hours' ? 'h' : ''}</td><td class="num">${line.rate.toFixed(2)}</td></tr>
+          </zb-each>
+        </tbody>
+      </table>
+      <p>Total about <strong>{ai.proposal.totalText}</strong>. Assumptions, exclusions and deliverables come with it, to edit.</p>
+      <div class="ai-row">
+        <form method="post" action="/ai/drafts/{ai.proposal.id}/proposal"><input type="hidden" name="back" value="/opportunities/{opportunityId}#ai"><button class="hq-button" type="submit">Start the proposal from this</button></form>
+        <form method="post" action="/ai/drafts/{ai.proposal.id}/discard"><input type="hidden" name="back" value="/opportunities/{opportunityId}"><button class="hq-button secondary" type="submit">Discard</button></form>
+      </div>
+    </div>
+  </section>
+</ai-deal-panel>

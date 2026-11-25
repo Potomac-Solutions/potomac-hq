@@ -1,0 +1,52 @@
+<!--
+  AI on a project (decision 0010): client messages that look beyond what was
+  agreed, this week's update for the client, and a case study or social
+  posts once there's work to show. Everything is a draft until a person
+  posts or sends it. `ai` is what `context.ai.project(id)` returns.
+-->
+<script>
+  import '../zubra/status-badge.zb'
+  import '../zubra/text-field.zb'
+</script>
+<style>
+  .ai-project { display: grid; gap: 1rem; }
+  .ai-asks, .ai-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .ai-asks form, .ai-row form { margin: 0; }
+  .ai-draft { border-top: 1px solid var(--border); padding-top: 1rem; display: grid; gap: 0.6rem; }
+  .ai-pre { white-space: pre-wrap; margin: 0; }
+</style>
+<ai-project-panel ai={{ scope: [], update: null }} states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} project-id="" active={false}>
+  <section zb-if={ai.scope.length || ai.update || states.update.on || states.caseStudy.on || states.posts.on || states.update.why || states.caseStudy.why} class="hq-panel ai-project" id="ai" aria-labelledby="ai-project-heading">
+    <h2 id="ai-project-heading">AI drafts</h2>
+    <p zb-if={states.update.why || states.caseStudy.why} class="hq-muted hq-small">{states.update.why || states.caseStudy.why}</p>
+    <div class="ai-asks">
+      <form zb-if={active && states.update.on} method="post" action="/projects/{projectId}/ai/update"><button class="hq-button secondary" type="submit">Draft this week’s update</button></form>
+      <form zb-if={states.caseStudy.on} method="post" action="/projects/{projectId}/ai/case-study"><button class="hq-button secondary" type="submit">Draft a case study</button></form>
+      <form zb-if={states.posts.on} method="post" action="/projects/{projectId}/ai/posts"><button class="hq-button secondary" type="submit">Draft social posts</button></form>
+    </div>
+
+    <zb-each items={ai.scope} as="flag" key={flag.id}>
+      <div class="ai-draft">
+        <h3><status-badge variant="warning">Maybe out of scope</status-badge> {flag.change ? flag.change.title : ''}</h3>
+        <p>{flag.reason}</p>
+        <p zb-if={flag.change} class="ai-pre">{flag.change.description}</p>
+        <p zb-if={flag.change}>About {flag.change.hours} hours, <strong>{flag.amountText}</strong>. <span class="hq-muted hq-small">Flagged {flag.when}.</span></p>
+        <div class="ai-row">
+          <form zb-if={flag.change} method="post" action="/ai/drafts/{flag.id}/change"><input type="hidden" name="back" value="/projects/{projectId}#ai"><button class="hq-button" type="submit">Draft the change request</button></form>
+          <form method="post" action="/ai/drafts/{flag.id}/discard"><input type="hidden" name="back" value="/projects/{projectId}#ai"><button class="hq-button secondary" type="submit">It’s in scope: dismiss</button></form>
+        </div>
+      </div>
+    </zb-each>
+
+    <div zb-if={ai.update} class="ai-draft">
+      <h3>This week’s update</h3>
+      <p class="hq-muted hq-small">Drafted {ai.update.when}. It goes to the client’s portal only when you post it.</p>
+      <form method="post" action="/ai/drafts/{ai.update.id}/post" class="hq-form">
+        <input type="hidden" name="back" value="/projects/{projectId}#ai">
+        <text-field label="Update" name="body" value={ai.update.body} rows={10} required={true} maxlength={5000}></text-field>
+        <div class="ai-row"><button class="hq-button" type="submit">Post to the portal</button></div>
+      </form>
+      <form method="post" action="/ai/drafts/{ai.update.id}/discard"><input type="hidden" name="back" value="/projects/{projectId}#ai"><button class="hq-button secondary" type="submit">Discard</button></form>
+    </div>
+  </section>
+</ai-project-panel>

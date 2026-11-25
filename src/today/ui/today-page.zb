@@ -11,7 +11,7 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), calls: context.crm.callsToMake(), next: context.crm.comingUp(), canAdd: context.can.todos, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), calls: context.crm.callsToMake(), next: context.crm.comingUp(), canAdd: context.can.todos, aiDrafts: context.ai.drafts().items.length, checkIn: context.ai.state('check-in').on, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -42,7 +42,7 @@
   .agenda-overdue .calls-why li:first-child { color: var(--destructive); }
   .today-done li { padding: 0.3rem 0; color: var(--muted-foreground); text-decoration: line-through; }
 </style>
-<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} fresh={[]} calls={{ items: [], calledToday: 0, canCall: false }} next={null} can-add={false} done="" problem="">
+<hq-today view={{ items: [], headline: '', overdue: 0, done: [], day: '', dayLabel: '' }} fresh={[]} calls={{ items: [], calledToday: 0, canCall: false }} next={null} can-add={false} ai-drafts={0} check-in={false} done="" problem="">
   <div class="hq-page">
     <h1>Today <span class="hq-muted hq-small">{view.dayLabel}</span></h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -85,6 +85,7 @@
       </ol>
       <p zb-if={calls.calledToday > 0 && calls.items.length > 0} class="hq-muted hq-small">{calls.calledToday} called already today.</p>
     </section>
+    <p zb-if={aiDrafts > 0} class="hq-panel"><a href="/drafts">{aiDrafts === 1 ? '1 AI draft is' : aiDrafts + ' AI drafts are'} waiting for you</a>: read them, change them, and use or discard them.</p>
     <section class="hq-panel" aria-labelledby="today-list">
       <h2 id="today-list">{view.items.length === 0 ? 'All clear' : 'In order'}</h2>
       <empty-state zb-if={view.items.length === 0} heading="Nothing due">Follow-ups, to-dos, booked calls and anything a client is waiting on show here on their day. <a href="/pipeline">Check the pipeline</a> for someone to call.</empty-state>
@@ -101,6 +102,7 @@
               <p zb-if={item.detail} class="hq-small hq-muted">{item.detail}</p>
             </div>
             <a class="hq-button secondary small agenda-go" href={item.href}>{item.action}<span class="sr-only">: {item.text}</span></a>
+            <a zb-if={checkIn && item.key.startsWith('cold-')} class="hq-button secondary small agenda-go" href={item.href.replace('#touches', '#ai')}>Draft a check-in<span class="sr-only">: {item.text}</span></a>
           </li>
         </zb-each>
       </ol>

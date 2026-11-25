@@ -1,0 +1,51 @@
+<!--
+  Marketing (decision 0010): case studies and social posts AI drafted from
+  finished work, waiting to be copied out. HQ never posts anything itself.
+-->
+<script>
+  'use route /marketing'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const items = context.ai.marketing()
+    if (items === null) return context.forbidden()
+    return { title: 'Marketing', items, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .ai-copy { display: grid; gap: 0.75rem; }
+  .ai-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ai-actions form { margin: 0; }
+</style>
+<hq-marketing items={[]} done="" problem="">
+  <div class="hq-page">
+    <h1>Marketing</h1>
+    <p class="hq-muted">Case studies for the Work page and posts for Facebook, Instagram and LinkedIn, drafted from finished projects. Copy what you use, then mark it done. Draft one from a project’s page.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <empty-state zb-if={items.length === 0} heading="Nothing waiting">Open a project and choose “Draft a case study” or “Draft social posts”.</empty-state>
+    <zb-each items={items} as="item" key={item.id}>
+      <section class="hq-panel ai-copy" aria-label={`${item.kind === 'case-study' ? 'Case study' : 'Social posts'} for ${item.project}`}>
+        <h2>{item.kind === 'case-study' ? 'Case study' : 'Social posts'}: <a href="/projects/{item.projectId}">{item.project}</a></h2>
+        <p class="hq-muted hq-small">Drafted {item.when}. Check every fact before it’s published.</p>
+        <div zb-if={item.caseStudy} class="ai-copy">
+          <div class="hq-field"><label for="copy-title-{item.id}">Title</label><input id="copy-title-{item.id}" readonly value={item.caseStudy.title}></div>
+          <div class="hq-field"><label for="copy-body-{item.id}">Case study, in Markdown</label><textarea id="copy-body-{item.id}" readonly rows="14" value={item.caseStudy.body}></textarea></div>
+        </div>
+        <div zb-if={item.posts} class="ai-copy">
+          <div class="hq-field"><label for="copy-fb-{item.id}">Facebook</label><textarea id="copy-fb-{item.id}" readonly rows="5" value={item.posts.facebook}></textarea></div>
+          <div class="hq-field"><label for="copy-ig-{item.id}">Instagram</label><textarea id="copy-ig-{item.id}" readonly rows="5" value={item.posts.instagram}></textarea></div>
+          <div class="hq-field"><label for="copy-li-{item.id}">LinkedIn</label><textarea id="copy-li-{item.id}" readonly rows="6" value={item.posts.linkedin}></textarea></div>
+        </div>
+        <div class="ai-actions">
+          <form method="post" action="/ai/drafts/{item.id}/done"><input type="hidden" name="back" value="/marketing"><button class="hq-button" type="submit">Used it: done</button></form>
+          <form method="post" action="/ai/drafts/{item.id}/discard"><input type="hidden" name="back" value="/marketing"><button class="hq-button secondary" type="submit">Discard</button></form>
+        </div>
+      </section>
+    </zb-each>
+  </div>
+</hq-marketing>
