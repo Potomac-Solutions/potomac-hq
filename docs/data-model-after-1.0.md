@@ -670,7 +670,7 @@ Decision 0010, slice 1 (migration 0056).
   from its id. Shared by every version of the build: the preview and the
   zip serve it beside the version's files. Removing one deletes it. A
   picture from a reworked repository keeps its old path instead.
-- `build.reference_from` and `build.reference` (slice 3, migration 0058):
+- `build.reference_from` and `build.reference` (slice 3, migration 0059):
   where a reworked build was read from, and the old site's text, shown to
   Claude only while the build has no files.
 

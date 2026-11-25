@@ -13,7 +13,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
   repository on GitHub or its address on the web: a plain HTML repository
   becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
   site is read as reference for Claude to rewrite as plain files, and a
-  repository's pictures come along at their old paths. Migration 0058.
+  repository's pictures come along at their old paths. Migration 0059.
 
 - Pictures in the site builder (decision 0010, slice 2). Add a build's
   photos and its logo, each with what it shows; a photo is shrunk in the
