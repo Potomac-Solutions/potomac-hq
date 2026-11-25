@@ -76,6 +76,9 @@ export const PERMISSIONS = [
   "webhook.manage",
   // The site builder (decision 0010)
   "site.build",
+  // Social media (decision 0011)
+  "social.view",
+  "social.edit",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

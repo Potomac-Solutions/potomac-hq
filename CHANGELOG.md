@@ -21,13 +21,28 @@ moves those lines under a version heading. See `docs/conventions.md`.
   repository on GitHub or its address on the web: a plain HTML repository
   becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
   site is read as reference for Claude to rewrite as plain files, and a
-  repository's pictures come along at their old paths. Migration 0058.
+  repository's pictures come along at their old paths. Migration 0059.
 
 - Pictures in the site builder (decision 0010, slice 2). Add a build's
   photos and its logo, each with what it shows; a photo is shrunk in the
   browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
   each one's path, size and what it shows, and the preview and the .zip
-  carry them. Migration 0057.
+  carry them. Migration 0058.
+
+- Social media (decision 0011), for clients on social media marketing. A
+  plan on the client's page: Facebook, Instagram and LinkedIn with each
+  page's address, 8 posts and 1 blog post a month unless set otherwise,
+  and notes about the business. A calendar per month to write posts and
+  blog posts against the plan, checked for each network's limit, an
+  Instagram post needing its picture. "Send to the client" puts the month
+  in their portal under "Your social media" and on "Waiting on you"; they
+  approve it in one go or ask for changes post by post, and anything
+  unanswered for 3 days counts as approved (checked hourly). A yes by
+  phone or text can be recorded. Approved posts due show on Today with
+  "Copy the words", "Open Facebook" and "It's up" with links, which the
+  client sees. Asks for changes show on Today as Waiting on you.
+  Delivery → Social media lists every client's month. New permissions
+  `social.view` and `social.edit` for every role. Migration 0057.
 
 - The site builder (decision 0010, slice 1). Delivery → Site builder, for
   admins: start a build for a client with a brief, and Claude makes the

@@ -1,10 +1,10 @@
 // The day's list: everything that wants doing today, from every part of HQ,
 // in one order. Calls at their time come first, then what clients are
 // waiting on, sites that are down, anything overdue (oldest first), then
-// today's follow-ups, to-dos and deadlines, opportunities going cold, and
-// renewals this week.
+// today's follow-ups, to-dos and deadlines, social media posts to put up,
+// opportunities going cold, and renewals this week.
 
-export const AGENDA_KINDS = ["call", "waiting", "site", "follow-up", "todo", "deadline", "cold", "renewal"] as const;
+export const AGENDA_KINDS = ["call", "waiting", "site", "follow-up", "todo", "deadline", "social", "cold", "renewal"] as const;
 export type AgendaKind = (typeof AGENDA_KINDS)[number];
 export const AGENDA_LABELS: Readonly<Record<AgendaKind, string>> = {
   call: "Call",
@@ -13,6 +13,7 @@ export const AGENDA_LABELS: Readonly<Record<AgendaKind, string>> = {
   "follow-up": "Follow up",
   todo: "To-do",
   deadline: "Deadline",
+  social: "Social media",
   cold: "Going cold",
   renewal: "Renewal",
 };
