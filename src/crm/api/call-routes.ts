@@ -1,7 +1,7 @@
 // The call screen's forms (decision 0009): start a call, change its planned
 // length, keep its notes, and end it into the call log.
 import { Hono } from "hono";
-import { changeCallLength, endCall, followThroughCall, keepCallNote, lengthText, saveAnswers, saveCallGuide, saveVoicemailScript, startCall, switchGuide, type CallDeps, type CallFrom } from "../application/calls.ts";
+import { changeCallLength, endCall, followThroughCall, keepCallNote, lengthText, saveAnswers, saveCallGuide, saveVoicemailScript, sendRecap, startCall, switchGuide, type CallDeps, type CallFrom, type RecapMail } from "../application/calls.ts";
 import { err, formPosts, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -36,7 +36,7 @@ const backFrom = (f: Fields) => {
   return /^\/(?![\/\\])/.test(to) ? to : "/today";
 };
 
-export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
+export function callRoutes(deps: { readonly calls: CallDeps; readonly mail?: RecapMail | null; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/today" });
   const screen = (id: Id | null) => `/phone/${id}`;
@@ -59,6 +59,11 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
     message: (saved) => `Saved, with ${saved.count} question${saved.count === 1 ? "" : "s"}. Calls from now on use it.`,
   });
   post("/call-guides/voicemail", (actor, f) => saveVoicemailScript(deps.calls, actor, f["text"] ?? ""), { done: () => "/call-guides#voicemail", back: () => "/call-guides#voicemail", message: "Saved. Calls from now on use it." });
+  post("/phone/:id/recap", (actor, f, id) => sendRecap(deps.calls, deps.mail ?? null, actor, id as Id, { subject: f["subject"] ?? "", body: f["body"] ?? "" }), {
+    done: (recap) => recap.skipTo,
+    back: (id) => `/phone/${id}/recap`,
+    message: (recap) => `Recap sent to ${recap.toName}. It’s in the call log.`,
+  });
   post("/phone/:id/note", (actor, f, id) => keepCallNote(deps.calls, actor, id as Id, f["note"] ?? ""), { done: (_, id) => screen(id), back: screen, message: "Notes saved." });
   post("/phone/:id/end", (actor, f, id) => {
     const ended = endCall(deps.calls, actor, id as Id, { outcome: f["outcome"] ?? null, note: f["note"] ?? null, followUpOn: f["followUpOn"] ?? null });
@@ -67,7 +72,8 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
     const after = followThroughCall(deps.calls, actor, id as Id, { nextSteps: f["nextSteps"] ?? null, projectId: f["logTo"] ?? null });
     return { ok: true as const, value: { call: ended.value, after: after.ok ? after.value : { todos: 0, loggedMinutes: 0, problems: [] } } };
   }, {
-    done: ({ call }) => call.returnTo ?? (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
+    // A talk, with "Then write them a recap" ticked: to the recap, to read and send.
+    done: ({ call }, _id, f) => (f["recap"] === "on" && (f["outcome"] ?? "reached") === "reached" ? `/phone/${call.id}/recap` : (call.returnTo ?? (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`))),
     back: screen,
     message: ({ after }) =>
       [

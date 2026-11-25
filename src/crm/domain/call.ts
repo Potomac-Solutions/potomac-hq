@@ -33,6 +33,8 @@ export type Call = {
   readonly guide: string | null;
   /** Where ending the call goes: the list it was started from, or null for the client's call log. */
   readonly returnTo: string | null;
+  /** When its recap email was sent (decision 0009, section 7). */
+  readonly recapSentAt: string | null;
 };
 
 export type CallError = "invalid-length" | "call-ended" | "note-too-long";
@@ -56,7 +58,7 @@ export function plannedFromBooking(startsAt: string, endsAt: string): number {
 
 export function startCall(ids: Pick<Call, "id" | "organizationId" | "contactId" | "opportunityId" | "bookingId" | "userId" | "phone" | "startedAt">, plannedMinutes: number = DEFAULT_CALL_MINUTES, guide: string | null = null): Result<Call, "invalid-length"> {
   if (!validLength(plannedMinutes)) return err("invalid-length");
-  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null, guide, returnTo: null });
+  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null, guide, returnTo: null, recapSentAt: null });
 }
 
 const validLength = (minutes: number) => Number.isInteger(minutes) && minutes >= MIN_CALL_MINUTES && minutes <= MAX_CALL_MINUTES && minutes % CALL_STEP_MINUTES === 0;
@@ -175,4 +177,36 @@ export function startsText(startsAt: string, now: string): string {
   const n = Math.abs(minutes);
   const words = `${n} minute${n === 1 ? "" : "s"}`;
   return minutes > 0 ? `in ${words}` : `${words} ago`;
+}
+
+export type RecapError = "subject-missing" | "subject-too-long" | "body-missing" | "body-too-long";
+
+/** A recap as someone edited it: a subject of a line, and a body under 4,000 characters. */
+export function readRecap(input: { readonly subject: string; readonly body: string }): Result<{ readonly subject: string; readonly body: string }, RecapError> {
+  const subject = input.subject.replace(/\s+/g, " ").trim();
+  const body = input.body.replace(/\r\n/g, "\n").trim();
+  if (!subject) return err("subject-missing");
+  if (subject.length > 150) return err("subject-too-long");
+  if (!body) return err("body-missing");
+  if (body.length > 4000) return err("body-too-long");
+  return ok({ subject, body });
+}
+
+/** The recap HQ drafts: thanks, the notes from the call, and a sign-off. Edited before it's sent. */
+export function draftRecap(input: { readonly name: string; readonly me: string; readonly notes: string }): { readonly subject: string; readonly body: string } {
+  const first = (full: string) => full.trim().split(/\s+/)[0] ?? "";
+  const notes = input.notes.trim();
+  const lines = [
+    `Hi ${first(input.name) || "there"},`,
+    "",
+    "Thanks for the call today.",
+    ...(notes ? ["", "Here's what we covered:", "", notes] : []),
+    "",
+    "If I missed anything, just reply to this email.",
+    "",
+    "Talk soon,",
+    first(input.me) || "Potomac Solutions",
+    "Potomac Solutions",
+  ];
+  return { subject: "Thanks for the call today", body: lines.join("\n") };
 }

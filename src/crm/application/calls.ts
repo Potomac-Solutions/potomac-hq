@@ -1,7 +1,7 @@
 // The call screen (decision 0009, call mode): start a call with someone at a
 // client, keep its timer on the server, change its planned length, keep
 // notes as they're typed, and end it into the call log with its length.
-import { addBusinessDays, fillScript, readReturnTo, startsText, GET_READY_MINUTES, OVERDUE_CALL_DAYS, RETRY_BUSINESS_DAYS, callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
+import { addBusinessDays, draftRecap, fillScript, readRecap, readReturnTo, startsText, type RecapError, GET_READY_MINUTES, OVERDUE_CALL_DAYS, RETRY_BUSINESS_DAYS, callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
 import { OUTCOME_LABELS } from "../domain/touch.ts";
 import { callSummary, isSituation, MAX_ANSWER_LENGTH, pickSituation, readGuide, SITUATION_HINTS, type GuideError, type Situation } from "../domain/call-guide.ts";
 import type { Contact } from "../domain/contact.ts";
@@ -157,6 +157,8 @@ export function endCall(deps: CallDeps, actorId: Id | null, callId: Id, input: E
     const followUpOn = retry ? addBusinessDays(deps.today(), RETRY_BUSINESS_DAYS) : (input.followUpOn ?? null);
     const logged = writeTouch(deps, actorId, where, { kind: "call", outcome, note, contactId: call.contactId, followUpOn }, { minutes, callId });
     if (!logged.ok) return logged;
+    // The notes as typed, without the guide's answers, are what a recap email starts from.
+    deps.calls.update({ ...call, note: (input.note ?? call.note).trim().slice(0, 2000) });
     deps.calls.end(callId, endedAt, logged.value.id);
     recordActivity(deps, { actorId, action: "call.ended", recordType: "call", recordId: callId, context: { clientId: call.organizationId, minutes, outcome: logged.value.outcome ?? "reached" } });
     return ok({ ...call, endedAt, touchId: logged.value.id });
@@ -227,6 +229,8 @@ export type CallScreen = {
   readonly voicemail: string;
   /** Started from the calls to make: ending goes back there. */
   readonly fromList: boolean;
+  /** Who a recap email would go to, or "" when the contact has no email. */
+  readonly recapTo: string;
   readonly guide: GuideOnCall;
   /** The other guides, to switch to. */
   readonly guides: readonly { readonly value: string; readonly label: string }[];
@@ -299,6 +303,7 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
     canAddTodos: Boolean(deps.followThrough) && allowed(deps, actorId, "task.edit"),
     voicemail: fillScript(deps.guides.script("voicemail")?.text ?? "", { name: contact?.name ?? booking?.name ?? "", me: deps.users.get(call.userId)?.name ?? "", about: opportunity?.title ?? facts.activeProjects[0]?.name ?? "" }),
     fromList: call.returnTo !== null,
+    recapTo: contact?.email ? contact.name : "",
     guide: guideOnCall(deps, call),
     guides: deps.guides.all().map((one) => ({ value: one.situation, label: one.title })),
   });
@@ -642,5 +647,72 @@ export function getReady(deps: CallDeps, actorId: Id | null, bookingId: Id): Res
     inCrm: client !== null,
     canStart: client !== null && started === null,
     callHref: started && started.userId === actorId ? `/phone/${started.id}` : "",
+  });
+}
+
+export type RecapView = {
+  readonly callId: string;
+  readonly clientId: string;
+  readonly clientName: string;
+  /** Who it goes to: the contact on the call. */
+  readonly toName: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+  /** Sent already: when. */
+  readonly sentText: string;
+  /** Where "Skip" goes: the list the call came from, or the client's call log. */
+  readonly skipTo: string;
+};
+
+/**
+ * The recap email for an ended call (decision 0009, section 7): drafted from
+ * the notes, to the contact on the call. Only the person who made the call;
+ * only once it's ended; only to a contact with an email.
+ */
+export function recapFor(deps: CallDeps, actorId: Id | null, callId: Id): Result<RecapView, Refused | "call-open" | "no-email"> {
+  if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
+  const call = deps.calls.get(callId);
+  if (!call || call.userId !== actorId) return err("not-found");
+  if (call.endedAt === null) return err("call-open");
+  const contact = call.contactId ? deps.contacts.get(call.contactId) : null;
+  if (!contact?.email) return err("no-email");
+  const client = deps.clients.get(call.organizationId);
+  const draft = draftRecap({ name: contact.name, me: deps.users.get(call.userId)?.name ?? "", notes: call.note });
+  return ok({
+    callId,
+    clientId: call.organizationId,
+    clientName: client?.name ?? "",
+    toName: contact.name,
+    to: contact.email,
+    ...draft,
+    sentText: call.recapSentAt ? deps.formatWhen(call.recapSentAt) : "",
+    skipTo: call.returnTo ?? (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
+  });
+}
+
+/** Sends a message; true when it went. The app's mail, given only where email is set up. */
+export type RecapMail = (message: { readonly to: string; readonly subject: string; readonly body: string }) => Promise<boolean>;
+
+/**
+ * Sends the recap as edited, once, and logs it in the call log as an email.
+ * Never sent without someone pressing Send; with email off it says so.
+ */
+export async function sendRecap(deps: CallDeps, mail: RecapMail | null, actorId: Id | null, callId: Id, input: { readonly subject: string; readonly body: string }): Promise<Result<RecapView, Refused | "call-open" | "no-email" | "recap-sent" | "email-off" | "email-failed" | RecapError>> {
+  const recap = recapFor(deps, actorId, callId);
+  if (!recap.ok) return recap;
+  if (recap.value.sentText) return err("recap-sent");
+  const read = readRecap(input);
+  if (!read.ok) return read;
+  if (!mail) return err("email-off");
+  if (!(await mail({ to: recap.value.to, subject: read.value.subject, body: read.value.body }))) return err("email-failed");
+  return deps.transact(() => {
+    const call = deps.calls.get(callId);
+    if (!call || !deps.calls.recapSent(callId, deps.clock())) return err("recap-sent");
+    const where = call.opportunityId ? { opportunityId: call.opportunityId } : { clientId: call.organizationId };
+    const note = `Sent a recap of the call: “${read.value.subject}”.\n\n${read.value.body}`;
+    writeTouch(deps, actorId, where, { kind: "email", note: note.length <= 2000 ? note : `${note.slice(0, 1999)}…`, contactId: call.contactId });
+    recordActivity(deps, { actorId: actorId as Id, action: "call.recap-sent", recordType: "call", recordId: callId, context: { clientId: call.organizationId, contactId: call.contactId ?? "" } });
+    return ok({ ...recap.value, sentText: deps.formatWhen(deps.clock()) });
   });
 }

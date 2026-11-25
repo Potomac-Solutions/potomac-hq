@@ -59,6 +59,8 @@ export type CallStore = {
   /** Saves the planned length, the warning and the note. */
   update(call: Call): void;
   end(id: Id, endedAt: string, touchId: Id | null): void;
+  /** Marks an ended call's recap sent, once: false if it already was. */
+  recapSent(id: Id, at: string): boolean;
   /** Open calls that started at or before this instant. */
   openStartedBy(instant: string): Call[];
   booking(id: Id): BookedCall | null;

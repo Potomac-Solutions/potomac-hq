@@ -9,6 +9,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The recap email (decision 0009, slice 6). Ending a call where you talked
+  can open a recap email to the contact, drafted from your notes. Read and
+  change it, then "Send recap" or "Skip"; nothing goes until you press it,
+  and it goes once. It's logged in the call log as an email. Migration 0055.
 - Getting ready for a booked call (decision 0009, slice 5). Fifteen minutes
   before a call booked with you, the top bar and Today say "Call in 12
   minutes with …: get ready". Its page has why they booked, what's worth
