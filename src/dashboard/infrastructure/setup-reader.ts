@@ -35,7 +35,7 @@ export function sqliteStatusCounts(db: Database): () => StatusCounts {
     return {
       lastBackupAt: at("backup.completed"),
       lastBackupFailedAt: at("backup.failed"),
-      database: { bytes: Number(pages.get()?.["bytes"] ?? 0), migrations: Number(applied?.["n"] ?? 0), lastMigration: String(applied?.["name"] ?? "") },
+      database: { bytes: Number(pages.get()?.["bytes"] ?? 0), migrations: Number(applied?.["n"] ?? 0), lastMigration: applied?.["version"] ? `${String(applied["version"]).padStart(4, "0")}-${String(applied["name"] ?? "")}` : "" },
     };
   };
 }

@@ -159,6 +159,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "assistant.new-chat": "started a new chat with the assistant",
   "assistant.preference-set": "changed how the assistant makes changes",
   "nav.pinned": "pinned a page to the sidebar",
+  "user.notice-preferences-set": "changed when their notices are emailed",
   "nav.unpinned": "unpinned a page from the sidebar",
   "project.share-made": "made a share link",
   "project.tasks-imported": "imported tasks into a project",
