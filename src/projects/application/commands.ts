@@ -10,7 +10,7 @@ import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput 
 import { editLabel, labelChanges, newLabel, type Label, type LabelError, type LabelInput } from "../domain/label.ts";
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, friendlyDay, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, friendlyDay, ok, recordActivity, type AllDayEvent, type Id, type Result } from "../../shared/index.ts";
 import { newProjectLink, type LinkError, type ProjectLink } from "../domain/link.ts";
 import { mayHaveSubtasks } from "../domain/dependencies.ts";
 import { nextDue, shiftBy } from "../domain/repeat.ts";
@@ -27,6 +27,8 @@ export type ProjectsDeps = FilesDeps & {
   readonly comments: CommentStore;
   readonly repeats: RepeatStore;
   readonly feeds: CalendarFeedStore;
+  /** The calls a person hosts, for their calendar feed. Left out, the feed is tasks and milestones only. */
+  readonly bookedCalls?: (userId: Id, base: string) => readonly AllDayEvent[];
   readonly shares: ShareStore;
   readonly imports: ImportStore;
   readonly feedTokens: FeedTokens;

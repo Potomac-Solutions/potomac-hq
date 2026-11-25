@@ -119,6 +119,8 @@ export function calendarFor(deps: ProjectsDeps, token: string, publicUrl: string
       }
     }
   }
+  // Booked calls they host, at their times (quality of life, 2026-11-25).
+  if (!usable) events.push(...(deps.bookedCalls?.(feed.userId as Id, base) ?? []));
   deps.feeds.used(feed.userId, deps.clock());
   const name = usable ? `HQ: ${usable.name}` : `HQ: ${user.name.split(/\s+/)[0] ?? user.name}'s work`;
   return allDayCalendar(name, events, deps.clock());

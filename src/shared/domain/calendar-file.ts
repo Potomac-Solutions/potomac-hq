@@ -12,10 +12,13 @@ export type AllDayEvent = {
   readonly start: string;
   /** YYYY-MM-DD, the last day, inclusive. */
   readonly end: string;
+  /** For an event at a time, not all day: its start and end as UTC instants. */
+  readonly at?: { readonly start: string; readonly end: string };
 };
 
 const text = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const date = (day: string) => day.replace(/-/g, "");
+const instant = (at: string) => Temporal.Instant.from(at).toString({ smallestUnit: "second" }).replace(/[-:]/g, "");
 
 function fold(line: string): string {
   const encoder = new TextEncoder();
@@ -53,13 +56,18 @@ export function allDayCalendar(name: string, events: readonly AllDayEvent[], sta
       "BEGIN:VEVENT",
       `UID:${event.uid}`,
       `DTSTAMP:${utc}`,
-      `DTSTART;VALUE=DATE:${date(event.start)}`,
-      // The end of an all-day event is the day after its last.
-      `DTEND;VALUE=DATE:${date(Temporal.PlainDate.from(event.end).add({ days: 1 }).toString())}`,
+      ...(event.at
+        ? [`DTSTART:${instant(event.at.start)}`, `DTEND:${instant(event.at.end)}`]
+        : [
+            `DTSTART;VALUE=DATE:${date(event.start)}`,
+            // The end of an all-day event is the day after its last.
+            `DTEND;VALUE=DATE:${date(Temporal.PlainDate.from(event.end).add({ days: 1 }).toString())}`,
+          ]),
       `SUMMARY:${text(event.summary)}`,
       `DESCRIPTION:${text(event.description)}`,
       `URL:${event.url}`,
-      "TRANSP:TRANSPARENT",
+      // A booked call is busy time; a due date isn't.
+      event.at ? "TRANSP:OPAQUE" : "TRANSP:TRANSPARENT",
       "END:VEVENT",
     ]),
     "END:VCALENDAR",

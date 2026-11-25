@@ -60,7 +60,7 @@ export const PLACES: readonly Place[] = [
   { key: "workload", label: "Team workload", hub: "work", href: "/workload", gate: "perm:report.view", words: ["capacity", "team", "who's busy", "overloaded", "hours", "overdue"], what: "Who has what due this week, and who's over their usual hours" },
   { key: "labels", label: "Labels", hub: "work", href: "/labels", words: ["tags", "colors"], what: "Task labels" },
   { key: "time", label: "Time", hub: "work", href: "/time", gate: "perm:time.log", words: ["timer", "hours", "timesheet", "billable", "time tracking"], what: "Your hours and the timer" },
-  { key: "calendar-feed", label: "Calendar feed", hub: "work", href: "/calendar-feed", hidden: true, words: ["ical", "calendar", "subscribe", "google calendar"], what: "Your tasks in your own calendar app" },
+  { key: "calendar-feed", label: "Calendar feed", hub: "work", href: "/calendar-feed", hidden: true, words: ["ical", "calendar", "subscribe", "google calendar"], what: "Your tasks and booked calls in your own calendar app" },
 
   { key: "sites", label: "Sites", hub: "sites", href: "/sites", words: ["monitoring", "uptime", "down", "certificates", "ssl"], what: "Clients' sites, watched for outages" },
   { key: "websites", label: "Site content", hub: "sites", href: "/websites", words: ["website content", "photos", "pages", "text"], what: "Content for clients' websites" },

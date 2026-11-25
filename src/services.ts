@@ -286,8 +286,18 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const startOfDay = (day: string) => Temporal.PlainDate.from(day).toZonedDateTime(BUSINESS_TIME_ZONE).toInstant().toString();
   const audit: AuditDeps = { users, audit: sqliteAuditReader(db), formatWhen, startOfDay };
   const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
+  // A host's booked calls, for their calendar feed: two weeks back to three months ahead.
+  const callsHosted = db.prepare("select id, name, topic, starts_at, ends_at from booking where host_id = ? and status = 'booked' and starts_at >= ? and starts_at <= ? order by starts_at");
   const projects: ProjectsDeps = {
     ...session,
+    bookedCalls: (userId, base) => {
+      const now = Temporal.Instant.from(clock());
+      return callsHosted.all(userId, now.subtract({ hours: 14 * 24 }).toString(), now.add({ hours: 92 * 24 }).toString()).map((row) => {
+        const start = String(row["starts_at"]);
+        const day = Temporal.Instant.from(start).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString();
+        return { uid: `call-${String(row["id"])}@potomac-hq`, summary: `Call with ${String(row["name"])}`, description: [String(row["topic"] ?? ""), `Get ready in HQ: ${base}/get-ready/${String(row["id"])}`].filter(Boolean).join("\n"), url: `${base}/get-ready/${String(row["id"])}`, start: day, end: day, at: { start, end: String(row["ends_at"]) } };
+      });
+    },
     activityLog: eventLog,
     files: sqliteFileRecordStore(db),
     blobs: sqliteBlobStore(db),
