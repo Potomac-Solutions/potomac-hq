@@ -126,6 +126,8 @@ export type AiPageContext = {
   readonly canManage: boolean;
   settings(): ReturnType<typeof aiSettingsView>;
   drafts(): DraftsView;
+  /** How many drafts wait for this person, without reading what each is about. */
+  draftCount(): number;
   recap(callId: string): (RecapDraft & { readonly id: string }) | null;
   brief(bookingId: string): ReturnType<typeof callBrief>;
   deal(opportunityId: string): { readonly triage: (TriageDraft & { readonly id: string; readonly serviceLabel: string }) | null; readonly checkIn: (MailDraft & { readonly id: string }) | null; readonly proposal: (ProposalDraft & { readonly id: string; readonly totalText: string }) | null };
@@ -497,6 +499,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     canManage: actor !== null && authorize(sessionDeps, actor, "ai.manage").ok,
     settings: () => aiSettingsView(aiDeps, actor),
     drafts: () => waitingDrafts(aiDeps, actor, (draft) => describeDraft(aiDeps, draft)),
+    draftCount: () => waitingDrafts(aiDeps, actor, () => "").items.length,
     recap(callId) {
       const draft = waitingDraft<RecapDraft>(aiDeps, actor, "call-recap", callId);
       return draft ? { ...draft.content, id: draft.id } : null;

@@ -11,7 +11,7 @@
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), calls: context.crm.callsToMake(), next: context.crm.comingUp(), canAdd: context.can.todos, aiDrafts: context.ai.drafts().items.length, checkIn: context.ai.state('check-in').on, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Today', view: context.agenda(), fresh: context.bell.fresh(), calls: context.crm.callsToMake(), next: context.crm.comingUp(), canAdd: context.can.todos, aiDrafts: context.ai.draftCount(), checkIn: context.ai.state('check-in').on, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>

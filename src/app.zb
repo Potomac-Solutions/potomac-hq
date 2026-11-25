@@ -24,7 +24,7 @@
     const next = !call && context.user ? context.crm.comingUp() : null
     const ready = next && path !== next.href ? { href: next.href, label: 'Call ' + next.startsText + ' with ' + next.who + ': get ready' } : null
     // AI drafts waiting for this person (decision 0010).
-    const aiDrafts = context.user ? context.ai.drafts().items.length : 0
+    const aiDrafts = context.user ? context.ai.draftCount() : 0
     const at = (...starts) => starts.some((start) => (start === '/' ? path === '/' : path === start || path.startsWith(start + '/')))
     // Sections in the order of a job: find the work, do the work, get paid, run the company.
     const groups = [
