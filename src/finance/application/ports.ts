@@ -81,6 +81,8 @@ export type RecurringStore = {
   listForProject(projectId: Id): RecurringInvoice[];
   /** Every active one, by next day. */
   listActive(): RecurringInvoice[];
+  /** A client's with no project, active first. */
+  listForClientAlone(organizationId: Id): RecurringInvoice[];
   /** Active ones whose next day has come. */
   due(today: string): RecurringInvoice[];
   /** Marks an invoice as made by a recurring invoice. */

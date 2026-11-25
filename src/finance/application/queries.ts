@@ -433,7 +433,9 @@ export function invoiceDocument(deps: FinanceDeps, actorId: Id | null, invoiceId
 
 export type RecurringLine = {
   readonly id: string;
+  /** "" for one on the client alone. */
   readonly projectId: string;
+  readonly organizationId: string;
   readonly projectName: string;
   readonly clientName: string;
   readonly description: string;
@@ -450,7 +452,8 @@ export type RecurringLine = {
 function recurringLine(one: RecurringInvoice, projectName: string, clientName: string, today: string): RecurringLine {
   return {
     id: one.id,
-    projectId: one.projectId,
+    projectId: one.projectId ?? "",
+    organizationId: one.organizationId,
     projectName,
     clientName,
     description: one.description,
@@ -470,12 +473,15 @@ export type RecurringOverviewView = { readonly items: readonly RecurringLine[]; 
 /** Every active recurring invoice, and what they bring in a month and a year. Permission: `invoice.view`. */
 export function recurringOverview(deps: FinanceDeps, actorId: Id | null): Result<RecurringOverviewView, "forbidden"> {
   if (!may(deps, actorId, "invoice.view")) return err("forbidden");
-  const projects = new Map(deps.projects.list().map((project) => [project.id, project]));
+  const projects = new Map(deps.projects.list().map((project) => [project.id as string, project]));
   const active = deps.recurring.listActive();
   const today = deps.today();
   const monthly = active.reduce((sum, one) => sum + monthlyMinor(one), 0);
   return ok({
-    items: active.map((one) => recurringLine(one, projects.get(one.projectId)?.name ?? "A removed project", projects.get(one.projectId)?.clientName ?? "", today)),
+    items: active.map((one) => {
+      const project = one.projectId === null ? null : projects.get(one.projectId);
+      return recurringLine(one, one.projectId === null ? "" : (project?.name ?? "A removed project"), project?.clientName ?? deps.clients.get(one.organizationId)?.name ?? "", today);
+    }),
     monthly: formatMoney(usd(monthly)),
     yearly: formatMoney(usd(monthly * 12)),
   });

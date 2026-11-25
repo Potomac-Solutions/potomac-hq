@@ -42,7 +42,7 @@
           <zb-each items={recurring.items} as="plan" key={plan.id}>
             <tr>
               <td>{plan.description}</td>
-              <td><a href="/projects/{plan.projectId}/money#recurring">{plan.projectName}</a><span zb-if={plan.clientName} class="hq-muted"> · {plan.clientName}</span></td>
+              <td><a zb-if={plan.projectId} href="/projects/{plan.projectId}/money#recurring">{plan.projectName}</a><a zb-else href="/clients/{plan.organizationId}#billing">No project</a><span zb-if={plan.clientName} class="hq-muted"> · {plan.clientName}</span></td>
               <td>{plan.everyLabel}</td>
               <td><time datetime={plan.nextOn}>{plan.next}</time></td>
               <td class="hq-number">{plan.amount}</td>

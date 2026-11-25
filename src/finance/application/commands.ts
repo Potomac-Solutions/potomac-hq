@@ -335,11 +335,25 @@ export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: 
 export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(projectId)) return err("not-found");
-    const made = newRecurring({ id: deps.newId(), projectId, createdBy: actorId }, input);
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId: project.organizationId, projectId, createdBy: actorId }, input);
     if (!made.ok) return made;
     deps.recurring.insert(made.value, deps.clock());
     recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { projectId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
+    return ok(made.value);
+  });
+}
+
+/** A recurring invoice on a client with no project: hosting, upkeep, a plan. `invoice.edit`. */
+export function addClientRecurringInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId, projectId: null, createdBy: actorId }, input);
+    if (!made.ok) return made;
+    deps.recurring.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { organizationId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
     return ok(made.value);
   });
 }
@@ -374,11 +388,12 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
     for (let n = 0; n < 12; n++) {
       const done = deps.transact(() => {
         const recurring = deps.recurring.get(first.id);
-        const project = recurring ? deps.projects.get(recurring.projectId) : null;
-        if (!recurring || !project || !isDue(recurring, today)) return null;
+        if (!recurring || !isDue(recurring, today)) return null;
+        // One on a project needs it still there; one on the client alone needs the client.
+        if (recurring.projectId !== null ? !deps.projects.get(recurring.projectId) : !deps.clients.get(recurring.organizationId)) return null;
         const dueOn = recurring.autoSend ? Temporal.PlainDate.from(today).add({ days: recurring.dueDays }).toString() : null;
         const invoice = newInvoice(
-          { id: deps.newId(), organizationId: project.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
+          { id: deps.newId(), organizationId: recurring.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
           { kind: "other", description: periodLine(recurring, recurring.nextOn), amount: (recurring.amount.minor / 100).toFixed(2), dueOn, note: "Made by HQ from a recurring invoice." },
         );
         if (!invoice.ok) throw new Error(`Could not make a recurring invoice: ${invoice.error}`);

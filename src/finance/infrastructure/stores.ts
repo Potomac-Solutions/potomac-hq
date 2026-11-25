@@ -262,12 +262,13 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   };
 }
 
-const RECURRING_COLUMNS = "id, project_id, description, amount_minor, every, anchor_day, next_on, ends_on, auto_send, due_days, active, created_by";
+const RECURRING_COLUMNS = "id, organization_id, project_id, description, amount_minor, every, anchor_day, next_on, ends_on, auto_send, due_days, active, created_by";
 
 function toRecurring(row: Record<string, unknown>): RecurringInvoice {
   return {
     id: row["id"] as Id,
-    projectId: row["project_id"] as Id,
+    organizationId: row["organization_id"] as Id,
+    projectId: (row["project_id"] as Id | null) ?? null,
     description: String(row["description"]),
     amount: { minor: Number(row["amount_minor"]), currency: "USD" },
     every: row["every"] as Every,
@@ -282,16 +283,17 @@ function toRecurring(row: Record<string, unknown>): RecurringInvoice {
 }
 
 export function sqliteRecurringStore(db: Database): RecurringStore {
-  const insert = db.prepare(`insert into recurring_invoice (${RECURRING_COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into recurring_invoice (${RECURRING_COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update recurring_invoice set description = ?, amount_minor = ?, every = ?, anchor_day = ?, next_on = ?, ends_on = ?, auto_send = ?, due_days = ?, active = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where id = ?`);
   const forProject = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where project_id = ? order by active desc, next_on`);
   const active = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where active = 1 order by next_on`);
+  const forClient = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where organization_id = ? and project_id is null order by active desc, next_on`);
   const due = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where active = 1 and next_on <= ? and (ends_on is null or next_on <= ends_on) order by next_on`);
   const mark = db.prepare("update invoice set recurring_id = ? where id = ?");
   return {
     insert(r, at) {
-      insert.run(r.id, r.projectId, r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, r.createdBy, at, at);
+      insert.run(r.id, r.organizationId, r.projectId, r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, r.createdBy, at, at);
     },
     update(r, at) {
       update.run(r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, at, r.id);
@@ -302,6 +304,7 @@ export function sqliteRecurringStore(db: Database): RecurringStore {
     },
     listForProject: (projectId) => forProject.all(projectId).map(toRecurring),
     listActive: () => active.all().map(toRecurring),
+    listForClientAlone: (organizationId) => forClient.all(organizationId).map(toRecurring),
     due: (today) => due.all(today).map(toRecurring),
     markInvoice(invoiceId, recurringId) {
       mark.run(recurringId, invoiceId);
