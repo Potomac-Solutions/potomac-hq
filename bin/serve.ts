@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
+import { approveQuietPosts } from "../src/social/index.ts";
 import { runRecurringInvoices, sendInvoiceReminders, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
@@ -268,6 +269,20 @@ const callTimer = setInterval(() => {
 }, 5 * 60_000);
 callTimer.unref();
 
+// Social media (decision 0011, section 4): every hour, and once now, approve
+// posts the client was sent three days ago and didn't answer.
+const approveQuiet = () => {
+  try {
+    const count = approveQuietPosts(createServices(db).social);
+    if (count > 0) console.log(`Social media: ${count} approved after 3 days with no answer.`);
+  } catch (error) {
+    log("Social media: approving quiet posts failed", error);
+  }
+};
+approveQuiet();
+const socialTimer = setInterval(approveQuiet, 60 * 60_000);
+socialTimer.unref();
+
 // Task reminders and people's notices (decision 0007, section 8): every
 // minute, fire the reminders that came due, and email new notices to those
 // who asked for them when email is set up. Reminders work without email.
@@ -358,6 +373,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(siteTimer);
     clearInterval(callTimer);
     clearInterval(lostTimer);
+    clearInterval(socialTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();

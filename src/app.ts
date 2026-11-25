@@ -28,6 +28,8 @@ import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, cli
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { clientSocial, clientSocialSummary, portalSocial, portalSocialWaiting, socialOverview, socialToDo } from "./social/index.ts";
+import { socialPortalRoutes, socialStaffRoutes } from "./social/api/social-routes.ts";
 import { publicSiteView, settingsForSite } from "./public-site/index.ts";
 import { publicSiteRoutes, siteApiRoutes } from "./public-site/api/public-site-routes.ts";
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
@@ -269,7 +271,7 @@ export type PageContext = {
     invoice(id: string): ReturnType<typeof invoiceDetail>;
   };
   /** What the viewer may open, so the shell and tabs offer only that. The pages themselves still check. */
-  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly siteBuilder: boolean };
+  readonly can: { readonly proposals: boolean; readonly money: boolean; readonly time: boolean; readonly audit: boolean; readonly reports: boolean; readonly todos: boolean; readonly add: boolean; readonly calls: boolean; readonly people: boolean; readonly publicSite: boolean; readonly referrals: boolean; readonly webhooks: boolean; readonly social: boolean; readonly siteBuilder: boolean };
   /** The site builder (decision 0010). */
   readonly builder: {
     list(): ReturnType<typeof buildsView>;
@@ -349,6 +351,17 @@ export type PageContext = {
     comingUp(): ReturnType<typeof renewalsComingUp>;
     /** The signed-in client's renewals that Potomac bills them for. Empty when signed out. */
     mine(): ReturnType<typeof portalRenewals>;
+  };
+  /** Social media (decision 0010). */
+  readonly social: {
+    overview(month: string): ReturnType<typeof socialOverview>;
+    /** A client's plan and month, or null when this person may not see it or there's no such client. */
+    forClient(id: string, month: string): Extract<ReturnType<typeof clientSocial>, { ok: true }>["value"] | null;
+    summary(id: string): ReturnType<typeof clientSocialSummary>;
+    toDo(): ReturnType<typeof socialToDo>;
+    /** The signed-in client's month, or null when they have no plan. */
+    mine(month: string): ReturnType<typeof portalSocial>;
+    waitingOnMe(): ReturnType<typeof portalSocialWaiting>;
   };
   readonly booking: {
     calls(): ReturnType<typeof callsView>;
@@ -698,7 +711,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
         },
-        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, siteBuilder: authorize(sessionDeps, actor, "site.build").ok },
+        can: { proposals: authorize(sessionDeps, actor, "proposal.view").ok, money: authorize(sessionDeps, actor, "finance.view").ok, time: authorize(sessionDeps, actor, "time.log").ok, audit: authorize(sessionDeps, actor, "activity.view-all").ok, reports: authorize(sessionDeps, actor, "report.view").ok, todos: authorize(sessionDeps, actor, "task.view").ok, add: authorize(sessionDeps, actor, "task.edit").ok, calls: authorize(sessionDeps, actor, "call.respond").ok, people: authorize(sessionDeps, actor, "user.view").ok, publicSite: authorize(sessionDeps, actor, "public-site.view").ok, referrals: authorize(sessionDeps, actor, "referral.manage").ok, webhooks: authorize(sessionDeps, actor, "webhook.manage").ok, social: authorize(sessionDeps, actor, "social.view").ok, siteBuilder: authorize(sessionDeps, actor, "site.build").ok },
         builder: {
           list: () => buildsView(services.builder, actor),
           build: (id, version) => withId(id, (buildId) => buildView(services.builder, actor, buildId, version === null ? null : /^\d{1,6}$/.test(version) ? Number(version) : Number.NaN)),
@@ -766,6 +779,21 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
           comingUp: () => renewalsComingUp(services.renewals, actor),
           mine: () => (client ? portalRenewals(services.renewals, client.organizationId) : []),
+        },
+        social: {
+          overview: (month) => socialOverview(services.social, actor, month),
+          forClient: (id, month) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? clientSocial(services.social, actor, parsed.value, month) : null;
+            return view?.ok ? view.value : null;
+          },
+          summary: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientSocialSummary(services.social, actor, parsed.value) : null;
+          },
+          toDo: () => socialToDo(services.social, actor),
+          mine: (month) => portalSocial(services.social, client, month),
+          waitingOnMe: () => portalSocialWaiting(services.social, client),
         },
         booking: {
           calls: () => callsView(services.booking, actor),
@@ -1060,6 +1088,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", builderRoutes({ builder: services.builder, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", socialStaffRoutes({ social: services.social, actorOf, clientOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", socialPortalRoutes({ social: services.social, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));

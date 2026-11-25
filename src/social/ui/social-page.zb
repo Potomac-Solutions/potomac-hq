@@ -1,0 +1,57 @@
+<!--
+  Social media across clients (decision 0011): each client with a plan, and
+  where their month stands against it.
+-->
+<script>
+  'use route /social'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.social.overview(url.searchParams.get('month') ?? '')
+    if (!view.ok) return context.forbidden()
+    return { title: 'Social media', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .social-month { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+  .social-month h2 { margin: 0; }
+  .social-clients { list-style: none; margin: 0; padding: 0; }
+  .social-clients > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .social-clients > li:first-child { border-top: 0; }
+  .social-clients p { margin: 0; }
+</style>
+<hq-social view={{ clients: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Social media</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Each client’s posts for the month, against their plan. Set a plan up on the client’s page, under Social media.</p>
+    <section class="hq-panel" aria-labelledby="social-month">
+      <div class="social-month">
+        <a class="hq-button secondary" href="/social?month={view.previous}">Previous<span class="sr-only"> month</span></a>
+        <h2 id="social-month">{view.monthName}</h2>
+        <a class="hq-button secondary" href="/social?month={view.next}">Next<span class="sr-only"> month</span></a>
+      </div>
+      <empty-state zb-if={view.clients.length === 0} heading="No social media plans yet">Open a client and choose Social media to set one up.</empty-state>
+      <ul zb-else class="social-clients">
+        <zb-each items={view.clients} as="one" key={one.organizationId}>
+          <li>
+            <div>
+              <p><a href="/clients/{one.organizationId}/social?month={view.month}"><strong>{one.clientName}</strong></a> <status-badge zb-if={one.paused} variant="neutral">Paused</status-badge><status-badge zb-if={one.short} variant="warning">Still to write</status-badge></p>
+              <p class="hq-small hq-muted">{one.summary}</p>
+            </div>
+            <div>
+              <p>{one.count}<span zb-if={one.over}> · {one.over}</span></p>
+              <p zb-if={one.state} class="hq-small">{one.state}</p>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-social>

@@ -22,6 +22,8 @@ import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
+import type { SocialDeps } from "./social/index.ts";
+import { sqliteSocialStore } from "./social/adapters.ts";
 import { addTodo, type TodosDeps } from "./todos/index.ts";
 import { withNotices, type NoticesDeps } from "./notices/index.ts";
 import { withWebhooks, type HookDescribe, type WebhooksDeps } from "./webhooks/index.ts";
@@ -68,6 +70,8 @@ export type Services = {
   readonly booking: BookingDeps;
   readonly invoiceReminders: RemindersDeps;
   readonly renewals: RenewalsDeps;
+  /** Social media plans and posts (decision 0010). */
+  readonly social: SocialDeps;
   /** Potomac's own website: open, coming soon or maintenance, and its banner. */
   readonly publicSite: PublicSiteDeps;
   readonly monitor: MonitorDeps;
@@ -321,6 +325,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
+  const social: SocialDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, timeZone: BUSINESS_TIME_ZONE, social: sqliteSocialStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
   const booking: BookingDeps = {
@@ -349,7 +354,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -368,5 +373,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, builder, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { notices, webhooks, publicSite, websites, builder, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
