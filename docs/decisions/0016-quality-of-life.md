@@ -86,8 +86,41 @@ without signing in; it's for that person and that deliverable only, signed
 with `HQ_NOTICE_SECRET`, and works for 14 days. **Default:** proposals are
 still accepted in the portal, where the typed-name signature happens.
 
+### 10. Everyday buttons (second round)
+
+- **Notes survive a dropped signal.** What's typed in a form's text box is
+  kept on the device (`localStorage`, 14 days) until it's sent, and put back
+  in the empty box with "Brought back what you were typing here before."
+  Signing out clears it. Nothing goes to the server.
+- **Booked calls in the calendar feed**, at their times (UTC `DTSTART`),
+  for their host, from two weeks back to three months ahead, each with a
+  link to Get ready.
+- **Undo** for ten minutes after moving a task or ticking off or putting
+  back a to-do: the next page has an Undo line (a live region), for the
+  person who did it, once. Migration 0078.
+- **Saved replies** (`contact.edit`): written once on Saved replies, under
+  Clients, and offered beside a message to a client, with `{first name}`,
+  `{client}`, `{project}` and `{me}` filled in. Migration 0079.
+- **Duplicate clients.** Adding a client whose name is close to one in HQ
+  (business endings like LLC ignored, a small typo allowed) says which and
+  asks again with "It's a different business: add it anyway". **Merge**, on
+  a client's page, for managers and admins (`client.set-status` and
+  `opportunity.view-value`): every row pointing at the duplicate moves to
+  the one kept, found from the schema's foreign keys so new tables move
+  too; the duplicate stays as a former client named "(merged)". A row that
+  can't move (a second free landing page) undoes the whole merge.
+- **The portal's timeline**: a client's project opens with *Waiting on
+  you*, *What we're doing next* and *Done*, each linking to where it's dealt
+  with.
+- **A keyboard pass**: the command bar is a proper dialog (focus kept
+  inside, Escape from anywhere in it, focus put back on close), with
+  browser tests for that, the skip link, Undo and a brought-back draft.
+  See `docs/reviews/2026-11-25-keyboard-and-screen-reader.md`.
+
 ## Not now
 
 - A true password-free sign-in (the link sets a password first).
 - Bulk reminders, and bulk actions on invoices beyond marking drafts sent.
 - A switch to turn the weekly email off.
+- Undo for more than task moves and to-dos (a deleted note, a status change).
+- Merging contacts, as opposed to whole clients.

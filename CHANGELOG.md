@@ -74,6 +74,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
     notices (migration 0077; `npm run push:keygen`, `HQ_VAPID_*`).
   - **The portal**: Email me a link to sign in (self-serve password reset),
     and approving a deliverable from the email in one tap.
+  - **Typing survives a dropped signal**: a form's text box is kept on the
+    device until sent and brought back after a reload.
+  - **Booked calls in the calendar feed**, at their times.
+  - **Undo** for ten minutes after moving a task or ticking a to-do
+    (migration 0078).
+  - **Saved replies** beside a message to a client (migration 0079).
+  - **Duplicate clients**: a name like one already here asks first, and a
+    duplicate can be merged into the client to keep.
+  - **The portal's timeline**: waiting on you, next, and done.
+  - **Keyboard**: the command bar keeps focus inside, closes on Escape and
+    puts focus back.
 
 ## [0.17.0] - 2026-11-25
 

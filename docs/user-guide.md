@@ -482,6 +482,17 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
   Mondays.
 - Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
   straight from the email when work is shared with them.
+- Lost signal halfway through a note? Reload: what you'd typed comes back
+  until you send it.
+- Moved a task or ticked a to-do by mistake? **Undo** on the next page, for
+  ten minutes.
+- **Saved replies** under Clients: write it once, then *Use a saved reply*
+  beside a message to a client.
+- Adding a client that's already here? HQ asks first. A duplicate can be
+  merged from *Is this a duplicate?* on its page (managers and admins).
+- Booked calls show in your calendar feed at their times.
+- Clients see *Waiting on you*, *What we're doing next* and *Done* at the
+  top of each project in the portal.
 
 ## Habits that keep HQ worth using
 
