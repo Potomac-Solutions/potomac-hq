@@ -1,7 +1,7 @@
 // The call screen's forms (decision 0009): start a call, change its planned
 // length, keep its notes, and end it into the call log.
 import { Hono } from "hono";
-import { changeCallLength, endCall, keepCallNote, saveAnswers, saveCallGuide, startCall, switchGuide, type CallDeps, type CallFrom } from "../application/calls.ts";
+import { changeCallLength, endCall, followThroughCall, keepCallNote, lengthText, saveAnswers, saveCallGuide, startCall, switchGuide, type CallDeps, type CallFrom } from "../application/calls.ts";
 import { err, formPosts, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -59,10 +59,22 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
     message: (saved) => `Saved, with ${saved.count} question${saved.count === 1 ? "" : "s"}. Calls from now on use it.`,
   });
   post("/phone/:id/note", (actor, f, id) => keepCallNote(deps.calls, actor, id as Id, f["note"] ?? ""), { done: (_, id) => screen(id), back: screen, message: "Notes saved." });
-  post("/phone/:id/end", (actor, f, id) => endCall(deps.calls, actor, id as Id, { outcome: f["outcome"] ?? null, note: f["note"] ?? null, followUpOn: f["followUpOn"] ?? null }), {
-    done: (call) => (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
+  post("/phone/:id/end", (actor, f, id) => {
+    const ended = endCall(deps.calls, actor, id as Id, { outcome: f["outcome"] ?? null, note: f["note"] ?? null, followUpOn: f["followUpOn"] ?? null });
+    if (!ended.ok) return ended;
+    // The call is logged; to-dos and time follow, each through its own service.
+    const after = followThroughCall(deps.calls, actor, id as Id, { nextSteps: f["nextSteps"] ?? null, projectId: f["logTo"] ?? null });
+    return { ok: true as const, value: { call: ended.value, after: after.ok ? after.value : { todos: 0, loggedMinutes: 0, problems: [] } } };
+  }, {
+    done: ({ call }) => (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),
     back: screen,
-    message: "Call ended and logged.",
+    message: ({ after }) =>
+      [
+        "Call ended and logged.",
+        after.todos > 0 ? `${after.todos} to-do${after.todos === 1 ? "" : "s"} added.` : "",
+        after.loggedMinutes > 0 ? `${lengthText(after.loggedMinutes)} logged to the project.` : "",
+        after.problems.length > 0 ? `But ${after.problems.join(", and ")}.` : "",
+      ].filter(Boolean).join(" "),
   });
   return app;
 }

@@ -1008,7 +1008,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, calls: services.calls, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route(
     "/",

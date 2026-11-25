@@ -18,7 +18,10 @@
     if (stop) return stop
     const view = context.crm.callScreen(params.id)
     if (!view) return notFound()
-    return { title: view.contactName ? `Call with ${view.contactName}` : `Call with ${view.clientName}`, view, done: context.notice.done, problem: context.notice.problem }
+    // The next open times on Potomac's calendar, for booking another call before hanging up.
+    const open = view.ended ? null : await context.booking.manageTimes()
+    const times = open && open.open ? open.days.flatMap((day) => day.slots.map((slot) => ({ start: slot.start, label: day.label + ', ' + slot.label }))).slice(0, 6) : []
+    return { title: view.contactName ? `Call with ${view.contactName}` : `Call with ${view.clientName}`, view, times, callMinutes: open ? open.callMinutes : 0, done: context.notice.done, problem: context.notice.problem }
   }
 
   // Notes save a moment after you stop typing, so a dropped call or a dead
@@ -83,9 +86,13 @@
   .call-question input { width: 1.35rem; height: 1.35rem; flex: none; margin-top: 0.1rem; }
   .call-questions textarea { width: 100%; margin-top: 0.35rem; padding: 0.4rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
   .call-switch { margin-top: 1rem; }
+  .call-book fieldset { display: grid; gap: 0.4rem; border: 0; margin: 0.75rem 0 0.5rem; padding: 0; }
+  .call-book legend { font-weight: 600; margin-bottom: 0.25rem; }
+  .call-book label { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .call-book .hq-button { min-height: 2.75rem; }
   .call-saved { min-height: 1.25rem; margin: 0; color: var(--muted-foreground); font-size: 0.85rem; }
 </style>
-<hq-call view={null} done="" problem="">
+<hq-call view={null} times={[]} call-minutes={0} done="" problem="">
   <div class="call">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Call', href: '' }]}></breadcrumb-trail>
     <div>
@@ -166,14 +173,25 @@
       <p class="hq-small"><a href="/call-guides">Change the guides</a></p>
     </section>
 
-    <section zb-if={!view.ended} class="hq-panel call-wrap {view.clock.phase === 'on' ? '' : 'call-wrap-now'}" aria-labelledby="call-wrap-heading">
+    <section zb-if={!view.ended} class="hq-panel call-wrap {view.clock.phase === 'on' ? '' : 'call-wrap-now'}" id="wrap-up" aria-labelledby="call-wrap-heading">
       <h2 id="call-wrap-heading">Wrapping up</h2>
       <p zb-if={view.guide.left > 0}><strong>{view.guide.left} {view.guide.left === 1 ? 'question' : 'questions'} not asked yet.</strong> <a href="#guide">See the guide</a></p>
       <ul>
         <li>Say back what you agreed, in a sentence.</li>
         <li>Say who does what next, and by when.</li>
-        <li>More to talk about? Offer another call, and set a follow-up below.</li>
+        <li>More to talk about? Book another call now, while they’re on the line.</li>
       </ul>
+      <form zb-if={times.length > 0} method="post" action="/phone/{view.id}/book" class="call-book">
+        <fieldset>
+          <legend>Book another call ({callMinutes} min)</legend>
+          <zb-each items={times} as="time" key={time.start}>
+            <label><input type="radio" name="start" value={time.start} required> {time.label}</label>
+          </zb-each>
+        </fieldset>
+        <button class="hq-button" type="submit">Book it</button>
+        <p class="hq-muted hq-small">They’re emailed the time, with a link to move it. The call carries on.</p>
+      </form>
+      <p zb-if={times.length === 0} class="hq-muted hq-small">No open times to offer here. Set your hours under <a href="/calls/hours">Calls → Hours</a>, or set a follow-up below.</p>
     </section>
 
     <form zb-if={!view.ended} method="post" action="/phone/{view.id}/end" class="hq-panel call-end">
@@ -190,6 +208,14 @@
         </zb-each>
       </fieldset>
       <text-field zb-if={view.canFollowUp} label="Next follow-up" name="followUpOn" type="date"></text-field>
+      <text-field zb-if={view.canAddTodos} label="Next steps for you" name="nextSteps" rows={3} description="One a line. Each becomes a to-do for you, at this client."></text-field>
+      <fieldset zb-if={view.projects.length > 0} class="call-outcomes">
+        <legend>Log this call’s time</legend>
+        <label><input type="radio" name="logTo" value="" checked={!view.projects.some((project) => project.hourly)}> Don’t log it</label>
+        <zb-each items={view.projects} as="project" key={project.id}>
+          <label><input type="radio" name="logTo" value={project.id} checked={project.hourly && project.id === view.projects.find((one) => one.hourly).id}> To {project.name}<span zb-if={project.hourly} class="hq-muted">, billed by the hour</span></label>
+        </zb-each>
+      </fieldset>
       <div class="call-actions">
         <button class="hq-button" type="submit">End call</button>
         <button class="hq-button secondary" type="submit" formaction="/phone/{view.id}/note">Save notes</button>

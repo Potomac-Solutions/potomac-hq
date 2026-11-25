@@ -1,8 +1,8 @@
 // HQ's side of booking: the hours, days off, cancelling a call, and a call's
 // calendar file.
 import { Hono } from "hono";
-import { addBookingToCrm, calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, saveWeekGrid, saveWeeklyGrid, type BookingDeps } from "../application/booking.ts";
-import type { CrmDeps } from "../../crm/index.ts";
+import { addBookingToCrm, bookNextCall, calendarFor, cancelCall, closeBookingDay, reopenBookingDay, saveBookingSetup, saveWeekGrid, saveWeeklyGrid, type BookingDeps } from "../application/booking.ts";
+import type { CallDeps, CrmDeps } from "../../crm/index.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 import { tell, type BookingEmails } from "./notify.ts";
 
@@ -31,12 +31,21 @@ export const BOOKING_MESSAGES: Readonly<Record<string, string>> = {
   "business-missing": "Enter the business’s name, or theirs if there isn’t one.",
   "business-too-long": "Keep the name under 120 characters.",
   "crm-refused": "The CRM didn’t take it. Check the name, email and phone, and try again.",
+  "call-ended": "That call has ended. Book from the Calls page instead.",
+  "contact-email-missing": "The person on this call has no email in HQ, so they couldn’t be sent the booking. Add one to their contact first.",
+  "email-invalid": "The email on their contact doesn’t look right. Fix it on the client’s page first.",
+  "name-missing": "Their contact needs a name first.",
+  "name-too-long": "Their contact’s name is too long for a booking.",
+  "phone-invalid": "The phone number on the call doesn’t look right.",
+  "time-missing": "Choose a time.",
 };
 const messageFor = (code: string): string => BOOKING_MESSAGES[code] ?? "That didn’t work. Try again.";
 
 export type BookingStaffDeps = {
   readonly booking: BookingDeps;
   readonly crm?: CrmDeps;
+  /** The call screen, for booking the next call from it (decision 0009). */
+  readonly calls?: CallDeps;
   readonly emails?: BookingEmails;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
@@ -67,6 +76,19 @@ export function bookingStaffRoutes(deps: BookingStaffDeps): Hono {
       done: (value) => `/opportunities/${value.opportunityId}`,
       back: () => "/calls",
       message: "Added to the CRM: a client, its contact, and an opportunity at “Consult booked”.",
+    });
+  }
+  if (deps.calls) {
+    const calls = deps.calls;
+    const screen = (id: Id | null) => `/phone/${id}#wrap-up`;
+    post("/phone/:id/book", async (actor, form, id) => {
+      const booked = await bookNextCall(deps.booking, calls, actor, id as Id, form["start"] ?? "");
+      if (booked.ok) await tell(deps.booking, deps.emails ?? null, booked.value.booking, { event: "made", by: "staff", manageToken: booked.value.manageToken });
+      return booked;
+    }, {
+      done: (_, id) => screen(id),
+      back: screen,
+      message: (booked) => `Booked: ${Temporal.Instant.from(booked.booking.start).toZonedDateTimeISO(deps.booking.timeZone).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}. ${deps.emails ? "They’ve been emailed the details." : "Email is off, so tell them the time."}`,
     });
   }
   return app;
