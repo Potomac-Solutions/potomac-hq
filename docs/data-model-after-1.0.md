@@ -647,3 +647,22 @@ internet. Kept 90 days, left out of the export.
 | `email` | The email typed at a sign-in. Never the password, never a code |
 | `address` | Where the request came from |
 | `detail` | Why, or for a form, which one, with ids left out: `POST /people/:id/roles` |
+
+## AI assistance
+
+Added by decision 0010 (migration 0056). The API key is never stored: it is
+`HQ_ANTHROPIC_API_KEY` on the server.
+
+| Table | Holds |
+| --- | --- |
+| `ai_setting` | One row: the model, its prices in millionths of a dollar per million tokens (with a dearer rate past `long_above` input tokens), the monthly budget in cents, the features turned on, the price guide, and who changed it last |
+| `ai_usage` | Every call: the feature and record, the model, tokens in and out, the cost in millionths of a dollar, who asked (empty when HQ ran it by itself), whether a usable answer came, and the draft it made |
+| `ai_draft` | What AI wrote, as the feature's JSON: `waiting`, `used` or `discarded`, the fingerprint of the records it came from, and a receipt's picture until the draft is decided |
+
+- Events: `ai.settings-changed`, `ai.drafted`, `ai.failed`,
+  `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
+  AI wrote, only the feature, model, counts and cost.
+- A recap draft is marked used when its recap is sent (`call.recap-sent`).
+  A brief, an answer from Ask HQ and a site-down diagnosis are used where
+  they're shown; a scope check that finds nothing out of scope is discarded
+  by HQ, and kept so the message isn't checked twice.
