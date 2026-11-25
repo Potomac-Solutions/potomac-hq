@@ -10,7 +10,7 @@ import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
-import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
+import { formatHours, formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type ProjectRoutesDeps = {
@@ -55,17 +55,25 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => `${project(id)}#links`,
     back: (id) => `${project(id)}#links`,
     message: "Link added.",
+    // Adding something undoes by removing it (decision 0014, section 10).
+    undo: (link) => ({ label: `Link added: ${link.label || link.url}`, action: `/project-links/${link.id}/remove`, fields: {} }),
   });
   post("/project-links/:id/remove", (actor, _f, id) => projects.removeProjectLink(deps.projects, actor, id as Id), { done: (link) => `${project(link.projectId)}#links`, back: () => "/projects", message: "Link removed." });
   post(
     "/projects/:id",
     (actor, f, id) => projects.editProjectDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", description: f["description"] ?? null, health: f["health"] ?? "", startOn: f["startOn"] ?? null, targetOn: f["targetOn"] ?? null }),
-    { done: (_, id) => project(id), back: (id) => project(id), message: "Project saved." },
+    {
+      done: (_, id) => project(id),
+      back: (id) => project(id),
+      message: "Project saved.",
+      undo: ({ previous: p }, id) => ({ label: `${p.name}: details saved`, action: `/projects/${id}`, fields: { name: p.name, description: p.description, health: p.health, startOn: p.startOn ?? "", targetOn: p.targetOn ?? "" } }),
+    },
   );
   post("/projects/:id/status", (actor, f, id) => projects.setProjectStatus(deps.projects, actor, id as Id, f["status"] ?? ""), {
     done: (_, id) => project(id),
     back: (id) => project(id),
     message: "Status changed.",
+    undo: (changed, id) => (changed.undoable ? { label: `${changed.name}: status changed`, action: `/projects/${id}/status`, fields: { status: changed.from } } : null),
   });
   post(
     "/projects/:id/owner",
@@ -104,6 +112,20 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => `/tasks/${id}`,
     back: (id) => `/tasks/${id}`,
     message: "Task saved.",
+    undo: ({ previous: t }, id) => ({
+      label: `${t.title}: details saved`,
+      action: `/tasks/${id}`,
+      fields: {
+        title: t.title,
+        description: t.description,
+        assigneeId: t.assigneeId ?? "",
+        phaseId: t.phaseId ?? "",
+        priority: t.priority,
+        dueOn: t.dueOn ?? "",
+        startOn: t.startOn ?? "",
+        estimate: t.estimateMinutes === null ? "" : formatHours(t.estimateMinutes),
+      },
+    }),
   });
   const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
   post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
@@ -116,18 +138,22 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
         : task.next
           ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
           : "Task moved.",
+    // Not after a repeating task made its next one: undoing would leave that one behind.
+    undo: (task, id, f) => (task.next ? null : { label: `${task.title}: moved`, action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
     done: (comment, id) => `/tasks/${id}#comment-${comment.id}`,
     back: (id) => `/tasks/${id}#comments`,
     message: "Comment added.",
+    undo: (comment, id) => ({ label: "Comment added", action: `/comments/${comment.id}/remove`, fields: { taskId: id ?? "" } }),
   });
   const onTask = (f: FormFields) => `/tasks/${optionalId(f["taskId"]) ?? ""}#comments`;
   post("/comments/:id", (actor, f, id) => talk.editTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
     done: (comment) => `/tasks/${comment.taskId}#comment-${comment.id}`,
     back: (_id, f) => onTask(f),
     message: "Comment saved.",
+    undo: (comment) => ({ label: "Comment edited", action: `/comments/${comment.id}`, fields: { body: comment.previous.body, taskId: comment.taskId } }),
   });
   post("/comments/:id/remove", (actor, _f, id) => talk.removeTaskComment(deps.projects, actor, id as Id), {
     done: (comment) => `/tasks/${comment.taskId}#comments`,
@@ -230,6 +256,7 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, _id, f) => toWork(f),
     back: (_id, f) => toWork(f),
     message: "Filter saved.",
+    undo: (filter, _id, f) => ({ label: `Filter saved: ${filter.name}`, action: `/work/filters/${filter.id}/remove`, fields: { query: f["query"] ?? "" } }),
   });
   post("/work/filters/:id", (actor, f, id) => work.changeSavedFilter(deps.projects, actor, id as Id, { ...(f["pinned"] ? { pinned: f["pinned"] === "1" } : {}), ...(f["shared"] ? { shared: f["shared"] === "1" } : {}) }), {
     done: (_, _id, f) => toWork(f),
@@ -261,7 +288,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     },
     message: "Added.",
   });
-  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), { done: () => "/labels", back: () => "/labels", message: "Label made." });
+  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
+    done: () => "/labels",
+    back: () => "/labels",
+    message: "Label made.",
+    undo: (label) => ({ label: `Label made: ${label.name}`, action: `/labels/${label.id}/remove`, fields: {} }),
+  });
   post("/labels/:id", (actor, f, id) => projects.editLabelDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
     done: () => "/labels",
     back: () => "/labels",

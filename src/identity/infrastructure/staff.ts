@@ -32,10 +32,11 @@ export function createHqStaffPages(options: {
 }): {
   pages: StaffPages;
   clientOf: (req: IncomingMessage) => string;
-  readNotice: (url: URL) => { problem: string; done: string };
+  readNotice: (url: URL) => { problem: string; done: string; undo: string };
   notices: { sign(location: string): string };
 } {
-  const notices = createNotices({ secret: options.noticeSecret });
+  // `undo` is the post that reverses the one just made (decision 0014), signed like the messages.
+  const notices = createNotices({ secret: options.noticeSecret, keys: ["problem", "done", "undo"] });
   const pages = staffPages({
     staff: options.staff,
     home: "/",
@@ -48,7 +49,10 @@ export function createHqStaffPages(options: {
   return {
     pages,
     clientOf: (req) => clientAddress(req, { proxies: options.proxies }),
-    readNotice: (url) => notices.read(url),
+    readNotice: (url) => {
+      const read = notices.read(url);
+      return { problem: read.problem, done: read.done, undo: read["undo"] ?? "" };
+    },
     notices,
   };
 }

@@ -23,19 +23,35 @@ export function navRoutes(deps: { readonly pins: PinsDeps; readonly actorOf: (co
 
 const ONE: Readonly<Record<string, string>> = { Clients: "Client", Contacts: "Contact", Opportunities: "Deal", Projects: "Project", Tasks: "Task", Proposals: "Proposal", Invoices: "Invoice", "Knowledge base": "Article" };
 
-/** The command bar's results as you type: pages first, then records, for this person only. */
-export function findRoutes(deps: { readonly find: (actorId: Id | null, q: string) => SearchView; readonly actorOf: (cookieHeader: string) => Id | null }): Hono {
+/** A stage move the command bar can post for a deal it found (decision 0014, folded into the command bar). */
+export type FindMove = { readonly label: string; readonly action: string; readonly fields: Readonly<Record<string, string>> };
+
+const OPPORTUNITY = /^\/opportunities\/([0-9a-f-]{36})$/;
+
+/** The command bar's results as you type: stage moves for deals it finds, then pages, then records, for this person only. */
+export function findRoutes(deps: {
+  readonly find: (actorId: Id | null, q: string) => SearchView;
+  readonly actorOf: (cookieHeader: string) => Id | null;
+  /** The moves for one deal: on to its next stage, or back one. Empty when they may not move it. */
+  readonly moves?: (actorId: Id, opportunityId: Id, title: string) => readonly FindMove[];
+}): Hono {
   const app = new Hono();
   app.get("/find.json", (c) => {
     const actor = deps.actorOf(c.req.header("cookie") ?? "");
     const headers = { "content-type": "application/json; charset=utf-8", "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
-    if (actor === null) return new Response(JSON.stringify({ items: [] }), { status: 401, headers });
+    if (actor === null) return new Response(JSON.stringify({ items: [], moves: [] }), { status: 401, headers });
     const view = deps.find(actor, c.req.query("q") ?? "");
     const items = [
       ...view.pages.map((page) => ({ kind: "Page", label: page.label, detail: page.what, href: page.href })),
       ...view.groups.flatMap((group) => group.hits.map((hit) => ({ kind: ONE[group.label] ?? group.label, label: hit.name, detail: hit.context, href: hit.href }))),
     ].slice(0, 12);
-    return new Response(JSON.stringify({ items }), { status: 200, headers });
+    const moves = deps.moves
+      ? items.flatMap((item) => {
+          const id = OPPORTUNITY.exec(item.href)?.[1];
+          return id && deps.moves ? deps.moves(actor, id as Id, item.label) : [];
+        }).slice(0, 4)
+      : [];
+    return new Response(JSON.stringify({ items, moves }), { status: 200, headers });
   });
   return app;
 }
