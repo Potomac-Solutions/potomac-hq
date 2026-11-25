@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Where leads come from (decision 0010, slice 3). The inquiry form and the
+  website's booking keep where on potomac.solutions the person was: `src`
+  (a river stop, a Lab demo, a Work page, the planner, the blog or the
+  newsletter), `page`, and `utm_source`, `utm_medium` and `utm_campaign`.
+  The first for each opportunity is kept and shown on it ("On the website").
+  Reports → Lead sources counts each source's leads in the last 30, 90 or
+  365 days, and how many had a call, got a proposal and were won, with the
+  value won for those who may see values. HQ's own `/contact?src=...` passes
+  `src` on, and the website's booking now credits a referral link's `ref`.
+  Migration 0057.
 - The newsletter, "Notes from the river" (decision 0010, slice 2). People
   sign up at `/river`, from a form on potomac.solutions, or through the
   website's server (`POST /api/site/newsletter` with its token), and are on
