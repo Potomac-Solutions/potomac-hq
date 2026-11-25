@@ -1,8 +1,7 @@
 // Phone alerts' forms (quality of life, 2026-11-25): a device turning alerts
 // on (posted by its own browser), removing one, and a test alert.
 import { Hono } from "hono";
-import { deviceLabel } from "../domain/push.ts";
-import { addDevice, removeDevice, testAlert, type PushDeps } from "../application/push.ts";
+import { addDevice, deviceLabel, removeDevice, testAlert, type PushDeps } from "../application/push.ts";
 import { formPosts, type Id } from "../../shared/index.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {

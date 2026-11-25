@@ -144,3 +144,4 @@ export async function sendAlerts(deps: PushDeps, send: Sender): Promise<{ readon
   }
   return { sent, held, dropped };
 }
+export { deviceLabel } from "../domain/push.ts";
