@@ -7,6 +7,9 @@ export type VersionLine = Omit<BuildVersion, "filesJson">;
 
 export type BuildStore = {
   insert(build: Build): void;
+  /** Keeps the old site's text, shown to Claude while the build has no files. */
+  setReference(id: Id, from: string, text: string): void;
+  reference(id: Id): { readonly from: string; readonly text: string } | null;
   saveBrief(id: Id, name: string, brief: string, at: string): void;
   get(id: Id): Build | null;
   /** Every build, the most recently changed first. */
@@ -75,3 +78,17 @@ export type ImageStore = {
   listFor(buildId: Id): BuildImage[];
   remove(id: Id): void;
 };
+
+export type RepoError = "github-not-set-up" | "repo-refused" | "repo-missing" | "repo-failed";
+
+/** Reads a repository through GitHub (decision 0010, slice 3). Never throws. */
+export type RepoReader = {
+  /** The branch read (the default when none is given) and every file in it. */
+  tree(repo: { readonly owner: string; readonly name: string; readonly branch: string | null }): Promise<{ readonly ok: true; readonly value: { readonly branch: string; readonly files: readonly { readonly path: string; readonly size: number; readonly sha: string }[] } } | { readonly ok: false; readonly error: RepoError }>;
+  blob(repo: { readonly owner: string; readonly name: string }, sha: string): Promise<{ readonly ok: true; readonly value: Uint8Array } | { readonly ok: false; readonly error: RepoError }>;
+};
+
+export type PageError = "address-invalid" | "address-private" | "unreachable" | "too-large";
+
+/** Reads one public web address, refusing anything inside a private network. */
+export type PageFetch = (url: string) => Promise<{ readonly ok: true; readonly value: { readonly status: number; readonly text: string } } | { readonly ok: false; readonly error: PageError | string }>;

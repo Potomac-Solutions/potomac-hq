@@ -14,7 +14,7 @@ import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/ind
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import type { BuilderDeps, Claude } from "./builder/index.ts";
+import type { BuilderDeps, Claude, RepoReader } from "./builder/index.ts";
 import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -145,6 +145,8 @@ export type ServiceOptions = {
   readonly builderOwner?: string | null;
   /** Signs the site builder's preview addresses. Without it, a key made for this process. */
   readonly previewSecret?: string;
+  /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
+  readonly builderRepos?: RepoReader | null;
   /** Runs a job after the answer is sent: a request to Claude. Errors go to the log. */
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
@@ -321,6 +323,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     images: sqliteImageStore(db),
     settings: sqliteBuilderSettings(db),
     claude: options.claude ?? null,
+    repos: options.builderRepos ?? null,
+    fetchPage: options.outsideFetch ?? outsideFetch,
     previewTokens: previewTokens(options.previewSecret ?? crypto.randomUUID() + crypto.randomUUID()),
     clientFacts: (id) => {
       const client = crm.clients.get(id);

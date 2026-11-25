@@ -8,7 +8,7 @@ type Row = Record<string, unknown>;
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 const int = (value: unknown): number => (typeof value === "number" ? value : typeof value === "bigint" ? Number(value) : 0);
 
-const toBuild = (row: Row): Build => ({ id: text(row["id"]) as Id, organizationId: text(row["organization_id"]) as Id, name: text(row["name"]), brief: text(row["brief"]), createdBy: text(row["created_by"]) as Id, createdAt: text(row["created_at"]) });
+const toBuild = (row: Row): Build => ({ id: text(row["id"]) as Id, organizationId: text(row["organization_id"]) as Id, name: text(row["name"]), brief: text(row["brief"]), createdBy: text(row["created_by"]) as Id, createdAt: text(row["created_at"]), referenceFrom: text(row["reference_from"]) });
 
 const toRequest = (row: Row): BuildRequest => ({
   id: text(row["id"]) as Id,
@@ -42,9 +42,11 @@ export function sqliteBuildStore(db: Database): BuildStore {
   const insertBuild = db.prepare("insert into build (id, organization_id, name, brief, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)");
   const saveBrief = db.prepare("update build set name = ?, brief = ?, updated_at = ? where id = ?");
   const touch = db.prepare("update build set updated_at = ? where id = ?");
-  const getBuild = db.prepare("select * from build where id = ?");
+  const getBuild = db.prepare("select id, organization_id, name, brief, created_by, created_at, updated_at, reference_from from build where id = ?");
+  const setReference = db.prepare("update build set reference_from = ?, reference = ? where id = ?");
+  const reference = db.prepare("select reference_from, reference from build where id = ?");
   const listBuilds = db.prepare(
-    `select b.*, (select count(*) from build_version v where v.build_id = b.id) as versions,
+    `select b.id, b.organization_id, b.name, b.brief, b.created_by, b.created_at, b.updated_at, b.reference_from, (select count(*) from build_version v where v.build_id = b.id) as versions,
             exists (select 1 from build_request r where r.build_id = b.id and r.state = 'working') as working
        from build b order by b.updated_at desc, b.name`,
   );
@@ -63,6 +65,13 @@ export function sqliteBuildStore(db: Database): BuildStore {
   return {
     insert(build) {
       insertBuild.run(build.id, build.organizationId, build.name, build.brief, build.createdBy, build.createdAt, build.createdAt);
+    },
+    setReference(id, from, value) {
+      setReference.run(from, value, id);
+    },
+    reference(id) {
+      const row = reference.get(id);
+      return row && text(row["reference"]) ? { from: text(row["reference_from"]), text: text(row["reference"]) } : null;
     },
     saveBrief(id, name, brief, at) {
       saveBrief.run(name, brief, at, id);

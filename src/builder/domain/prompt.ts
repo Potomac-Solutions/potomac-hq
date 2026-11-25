@@ -21,6 +21,8 @@ Rules for every site:
 - Images: use only the images listed in <images>, by their exact path, with the alt text given, and width and height attributes from their size. A logo belongs in the header. Never invent an image path. When there are none, design without photos (colour, type, shapes, inline SVG). You cannot write or change image files; they are uploaded by a person.
 - Forms can't send anywhere yet: a contact form uses a mailto: link or tel: link instead, from the facts given.
 
+When <old_site> is given, it is the business's current website or its code, as reference. Keep its real content (what they do, services, hours, areas, phone, wording people know) unless the brief says otherwise, but don't copy its framework code: rewrite it as plain files.
+
 When asked for a change, change only what is asked and keep everything else as it was. Write each changed file whole. Remove a file only when it should no longer exist. In summary, say in one or two plain sentences what you did and anything a person should check or fill in.`;
 
 /** The one tool Claude answers with. Forced, so every answer has this shape. */
@@ -68,6 +70,8 @@ export type PromptInput = {
   readonly history: readonly PastTurn[];
   /** Photos and a logo uploaded to the build. */
   readonly images?: readonly PromptImage[];
+  /** The old site, read as reference, while the build has no files yet. */
+  readonly reference?: { readonly from: string; readonly text: string } | null;
   readonly ask: string;
 };
 
@@ -99,6 +103,7 @@ export function userMessage(input: PromptInput): string {
     for (const turn of input.history.slice(-HISTORY_TURNS)) parts.push(`Asked: ${turn.ask}`, `You did: ${turn.summary}`, "");
     parts.push("</earlier_requests>", "");
   }
+  if (input.reference && input.reference.text) parts.push(`<old_site from="${input.reference.from.replace(/"/g, "")}">`, input.reference.text, "</old_site>", "");
   const images = input.images ?? [];
   parts.push("<images>");
   if (images.length === 0) parts.push("(None uploaded.)");

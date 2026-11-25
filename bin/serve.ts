@@ -40,7 +40,7 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
-import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
+import { builderGithub, builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
 import { failLostRequests } from "../src/builder/index.ts";
 import { createServices } from "../src/services.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
@@ -125,6 +125,7 @@ const app = await createApp({
   ai: aiModel,
   claude: claudeConfig ? claudeApi(claudeConfig) : null,
   builderOwner,
+  builderRepos: github ? builderGithub(github) : null,
   sitePublisher: github ? githubPublisher(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),

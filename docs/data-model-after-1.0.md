@@ -668,7 +668,11 @@ Decision 0010, slice 1 (migration 0056).
   build, with its bytes, its type and size read from its own header, what
   it shows, and its path in the site (`images/logo-<12 hex>.png`), made
   from its id. Shared by every version of the build: the preview and the
-  zip serve it beside the version's files. Removing one deletes it.
+  zip serve it beside the version's files. Removing one deletes it. A
+  picture from a reworked repository keeps its old path instead.
+- `build.reference_from` and `build.reference` (slice 3, migration 0060):
+  where a reworked build was read from, and the old site's text, shown to
+  Claude only while the build has no files.
 
 Events: `build.started`, `build.brief-changed`, `build.asked` (with what
 was reserved), `build.version-made` and `build.request-failed` (by HQ

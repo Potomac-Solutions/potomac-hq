@@ -194,3 +194,49 @@ test("a zip holds pictures as bytes beside the text files", () => {
   assert.equal(new DataView(zip.buffer).getUint16(end + 10, true), 2);
   assert.ok(new TextDecoder("latin1").decode(zip).includes("s/images/photo-000000000001.jpg\xff\xd8\xff\x00"));
 });
+
+test("a repository is read as owner/name, or a GitHub address, with an optional branch", async () => {
+  const { parseRepo, parseAddress } = await import("./rework.ts");
+  assert.deepEqual(parseRepo(" https://github.com/Potomac-Solutions/better-days-towing.git "), { ok: true, value: { owner: "Potomac-Solutions", name: "better-days-towing", branch: null } });
+  assert.deepEqual(parseRepo("a/b", "feat/x"), { ok: true, value: { owner: "a", name: "b", branch: "feat/x" } });
+  for (const bad of ["", "nobody", "a/b/c", "a/..", "-a/b"]) assert.equal(parseRepo(bad).ok, false, bad);
+  assert.deepEqual(parseRepo("a/b", "../x"), { ok: false, error: "branch-invalid" });
+  const address = parseAddress("betterdaystowing.com/about#top");
+  assert.ok(address.ok);
+  assert.equal(address.value.toString(), "https://betterdaystowing.com/about");
+  for (const bad of ["http://x.com", "https://user:pw@x.com", "localhost", "ftp://x.com"]) assert.equal(parseAddress(bad).ok, false, bad);
+});
+
+test("a static repository is taken as it is; a project is read as reference, home page and readme first", async () => {
+  const { planRepo } = await import("./rework.ts");
+  const e = (path: string, size = 100) => ({ path, size, sha: path });
+  const plain = planRepo([e("index.html"), e("about.html"), e("css/site.css"), e("img/truck.jpg"), e(".github/workflows/ci.yml"), e("node_modules/x/index.js"), e("photos/huge.jpg", 9_000_000)]);
+  assert.equal(plain.kind, "static");
+  assert.deepEqual(plain.files.map((one) => one.path), ["index.html", "about.html", "css/site.css"]);
+  assert.deepEqual(plain.pictures.map((one) => one.path), ["img/truck.jpg"]);
+  const project = planRepo([e("package.json"), e("package-lock.json", 90_000), e("src/App.jsx", 3_000), e("README.md", 500), e("index.html", 400), e("src/big.js", 50_000), e("dist/index.html"), e("public/logo.png")]);
+  assert.equal(project.kind, "reference");
+  assert.deepEqual(project.files.map((one) => one.path), ["index.html", "README.md", "src/App.jsx", "package.json"]);
+  assert.deepEqual(project.pictures.map((one) => one.path), ["public/logo.png"]);
+});
+
+test("a page from the web is slimmed, and only its same-site links are followed", async () => {
+  const { importedAlt, importedImagePath, referenceText, sameSiteLinks, slimPage, MAX_REFERENCE_CHARS } = await import("./rework.ts");
+  assert.equal(slimPage("<p>Hi</p>\n\n\n<script>track()</script><!-- note --><svg><path d='M0'/></svg>"), "<p>Hi</p>\n<script>…</script><svg>…</svg>");
+  const base = new URL("https://towing.example/");
+  const links = sameSiteLinks('<a href="/rates">x</a><a href="https://other.example/">y</a><a href="/rates#a">z</a><a href="menu.pdf">m</a><a href="about.html?x=1">a</a>', base, 10);
+  assert.deepEqual(links.map(String), ["https://towing.example/rates", "https://towing.example/about.html"]);
+  assert.equal(sameSiteLinks('<a href="/a">1</a><a href="/b">2</a>', base, 1).length, 1);
+  const text = referenceText([{ from: "a", text: "x".repeat(MAX_REFERENCE_CHARS + 10) }, { from: "b", text: "never" }]);
+  assert.match(text, /\[cut short\]\n<\/source>$/);
+  assert.doesNotMatch(text, /never/);
+  assert.equal(importedImagePath("img/truck.jpg"), "img/truck.jpg");
+  assert.equal(importedImagePath("../x.jpg"), null);
+  assert.equal(importedImagePath("img/.hidden.png"), null);
+  assert.equal(importedAlt("img/flatbed_on-route-50.jpg"), "From the old site: flatbed on route 50");
+});
+
+test("the old site goes in the message as reference", () => {
+  const text = userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], reference: { from: "github.com/a/b", text: '<source from="index.html">\n<h1>Old</h1>\n</source>' }, ask: "Go." });
+  assert.match(text, /<old_site from="github.com\/a\/b">\n<source from="index.html">\n<h1>Old<\/h1>\n<\/source>\n<\/old_site>/);
+});

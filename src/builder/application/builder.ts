@@ -13,10 +13,10 @@ import { applyChange, fileAt, filesFromJson, filesToJson, totalChars, type FileE
 import { costMicros, dollars, DEFAULT_MODEL, fitsUnderCap, MAX_OUTPUT_TOKENS, MODELS, modelById, parseCap, worstCaseMicros, centsToMicros, type CapError } from "../domain/pricing.ts";
 import { readAnswer, SAVE_TOOL_SCHEMA, SYSTEM_PROMPT, userMessage, type ClientFacts } from "../domain/prompt.ts";
 import { zipFiles } from "../domain/zip.ts";
-import { checkImage, imagePath, isImagePath, MAX_IMAGES, type BuildImage, type ImageError } from "../domain/image.ts";
+import { checkImage, imagePath, MAX_IMAGES, type BuildImage, type ImageError } from "../domain/image.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, ImageStore, PreviewTokens } from "./ports.ts";
+import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, ImageStore, PageFetch, PreviewTokens, RepoReader } from "./ports.ts";
 
 export type BuilderDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
@@ -30,6 +30,10 @@ export type BuilderDeps = ActivityDeps & {
   readonly previewTokens: PreviewTokens;
   /** What a client's public website may say about them, or null when there is no such client. */
   readonly clientFacts: (organizationId: Id) => ClientFacts | null;
+  /** Reads repositories to rework (slice 3). Null when HQ_GITHUB_TOKEN is not set. */
+  readonly repos: RepoReader | null;
+  /** Reads a public web address to rework (slice 3). */
+  readonly fetchPage: PageFetch;
   /** Every client, to start a build for. */
   readonly clients: () => readonly { readonly id: Id; readonly name: string }[];
   /** The email of the one person who may change the model and the cap. */
@@ -78,6 +82,8 @@ export type BuildsView = {
   readonly budget: BudgetLine;
   readonly model: string;
   readonly claudeSetUp: boolean;
+  /** Whether repositories can be read to rework. */
+  readonly githubSetUp: boolean;
 };
 
 /** Sites → Site builder. Permission: `site.build`. */
@@ -91,6 +97,7 @@ export function buildsView(deps: BuilderDeps, actorId: Id | null): Result<Builds
     budget: budgetLine(deps),
     model: currentModel(deps).label,
     claudeSetUp: deps.claude !== null,
+    githubSetUp: deps.repos !== null,
   });
 }
 
@@ -134,6 +141,8 @@ export function saveBrief(deps: BuilderDeps, actorId: Id | null, buildId: Id, in
 
 export type BuildView = {
   readonly id: Id;
+  /** Where it was reworked from, or "". */
+  readonly referenceFrom: string;
   readonly name: string;
   readonly brief: string;
   readonly client: string;
@@ -184,6 +193,7 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
   const versionOf = new Map(versions.filter((one) => one.requestId).map((one) => [one.requestId as Id, one.number]));
   return ok({
     id: build.id,
+    referenceFrom: build.referenceFrom ?? "",
     name: build.name,
     brief: build.brief,
     client: deps.clientFacts(build.organizationId)?.name ?? "A client no longer in HQ",
@@ -193,7 +203,7 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
     previewSrc: shown > 0 ? `/builder/preview/${deps.previewTokens.make(build.id, shown)}/` : "",
     fileCount: shown > 0 ? Object.keys(filesFromJson(deps.builds.version(build.id, shown)?.filesJson ?? "{}")).length : 0,
     size: shownLine ? `${Math.max(1, Math.round(shownLine.chars / 1000))} KB` : "",
-    versions: versions.map((one) => ({ number: one.number, summary: one.summary, when: deps.formatWhen(one.createdAt), by: one.madeBy ? `Restored by ${nameOf(one.madeBy)}` : "Claude", current: one.number === shown })),
+    versions: versions.map((one) => ({ number: one.number, summary: one.summary, when: deps.formatWhen(one.createdAt), by: one.madeBy ? nameOf(one.madeBy) : "Claude", current: one.number === shown })),
     conversation: requests.map((one) => ({
       ask: one.ask,
       by: nameOf(one.askedBy),
@@ -281,7 +291,9 @@ export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, te
     .filter((one) => one.state === "done")
     .map((one) => ({ ask: one.ask, summary: summaries.get(one.id) ?? "" }));
   const images = deps.images.listFor(build.id).map((one) => ({ path: one.path, kind: one.kind, width: one.width, height: one.height, alt: one.alt }));
-  const message = userMessage({ facts, brief: build.brief, files, history, images, ask: ask.value });
+  // The old site goes with every request until the build has files of its own.
+  const reference = Object.keys(files).length === 0 ? deps.builds.reference(build.id) : null;
+  const message = userMessage({ facts, brief: build.brief, files, history, images, reference, ask: ask.value });
   const model = currentModel(deps);
   const reserve = worstCaseMicros(model, SYSTEM_PROMPT.length + JSON.stringify(SAVE_TOOL_SCHEMA).length + message.length);
   const requestId = deps.newId();
@@ -393,12 +405,12 @@ export function previewFile(deps: BuilderDeps, token: string, path: string): { r
   if (!target) return null;
   const version = deps.builds.version(target.buildId, target.version);
   if (!version) return null;
-  if (isImagePath(path)) {
-    const image = deps.images.atPath(target.buildId, path);
-    const body = image ? deps.images.body(image.id) : null;
-    return image && body ? { content: body, type: image.contentType } : null;
-  }
-  return fileAt(filesFromJson(version.filesJson), path);
+  const file = fileAt(filesFromJson(version.filesJson), path);
+  if (file) return file;
+  // A picture: uploaded, or kept at its old path from a reworked site.
+  const image = path ? deps.images.atPath(target.buildId, path) : null;
+  const body = image ? deps.images.body(image.id) : null;
+  return image && body ? { content: body, type: image.contentType } : null;
 }
 
 // ---------------------------------------------------------------------------
