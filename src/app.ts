@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, type CallScreen, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -46,6 +46,7 @@ import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./web
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
+import { callRoutes } from "./crm/api/call-routes.ts";
 import { bookingPortalDownloads, bookingPortalRoutes, type PortalBooker } from "./booking/api/portal-routes.ts";
 import { bookingPublicRoutes } from "./booking/api/public-routes.ts";
 import { inviteRoutes } from "./booking/api/invite-routes.ts";
@@ -175,6 +176,10 @@ export type PageContext = {
   readonly dashboard: { recentActivity(): ReturnType<typeof recentActivity>; audit(query: Record<string, string>): ReturnType<typeof auditHistory>; refused(): ReturnType<typeof refusedAttempts> };
   readonly crm: {
     clientTouches(id: string): TouchesView | null;
+    /** The call screen, for the person on the call (decision 0009). */
+    callScreen(id: string): CallScreen | null;
+    /** The person's open call, for the shell. */
+    openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
@@ -561,6 +566,12 @@ export async function createApp(config: AppConfig): Promise<App> {
             const view = parsed.ok ? opportunityTouches(services.touches, actor, parsed.value) : null;
             return view?.ok ? view.value : null;
           },
+          callScreen: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? callScreen(services.calls, actor, parsed.value) : null;
+            return view?.ok ? view.value : null;
+          },
+          openCall: () => openCall(services.calls, actor),
           inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status, demo) => listClients(crmDeps, actor, { status: status ?? "", kind: demo ?? "" }),
           canImport: () => mayImport(crmDeps, actor),
@@ -978,6 +989,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", callRoutes({ calls: services.calls, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));

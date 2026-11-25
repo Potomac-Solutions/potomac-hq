@@ -235,6 +235,17 @@ puts back what HQ had.
 - **Calls and messages.** On a client or an opportunity, log each call,
   email, text or meeting. For a call, say how it went. On an opportunity,
   set the next follow-up in the same step: "left a voicemail, try Thursday".
+- **A timed call.** "Start a call" on a client, a contact, an opportunity or
+  a booked call opens the call screen: a big Dial button, and a timer that
+  keeps running if you reload or switch apps. A call is planned for 30
+  minutes (a booked call for its own length). Picked up with only 15
+  minutes to give? Tap "15 min"; 45 and an hour are there too, and −5 and
+  +5 fine-tune it. Five
+  minutes before the end the timer turns amber and the phone buzzes once,
+  with no sound, and the screen shows what to cover before hanging up. At
+  the end it turns red and counts the overtime. Notes save as you type.
+  "End call" logs it with how it went and how long it lasted. While you're
+  on a call, the top bar has a way back to it from any page.
 - **Inquiries.** The form at `/contact` (or on the website) puts each
   inquiry in the pipeline as a new opportunity from the website, and emails
   Potomac.

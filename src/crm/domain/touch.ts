@@ -21,6 +21,9 @@ export type Touch = {
   readonly note: string;
   readonly happenedAt: string;
   readonly userId: Id;
+  /** How long the call lasted, when it came from the call screen (decision 0009). */
+  readonly minutes: number | null;
+  readonly callId: Id | null;
 };
 
 export type TouchInput = { readonly kind: string; readonly outcome?: string | null; readonly note?: string | null };
@@ -37,7 +40,7 @@ export function newTouch(ids: { readonly id: Id; readonly organizationId: Id; re
   if (note.length > 2000) return err("note-too-long");
   // A talk, an email, a text or a meeting needs a word about it; a voicemail or no answer speaks for itself.
   if (!note && (outcome === null || outcome === "reached")) return err("note-missing");
-  return ok({ ...ids, kind, outcome, note });
+  return ok({ ...ids, kind, outcome, note, minutes: null, callId: null });
 }
 
 /** "Call, left a voicemail" or "Meeting". */
