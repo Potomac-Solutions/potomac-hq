@@ -1,4 +1,4 @@
-// Pins (migration 0073).
+// Pins (migration 0075).
 import type { PinStore } from "../application/pins.ts";
 import type { Database } from "../../shared/adapters.ts";
 

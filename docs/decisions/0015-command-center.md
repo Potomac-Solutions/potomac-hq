@@ -121,7 +121,7 @@ branch stacked on the first:
    an invoice (money: always asks, and stays a draft). Starting the timer is
    moving a task to Working on.
 10. **Pins and recents.** **Pin** in the top bar puts the page you're on at
-    the top of your sidebar (up to 12, per person, migration 0073). Recent
+    the top of your sidebar (up to 12, per person, migration 0075). Recent
     records are kept on the device only, and cleared on sign-out.
     **Default:** recents aren't kept on the server, so viewing a page writes
     nothing.

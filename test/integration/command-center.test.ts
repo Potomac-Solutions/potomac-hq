@@ -206,7 +206,8 @@ test("more it can do: a follow-up day with Undo, project health, an invoice draf
   assert.match(results, /"content":"No timer is running\.","is_error":true/, "no timer: told so, no card");
   assert.match(textOf(await admin.page("/")), /Draft an invoice on Ordering site: Deposit: one third, \$500\.00\. It stays a draft/);
   await admin.post(`/assistant/actions/${actionId("waiting")}/do`, {});
-  const invoice = t.db.prepare("select status from invoice order by rowid desc limit 1").get();
+  const invoiceId = String(t.db.prepare("select href from assistant_action where tool = 'draft_invoice'").get()?.["href"]).split("/").pop();
+  const invoice = t.db.prepare("select status from invoice where id = ?").get(invoiceId ?? "");
   assert.equal(invoice?.["status"], "draft", "drafted, never sent");
 
   queue.push([use("booking_link", { label: "Stacy at Better Days", lasts: "30", one_time: true })]);
