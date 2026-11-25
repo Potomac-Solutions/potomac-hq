@@ -263,6 +263,10 @@ puts back what HQ had.
   and you're back at the list, with that client gone from it. Got their
   voicemail? The script is on the call screen; end it as "Left a voicemail"
   and HQ sets the follow-up two business days on, or a to-do to call again.
+- **A recap email.** When you end a call where you talked, tick "Then
+  write them a recap email". HQ drafts it from your notes (not the guide's
+  answers); change anything, then "Send recap", or "Skip". It's in the call
+  log once it's gone.
 - **Before you hang up.** The wrap-up panel offers the next open times:
   pick one and "Book it" while they're still on the line, and they're
   emailed it. When you end the call, type next steps, one a line, and each

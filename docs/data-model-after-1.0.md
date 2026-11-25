@@ -132,6 +132,21 @@ Decision 0009, slice 5. No new tables.
   starts the call. Needs `contact.edit`. A booking not in the CRM says to
   add it first.
 
+### The recap email
+
+Decision 0009, slice 6 (migration 0055). `call.recap_sent_at`: when the
+call's recap went. Ending a call keeps the notes as typed on the call
+(without the guide's answers, which stay in HQ).
+
+- Ticking "Then write them a recap email" when ending a talk opens
+  `/phone/:id/recap`: a draft to the contact on the call, from the notes.
+  Only the person who made the call, after it's ended, to a contact with an
+  email.
+- Nothing is sent until "Send recap" is pressed. It goes once; a refused
+  or failed send keeps the words. It's logged as an email in the call log
+  ("Sent a recap of the call: …") with `call.recap-sent`.
+- With email off, the draft is there to copy, with no Send button.
+
 ## Scheduling invites
 
 Decided 2026-11-23 at Mikey's request. Needs his approval.
