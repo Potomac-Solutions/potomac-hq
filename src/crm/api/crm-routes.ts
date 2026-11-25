@@ -7,6 +7,8 @@ import { messageFor } from "./messages.ts";
 
 export type CrmRoutesDeps = {
   readonly crm: crm.CrmDeps;
+  /** Moves everything of one client onto another, for merging duplicates. */
+  readonly merge?: crm.ClientMerger;
   /** The signed-in HQ user's id, or null. */
   readonly actorOf: (cookieHeader: string) => Id | null;
   /** Signs the one-line message in a location. */
@@ -36,14 +38,30 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
       const answer = run(deps.actorOf(c.req.header("cookie") ?? ""), form, id);
       const to = answer.ok
         ? `${places.done(answer.value, id)}?done=${encodeURIComponent(places.message)}`
-        : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(messageFor(answer.error))}`;
+        : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(answer.error.startsWith("duplicate|") ? `${answer.error.slice("duplicate|".length)} ${answer.error.includes(" or ") ? "are" : "is"} already in HQ, and looks like the same business. Open it from the list below, or tick “It’s a different business” and add it again.` : messageFor(answer.error))}`;
       return c.redirect(deps.sign(to), 303);
     });
 
-  post("/clients", (actor, f) => crm.createClient(deps.crm, actor, { name: f["name"] ?? "", sizeTier: f["sizeTier"] ?? null, website: f["website"] ?? null, phone: f["phone"] ?? null, address: f["address"] ?? null }), {
+  // A name that looks like a client already here asks first (quality of life, 2026-11-25).
+  post("/clients", (actor, f) => {
+    const same = f["different"] === "1" ? [] : crm.possibleDuplicates(deps.crm, actor, f["name"] ?? "");
+    if (same.length > 0) return { ok: false as const, error: `duplicate|${same.map((one) => `“${one.name}”`).join(" or ")}` };
+    return crm.createClient(deps.crm, actor, { name: f["name"] ?? "", sizeTier: f["sizeTier"] ?? null, website: f["website"] ?? null, phone: f["phone"] ?? null, address: f["address"] ?? null });
+  }, {
     done: (client) => `/clients/${client.id}`,
     back: () => "/clients",
     message: "Client added.",
+  });
+
+  // Merging a duplicate into the client to keep.
+  post("/clients/:id/merge", (actor, f, id) => {
+    const into = parseId(f["into"] ?? "");
+    if (!deps.merge || !into.ok) return { ok: false as const, error: "not-found" };
+    return crm.mergeClients({ ...deps.crm, merge: deps.merge }, actor, id as Id, into.value);
+  }, {
+    done: (client) => `/clients/${client.id}`,
+    back: (id) => `/clients/${id ?? ""}`,
+    message: "Merged. Everything from the duplicate is here now.",
   });
 
   post("/clients/:id/status", (actor, f, id) => crm.setClientStatus(deps.crm, actor, id as Id, f["status"] ?? ""), {

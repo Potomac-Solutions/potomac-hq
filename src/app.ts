@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
+import { mayMerge, possibleDuplicates, clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
@@ -27,6 +27,7 @@ import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
+import { sqliteClientMerger } from "./crm/adapters.ts";
 import { createHqStaffPages, isPreviewRole, previewing, runPreviewing, sqliteRateLimit, type PreviewRole } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
@@ -267,6 +268,8 @@ export type PageContext = {
     emailOn: boolean;
     /** The person's open call, for the shell. */
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
+    /** Clients this one could be merged into, ones that look the same first; empty for someone who may not merge. */
+    mergeChoices(clientId: string): readonly { readonly id: string; readonly name: string; readonly same: boolean }[];
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
@@ -845,6 +848,17 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           openCall: () => openCall(services.calls, actor),
+          mergeChoices: (clientId) => {
+            if (!mayMerge(crmDeps, actor)) return [];
+            const self = crmDeps.clients.get(clientId as Id);
+            if (!self) return [];
+            const same = new Set(possibleDuplicates(crmDeps, actor, self.name).map((one) => one.id));
+            return crmDeps.clients
+              .list()
+              .filter((one) => one.id !== self.id && !one.demo && one.status !== "former")
+              .map((one) => ({ id: one.id, name: one.name, same: same.has(one.id) }))
+              .sort((a, b) => Number(b.same) - Number(a.same) || a.name.localeCompare(b.name));
+          },
           callGuides: () => {
             const view = callGuides(services.calls, actor);
             return view.ok ? view.value : null;
@@ -1311,7 +1325,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     const actor = actorOf(c.req.header("cookie") ?? "");
     if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
   });
-  forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", crmRoutes({ crm: crmDeps, merge: sqliteClientMerger(db), actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
   const rememberUndo_ = (actor: Id, step: Parameters<typeof rememberUndo>[2]) => rememberUndo(services.undo, actor, step);
   forms.route("/", replyRoutes({ replies: services.replies, actorOf, sign: (location) => notices.sign(location) }));

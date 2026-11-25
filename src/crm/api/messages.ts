@@ -1,5 +1,7 @@
 // What each refusal code says to a person.
 const MESSAGES: Readonly<Record<string, string>> = {
+  "same-client": "Choose a different client to merge it into.",
+  "cant-merge": "They couldn’t be merged automatically: something of one can’t move to the other (like a second free landing page). Nothing was changed.",
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",
   "name-missing": "Enter a name.",
@@ -61,6 +63,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "not-won": "Only a won opportunity becomes a project.",
   "already-converted": "This opportunity is already a project.",
 };
+
 
 export function messageFor(code: string): string {
   return MESSAGES[code] ?? "That didn’t work. Try again.";

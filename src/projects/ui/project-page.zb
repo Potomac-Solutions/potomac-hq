@@ -310,7 +310,7 @@
           <label for="update-body">Post an update for the client</label>
           <textarea id="update-body" name="body" rows="3" required maxlength="5000"></textarea>
         </div>
-        <reply-picker replies={replies.items} client={p.clientName} project={p.name} me={replies.me} field-id="update-reply"></reply-picker>
+        <reply-picker replies={replies.items} client={p.clientName ?? ''} project={p.name ?? ''} me={replies.me} field-id="update-reply"></reply-picker>
         <div><button class="hq-button" type="submit">Post update</button></div>
       </form>
     </section>

@@ -57,7 +57,7 @@
         <label for="reply-title">Title</label>
         <input id="reply-title" name="title" required maxlength="80" placeholder="Proof ready">
         <label for="reply-body">Reply</label>
-        <textarea id="reply-body" class="reply-body" name="body" required maxlength="5000" placeholder="Hi {first name}, the proof for {project} is ready in your portal. Let me know what you think! {me}"></textarea>
+        <textarea id="reply-body" class="reply-body" name="body" required maxlength="5000" placeholder={'Hi {first name}, the proof for {project} is ready in your portal. Let me know what you think! {me}'}></textarea>
         <div><button class="hq-button" type="submit">Add</button></div>
       </form>
     </section>
