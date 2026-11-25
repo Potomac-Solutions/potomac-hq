@@ -30,11 +30,11 @@ after(async () => {
   await t.stop();
 });
 
-async function opportunity(title: string) {
+async function opportunity(title: string, service?: string) {
   const crm = await import("../../src/crm/index.ts");
   const client = crm.createClient(t.services.crm, mikey, { name: `${title} Co` });
   assert.ok(client.ok);
-  const made = crm.createOpportunity(t.services.crm, mikey, client.value.id, { title, leadSource: "phone" });
+  const made = crm.createOpportunity(t.services.crm, mikey, client.value.id, { title, leadSource: "phone", ...(service ? { service } : {}) });
   assert.ok(made.ok);
   return made.value.id;
 }
@@ -135,7 +135,8 @@ test("a removal waits for Undo, then goes through", async () => {
   await page.goto(t.origin + `/projects/${projectId}`);
   const link = page.locator("#links li", { hasText: "Staging site" });
   await link.getByRole("button", { name: /Remove/ }).click();
-  await page.getByRole("region", { name: "Removed" }).waitFor();
+  await page.getByRole("region", { name: "Waiting to go" }).waitFor();
+  await page.getByText("Removed.", { exact: true }).waitFor();
   assert.equal(await link.isVisible(), false, "hidden at once");
   await assertAccessible(page, "a removal waiting for Undo");
   await page.getByRole("button", { name: "Undo" }).click();
@@ -192,5 +193,69 @@ test("a form can't be sent twice by a double click", async () => {
   await page.getByText(/Moved to Consult booked\.|Stages move/).first().waitFor();
   assert.equal(t.db.prepare("select stage from opportunity where id = ?").get(id)?.["stage"], "consult-booked");
   assert.doesNotMatch(await page.locator("main").innerText(), /Stages move forward/, "the second click was never sent");
+  await page.close();
+});
+
+test("Recent changes lists what can be undone, one per thing, and undoes an older change", async () => {
+  const id = await opportunity("History deal", "website");
+  const projects = await import("../../src/projects/application/commands.ts");
+  const task = projects.addTask(t.services.projects, mikey, projectId as Id, { title: "Order the sign" });
+  assert.ok(task.ok);
+  const page = await signedIn.newPage();
+  const problems = watch(page);
+  await page.goto(t.origin + `/opportunities/${id}`);
+  await page.getByRole("button", { name: "Move to Consult booked" }).click();
+  await page.getByText("Moved to Consult booked.").first().waitFor();
+  await page.getByRole("button", { name: "Move to Consulted" }).click();
+  await page.getByText("Moved to Consulted.").first().waitFor();
+  await page.goto(t.origin + `/tasks/${task.value.id}`);
+  await page.locator(`form[action="/tasks/${task.value.id}"]`).getByLabel("Title").fill("Order the shop sign");
+  await page.getByRole("button", { name: "Save task" }).click();
+  await page.getByText("Task saved.").first().waitFor();
+
+  await page.keyboard.press("g");
+  await page.keyboard.press("h");
+  await page.waitForURL((url) => url.pathname === "/history");
+  const main = page.locator("main");
+  const listed = (label: string) => main.locator(".changes strong", { hasText: label });
+  await listed("Order the sign: details saved").waitFor();
+  await listed("History deal: moved to Consulted").waitFor();
+  assert.equal(await listed("History deal: moved to Consult booked").count(), 0, "only the newest change to the same deal");
+  await assertAccessible(page, "recent changes");
+  await main.getByRole("button", { name: /Undo.*History deal: moved to Consulted/ }).click();
+  await page.getByText("Moved back to Consult booked.").first().waitFor();
+  assert.equal(t.db.prepare("select stage from opportunity where id = ?").get(id)?.["stage"], "consult-booked");
+  // The undo bar says what happened and links here.
+  await page.locator(".hq-undo").getByRole("link", { name: "History" }).click();
+  await page.waitForURL((url) => url.pathname === "/history");
+  assert.deepEqual(problems, []);
+  await page.close();
+});
+
+test("sending something waits for Undo, and nothing is sent if it's called back", async () => {
+  const page = await signedIn.newPage();
+  await page.goto(t.origin + "/today");
+  const posted: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posted.push(new URL(request.url()).pathname);
+  });
+  // A stand-in for any Send button: the hold is the same for every one.
+  await page.evaluate(`(() => {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/invoices/00000000-0000-0000-0000-000000000000/send";
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "Send the invoice";
+    form.append(button);
+    document.querySelector("main").append(form);
+  })()`);
+  await page.getByRole("button", { name: "Send the invoice" }).click();
+  await page.getByText("Sending…").waitFor();
+  await assertAccessible(page, "a send waiting for Undo");
+  await page.keyboard.press("Control+z");
+  await page.getByText("Not sent.").waitFor();
+  await page.waitForTimeout(9000);
+  assert.deepEqual(posted, [], "called back before it went");
   await page.close();
 });

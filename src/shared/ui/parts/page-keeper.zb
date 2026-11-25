@@ -9,16 +9,32 @@
   - Leaving a page with a form you've typed in asks first.
   - Green "done" messages fade after a few seconds; problems stay.
   - Removing something hides it at once and waits a few seconds, with Undo,
-    before the removal is sent. Leaving the page sends it straight away.
+    before the removal is sent. Sending, publishing, sharing or voiding
+    something that leaves HQ (an invoice, a proposal, the newsletter, a site)
+    waits the same way, so a wrong click can be called back before it goes.
+    Leaving the page sends it straight away. Not under Settings or in the
+    client portal.
 -->
 <script>
   import { onMount, onUnmount } from '@zubra/runtime'
 
   const PLACE = 'hq-kept-place'
-  const REMOVAL = /\/(remove|archive)$/
-  const WAIT_MS = 6000
+  // What waits for Undo, what the bar says meanwhile, and what it says if called back.
+  const HELD = [
+    { test: /\/remove$/, doing: 'Removed.', undone: 'Put back.', wait: 6000, hide: true },
+    { test: /\/archive$/, doing: 'Archived.', undone: 'Put back.', wait: 6000, hide: true },
+    { test: /\/(send|send-back)$/, doing: 'Sending…', undone: 'Not sent.', wait: 8000, hide: false },
+    { test: /\/publish$/, doing: 'Publishing…', undone: 'Not published.', wait: 8000, hide: false },
+    { test: /\/share$/, doing: 'Sharing…', undone: 'Not shared.', wait: 8000, hide: false },
+    { test: /\/void$/, doing: 'Voiding…', undone: 'Not voided.', wait: 8000, hide: false },
+    { test: /^\/calls\/[^/]+\/cancel$/, doing: 'Cancelling the call…', undone: 'The call is still on.', wait: 8000, hide: false },
+  ]
+  const heldFor = (path) => (path.startsWith('/settings/') || path.startsWith('/portal/') ? null : HELD.find((one) => one.test.test(path)) || null)
   let pending = null
   let removing = false
+  let doing = ''
+  let slow = false
+  let undoneSaid = ''
   let timer = 0
 
   const isPost = (form) => form instanceof HTMLFormElement && (form.getAttribute('method') || '').toLowerCase() === 'post'
@@ -72,10 +88,10 @@
     const form = event.target
     if (!isPost(form) || event.defaultPrevented) return
     if (form.hasAttribute('data-hq-sending')) return event.preventDefault()
-    const path = actionOf(form)
-    if (REMOVAL.test(path) && !path.startsWith('/settings/') && !form.hasAttribute('data-hq-now')) {
+    const kind = heldFor(actionOf(form))
+    if (kind && !form.hasAttribute('data-hq-now')) {
       event.preventDefault()
-      holdRemoval(form, event.submitter)
+      holdRemoval(form, event.submitter, kind)
     }
   }
   // Runs last: only a post that is really going marks its form as sending.
@@ -98,15 +114,19 @@
     for (const button of document.querySelectorAll('[aria-busy=true]')) button.removeAttribute('aria-busy')
   }
 
-  function holdRemoval(form, submitter) {
+  function holdRemoval(form, submitter, kind) {
     if (pending) sendNow(pending)
-    const item = form.closest('li, tr')
-    pending = { form, submitter, item, body: new URLSearchParams(new FormData(form, submitter)) }
+    const item = kind.hide ? form.closest('li, tr') : null
+    pending = { form, submitter, item, kind, body: new URLSearchParams(new FormData(form, submitter)) }
     if (item) item.style.display = 'none'
+    if (submitter && !kind.hide) submitter.setAttribute('aria-busy', 'true')
+    doing = kind.doing
+    slow = kind.wait > 6000
+    undoneSaid = ''
     removing = true
     hideServerUndo(true)
     clearTimeout(timer)
-    timer = setTimeout(sendHeld, WAIT_MS)
+    timer = setTimeout(sendHeld, kind.wait)
     requestAnimationFrame(() => document.getElementById('hq-removal-undo')?.focus({ preventScroll: true }))
   }
   // Time's up: send it as the form would have, so the page says what happened.
@@ -126,10 +146,13 @@
     clearTimeout(timer)
     if (pending && pending.item) pending.item.style.display = ''
     const focus = pending && pending.submitter
+    if (focus) focus.removeAttribute('aria-busy')
+    undoneSaid = pending ? pending.kind.undone : ''
     pending = null
     removing = false
     hideServerUndo(false)
     if (focus) focus.focus()
+    setTimeout(() => (undoneSaid = ''), 4000)
   }
   function leaving() {
     if (!pending) return
@@ -216,14 +239,16 @@
   .keeper-bar button:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
   .keeper-bar kbd { font: inherit; font-size: 0.75rem; color: var(--sidebar-muted); }
   .keeper-clock { width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid var(--sidebar-muted); border-top-color: #9fd6fb; animation: keeper-turn 6s linear forwards; }
+  .keeper-clock.slow { animation-duration: 8s; }
   @keyframes keeper-turn { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .keeper-clock { animation: none; } }
 </style>
 <page-keeper>
-  <div zb-if={removing} class="keeper-bar" role="region" aria-label="Removed">
-    <span class="keeper-clock" aria-hidden="true"></span>
-    <span role="status">Removed.</span>
+  <div zb-if={removing} class="keeper-bar" role="region" aria-label="Waiting to go">
+    <span class="keeper-clock" class:slow={slow} aria-hidden="true"></span>
+    <span role="status">{doing}</span>
     <button id="hq-removal-undo" type="button" onclick={undoRemoval}>Undo</button>
     <kbd aria-hidden="true">Ctrl Z</kbd>
   </div>
+  <div zb-if={!removing && undoneSaid} class="keeper-bar" role="status">{undoneSaid}</div>
 </page-keeper>
