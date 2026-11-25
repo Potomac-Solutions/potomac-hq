@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /ask'
+  import '../../shared/ui/parts/model-pick.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
@@ -12,13 +13,13 @@
     const state = context.ai.state('ask')
     const answer = context.ai.ask()
     if (!state.on && !state.why && !answer) return context.forbidden()
-    return { title: 'Ask HQ', state, answer, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Ask HQ', state, answer, aiModels: context.ai.models(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   .ask-answer { white-space: pre-wrap; }
 </style>
-<hq-ask state={{ on: false, why: '' }} answer={null} done="" problem="">
+<hq-ask ai-models={[]} state={{ on: false, why: '' }} answer={null} done="" problem="">
   <div class="hq-page">
     <h1>Ask HQ</h1>
     <p class="hq-muted">Answers come from the knowledge base and the decision log, with links to the articles they used. Check anything that matters there.</p>
@@ -26,7 +27,7 @@
     <alert-banner zb-if={state.why} variant="warning">{state.why}</alert-banner>
     <form zb-if={state.on} method="post" action="/ask" class="hq-panel hq-form">
       <text-field label="Your question" name="question" required={true} maxlength={500} placeholder="What did we decide about deposits?"></text-field>
-      <div><button class="hq-button" type="submit">Ask</button></div>
+      <div><model-pick models={aiModels} field-id="ask-model"></model-pick> <button class="hq-button" type="submit">Ask</button></div>
     </form>
     <section zb-if={answer} class="hq-panel" id="answer" aria-labelledby="ask-answer">
       <h2 id="ask-answer">{answer.question}</h2>

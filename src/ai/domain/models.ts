@@ -22,10 +22,17 @@ export type KnownModel = { readonly id: string; readonly label: string; readonly
 export const KNOWN_MODELS: readonly KnownModel[] = [
   { id: "claude-haiku-5-5", label: "Claude Haiku 5.5: fastest and cheapest", price: { input: 100_000, output: 500_000, long: { above: 100_000, input: 500_000, output: 2_500_000 } } },
   { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5: better writing, 20 times the price", price: { input: 2_000_000, output: 10_000_000 } },
-  { id: "claude-opus-5-5", label: "Claude Opus 5.5: the most capable, 40 times the price", price: { input: 4_000_000, output: 20_000_000 } },
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5: very capable, 40 times the price", price: { input: 4_000_000, output: 20_000_000 } },
+  { id: "claude-fable-5-2", label: "Claude Fable 5.2: the most capable, 80 times the price", price: { input: 8_000_000, output: 40_000_000 } },
 ];
 
 export const DEFAULT_MODEL = "claude-haiku-5-5";
+
+/**
+ * The dearest model anyone may pick when they ask (Mikey, 2026-11-25). Opus
+ * 5.5 to start, the site builder's own default, so nothing it did changes.
+ */
+export const DEFAULT_CEILING = "claude-opus-5-5";
 
 export const knownModel = (id: string): KnownModel | null => KNOWN_MODELS.find((one) => one.id === id) ?? null;
 

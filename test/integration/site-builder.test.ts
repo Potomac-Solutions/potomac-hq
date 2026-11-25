@@ -210,6 +210,27 @@ test("a request lost when HQ restarted is failed and counted at what it reserved
   assert.doesNotMatch(textOf(await mikey.page(`/builder/${buildId}`)), /Claude is working on it/);
 });
 
+test("whoever asks can pick a model for that request, up to the ceiling in Settings → AI", async () => {
+  await mikey.post("/builder/settings", { model: "claude-opus-5-5", cap: "50" });
+  t.db.prepare("update ai_setting set ceiling = 'claude-sonnet-5-5' where id = 1").run();
+  const page = await mikey.page(`/builder/${buildId}`);
+  assert.match(page, /<option value="claude-haiku-5-5"/);
+  assert.match(page, /<option value="claude-sonnet-5-5" selected/, "the usual model, Opus, is above the ceiling, so requests start on Sonnet");
+  assert.doesNotMatch(page, /<option value="claude-opus-5-5"/);
+  assert.match(textOf(await mikey.page("/builder/settings")), /requests start on Claude Sonnet 5\.5/);
+
+  next = answer(SITE);
+  assert.equal(problemOf(await mikey.post(`/builder/${buildId}/ask`, { ask: "Try Opus.", model: "claude-opus-5-5" })), "That model is above the highest allowed in Settings → AI. Pick another.");
+  await mikey.post(`/builder/${buildId}/ask`, { ask: "Cheap one.", model: "claude-haiku-5-5" });
+  await runJobs();
+  assert.equal(calls.at(-1)?.model, "claude-haiku-5-5");
+  assert.equal(t.db.prepare("select model from build_request where ask = 'Cheap one.'").get()?.["model"], "claude-haiku-5-5");
+  await mikey.post(`/builder/${buildId}/ask`, { ask: "Usual one." });
+  await runJobs();
+  assert.equal(calls.at(-1)?.model, "claude-sonnet-5-5");
+  t.db.prepare("update ai_setting set ceiling = 'claude-opus-5-5' where id = 1").run();
+});
+
 test("without a key the builder can be seen but Claude isn't asked", async () => {
   const bare = await testApp();
   try {

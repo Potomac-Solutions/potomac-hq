@@ -43,7 +43,7 @@ function toUsage(row: Record<string, unknown>): UsageRow {
 
 export function sqliteAiStore(db: Database): AiStore {
   const settings = db.prepare("select * from ai_setting where id = 1");
-  const save = db.prepare(`update ai_setting set model = ?, input_price = ?, output_price = ?, long_above = ?, long_input = ?, long_output = ?, features = ?, price_guide = ?, updated_by = ?, updated_at = ? where id = 1`);
+  const save = db.prepare(`update ai_setting set model = ?, input_price = ?, output_price = ?, long_above = ?, long_input = ?, long_output = ?, features = ?, price_guide = ?, ceiling = ?, updated_by = ?, updated_at = ? where id = 1`);
   const log = db.prepare(`insert into ai_usage (id, feature, record_type, record_id, model, input_count, output_count, cost, actor_id, at, ok, problem, draft_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const spent = db.prepare("select coalesce(sum(cost), 0) as total from ai_usage where at >= ?");
   const counts = db.prepare("select count(*) as calls, coalesce(sum(1 - ok), 0) as failed from ai_usage where at >= ?");
@@ -67,12 +67,13 @@ export function sqliteAiStore(db: Database): AiStore {
         price: { input: Number(row["input_price"]), output: Number(row["output_price"]), ...(longAbove !== null ? { long: { above: longAbove, input: Number(row["long_input"]), output: Number(row["long_output"]) } } : {}) },
         features,
         priceGuide: String(row["price_guide"] ?? ""),
+        ceiling: String(row["ceiling"] ?? DEFAULT_SETTINGS.ceiling),
         updatedBy: (row["updated_by"] as Id | null) ?? null,
         updatedAt: String(row["updated_at"]),
       };
     },
     saveSettings(next, by, at) {
-      save.run(next.model, next.price.input, next.price.output, next.price.long?.above ?? null, next.price.long?.input ?? null, next.price.long?.output ?? null, JSON.stringify(next.features), next.priceGuide, by, at);
+      save.run(next.model, next.price.input, next.price.output, next.price.long?.above ?? null, next.price.long?.input ?? null, next.price.long?.output ?? null, JSON.stringify(next.features), next.priceGuide, next.ceiling, by, at);
     },
     logUsage(row) {
       log.run(row.id, row.feature, row.recordType, row.recordId, row.model, row.inputCount, row.outputCount, row.cost, row.actorId, row.at, row.ok ? 1 : 0, row.problem, row.draftId);

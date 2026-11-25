@@ -106,6 +106,20 @@ typed from receipts. HQ already holds the facts each of those needs.
   (`project.post-update`) and case studies and posts (`project.edit`).
   Proposal drafts, the scope check and receipts need manager permissions.
 
+## Picking a model per request (added 2026-11-25)
+
+Asked for by Mikey once the drafts were live. Settings → AI keeps the usual
+model and adds a ceiling, "Highest model anyone may pick" (Claude Opus 5.5
+to start, the site builder's default, so nothing it did changes). Each form
+that asks Claude, here and in the site builder, has a Model list of the
+known models up to the ceiling's price, starting on the usual one. A pick
+above the ceiling is refused in the site builder and ignored here (the usual
+model is used). HQ's own jobs, which no one is there to pick for, always use
+the usual model. If the site builder's own model is above the ceiling, its
+requests start on the dearest model allowed. The usage log and each build
+request record the model actually used. Claude Fable 5.2 is now a known
+model, so it can be the ceiling. Migration 0071 adds `ai_setting.ceiling`.
+
 ## Data
 
 Migration 0058:

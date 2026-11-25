@@ -53,6 +53,11 @@ export type BuilderDeps = ActivityDeps & {
    * The cap is one budget shared with them (Mikey, 2026-11-25), so it counts too.
    */
   readonly alsoSpent?: () => number;
+  /**
+   * The dearest model anyone may pick for one request, as its output price in
+   * dollars per million tokens: Settings → AI's ceiling. Absent: no limit.
+   */
+  readonly ceiling?: () => number;
 };
 
 /** The settings have one record; their activity events point at this fixed id. */
@@ -70,6 +75,23 @@ function isOwner(deps: BuilderDeps, actorId: Id | null): boolean {
 function currentModel(deps: BuilderDeps) {
   const settings = deps.settings.get();
   return modelById(settings.model) ?? modelById(DEFAULT_MODEL) ?? (MODELS[0] as NonNullable<ReturnType<typeof modelById>>);
+}
+
+type Model = NonNullable<ReturnType<typeof modelById>>;
+
+/** The models someone may pick for one request: up to the ceiling, cheapest first. Never empty. */
+function pickable(deps: BuilderDeps): readonly Model[] {
+  const top = deps.ceiling?.() ?? Number.POSITIVE_INFINITY;
+  const sorted = [...MODELS].sort((a, b) => a.output - b.output);
+  const allowed = sorted.filter((one) => one.output <= top);
+  return allowed.length > 0 ? allowed : sorted.slice(0, 1);
+}
+
+/** The model a request starts on: the chosen one, or the dearest allowed when the ceiling is below it. */
+function usualModel(deps: BuilderDeps): Model {
+  const chosen = currentModel(deps);
+  const allowed = pickable(deps);
+  return allowed.some((one) => one.id === chosen.id) ? chosen : (allowed.at(-1) as Model);
 }
 
 /** What the site builder has spent this month: finished requests at their cost, working ones at what they reserved. */
@@ -113,7 +135,7 @@ export function buildsView(deps: BuilderDeps, actorId: Id | null): Result<Builds
     builds: deps.builds.list().map((one) => ({ id: one.id, name: one.name, client: nameOf(one.organizationId), versions: one.versions, updated: deps.formatWhen(one.updatedAt), working: one.working })),
     clients,
     budget: budgetLine(deps),
-    model: currentModel(deps).label,
+    model: usualModel(deps).label,
     claudeSetUp: deps.claude !== null,
     githubSetUp: deps.repos !== null,
   });
@@ -176,6 +198,8 @@ export type BuildView = {
   readonly working: boolean;
   readonly budget: BudgetLine;
   readonly model: string;
+  /** The models this request may use, the usual one selected. */
+  readonly models: readonly { readonly id: string; readonly label: string; readonly selected: boolean }[];
   readonly claudeSetUp: boolean;
   readonly images: readonly { readonly id: Id; readonly path: string; readonly kind: string; readonly kindLabel: string; readonly alt: string; readonly size: string; readonly src: string }[];
   readonly canAddImage: boolean;
@@ -248,7 +272,8 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
     })),
     working: requests.some((one) => one.state === "working"),
     budget: budgetLine(deps),
-    model: currentModel(deps).label,
+    model: usualModel(deps).label,
+    models: pickable(deps).map((one) => ({ id: one.id, label: one.label, selected: one.id === usualModel(deps).id })),
     claudeSetUp: deps.claude !== null,
     images: deps.images.listFor(build.id).map((one) => ({ id: one.id, path: one.path, kind: one.kind, kindLabel: one.kind === "logo" ? "Logo" : "Photo", alt: one.alt, size: `${one.width} × ${one.height}`, src: `/builder/${build.id}/images/${one.id}` })),
     canAddImage: deps.images.listFor(build.id).length < MAX_IMAGES,
@@ -323,13 +348,13 @@ export function imageFor(deps: BuilderDeps, actorId: Id | null, buildId: Id, ima
 // ---------------------------------------------------------------------------
 // Asking Claude
 
-export type AskError = "forbidden" | "not-found" | "claude-not-set-up" | "busy-build" | "over-cap" | BuildError;
+export type AskError = "forbidden" | "not-found" | "claude-not-set-up" | "busy-build" | "over-cap" | "model-not-allowed" | BuildError;
 
 /**
  * Asks Claude for a change to a build. Refused before anything is sent when
  * its worst case would pass this month's cap. Permission: `site.build`.
  */
-export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, text: string): Result<Build, AskError> {
+export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, text: string, pick = ""): Result<Build, AskError> {
   if (!may(deps, actorId)) return err("forbidden");
   const build = deps.builds.get(buildId);
   if (!build) return err("not-found");
@@ -337,6 +362,9 @@ export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, te
   if (!claude) return err("claude-not-set-up");
   const ask = checkAsk(text);
   if (!ask.ok) return ask;
+  // The model picked for this request, up to the ceiling; none picked is the usual one.
+  const model = pick.trim() ? pickable(deps).find((one) => one.id === pick.trim()) : usualModel(deps);
+  if (!model) return err("model-not-allowed");
   const facts = deps.clientFacts(build.organizationId) ?? { name: "(unknown)", phone: null, address: null, website: null, contact: null };
   const latest = deps.builds.latest(build.id);
   const files = filesFromJson(latest?.filesJson ?? "{}");
@@ -349,7 +377,6 @@ export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, te
   // The old site goes with every request until the build has files of its own.
   const reference = Object.keys(files).length === 0 ? deps.builds.reference(build.id) : null;
   const message = userMessage({ facts, brief: build.brief, files, history, images, reference, ask: ask.value });
-  const model = currentModel(deps);
   const reserve = worstCaseMicros(model, SYSTEM_PROMPT.length + JSON.stringify(SAVE_TOOL_SCHEMA).length + message.length);
   const requestId = deps.newId();
   const started = deps.transact((): Result<true, AskError> => {
@@ -475,6 +502,8 @@ export function previewFile(deps: BuilderDeps, token: string, path: string): { r
 export type BuilderSettingsView = {
   readonly models: readonly { readonly id: string; readonly label: string; readonly price: string; readonly selected: boolean }[];
   readonly model: string;
+  /** The usual model is dearer than Settings → AI allows: requests start on this one instead. "" when not. */
+  readonly cappedTo: string;
   readonly cap: string;
   readonly canChange: boolean;
   readonly ownerSet: boolean;
@@ -513,6 +542,7 @@ export function builderSettingsView(deps: BuilderDeps, actorId: Id | null): Resu
   return ok({
     models: MODELS.map((one) => ({ id: one.id, label: one.label, price: `$${one.input} in, $${one.output} out per million tokens`, selected: one.id === model.id })),
     model: model.label,
+    cappedTo: usualModel(deps).id === model.id ? "" : usualModel(deps).label,
     cap: (settings.capCents / 100).toFixed(2),
     canChange: isOwner(deps, actorId),
     ownerSet: deps.ownerEmails.length > 0,

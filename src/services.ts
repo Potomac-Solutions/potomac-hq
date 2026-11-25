@@ -62,7 +62,7 @@ import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts"
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
-import { withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { ceilingDollars, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -462,6 +462,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
     // The cap is shared with the AI drafts (Mikey, 2026-11-25): what they spent this month counts too.
     alsoSpent: () => aiStore.spentSince(startOfDay(`${today().slice(0, 7)}-01`)),
+    // The highest model anyone may pick for one request: Settings → AI sets it for both.
+    ceiling: () => ceilingDollars(aiStore.settings()),
   };
   const lastTouch = db.prepare("select max(t.happened_at) as at from touch t join opportunity o on o.organization_id = t.organization_id where o.id = ?");
   const demos: DemosDeps = {

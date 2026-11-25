@@ -5,6 +5,7 @@
 -->
 <script>
   'use route /projects/:id/money'
+  import '../../shared/ui/parts/model-pick.zb'
   import '../../shared/ui/zubra/select-field.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
@@ -18,12 +19,12 @@
     const view = context.money.project(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
     const changes = context.money.changes(params.id)
-    return { title: 'Money: ' + view.value.project.name, view: view.value, changes: changes.ok ? changes.value : null, receipt: context.ai.receipt(params.id), receiptState: context.ai.state('receipt'), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money: ' + view.value.project.name, view: view.value, changes: changes.ok ? changes.value : null, receipt: context.ai.receipt(params.id), receiptState: context.ai.state('receipt'), aiModels: context.ai.models(), done: context.notice.done, problem: context.notice.problem }
   }
   const s = view.summary
   const id = view.project.id
 </script>
-<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} receipt={null} receipt-state={{ on: false, why: '' }} done="" problem="">
+<hq-project-money ai-models={[]} view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} receipt={null} receipt-state={{ on: false, why: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${id}` }, { label: 'Money', href: '' }]}></breadcrumb-trail>
     <h1>Money</h1>
@@ -247,7 +248,7 @@
             <input id="ai-receipt" name="receipt" type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" capture="environment" required aria-describedby="ai-receipt-help">
             <p id="ai-receipt-help" class="hq-muted hq-small">Up to 5 MB. AI reads the vendor, day, amount and category for you to check; card numbers are never kept.</p>
           </div>
-          <div><button class="hq-button secondary" type="submit">Read it</button></div>
+          <div><model-pick models={aiModels} field-id="receipt-model"></model-pick> <button class="hq-button secondary" type="submit">Read it</button></div>
         </form>
         <form zb-if={receipt} method="post" action="/ai/drafts/{receipt.id}/expense" class="hq-form">
           <input type="hidden" name="back" value="/projects/{id}/money#ai">

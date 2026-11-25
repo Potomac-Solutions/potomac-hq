@@ -41,13 +41,14 @@
     <form method="post" action="/builder/settings" class="hq-panel settings-form" aria-labelledby="cap-settings">
       <h2 id="cap-settings">Model and monthly cap</h2>
       <div class="hq-field">
-        <label for="cap-model">Model</label>
+        <label for="cap-model">Usual model</label>
         <select id="cap-model" name="model" disabled={!view.canChange}>
           <zb-each items={view.models} as="model" key={model.id}>
             <option value={model.id} selected={model.selected}>{model.label}: {model.price}</option>
           </zb-each>
         </select>
       </div>
+      <p class="hq-small hq-muted">Each request starts on this model. Whoever asks can pick another, up to the highest set in <a href="/settings/ai">Settings → AI</a>.<span zb-if={view.cappedTo}> That is below this one, so requests start on {view.cappedTo}.</span></p>
       <div class="hq-field">
         <label for="cap-amount">Monthly cap, in dollars</label>
         <input id="cap-amount" name="cap" inputmode="decimal" value={view.cap} required disabled={!view.canChange}>

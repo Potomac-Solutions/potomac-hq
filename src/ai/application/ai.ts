@@ -9,7 +9,7 @@
 // draft is asked for, seen and used with the permission the finished thing
 // needs (FEATURE_PERMISSION), so AI gives no one more than they already have.
 import { costOf, dollarsText, KNOWN_MODELS, knownModel } from "../domain/models.ts";
-import { budgetState, FEATURE_TEXT, FEATURES, isFeature, mayCall, readSettings, type AiSettings, type BudgetState, type Feature, type SettingsError, type SettingsInput } from "../domain/settings.ts";
+import { budgetState, FEATURE_TEXT, FEATURES, isFeature, mayCall, modelChoices, pickModel, readSettings, type AiSettings, type BudgetState, type Feature, type SettingsError, type SettingsInput } from "../domain/settings.ts";
 import type { AnswerError, Prompt } from "../domain/prompts.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type ActivityLog, type Id, type Result, type Transact } from "../../shared/index.ts";
@@ -161,6 +161,26 @@ export function draftDone(deps: AiDeps, actorId: Id | null, draftId: Id): Result
   });
 }
 
+// ---- Picking a model for one request -----------------------------------------
+
+/** The models someone may pick for a draft, the usual one selected. */
+export function modelOptions(deps: Pick<AiDeps, "ai">): readonly { readonly id: string; readonly label: string; readonly selected: boolean }[] {
+  const settings = deps.ai.settings();
+  return modelChoices(settings).map((one) => ({ id: one.id, label: one.label, selected: one.id === settings.model }));
+}
+
+/**
+ * The same deps, asking with the model picked on the form for this one
+ * request. A pick above the ceiling, or none, is the usual model. HQ's own
+ * jobs never pass through here, so they always use the usual model.
+ */
+export function choosingModel<D extends Pick<AiDeps, "ai">>(deps: D, pick: string): D {
+  const settings = deps.ai.settings();
+  const chosen = pickModel(settings, pick);
+  if (chosen.model === settings.model) return deps;
+  return { ...deps, ai: { ...deps.ai, settings: () => ({ ...deps.ai.settings(), ...chosen }) } };
+}
+
 // ---- Settings and usage (admins) ------------------------------------------
 
 export type AiSettingsView = {
@@ -170,6 +190,9 @@ export type AiSettingsView = {
   readonly ownerSet: boolean;
   readonly model: string;
   readonly models: readonly { readonly value: string; readonly label: string }[];
+  /** The dearest model anyone may pick when they ask, and the models it may be. */
+  readonly ceiling: string;
+  readonly ceilings: readonly { readonly value: string; readonly label: string }[];
   /** A model HQ doesn't list: its id and prices as typed. Empty for a listed one. */
   readonly other: { readonly id: string; readonly input: string; readonly output: string };
   readonly features: readonly { readonly key: Feature; readonly label: string; readonly what: string; readonly phase: string; readonly on: boolean }[];
@@ -202,6 +225,8 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
     ownerSet: deps.ownerEmails.length > 0,
     model: listed ? settings.model : "other",
     models: [...KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })), { value: "other", label: "Another model" }],
+    ceiling: settings.ceiling,
+    ceilings: KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })),
     other: listed ? { id: "", input: "", output: "" } : { id: settings.model, input: perMillion(settings.price.input), output: perMillion(settings.price.output) },
     features: FEATURES.map((key) => ({ key, ...FEATURE_TEXT[key], on: settings.features.includes(key) })),
     priceGuide: settings.priceGuide,
@@ -224,7 +249,7 @@ const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmails">, actorId: Id | null
 /** Saves Settings → AI: the owner alone. A change applies from the next call. */
 export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: SettingsInput): Result<AiSettings, "forbidden" | SettingsError> {
   if (actorId === null || !isOwner(deps, actorId)) return err("forbidden");
-  const read = readSettings(input);
+  const read = readSettings(input, deps.ai.settings().ceiling);
   if (!read.ok) return read;
   return deps.transact(() => {
     const before = deps.ai.settings();
@@ -234,7 +259,7 @@ export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: Settings
       action: "ai.settings-changed",
       recordType: "ai-setting",
       recordId: "ai-setting" as Id,
-      context: { model: read.value.model, features: [...read.value.features], modelWas: before.model, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
+      context: { model: read.value.model, features: [...read.value.features], modelWas: before.model, ceiling: read.value.ceiling, ceilingWas: before.ceiling, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
     });
     return ok(read.value);
   });
