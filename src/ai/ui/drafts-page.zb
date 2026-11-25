@@ -26,7 +26,7 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p zb-if={view.month} class="hq-small">This month: {view.month.spent} of {view.month.budget}. <a href="/settings/ai">AI settings</a></p>
+    <p zb-if={view.month} class="hq-small">This month: {view.month.spent} of {view.month.budget}. <a href="/settings/ai">Model and budget</a></p>
     <section class="hq-panel" aria-labelledby="drafts-waiting">
       <h2 id="drafts-waiting">Waiting</h2>
       <empty-state zb-if={view.items.length === 0} heading="Nothing waiting">Drafts show here when AI writes them, or when HQ triages a lead or drafts Friday’s updates by itself.</empty-state>

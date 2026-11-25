@@ -45,7 +45,7 @@
     </section>
     <section zb-if={ai} class="hq-panel" aria-labelledby="settings-ai">
       <h2 id="settings-ai">AI</h2>
-      <p>Which AI features are on, the model, the monthly budget and what it’s cost. <a href="/settings/ai">AI settings</a></p>
+      <p>Which AI features are on, the model, the monthly budget and what it’s cost: <a href="/settings/ai">the model and budget</a>.</p>
     </section>
     <section class="hq-panel" aria-labelledby="settings-calendar">
       <h2 id="settings-calendar">Calendar</h2>

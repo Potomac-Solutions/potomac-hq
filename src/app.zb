@@ -67,7 +67,7 @@
         ...(can.webhooks ? [{ label: 'Webhooks', href: '/webhooks', current: at('/webhooks') }] : []),
         ...(context.ai.state('ask').on ? [{ label: 'Ask HQ', href: '/ask', current: at('/ask') }] : []),
         ...(context.ai.state('case-study').on || context.ai.state('social-posts').on ? [{ label: 'Marketing', href: '/marketing', current: at('/marketing') }] : []),
-        ...(context.ai.canManage ? [{ label: 'AI settings', href: '/settings/ai', current: at('/settings/ai') }] : []),
+        ...(context.ai.canManage ? [{ label: 'AI model and budget', href: '/settings/ai', current: at('/settings/ai') }] : []),
       ] },
     ]
     // The default title. A page's own title replaces it.

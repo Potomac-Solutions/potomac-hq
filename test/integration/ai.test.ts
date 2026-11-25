@@ -89,8 +89,8 @@ test("Settings → AI: admins only; Haiku 5.5, $20 and everything off to start; 
   assert.match(query(await turnOn(ALL), "done"), /AI settings saved/);
   assert.match(await mikey.page("/settings/ai"), /name="feature-call-recap" checked/);
   assert.ok(actions(t.db).includes("ai.settings-changed"));
-  assert.match(textOf(await mikey.page("/settings")), /AI settings/);
-  assert.doesNotMatch(textOf(await sam.page("/settings")), /AI settings/);
+  assert.match(textOf(await mikey.page("/settings")), /the model and budget/);
+  assert.doesNotMatch(textOf(await sam.page("/settings")), /model and budget/);
 });
 
 test("call recap: drafted from the notes, prefilled, next steps as to-dos, and marked used when the recap is sent", async () => {
@@ -158,7 +158,7 @@ test("a member works the leads they can already work, and no more: no proposals,
   assert.equal(query(await sam.post(`/opportunities/${opportunity}/ai/proposal`, {}), "problem"), "You don’t have permission to do that.");
   assert.doesNotMatch(textOf(await sam.page(`/opportunities/${opportunity}`)), /Draft a proposal/);
   assert.doesNotMatch(textOf(await sam.page("/drafts")), /This month/, "only admins see what AI costs");
-  assert.doesNotMatch(textOf(await sam.page("/")), /AI settings/);
+  assert.doesNotMatch(textOf(await sam.page("/")), /AI model and budget/);
 });
 
 test("a check-in and a proposal's first draft on a deal gone quiet", async () => {
