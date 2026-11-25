@@ -159,3 +159,16 @@ test("a budget is worth watching at three quarters used, unless the work has kep
   assert.equal(budgetWarning(budget, over, over.s, { done: 6, total: 6 })?.level, "over");
   assert.equal(budgetWarning({ amount: null, minutes: null }, over, over.s, null), null, "no budget, nothing to watch");
 });
+
+test("a credit comes off a draft as a negative line, and never makes it zero or less", async () => {
+  const { addCreditLine, newInvoice } = await import("./invoice.ts");
+  const ids = { id: "11111111-1111-4111-8111-111111111111" as never, projectId: "22222222-2222-4222-8222-222222222222" as never, number: 1, createdBy: "33333333-3333-4333-8333-333333333333" as never };
+  const draft = newInvoice(ids, { kind: "other", description: "Website plan, December", amount: "50" });
+  assert.ok(draft.ok);
+  const credited = addCreditLine(draft.value, { description: "Referral credit", minor: 2500 });
+  assert.ok(credited.ok);
+  assert.deepEqual(credited.value.lines.at(-1), { description: "Referral credit", amount: { minor: -2500, currency: "USD" } });
+  assert.equal(credited.value.total.minor, 2500);
+  assert.deepEqual(addCreditLine(draft.value, { description: "Referral credit", minor: 5000 }), { ok: false, error: "credit-too-large" });
+  assert.deepEqual(addCreditLine({ ...draft.value, status: "sent" }, { description: "Referral credit", minor: 100 }), { ok: false, error: "not-a-draft" });
+});

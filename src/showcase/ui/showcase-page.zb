@@ -1,0 +1,98 @@
+<!--
+  A client's reviews and case study (decision 0013, section 6): ask them for
+  a review, type in one given another way, and write their case study with
+  its screenshots.
+-->
+<script>
+  'use route /clients/:id/showcase'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.showcase.forClient(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: 'Reviews and case study', view: view.value, overview: context.showcase.overview(), emailOn: context.crm.emailOn, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .sc-shots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 1rem; }
+  .sc-shots img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
+  .sc-shots p { margin: 0.3rem 0; }
+  .sc-shots form { margin: 0; }
+</style>
+<hq-showcase view={{ organizationId: '', clientName: '', exists: false, id: '', headline: '', problem: '', built: '', result: '', liveUrl: '', position: '100', published: false, shots: [], canAddShot: false, askWho: '', openRequests: 0 }} overview={{ ok: false }} email-on={false} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: '/clients/' + view.organizationId }, { label: 'Reviews and case study', href: '' }]}></breadcrumb-trail>
+    <h1>Reviews and case study</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="sc-ask">
+      <h2 id="sc-ask">Ask for a review</h2>
+      <p zb-if={view.askWho}>HQ emails {view.askWho} a link to write one: stars, a few words, the name to show, and whether it may be shown. It works once, for 30 days. They can also write one in their portal.</p>
+      <p zb-else class="hq-muted">Nobody here has an email yet. Add one to the primary contact first.</p>
+      <p zb-if={view.openRequests > 0} class="hq-small hq-muted">{view.openRequests} {view.openRequests === 1 ? 'link is' : 'links are'} out and not used yet.</p>
+      <alert-banner zb-if={!emailOn} variant="warning">Email isn’t set up, so the link can’t be sent yet.</alert-banner>
+      <form zb-if={view.askWho} method="post" action="/clients/{view.organizationId}/review-request"><button class="hq-button" type="submit">Email the link</button></form>
+      <details class="hq-more" id="add-review" data-spaced>
+        <summary>Type in a review they gave another way</summary>
+        <form method="post" action="/clients/{view.organizationId}/reviews" class="hq-form">
+          <div class="hq-field">
+            <label for="sc-rating">Stars</label>
+            <select id="sc-rating" name="rating"><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select>
+          </div>
+          <text-field label="What they said" name="text" rows={3} required={true} maxlength={1000}></text-field>
+          <text-field label="Name to show" name="displayName" required={true} maxlength={80} description="Like: Rita M. Ask them first."></text-field>
+          <text-field label="Town" name="town" maxlength={80}></text-field>
+          <div class="hq-field">
+            <label for="sc-source">Where it came from</label>
+            <select id="sc-source" name="source"><zb-each items={overview.ok ? overview.value.sources : []} as="s" key={s.value}><option value={s.value}>{s.label}</option></zb-each></select>
+          </div>
+          <div><button class="hq-button" type="submit">Add review</button></div>
+        </form>
+      </details>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="sc-study">
+      <h2 id="sc-study">Case study</h2>
+      <form method="post" action="/clients/{view.organizationId}/case-study" class="hq-form">
+        <text-field label="Headline" name="headline" value={view.headline} required={true} maxlength={120} description="Like: A towing company that answers every call"></text-field>
+        <text-field label="The problem" name="problem" value={view.problem} rows={3} maxlength={2000}></text-field>
+        <text-field label="What we built" name="built" value={view.built} rows={3} maxlength={2000}></text-field>
+        <text-field label="What came of it" name="result" value={view.result} rows={3} maxlength={2000}></text-field>
+        <text-field label="Live address" name="liveUrl" value={view.liveUrl} type="url"></text-field>
+        <text-field label="Place on the Work page" name="position" value={view.position} inputmode="numeric" description="1 shows first."></text-field>
+        <label class="hq-check"><input type="checkbox" name="published" value="1" checked={view.published}> Published: the website shows it</label>
+        <div><button class="hq-button" type="submit">Save case study</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.exists} class="hq-panel" id="shots" aria-labelledby="sc-shots">
+      <h2 id="sc-shots">Screenshots</h2>
+      <p zb-if={view.shots.length === 0} class="hq-muted">None yet. Up to 6, each under 3 MB.</p>
+      <ul zb-else class="sc-shots">
+        <zb-each items={view.shots} as="shot" key={shot.id}>
+          <li>
+            <img src="/case-study-shots/{shot.id}" alt={shot.alt}>
+            <p class="hq-small">{shot.alt}</p>
+            <form method="post" action="/case-study-shots/{shot.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {shot.alt}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <form zb-if={view.canAddShot} method="post" action="/case-studies/{view.id}/shots" enctype="multipart/form-data" class="hq-form" data-spaced>
+        <input type="hidden" name="organizationId" value={view.organizationId}>
+        <div class="hq-field">
+          <label for="sc-shot">Screenshot</label>
+          <input id="sc-shot" type="file" name="shot" accept="image/jpeg,image/png,image/webp" required>
+        </div>
+        <text-field label="What it shows" name="alt" required={true} maxlength={200} description="For people who can’t see it. Like: The home page on a phone."></text-field>
+        <div><button class="hq-button" type="submit">Add screenshot</button></div>
+      </form>
+    </section>
+  </div>
+</hq-showcase>

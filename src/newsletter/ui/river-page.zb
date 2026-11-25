@@ -1,0 +1,29 @@
+<!--
+  Signing up for "Notes from the river" (decision 0013, section 1). Works with
+  no scripts. `?src=` says where on the website the person came from.
+-->
+<script>
+  'use route /river'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, url }) {
+    const typed = url.searchParams.get('src') ?? ''
+    const from = /^[a-z0-9:_-]{1,60}$/.test(typed) ? typed : ''
+    return { title: 'Notes from the river', problem: context.notice.problem, from }
+  }
+</script>
+<style>
+  .river-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+<hq-river problem="" from="">
+  <h1>Notes from the river</h1>
+  <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+  <p>Now and then, a short letter from the West Virginia mountains: ideas for running a small business online, what we’re building for folks along the Potomac, and the odd story from the river. No more than once a month, and you can leave with one click.</p>
+  <form method="post" action="/river" class="hq-panel hq-form">
+    <input zb-if={from} type="hidden" name="src" value={from}>
+    <text-field label="Your email" name="email" type="email" autocomplete="email" required={true}></text-field>
+    <text-field label="Your first name" name="name" autocomplete="given-name" description="So we can say hello"></text-field>
+    <div class="river-trap" aria-hidden="true"><label for="river-website">Leave this empty</label><input id="river-website" name="website" tabindex="-1" autocomplete="off"></div>
+    <div><button class="hq-button portal-big" type="submit">Sign me up</button></div>
+  </form>
+</hq-river>

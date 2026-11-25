@@ -1,6 +1,13 @@
 // Outbound email through Brevo's transactional API (decision 0001). This is
 // the kit notify module's `send` function: one message in, a code out.
-export type SendInput = { readonly channel: string; readonly to: string; readonly subject: string; readonly body: string };
+export type SendInput = {
+  readonly channel: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+  /** Extra headers, such as the newsletter's List-Unsubscribe. */
+  readonly headers?: Readonly<Record<string, string>>;
+};
 export type SendResult = { readonly ok: true } | { readonly error: string };
 export type Send = (message: SendInput) => Promise<SendResult>;
 
@@ -21,6 +28,7 @@ export function brevoSender(config: BrevoConfig, deps: { fetch?: typeof fetch } 
         to: [{ email: message.to }],
         subject: message.subject,
         textContent: message.body,
+        ...(message.headers && Object.keys(message.headers).length > 0 ? { headers: message.headers } : {}),
       }),
     });
     // The response may say why; it never needs to carry the key back. Keep the status only.

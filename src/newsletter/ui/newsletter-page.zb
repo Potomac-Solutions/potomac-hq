@@ -1,0 +1,111 @@
+<!--
+  The newsletter (decision 0013, section 1): who is on the list and from which
+  river stop, the issues, and writing a new one.
+-->
+<script>
+  'use route /newsletter'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/stat-card.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.newsletter.overview()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Newsletter', view: view.value, signup: context.newsletter.signUpAddress, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .river-stops { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.25rem 1rem; }
+  .river-stops li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .reader-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: end; }
+  .reader-actions form { margin: 0; display: flex; gap: 0.4rem; align-items: end; }
+  .reader-actions select { min-height: 2.25rem; }
+</style>
+<hq-newsletter view={{ subscribed: 0, pending: 0, left: 0, byStop: [], subscribers: [], issues: [], stops: [] }} signup="" done="" problem="">
+  <div class="hq-page">
+    <h1>Notes from the river</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">The newsletter. People sign up on potomac.solutions or at <a href={signup}>{signup}</a>, and are on the list once they confirm by email. Each reader belongs to the river stop they signed up from, so an issue can go to everyone or to some stops.</p>
+    <div class="hq-stats">
+      <stat-card label="On the list" value={String(view.subscribed)}></stat-card>
+      <stat-card label="Waiting to confirm" value={String(view.pending)}></stat-card>
+      <stat-card label="Left" value={String(view.left)}></stat-card>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="river-issues" data-spaced>
+      <h2 id="river-issues">Issues</h2>
+      <p zb-if={view.issues.length === 0} class="hq-muted">No issues yet. Write the first one below.</p>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Subject</th><th scope="col">To</th><th scope="col">State</th><th scope="col">When</th></tr></thead>
+        <tbody>
+          <zb-each items={view.issues} as="issue" key={issue.id}>
+            <tr>
+              <td><a href="/newsletter/issues/{issue.id}">{issue.subject}</a></td>
+              <td>{issue.audience}</td>
+              <td><status-badge variant={issue.status === 'Sent' ? 'success' : issue.status === 'Sending' ? 'warning' : 'neutral'}>{issue.status}</status-badge></td>
+              <td>{issue.when}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="hq-panel" id="write" aria-labelledby="river-write">
+      <h2 id="river-write">Write an issue</h2>
+      <form method="post" action="/newsletter/issues" class="hq-form">
+        <text-field label="Subject" name="subject" required={true} maxlength={120}></text-field>
+        <text-field label="What it says" name="body" rows={12} required={true} maxlength={20000} description="Plain text. HQ adds why they get it, the unsubscribe link and Potomac’s mailing address at the end."></text-field>
+        <fieldset class="hq-checks">
+          <legend>Who it goes to</legend>
+          <p class="hq-small hq-muted">Tick none for everyone.</p>
+          <zb-each items={view.stops} as="stop" key={stop.value}>
+            <label><input type="checkbox" name="stop-{stop.value}" value="1"> {stop.label}</label>
+          </zb-each>
+        </fieldset>
+        <div><button class="hq-button" type="submit">Save draft</button></div>
+      </form>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="river-by-stop">
+      <h2 id="river-by-stop">By stop</h2>
+      <ul class="river-stops">
+        <zb-each items={view.byStop} as="one" key={one.stop}><li><span>{one.label}</span> <strong>{one.count}</strong></li></zb-each>
+      </ul>
+    </section>
+
+    <section class="hq-panel" id="readers" aria-labelledby="river-readers">
+      <h2 id="river-readers">Readers</h2>
+      <empty-state zb-if={view.subscribers.length === 0} heading="Nobody has signed up yet">Share the sign-up page, or put the form on potomac.solutions.</empty-state>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Reader</th><th scope="col">Stop</th><th scope="col">Since</th><th scope="col">Change</th></tr></thead>
+        <tbody>
+          <zb-each items={view.subscribers} as="reader" key={reader.id}>
+            <tr>
+              <td>{reader.email}<span zb-if={reader.name}><br><span class="hq-small hq-muted">{reader.name}</span></span><span zb-if={reader.pending}> <status-badge variant="neutral">Not confirmed</status-badge></span><span zb-if={reader.client}><br><a class="hq-small" href="/clients/{reader.client.id}">{reader.client.name}</a></span></td>
+              <td>{reader.stopLabel}</td>
+              <td>{reader.since}</td>
+              <td>
+                <div class="reader-actions">
+                  <form method="post" action="/newsletter/subscribers/{reader.id}">
+                    <label class="sr-only" for="stop-{reader.id}">Stop for {reader.email}</label>
+                    <select id="stop-{reader.id}" name="stop">
+                      <zb-each items={view.stops} as="stop" key={stop.value}><option value={stop.value} selected={stop.value === reader.stop}>{stop.label}</option></zb-each>
+                    </select>
+                    <button class="hq-button secondary small" type="submit">Move<span class="sr-only">: {reader.email}</span></button>
+                  </form>
+                  <form method="post" action="/newsletter/subscribers/{reader.id}/forget"><button class="hq-button secondary small" type="submit">Forget<span class="sr-only">: {reader.email}</span></button></form>
+                </div>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-newsletter>

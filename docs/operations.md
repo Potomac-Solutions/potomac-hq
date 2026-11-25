@@ -310,6 +310,15 @@ field and fill it from the address:
 Keeping it in `sessionStorage` carries the code from the page they landed
 on to the page with the form. HQ's own `/contact` needs none of this.
 
+To say where on the site the person was (the lead sources report, decision
+0010, section 2), add hidden fields: `src` (`stop:lakes`, `lab:counter`,
+`work:better-days-towing`, `planner`, `blog:<slug>` or `newsletter`), `page`
+(the path, like `/stops/lakes`), and any of `utm_source`, `utm_medium` and
+`utm_campaign` the visitor arrived with. The website's booking call
+(`POST /api/site/booking`) takes the same fields, and `ref`, in its JSON.
+HQ keeps the first it sees for each opportunity; anything odd is dropped,
+never refused. HQ's own `/contact?src=...` passes `src` on by itself.
+
 `return_to` must be on a listed site; HQ sends people back there with
 `?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
 posts from those sites. Five an hour from one address, three a day for one
@@ -450,3 +459,70 @@ start, and `visitor`, the visitor's address) books someone new or emails someone
 already on file a sign-in link. It is open only when "Anyone can sign up at
 /book" is on, hours are set and email works. Each visitor address may try 5
 times an hour and each email 3 times a day.
+
+## The newsletter
+
+Sales → Newsletter (`newsletter.manage`) is "Notes from the river"
+(`docs/decisions/0013-growth-tools.md`, section 1). It needs email (the
+Brevo key) and `HQ_CONTACT_ADDRESS`: every issue ends with Potomac's mailing
+address, which US anti-spam law asks for, and sending refuses to start
+without it. Issues go out a batch of 50 a minute.
+
+People sign up three ways:
+
+- HQ's own page, `HQ_PUBLIC_URL/river`. Add `?src=stop:lakes` (or any stop:
+  `mountains`, `lakes`, `roadside`, `history`, `enterprise`) to put them in
+  that stop.
+- A plain form on potomac.solutions posting to `HQ_PUBLIC_URL/river`, with
+  `email`, `name` (optional), `src`, `return_to` and the empty `website` trap,
+  like the inquiry form. The site must be in `HQ_FORM_ORIGINS`.
+- The website's server, with its token: `POST /api/site/newsletter` (JSON:
+  `email`, `name`, `src`, and `visitor`, the visitor's address). It answers
+  `{ ok: true, status: "check-email", message }`, or `{ ok: false, error,
+  message }` with a sentence to show.
+
+Either way they get an email with a confirm link, and are on the list only
+once they press Confirm. Five tries an hour from one address, three a day
+for one email. The answer is the same whether or not they were already on
+the list.
+
+Every issue carries a one-click unsubscribe link and a `List-Unsubscribe`
+header. Mail apps post to `/river/one-click?t=...`, which needs no cookie
+or Origin.
+
+## Reviews and case studies
+
+Sales → Reviews (`docs/decisions/0013-growth-tools.md`, section 6). Asking
+for a review needs email. The website reads what's published with its
+token: `GET /api/site/showcase` answers `{ ok, reviews: [{ rating, text,
+name, town, client, source, date }], caseStudies: [{ id, client, headline,
+problem, built, result, url, shots: [{ path, alt }] }] }`, newest reviews
+first and case studies in their order. Each shot's `path` is fetched from
+HQ with the same token (`/api/site/showcase/files/<id>`); the website
+serves it on from its own address. Nothing unpublished is ever in the
+answer.
+
+## Free landing pages
+
+Delivery → Landing pages, and each client's Free landing page
+(`docs/decisions/0013-growth-tools.md`, section 3). "Download its code"
+zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
+read access to that repository too. Without the token there is no download.
+
+## Automations
+
+Delivery → Automations, and each client's Automations
+(`docs/decisions/0013-growth-tools.md`, section 5). Adding one shows its
+check-in address once. In n8n, the workflow's last node is an HTTP Request
+posting to it with `?status=ok`; an Error Trigger workflow posts to it with
+`?status=failed` and a `message`. HQ checks every five minutes, and emails
+`HQ_ALERT_EMAIL` when one fails or doesn't run on time, and when it runs
+again. The address takes 120 check-ins a minute from one caller.
+
+## Demos
+
+Sales → Demos (`docs/decisions/0013-growth-tools.md`, section 8). Sending
+demos needs email. Each demo link is `HQ_PUBLIC_URL/d/<code>`: it counts an
+open and redirects to the demo. Some mail services open links to scan them,
+with a browser's user agent; an open seconds after sending may be one.
+

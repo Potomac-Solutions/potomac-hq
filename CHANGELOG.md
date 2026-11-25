@@ -9,6 +9,100 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep
+  the Lab's demos: name, address, a line about each, and the demo sign-in
+  that stays the same across the daily reset (`demo.manage`, managers and
+  admins). On an opportunity, "Send demos" emails the contact a link to
+  each one ticked, with its sign-in and a note of your own (`contact.edit`).
+  Each link is its own short address (`/d/<code>`) that counts opens (not
+  previews or crawlers) and sends them on. Opens show on the opportunity,
+  and on Today as "… looked at Counter: follow up" for two days, or until
+  a call is logged. A demo that was sent can be turned off but not removed,
+  so its links keep working. Migration 0069.
+- Referral credit (decision 0013, slice 8). An opportunity can say who
+  referred it, a client picked from the list or a person typed in ("Dale
+  at the feed store"), under "Who referred them". A client can have their
+  own referral link, named for them (`/r/moats-hardware`), shown on their
+  page and in their portal under "Send a friend our way". An inquiry or a
+  website booking that comes by it is marked as referred by them. When a
+  referred client pays an invoice, the client who referred them earns a
+  credit, once ($25 unless changed under Sales → Referral links). On one of
+  the referrer's draft invoices, "Take … of referral credit off" adds a
+  negative line for what's available, up to all but the invoice's last
+  dollar. Invoices can now carry a credit line. Migration 0068.
+- Reviews and case studies (decision 0013, slice 7). On a client's Reviews
+  and case study page, "Email the link" asks their primary contact for a
+  review. The link works once, for 30 days, and is written on a page of its
+  own: stars, a few words, the name and town to show, and whether it may be
+  shown. Clients can also write one in the portal. Reviews can be typed in
+  from a phone call, Google or Facebook too. Under Sales → Reviews, publish
+  or keep back each one (one its writer said not to show can't be
+  published); waiting ones are on Today. Each client's case study (headline,
+  the problem, what we built, what came of it, the live address, its place
+  on the Work page, and up to 6 screenshots checked by their bytes) is a
+  draft until published. The website reads only what's published from
+  `GET /api/site/showcase`, and screenshots from
+  `/api/site/showcase/files/<id>`, with its token. For managers and admins
+  (`review.manage`). Migration 0067.
+- Automations (decision 0013, slice 6). On a client, add each n8n workflow
+  run for them: its name, what it does, its link in n8n and how often it
+  runs. HQ shows its secret check-in address once; n8n posts to it at the
+  end of a run with `status=ok` or `status=failed` (and a `message`), in the
+  query, a form or JSON. HQ keeps the last 50 runs. One that failed, or
+  hasn't checked in within its schedule and half again, goes on Today and
+  is emailed to `HQ_ALERT_EMAIL` once, and again when it's running. Pausing
+  one stops it being late. Clients see theirs, and whether each is running,
+  in the portal, without the n8n link or the address. Delivery →
+  Automations lists them all. For managers and admins
+  (`automation.manage`); anyone may see them. Migration 0066.
+- Monthly reports to plan clients (decision 0013, slice 5). Each morning in
+  the first week of a month, HQ drafts last month's report for every client
+  with an active ongoing project: their sites' uptime (from monitoring), the
+  milestones finished, updates put live and changes approved, how many tasks
+  were done (never their names), what's coming in the next 60 days, and
+  what's waiting on them. Hours are never shown. Under Delivery → Monthly
+  reports, read each one as the email it will be, add a line of your own,
+  and Send it to the client's primary contact, or Skip it. It's never sent
+  by itself, and it's sent once. Drafts wait on Today. Sent reports are in
+  the client's portal. For managers and admins (`client-report.send`).
+  Migration 0065.
+- Free landing pages (decision 0013, slice 4). Clients ask for theirs in
+  the portal, or it's recorded on the client: its address at
+  `<name>.potomac.solutions`, where it stands (asked for, being built, ready
+  to look at, approved, live, handed over) and its repository. In the
+  portal, the client sends rounds of changes and sees "2 of 4 free rounds
+  used". After four, or after approving, they must tick that the changes
+  are paid ($50 an hour) before sending. Each round waits on Today until
+  it's marked done, or priced. Once approved, a zip of the page's code can be
+  downloaded from the portal and the client page (needs `HQ_GITHUB_TOKEN`).
+  One free page a person: a client whose contacts share an email or phone
+  with another client's free page is refused. Delivery → Landing pages lists
+  them all. Anyone at Potomac (`free-page.manage`). Migration 0064.
+- Where leads come from (decision 0013, slice 3). The inquiry form and the
+  website's booking keep where on potomac.solutions the person was: `src`
+  (a river stop, a Lab demo, a Work page, the planner, the blog or the
+  newsletter), `page`, and `utm_source`, `utm_medium` and `utm_campaign`.
+  The first for each opportunity is kept and shown on it ("On the website").
+  Reports → Lead sources counts each source's leads in the last 30, 90 or
+  365 days, and how many had a call, got a proposal and were won, with the
+  value won for those who may see values. HQ's own `/contact?src=...` passes
+  `src` on, and the website's booking now credits a referral link's `ref`.
+  Migration 0063.
+- The newsletter, "Notes from the river" (decision 0013, slice 2). People
+  sign up at `/river`, from a form on potomac.solutions, or through the
+  website's server (`POST /api/site/newsletter` with its token), and are on
+  the list once they press Confirm in the email they get. Each reader
+  belongs to the river stop they signed up from (`src=stop:lakes`). Under
+  Sales → Newsletter, write an issue, send yourself a test, and send it to
+  everyone or some stops; it goes out 50 a minute, each reader once. Every
+  issue carries Potomac's mailing address (needs `HQ_CONTACT_ADDRESS`), a
+  one-click unsubscribe link and a `List-Unsubscribe` header. Leaving forgets
+  the address. For managers and admins (`newsletter.manage`). Migration 0062.
+- Decision 0013, growth tools: the newsletter, where leads come from, free
+  landing pages, monthly reports to plan clients, n8n automations, reviews
+  and case studies, referral credit, and who looked at a demo, in eight
+  slices.
+
 - One budget for everything HQ asks Claude (decision 0012, as Mikey
   answered). The site builder's cap is now shared with the AI drafts, at $20
   a month, changed under Site builder → Model and cap; each counts the

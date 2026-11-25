@@ -7,11 +7,28 @@ import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
+import type { NewsletterDeps } from "./newsletter/index.ts";
+import type { LeadsDeps } from "./leads/index.ts";
+import type { FreePagesDeps } from "./free-pages/index.ts";
+import type { ReportsDeps } from "./client-reports/index.ts";
+import type { AutomationsDeps } from "./automations/index.ts";
+import type { ShowcaseDeps } from "./showcase/index.ts";
+import type { ReferralCreditDeps } from "./referral-credit/index.ts";
+import type { DemosDeps } from "./demos/index.ts";
+import { sqliteDemoLinkStore, sqliteDemoStore } from "./demos/adapters.ts";
+import { sqliteReferralCreditStore } from "./referral-credit/adapters.ts";
+import { addReferralLink } from "./referrals/index.ts";
+import { sqliteCaseStudyStore, sqliteRequestStore, sqliteReviewStore } from "./showcase/adapters.ts";
+import { sqliteAutomationStore } from "./automations/adapters.ts";
+import { sqliteFactsReader, sqlitePlanClients, sqliteReportStore } from "./client-reports/adapters.ts";
+import { sqliteFreePageStore, sqliteRoundStore } from "./free-pages/adapters.ts";
+import { sqliteLeadStore } from "./leads/adapters.ts";
+import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import { setUpSite, type SitePublisher, type WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
 import { builderSpentThisMonth, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
@@ -85,6 +102,22 @@ export type Services = {
   readonly monitor: MonitorDeps;
   /** Referral links: short addresses printed as QR codes, and what came of them. */
   readonly referrals: ReferralsDeps;
+  /** "Notes from the river", the newsletter (decision 0013, section 1). */
+  readonly newsletter: NewsletterDeps;
+  /** Where leads come from on the website (decision 0013, section 2). */
+  readonly leads: LeadsDeps;
+  /** Free landing pages and their rounds of changes (decision 0013, section 3). */
+  readonly freePages: FreePagesDeps;
+  /** Monthly reports to plan clients (decision 0013, section 4). */
+  readonly clientReports: ReportsDeps;
+  /** n8n automations run for clients (decision 0013, section 5). */
+  readonly automations: AutomationsDeps;
+  /** Reviews and case studies (decision 0013, section 6). */
+  readonly showcase: ShowcaseDeps;
+  /** Who referred a lead, clients' own links, and the credit they earn (decision 0013, section 7). */
+  readonly referralCredit: ReferralCreditDeps;
+  /** The Lab's demos, sent to prospects, and who opened them (decision 0013, section 8). */
+  readonly demos: DemosDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
@@ -258,6 +291,35 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (primary && email) return [{ name: primary.name, email, portal: users.some((one) => one.email === email) }];
     return users.map((one) => ({ name: one.name, email: one.email, portal: true }));
   };
+  const clientReports: ReportsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    zone: BUSINESS_TIME_ZONE,
+    formatWhen,
+    reports: sqliteReportStore(db),
+    facts: sqliteFactsReader(db),
+    planClients: sqlitePlanClients(db),
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    recipientFor: (organizationId) => clientEmails(organizationId)[0] ?? null,
+  };
+  const showcase: ShowcaseDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    reviews: sqliteReviewStore(db),
+    requests: sqliteRequestStore(db),
+    studies: sqliteCaseStudyStore(db),
+    tokens: siteTokens,
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    contactFor: (organizationId) => clientEmails(organizationId)[0] ?? null,
+  };
   const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
   const todos: TodosDeps = {
     users,
@@ -293,6 +355,60 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), qr: symbologyQr, opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
+  const newsletter: NewsletterDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    subscribers: sqliteSubscriberStore(db),
+    issues: sqliteIssueStore(db),
+    sends: sqliteSendStore(db),
+    tokens: siteTokens,
+    clientByEmail: (email) => {
+      const contact = crm.contacts.byEmail(email);
+      const client = contact ? crm.clients.get(contact.organizationId) : null;
+      return client ? { id: client.id, name: client.name } : null;
+    },
+  };
+  const leads: LeadsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    clock,
+    leads: sqliteLeadStore(db),
+    opportunityOf: (id) => {
+      const found = crm.opportunities.get(id);
+      return found ? { leadSource: found.leadSource, referralCode: null } : null;
+    },
+  };
+  const automations: AutomationsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    automations: sqliteAutomationStore(db),
+    tokens: siteTokens,
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+  };
+  const freePages: FreePagesDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    pages: sqliteFreePageStore(db),
+    rounds: sqliteRoundStore(db),
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    peopleAt: (organizationId) => {
+      const contacts = crm.contacts.listFor(organizationId);
+      const portalUsers = portal.clientUsers.listFor(organizationId);
+      return { emails: [...contacts.flatMap((one) => (one.email ? [one.email] : [])), ...portalUsers.map((one) => one.email)], phones: contacts.flatMap((one) => (one.phone ? [one.phone] : [])) };
+    },
+  };
   const websites: WebsitesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, sites: sqliteContentSiteStore(db), photos: sqlitePhotoStore(db), counties: countyAtlas(), clientName: (id) => crm.clients.get(id)?.name ?? null, publisher: options.sitePublisher ?? null, timeZone: BUSINESS_TIME_ZONE, digest: (text) => sha256Hex(new TextEncoder().encode(text)), random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   // Renewals bill a client through finance: an invoice with one line on one of their projects, sent.
   const billedOf = (id: Id): BilledInvoice | null => {
@@ -344,6 +460,44 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // The cap is shared with the AI drafts (Mikey, 2026-11-25): what they spent this month counts too.
     alsoSpent: () => aiStore.spentSince(startOfDay(`${today().slice(0, 7)}-01`)),
   };
+  const lastTouch = db.prepare("select max(t.happened_at) as at from touch t join opportunity o on o.organization_id = t.organization_id where o.id = ?");
+  const demos: DemosDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    demos: sqliteDemoStore(db),
+    links: sqliteDemoLinkStore(db),
+    random: (length) => crypto.getRandomValues(new Uint8Array(length)),
+    opportunity: (id) => {
+      const found = crm.opportunities.get(id);
+      if (!found) return null;
+      const contact = found.contactId ? crm.contacts.get(found.contactId) : null;
+      const to = contact?.email ? { name: contact.name, email: contact.email } : (clientEmails(found.organizationId)[0] ?? null);
+      return { title: found.title, organizationId: found.organizationId, clientName: crm.clients.get(found.organizationId)?.name ?? "", to };
+    },
+    lastTouchAt: (opportunityId) => {
+      const at = lastTouch.get(opportunityId)?.["at"];
+      return typeof at === "string" ? at : null;
+    },
+  };
+  const referralCredit: ReferralCreditDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    store: sqliteReferralCreditStore(db),
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    opportunityExists: (id) => crm.opportunities.get(id) !== null,
+    makeLink: (actorId, input) => addReferralLink(referrals, actorId, input),
+    applyCredit: (actorId, invoiceId, minor) => addCreditToInvoice(finance, actorId, invoiceId, { description: "Referral credit: thank you for sending a friend our way", minor }),
+    siteUrl: `${(options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "")}/`,
+    clientOptions: () => crm.clients.list().filter((one) => one.status !== "former").map((one) => ({ id: one.id, name: one.name })),
+  };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
   const social: SocialDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, timeZone: BUSINESS_TIME_ZONE, social: sqliteSocialStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
@@ -375,7 +529,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -453,5 +607,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       expenseCategories: EXPENSE_CATEGORIES,
     },
   };
-  return { ai, notices, webhooks, publicSite, websites, builder, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

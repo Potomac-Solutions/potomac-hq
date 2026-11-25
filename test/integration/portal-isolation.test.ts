@@ -201,7 +201,8 @@ test("a client's session opens no internal page: each one answers 401 with the s
   // The one page anyone may open signed out: the form that asks for a password reset. It shows no records.
   // And the public booking page, with its private-link page: they show only the call whose link it is.
   // And a project shared by link: only with a working link, and only that link's project.
-  const PUBLIC = ["/forgot-password", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks"];
+  // And the newsletter's sign-up, confirm and unsubscribe pages (decision 0013): a link's token is the only key.
+  const PUBLIC = ["/forgot-password", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks", "/river", "/river/check", "/river/confirm", "/river/thanks", "/river/unsubscribe", "/river/left", "/review", "/review/thanks"];
   const internal = pagePatterns.filter((pattern) => !pattern.startsWith("/portal") && !PUBLIC.includes(pattern) && pattern !== "/s/:token");
   assert.equal((await ann.get(`/s/${"a".repeat(43)}`)).status, 404, "a made-up share link shows nothing");
   assert.ok(internal.length >= 19, `found ${internal.length} internal pages`);
@@ -221,7 +222,11 @@ test("a client's session opens no internal page: each one answers 401 with the s
 });
 
 test("a client's session can post to no internal form: each one is refused and writes nothing", async () => {
-  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options" && pattern !== "/api/site/booking" && !pattern.startsWith("/s/"));
+  const internal = [...new Set(postPatterns)].filter((pattern) => !pattern.startsWith("/portal/") && pattern !== "/forgot-password" && !pattern.startsWith("/book") && pattern !== "/contact" && pattern !== "/passkeys/options" && pattern !== "/api/site/booking" && pattern !== "/api/site/newsletter" && !pattern.startsWith("/river") && pattern !== "/review" && !pattern.startsWith("/hooks/") && !pattern.startsWith("/s/"));
+  // n8n's check-in address answers only to an automation's secret: anything else is not found.
+  assert.equal((await ann.post(`/hooks/automations/${"a".repeat(43)}`, { status: "ok" })).status, 404);
+  // The website's newsletter address answers only to its token.
+  assert.equal((await ann.post("/api/site/newsletter", { email: "x@example.com" })).status, 401);
   // A comment through a share link needs a working link with comment rights; anything else is not found.
   assert.equal((await ann.post(`/s/${"a".repeat(43)}/tasks/${b.projectId}/comments`, { name: "x", body: "x" })).status, 404);
   // The website's booking address answers only to the website's token: a client's session is a plain 401.

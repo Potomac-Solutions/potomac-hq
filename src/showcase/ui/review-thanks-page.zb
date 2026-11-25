@@ -1,0 +1,12 @@
+<!-- After writing a review. -->
+<script>
+  'use route /review/thanks'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    return { title: 'Thank you', done: context.notice.done }
+  }
+</script>
+<hq-review-thanks done="">
+  <h1>Thank you</h1>
+  <alert-banner variant="success">{done || 'Thank you! It means a lot to a small business like ours.'}</alert-banner>
+</hq-review-thanks>

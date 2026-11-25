@@ -81,6 +81,13 @@ export const PERMISSIONS = [
   "social.edit",
   // AI assistance (decision 0012)
   "ai.manage",
+  // Growth tools (decision 0013)
+  "newsletter.manage",
+  "free-page.manage",
+  "client-report.send",
+  "automation.manage",
+  "review.manage",
+  "demo.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -125,6 +132,11 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "site.publish",
   "label.manage",
   "project.share",
+  "newsletter.manage",
+  "client-report.send",
+  "automation.manage",
+  "review.manage",
+  "demo.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

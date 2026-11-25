@@ -1,0 +1,13 @@
+<!-- After unsubscribing. -->
+<script>
+  'use route /river/left'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context }) {
+    return { title: 'You’re off the list', done: context.notice.done }
+  }
+</script>
+<hq-river-left done="">
+  <h1>You’re off the list</h1>
+  <alert-banner variant="success">{done || 'You’re off the list. We won’t email you again.'}</alert-banner>
+  <p>Changed your mind? You can always <a href="/river">sign up again</a>.</p>
+</hq-river-left>

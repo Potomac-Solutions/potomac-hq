@@ -1,0 +1,50 @@
+<!-- One monthly report: the email as the client will get it, a line of your own, and Send or Skip. -->
+<script>
+  'use route /monthly-reports/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.clientReports.detail(params.id)
+    if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
+    return { title: view.value.clientName + ': ' + view.value.monthText, view: view.value, emailOn: context.crm.emailOn, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .mr-email { white-space: pre-wrap; margin: 0; padding: 1rem; font: inherit; background: var(--muted); border-radius: calc(var(--radius) - 2px); max-width: 42rem; }
+  .mr-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .mr-actions form { margin: 0; }
+</style>
+<hq-monthly-report view={{ id: '', clientId: '', clientName: '', monthText: '', status: '', draft: false, note: '', to: '', toName: '', subject: '', email: '', sent: '' }} email-on={false} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Monthly reports', href: '/monthly-reports' }, { label: view.clientName + ', ' + view.monthText, href: '' }]}></breadcrumb-trail>
+    <h1>{view.clientName}: {view.monthText} <status-badge variant={view.draft ? 'warning' : 'neutral'}>{view.status}</status-badge></h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <section class="hq-panel" aria-labelledby="mr-email">
+      <h2 id="mr-email">{view.draft ? 'The email' : 'What was sent'}</h2>
+      <p>To: <strong>{view.to || 'nobody yet: add an email to the client’s primary contact'}</strong><span zb-if={view.sent}>, {view.sent}</span></p>
+      <p>Subject: {view.subject}</p>
+      <pre class="mr-email">{view.email}</pre>
+    </section>
+    <section zb-if={view.draft} class="hq-panel" aria-labelledby="mr-send">
+      <h2 id="mr-send">Send it</h2>
+      <form method="post" action="/monthly-reports/{view.id}/note" class="hq-form">
+        <text-field label="A line of your own" name="note" value={view.note} rows={3} maxlength={1000} description="Goes after the greeting. Like: Thanks for sending the Deep Creek photos!"></text-field>
+        <div><button class="hq-button secondary" type="submit">Save line</button></div>
+      </form>
+      <alert-banner zb-if={!emailOn} variant="warning">Email isn’t set up, so it can’t be sent yet.</alert-banner>
+      <div class="mr-actions" data-spaced>
+        <form method="post" action="/monthly-reports/{view.id}/send"><button class="hq-button" type="submit">Send to {view.toName || view.to || 'the client'}</button></form>
+        <form method="post" action="/monthly-reports/{view.id}/skip"><button class="hq-button secondary" type="submit">Skip this month</button></form>
+      </div>
+    </section>
+    <p><a href="/clients/{view.clientId}">Open {view.clientName}</a></p>
+  </div>
+</hq-monthly-report>

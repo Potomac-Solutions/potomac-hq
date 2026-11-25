@@ -1,0 +1,33 @@
+<!-- Every free landing page (decision 0013, section 3): where each stands, and rounds waiting. -->
+<script>
+  'use route /landing-pages'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.freePages.all()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Free landing pages', pages: view.value }
+  }
+</script>
+<hq-landing-pages pages={[]}>
+  <div class="hq-page">
+    <h1>Free landing pages</h1>
+    <p class="hq-muted">Every client’s free page. Record one from the client’s page, under Free landing page.</p>
+    <empty-state zb-if={pages.length === 0} heading="No free landing pages yet">Clients ask for theirs in the portal, or you record one on the client.</empty-state>
+    <table zb-else tabindex="0" class="hq-table">
+      <thead><tr><th scope="col">Client</th><th scope="col">Address</th><th scope="col">Where it stands</th><th scope="col">Rounds</th></tr></thead>
+      <tbody>
+        <zb-each items={pages} as="page" key={page.organizationId}>
+          <tr>
+            <td><a href="/clients/{page.organizationId}/landing-page">{page.clientName}</a></td>
+            <td>{page.address || 'Not chosen'}</td>
+            <td>{page.statusLabel}</td>
+            <td>{page.used}<span zb-if={page.open > 0}> <status-badge variant="warning">{page.open} waiting</status-badge></span></td>
+          </tr>
+        </zb-each>
+      </tbody>
+    </table>
+  </div>
+</hq-landing-pages>

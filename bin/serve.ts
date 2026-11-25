@@ -35,6 +35,10 @@ import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
+import { sendDueIssues } from "../src/newsletter/index.ts";
+import { draftMonthlyReports } from "../src/client-reports/index.ts";
+import { checkAutomations } from "../src/automations/index.ts";
+import { earnCredits } from "../src/referral-credit/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
@@ -43,6 +47,7 @@ import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
 import { builderGithub, builderOwnerFrom, claudeApi, claudeConfigFrom, githubSitePublishing, publisherConfigFrom } from "../src/builder/adapters.ts";
 import { failLostRequests } from "../src/builder/index.ts";
+import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
 import { claudeModel } from "../src/ai/adapters.ts";
@@ -131,6 +136,7 @@ const app = await createApp({
   builderRepos: github ? builderGithub(github) : null,
   builderPublishing: builderPublishing.token || builderPublishing.adminToken ? githubSitePublishing(builderPublishing) : null,
   sitePublisher: github ? githubPublisher(github) : null,
+  siteArchive: github ? githubArchive(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
   ...(busyCalendar ? { busyCalendar } : {}),
@@ -230,6 +236,17 @@ const stopInvoiceReminders = email
     )
   : null;
 
+// Monthly reports to plan clients (decision 0013, section 4): drafted each
+// morning at 08:13 in the first week of a month, for the month before, once
+// each. Never sent by themselves.
+const stopMonthlyReports = scheduleDaily(
+  async () => {
+    const drafted = draftMonthlyReports(createServices(db).clientReports);
+    if (drafted > 0) console.log(`Monthly reports: drafted ${drafted}.`);
+  },
+  { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 13, clock: systemClock, log, name: "monthly reports" },
+);
+
 // The morning email: each person's Today list at 07:03 business time, and
 // once now if the server starts after that. Each person gets it once a day.
 const sendMorning = async () => {
@@ -270,6 +287,29 @@ const failLost = () => {
 failLost();
 const lostTimer = setInterval(failLost, 5 * 60_000);
 lostTimer.unref();
+// Automations (decision 0013, section 5): every five minutes, mark those
+// that didn't run on time, and email the alert address about each change.
+let checkingAutomations = false;
+const automationTimer = setInterval(() => {
+  if (checkingAutomations) return;
+  checkingAutomations = true;
+  checkAutomations(createServices(db).automations, siteAlert, publicUrl)
+    .catch((error: unknown) => log("Automations: the check failed", error))
+    .finally(() => (checkingAutomations = false));
+}, 5 * 60_000);
+automationTimer.unref();
+
+// Referral credit (decision 0013, section 7): every ten minutes, give the
+// credits that came due when a referred client paid an invoice.
+const creditTimer = setInterval(() => {
+  try {
+    const earned = earnCredits(createServices(db).referralCredit);
+    if (earned > 0) console.log(`Referral credit: ${earned} earned.`);
+  } catch (error) {
+    log("Referral credit: the run failed", error);
+  }
+}, 10 * 60_000);
+creditTimer.unref();
 
 // Calls nobody ended (decision 0009, section 4): every five minutes, end any
 // call open for 3 hours and log it, so call lengths stay honest.
@@ -331,6 +371,26 @@ const webhookTimer = setInterval(() => {
     .finally(() => (busyHooks = false));
 }, 60_000);
 webhookTimer.unref();
+
+// The newsletter (decision 0013, section 1): every minute, the next batch of
+// any issue going out. Each reader is marked as the email goes, so a restart
+// never sends twice.
+let busyNewsletter = false;
+const newsletterTimer = email
+  ? setInterval(() => {
+      if (busyNewsletter) return;
+      busyNewsletter = true;
+      const mail = async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message }));
+      sendDueIssues(createServices(db).newsletter, mail, { publicUrl, address: contact.address })
+        .then((sent) => {
+          if (sent.sent + sent.failed > 0) console.log(`Newsletter: sent ${sent.sent}, failed ${sent.failed}.`);
+          if (sent.failed > 0) log(`Newsletter: ${sent.failed} emails could not be sent`);
+        })
+        .catch((error: unknown) => log("Newsletter: the run failed", error))
+        .finally(() => (busyNewsletter = false));
+    }, 60_000)
+  : null;
+newsletterTimer?.unref();
 
 // Booked calls: the day-before reminder, checked every ten minutes.
 let stopReminders: (() => void) | null = null;
@@ -407,10 +467,13 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopSheet?.();
     stopRetention();
     stopRecurring();
+    stopMonthlyReports();
     clearInterval(siteTimer);
     clearInterval(callTimer);
     clearInterval(lostTimer);
     clearInterval(socialTimer);
+    clearInterval(automationTimer);
+    clearInterval(creditTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();
@@ -418,6 +481,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(webhookTimer);
     clearInterval(aiTimer);
     stopWeeklyUpdates?.();
+    if (newsletterTimer) clearInterval(newsletterTimer);
     stopReminders?.();
     server.close(() => {
       db.close();

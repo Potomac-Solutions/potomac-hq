@@ -16,11 +16,11 @@
     const view = context.money.invoice(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
     const reminders = context.money.invoiceReminders(params.id)
-    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, credit: context.referralCredit.forInvoice(params.id), done: context.notice.done, problem: context.notice.problem }
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
@@ -67,6 +67,10 @@
         <text-field label="Another line" name="description" required={true}></text-field>
         <text-field label="Line amount in dollars" name="amount" inputmode="decimal" required={true}></text-field>
         <button class="hq-button secondary" type="submit">Add line</button>
+      </form>
+      <form zb-if={credit} method="post" action="/invoices/{i.id}/referral-credit" data-spaced>
+        <p class="hq-small">This client has {credit.available} of referral credit.</p>
+        <button class="hq-button secondary" type="submit">Take {credit.applies} of referral credit off</button>
       </form>
     </section>
 
