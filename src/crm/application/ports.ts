@@ -84,7 +84,8 @@ export type CallGuideStore = {
  * each fact is decided by the application.
  */
 export type ClientFacts = {
-  readonly activeProjects: readonly { readonly name: string }[];
+  /** `hourly`: its opportunity is priced by the hour, so a call's time is usually billed. */
+  readonly activeProjects: readonly { readonly id: Id; readonly name: string; readonly hourly: boolean }[];
   readonly anyProposalOrProject: boolean;
   readonly proposalsWaiting: readonly { readonly title: string; readonly sentAt: string; readonly totalMinor: number; readonly currency: string }[];
   readonly overdueInvoices: readonly { readonly number: number; readonly dueOn: string; readonly totalMinor: number; readonly currency: string }[];

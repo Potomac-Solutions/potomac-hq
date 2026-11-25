@@ -7,7 +7,7 @@ import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
@@ -20,7 +20,7 @@ import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
-import type { TodosDeps } from "./todos/index.ts";
+import { addTodo, type TodosDeps } from "./todos/index.ts";
 import { withNotices, type NoticesDeps } from "./notices/index.ts";
 import { withWebhooks, type HookDescribe, type WebhooksDeps } from "./webhooks/index.ts";
 import { sqliteDeliveryStore, sqliteWebhookStore, webhookSigner } from "./webhooks/adapters.ts";
@@ -246,7 +246,17 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     },
   };
   const touches: TouchDeps = { ...crm, touches: sqliteTouchStore(db), formatWhen, today, timeZone: BUSINESS_TIME_ZONE };
-  const calls: CallDeps = { ...touches, calls: sqliteCallScreenStore(db), guides: sqliteCallGuideStore(db), facts: sqliteClientFacts(db) };
+  const calls: CallDeps = {
+    ...touches,
+    calls: sqliteCallScreenStore(db),
+    guides: sqliteCallGuideStore(db),
+    facts: sqliteClientFacts(db),
+    // Ending a call: next steps as to-dos and the call's time on a project, through their own services (decision 0009).
+    followThrough: {
+      addTodo: (actorId, input) => addTodo(todos, actorId, { title: input.title, clientId: input.clientId, opportunityId: input.opportunityId }),
+      logTime: (actorId, projectId, input) => logTime(finance, actorId, { projectId }, input),
+    },
+  };
   const monitor: MonitorDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, formatWhen, sites: sqliteSiteStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const referrals: ReferralsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, links: sqliteReferralStore(db), qr: symbologyQr, opportunityTitle: (id) => crm.opportunities.get(id)?.title ?? null, random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
   const websites: WebsitesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, sites: sqliteContentSiteStore(db), photos: sqlitePhotoStore(db), counties: countyAtlas(), clientName: (id) => crm.clients.get(id)?.name ?? null, publisher: options.sitePublisher ?? null, timeZone: BUSINESS_TIME_ZONE, digest: (text) => sha256Hex(new TextEncoder().encode(text)), random: (length) => crypto.getRandomValues(new Uint8Array(length)) };

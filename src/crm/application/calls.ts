@@ -6,11 +6,25 @@ import { OUTCOME_LABELS } from "../domain/touch.ts";
 import { callSummary, isSituation, MAX_ANSWER_LENGTH, pickSituation, readGuide, SITUATION_HINTS, type GuideError, type Situation } from "../domain/call-guide.ts";
 import type { Contact } from "../domain/contact.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, formatHours, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { writeTouch, type LogTouchError, type TouchDeps } from "./touches.ts";
 import type { CallGuideStore, CallStore, ClientFacts, ClientFactsReader } from "./ports.ts";
 
-export type CallDeps = TouchDeps & { readonly calls: CallStore; readonly guides: CallGuideStore; readonly facts: ClientFactsReader };
+/** "17 min", for the routes' messages. */
+export { lengthText } from "../domain/call.ts";
+
+export type CallDeps = TouchDeps & { readonly calls: CallStore; readonly guides: CallGuideStore; readonly facts: ClientFactsReader; readonly followThrough?: FollowThrough };
+
+/**
+ * What ending a call can do in other parts of HQ (decision 0009, section 4):
+ * a to-do for each next step, and the call's time on a project. Their own
+ * services, wired where services are put together, each with its own checks
+ * and activity, so the CRM doesn't depend on them.
+ */
+export type FollowThrough = {
+  addTodo(actorId: Id, input: { readonly title: string; readonly clientId: Id; readonly opportunityId: Id | null }): Result<unknown, string>;
+  logTime(actorId: Id, projectId: Id, input: { readonly on: string; readonly hours: string; readonly note: string; readonly billable: boolean }): Result<unknown, string>;
+};
 type Refused = "forbidden" | "not-found";
 const allowed = (deps: CallDeps, actorId: Id | null, action: string): actorId is Id => actorId !== null && authorize(deps, actorId, action).ok;
 
@@ -200,6 +214,10 @@ export type CallScreen = {
   readonly endedText: string;
   /** What HQ's records say worth raising, the ones this person may see. */
   readonly points: readonly TalkingPoint[];
+  /** Projects the call's time can go to, when the person may log time; `hourly` ones are ticked to start with. */
+  readonly projects: readonly { readonly id: string; readonly name: string; readonly hourly: boolean }[];
+  /** Whether next steps can become to-dos. */
+  readonly canAddTodos: boolean;
   readonly guide: GuideOnCall;
   /** The other guides, to switch to. */
   readonly guides: readonly { readonly value: string; readonly label: string }[];
@@ -239,6 +257,7 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
   const opportunity = call.opportunityId ? deps.opportunities.get(call.opportunityId) : null;
   const booking = call.bookingId ? deps.calls.booking(call.bookingId) : null;
   const clock = callClock(call, deps.clock());
+  const facts = deps.facts.facts(call.organizationId, deps.today(), call.id);
   return ok({
     id: call.id,
     clientId: client.id,
@@ -266,7 +285,9 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
     outcomes: Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
     ended: call.endedAt !== null,
     endedText: call.endedAt ? deps.formatWhen(call.endedAt) : "",
-    points: talkingPoints(deps, actorId, deps.facts.facts(call.organizationId, deps.today(), call.id)),
+    points: talkingPoints(deps, actorId, facts),
+    projects: deps.followThrough && allowed(deps, actorId, "time.log") ? facts.activeProjects.map((one) => ({ id: one.id, name: one.name, hourly: one.hourly })) : [],
+    canAddTodos: Boolean(deps.followThrough) && allowed(deps, actorId, "task.edit"),
     guide: guideOnCall(deps, call),
     guides: deps.guides.all().map((one) => ({ value: one.situation, label: one.title })),
   });
@@ -402,4 +423,55 @@ export function openCall(deps: CallDeps, actorId: Id | null): { readonly id: str
   const call = deps.calls.openFor(actorId);
   if (!call) return null;
   return { id: call.id, clientName: deps.clients.get(call.organizationId)?.name ?? "", startedAt: call.startedAt };
+}
+
+/** Who is on a call, for booking the next one from its screen (decision 0009, section 3). Only the person on the call, while it's open. */
+export type CallParty = { readonly callId: Id; readonly organizationId: Id; readonly clientName: string; readonly contactName: string; readonly email: string; readonly phone: string; readonly opportunityId: Id | null };
+
+export function callParty(deps: CallDeps, actorId: Id | null, callId: Id): Result<CallParty, Refused | "call-ended"> {
+  const found = ownOpenCall(deps, actorId, callId);
+  if (!found.ok) return found;
+  const call = found.value;
+  const client = deps.clients.get(call.organizationId);
+  if (!client) return err("not-found");
+  const contact = call.contactId ? deps.contacts.get(call.contactId) : null;
+  return ok({ callId, organizationId: client.id, clientName: client.name, contactName: contact?.name ?? client.name, email: contact?.email ?? "", phone: call.phone, opportunityId: call.opportunityId });
+}
+
+export type FollowedThrough = { readonly todos: number; readonly loggedMinutes: number; readonly problems: readonly string[] };
+
+/**
+ * After a call is ended: a to-do at the client (and its opportunity) for each
+ * next step, one a line, and the call's time on a project if one was ticked.
+ * Each goes through its own service, so each is checked as if done by hand;
+ * one that's refused is reported and the rest still happen.
+ */
+export function followThroughCall(deps: CallDeps, actorId: Id | null, callId: Id, input: { readonly nextSteps?: string | null; readonly projectId?: string | null }): Result<FollowedThrough, Refused | "call-open"> {
+  if (!allowed(deps, actorId, "contact.edit")) return err("forbidden");
+  const call = deps.calls.get(callId);
+  if (!call || call.userId !== actorId) return err("not-found");
+  if (call.endedAt === null) return err("call-open");
+  const steps = (input.nextSteps ?? "").split(/\r?\n/).map((line) => line.trim().replace(/^[-*•]\s*/, "")).filter(Boolean).slice(0, 10);
+  const problems: string[] = [];
+  let todos = 0;
+  let timeLogged = 0;
+  if (deps.followThrough) {
+    for (const title of steps) {
+      const added = deps.followThrough.addTodo(actorId, { title: title.slice(0, 200), clientId: call.organizationId, opportunityId: call.opportunityId });
+      if (added.ok) todos += 1;
+      else problems.push(`“${title.slice(0, 40)}” didn't become a to-do`);
+    }
+    const projectId = (input.projectId ?? "").trim();
+    if (projectId) {
+      const minutes = loggedMinutes(call.startedAt, call.endedAt);
+      const project = deps.facts.facts(call.organizationId, deps.today(), call.id).activeProjects.find((one) => one.id === projectId);
+      const client = deps.clients.get(call.organizationId);
+      const logged = project
+        ? deps.followThrough.logTime(actorId, project.id, { on: deps.today(), hours: formatHours(minutes), note: `Call with ${client?.name ?? "the client"}`, billable: project.hourly })
+        : { ok: false as const, error: "not-found" };
+      if (logged.ok) timeLogged = minutes;
+      else problems.push("the call's time wasn't logged");
+    }
+  } else if (steps.length > 0 || input.projectId) problems.push("to-dos and time aren't set up here");
+  return ok({ todos, loggedMinutes: timeLogged, problems });
 }

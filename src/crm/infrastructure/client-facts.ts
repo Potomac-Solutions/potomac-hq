@@ -3,13 +3,14 @@
 // changes nothing; the application decides who may see each fact.
 import type { ClientFacts, ClientFactsReader } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
+import type { Id } from "../../shared/index.ts";
 
 type Row = Record<string, unknown>;
 const str = (row: Row, key: string) => String(row[key] ?? "");
 const num = (row: Row, key: string) => Number(row[key] ?? 0);
 
 export function sqliteClientFacts(db: Database): ClientFactsReader {
-  const projects = db.prepare("select name, status from project where organization_id = ?");
+  const projects = db.prepare("select p.id, p.name, p.status, o.pricing from project p left join opportunity o on o.id = p.opportunity_id where p.organization_id = ? order by p.created_at");
   const proposals = db.prepare(
     `select p.title, p.status, v.sent_at, v.total_minor, v.currency
        from proposal p join opportunity o on o.id = p.opportunity_id
@@ -43,7 +44,7 @@ export function sqliteClientFacts(db: Database): ClientFactsReader {
       const deliverableRows = deliverables.all(organizationId) as Row[];
       const last = lastCall.get(organizationId, exceptCallId ?? "") as Row | undefined;
       return {
-        activeProjects: projectRows.filter((row) => row["status"] === "active").map((row) => ({ name: str(row, "name") })),
+        activeProjects: projectRows.filter((row) => row["status"] === "active").map((row) => ({ id: row["id"] as Id, name: str(row, "name"), hourly: row["pricing"] === "hourly" })),
         anyProposalOrProject: projectRows.length > 0 || proposalRows.some((row) => row["status"] !== "draft"),
         proposalsWaiting: proposalRows.filter((row) => row["status"] === "sent" && row["sent_at"]).map((row) => ({ title: str(row, "title"), sentAt: str(row, "sent_at"), totalMinor: num(row, "total_minor"), currency: str(row, "currency") || "USD" })),
         overdueInvoices: (overdue.all(organizationId, today) as Row[]).map((row) => ({ number: num(row, "number"), dueOn: str(row, "due_on"), totalMinor: num(row, "total_minor"), currency: str(row, "currency") || "USD" })),
