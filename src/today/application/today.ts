@@ -9,9 +9,8 @@ import { followUpsDue, goingCold, type TouchDeps } from "../../crm/index.ts";
 import { sitesNeedingAttention, type MonitorDeps } from "../../monitor/index.ts";
 import { staffWaiting, type PortalDeps } from "../../portal/index.ts";
 import { upcomingDeadlines, type ProjectsDeps } from "../../projects/index.ts";
-import { renewalsComingUp, type RenewalsDeps } from "../../renewals/index.ts";
+import { renewalTasks, type RenewalsDeps } from "../../renewals/index.ts";
 import { socialToDo, type SocialDeps } from "../../social/index.ts";
-import { daysUntil } from "../../shared/index.ts";
 import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
 import { automationsNeedingAttention, type AutomationsDeps } from "../../automations/index.ts";
@@ -100,10 +99,9 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
     add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });
   }
   for (const one of reportsToSend(deps.clientReports, actorId)) add("report", { key: `report-${one.id}`, text: one.text, detail: one.detail, href: `/monthly-reports/${one.id}`, action: "Open", overdue: false, at: one.month });
-  for (const one of renewalsComingUp(deps.renewals, actorId)) {
-    const days = daysUntil(one.renewsOn, today);
-    if (days !== null && days > RENEWAL_DAYS) continue;
-    add("renewal", { key: `renewal-${one.id}`, text: `${one.name} renews`, detail: `${one.clientName} · ${one.when}${one.autoRenews ? " · renews by itself" : ""}`, href: `/clients/${one.organizationId}#renewals`, action: "Open", overdue: one.state === "overdue", at: one.renewsOn });
+  // Renewals: bill them in time (from 30 days out), act on a client's answer, or note they renew this week.
+  for (const one of renewalTasks(deps.renewals, actorId, RENEWAL_DAYS)) {
+    add("renewal", { key: `renewal-${one.id}`, text: one.text, detail: one.detail, href: `/clients/${one.organizationId}#renewal-${one.id}`, action: one.action, overdue: one.overdue, at: one.at });
   }
 
   const ordered = orderAgenda(items);

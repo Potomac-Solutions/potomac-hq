@@ -80,6 +80,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
   link, start a proposal and draft an invoice. Decision 0014's command
   palette is now this command bar: it moves a deal it finds on or back a
   stage, and "keys" opens the shortcut list.
+- Renewals asked of in time (decision 0017, added). Today says "Bill
+  <renewal>" from 30 days before it renews, so the bill goes out before the
+  client's pay-by day, and "isn't paid" once that day passes.
+- Clients answer a renewal in their portal: "Renew it" or "Let it lapse",
+  for its coming term, and may change their mind until it renews. Potomac
+  sees the answer on the client's page and on Today, and isn't asked to bill
+  one the client is letting lapse. Migration 0080.
+- Money → Invoices: every invoice, project or not, by where it stands
+  (waiting for payment, overdue, drafts, paid, voided), with what's owed,
+  overdue and drafted, and who owes what.
+- The portal names an invoice with no project by what it's for.
+
 - Invoices on a client, with or without a project (decision 0017,
   migration 0078). Bill a domain or a one-off charge from the client's
   page; renewals bill the client alone by default. A deposit or a balance

@@ -22,7 +22,7 @@ import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { clientInvoices, financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { clientInvoices, financeOverview, invoicesOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -37,7 +37,7 @@ import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
 import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
-import { renewalRoutes } from "./renewals/api/renewal-routes.ts";
+import { renewalPortalRoutes, renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { clientSocial, clientSocialSummary, portalSocial, portalSocialWaiting, socialOverview, socialToDo } from "./social/index.ts";
 import { socialPortalRoutes, socialStaffRoutes } from "./social/api/social-routes.ts";
 import { publicSiteView, settingsForSite } from "./public-site/index.ts";
@@ -340,6 +340,8 @@ export type PageContext = {
     changes(id: string): ReturnType<typeof projectChanges>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
     invoice(id: string): ReturnType<typeof invoiceDetail>;
+    /** Money → Invoices: every invoice, filtered by where it stands. */
+    invoices(show: string | null): ReturnType<typeof invoicesOverview>;
     /** A client's invoices, on a project or not; null when this person may not see invoices. */
     forClient(id: string): ReturnType<typeof clientInvoices> | null;
   };
@@ -971,6 +973,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           changes: (id) => withId(id, (projectId) => projectChanges(financeDeps, actor, projectId)),
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
+          invoices: (show) => invoicesOverview(financeDeps, actor, show),
           forClient: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? clientInvoices(financeDeps, actor, parsed.value) : null;
@@ -1550,6 +1553,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: signNotice }));
   forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: signNotice }));
   forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: signNotice }));
+  forms.route("/", renewalPortalRoutes({ renewals: services.renewals, clientOf, sign: signNotice }));
   // The newsletter (decision 0013, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
