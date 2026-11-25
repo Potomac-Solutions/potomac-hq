@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, type CallScreen, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, type CallScreen, type GuidesView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -178,6 +178,8 @@ export type PageContext = {
     clientTouches(id: string): TouchesView | null;
     /** The call screen, for the person on the call (decision 0009). */
     callScreen(id: string): CallScreen | null;
+    /** The call guides (decision 0009, section 2), or null without knowledge.view. */
+    callGuides(): GuidesView | null;
     /** The person's open call, for the shell. */
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     opportunityTouches(id: string): TouchesView | null;
@@ -572,6 +574,10 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           openCall: () => openCall(services.calls, actor),
+          callGuides: () => {
+            const view = callGuides(services.calls, actor);
+            return view.ok ? view.value : null;
+          },
           inquiryServices: () => SERVICE_OPTIONS,
           listClients: (status, demo) => listClients(crmDeps, actor, { status: status ?? "", kind: demo ?? "" }),
           canImport: () => mayImport(crmDeps, actor),

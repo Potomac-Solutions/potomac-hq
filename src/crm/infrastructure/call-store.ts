@@ -4,7 +4,7 @@ import type { BookedCall, CallStore } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-const COLUMNS = "id, organization_id, contact_id, opportunity_id, booking_id, user_id, phone, started_at, planned_minutes, warn_minutes, note, ended_at, touch_id";
+const COLUMNS = "id, organization_id, contact_id, opportunity_id, booking_id, user_id, phone, started_at, planned_minutes, warn_minutes, note, ended_at, touch_id, guide";
 type Row = Record<string, unknown>;
 const toCall = (row: Row): Call => ({
   id: row["id"] as Id,
@@ -20,20 +20,21 @@ const toCall = (row: Row): Call => ({
   note: String(row["note"] ?? ""),
   endedAt: (row["ended_at"] as string | null) ?? null,
   touchId: (row["touch_id"] as Id | null) ?? null,
+  guide: (row["guide"] as string | null) ?? null,
 });
 
 export function sqliteCallScreenStore(db: Database): CallStore {
-  const insert = db.prepare(`insert into call (${COLUMNS}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into call (${COLUMNS}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const one = db.prepare(`select ${COLUMNS} from call where id = ?`);
   const open = db.prepare(`select ${COLUMNS} from call where user_id = ? and ended_at is null`);
-  const update = db.prepare("update call set planned_minutes = ?, warn_minutes = ?, note = ? where id = ? and ended_at is null");
+  const update = db.prepare("update call set planned_minutes = ?, warn_minutes = ?, note = ?, guide = ? where id = ? and ended_at is null");
   const end = db.prepare("update call set ended_at = ?, touch_id = ? where id = ? and ended_at is null");
   const stale = db.prepare(`select ${COLUMNS} from call where ended_at is null and started_at <= ? order by started_at`);
   // A public booking added to the CRM keeps its client in crm_client_id.
   const booking = db.prepare("select id, coalesce(organization_id, crm_client_id) as organization_id, name, phone, topic, starts_at, ends_at, status from booking where id = ?");
   return {
     insert(c, at) {
-      insert.run(c.id, c.organizationId, c.contactId, c.opportunityId, c.bookingId, c.userId, c.phone, c.startedAt, c.plannedMinutes, c.warnMinutes, c.note, c.endedAt, c.touchId, at);
+      insert.run(c.id, c.organizationId, c.contactId, c.opportunityId, c.bookingId, c.userId, c.phone, c.startedAt, c.plannedMinutes, c.warnMinutes, c.note, c.endedAt, c.touchId, c.guide, at);
     },
     get: (id) => {
       const row = one.get(id) as Row | undefined;
@@ -44,7 +45,7 @@ export function sqliteCallScreenStore(db: Database): CallStore {
       return row ? toCall(row) : null;
     },
     update(c) {
-      update.run(c.plannedMinutes, c.warnMinutes, c.note, c.id);
+      update.run(c.plannedMinutes, c.warnMinutes, c.note, c.guide, c.id);
     },
     end(id, endedAt, touchId) {
       end.run(endedAt, touchId, id);

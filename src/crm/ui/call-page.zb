@@ -11,6 +11,7 @@
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/text-field.zb'
   import './call-timer.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
   export async function load({ context, params }) {
     const stop = context.guard()
@@ -24,6 +25,23 @@
   // phone loses nothing. Without scripts, "Save notes" does it.
   let saving = null
   let saved = ''
+  // The guide's answers save the same way, the whole form at once.
+  let answering = null
+  let answered = ''
+  function answer(event) {
+    const form = event.currentTarget
+    answered = ''
+    if (answering) clearTimeout(answering)
+    answering = setTimeout(async () => {
+      try {
+        const body = new URLSearchParams(new FormData(form))
+        const reply = await fetch(form.getAttribute('action'), { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' })
+        answered = reply.type === 'opaqueredirect' || reply.ok ? 'Answers saved.' : ''
+      } catch {
+        answered = ''
+      }
+    }, event.type === 'change' ? 150 : 1200)
+  }
   function typed(event) {
     const box = event.currentTarget
     saved = ''
@@ -58,6 +76,13 @@
   .call-outcomes label { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .call-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .call-actions .hq-button { min-height: 3rem; flex: 1 1 10rem; }
+  .call-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .call-points li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.5rem; }
+  .call-questions ol { margin: 0; padding-left: 1.4rem; display: grid; gap: 0.85rem; }
+  .call-question { display: flex; align-items: flex-start; gap: 0.6rem; font-weight: 600; min-height: 2.75rem; padding-top: 0.25rem; }
+  .call-question input { width: 1.35rem; height: 1.35rem; flex: none; margin-top: 0.1rem; }
+  .call-questions textarea { width: 100%; margin-top: 0.35rem; padding: 0.4rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+  .call-switch { margin-top: 1rem; }
   .call-saved { min-height: 1.25rem; margin: 0; color: var(--muted-foreground); font-size: 0.85rem; }
 </style>
 <hq-call view={null} done="" problem="">
@@ -96,8 +121,54 @@
 
     <p zb-if={view.topic} class="hq-panel"><strong>They booked it about:</strong> {view.topic}</p>
 
+    <section zb-if={view.points.length > 0} class="hq-panel" aria-labelledby="call-points-heading">
+      <h2 id="call-points-heading">Worth raising</h2>
+      <ul class="call-points">
+        <zb-each items={view.points} as="point" key={point.text}>
+          <li>
+            <status-badge zb-if={point.kind === 'waiting-on-us'} variant="danger">They’re waiting</status-badge>
+            <status-badge zb-if={point.kind === 'waiting-on-them'} variant="warning">Waiting on them</status-badge>
+            <status-badge zb-if={point.kind === 'money'} variant="danger">Money</status-badge>
+            <status-badge zb-if={point.kind === 'site'} variant="danger">Site</status-badge>
+            <status-badge zb-if={point.kind === 'renewal'} variant="primary">Renewal</status-badge>
+            <status-badge zb-if={point.kind === 'last-call'} variant="neutral">Last call</status-badge>
+            <span>{point.text}</span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+
+    <section zb-if={!view.ended} class="hq-panel call-guide" id="guide" aria-labelledby="call-guide-heading">
+      <h2 id="call-guide-heading">{view.guide.title}</h2>
+      <p class="hq-muted hq-small">{view.guide.hint}. Tick each as you ask it, and jot what they say. It all goes in the call log.</p>
+      <form method="post" action="/phone/{view.id}/answers" class="call-questions" oninput={answer} onchange={answer}>
+        <ol>
+          <zb-each items={view.guide.questions} as="question" key={question.position}>
+            <li>
+              <label class="call-question"><input type="checkbox" name="asked-{question.position}" value="on" checked={question.asked}> <span>{question.text}</span></label>
+              <label class="sr-only" for="answer-{question.position}">What they said</label>
+              <textarea id="answer-{question.position}" name="answer-{question.position}" rows="2" maxlength="1000" placeholder="What they said">{question.answer}</textarea>
+            </li>
+          </zb-each>
+        </ol>
+        <p class="call-saved" aria-live="polite">{answered}</p>
+        <div><button class="hq-button secondary" type="submit">Save answers</button></div>
+      </form>
+      <form method="post" action="/phone/{view.id}/guide" class="hq-form-row call-switch">
+        <div class="hq-field">
+          <label for="call-guide-choice">Use another guide</label>
+          <select id="call-guide-choice" name="situation">
+            <zb-each items={view.guides} as="choice" key={choice.value}><option value={choice.value} selected={choice.value === view.guide.situation}>{choice.label}</option></zb-each>
+          </select>
+        </div>
+        <button class="hq-button secondary" type="submit">Switch</button>
+      </form>
+      <p class="hq-small"><a href="/call-guides">Change the guides</a></p>
+    </section>
+
     <section zb-if={!view.ended} class="hq-panel call-wrap {view.clock.phase === 'on' ? '' : 'call-wrap-now'}" aria-labelledby="call-wrap-heading">
       <h2 id="call-wrap-heading">Wrapping up</h2>
+      <p zb-if={view.guide.left > 0}><strong>{view.guide.left} {view.guide.left === 1 ? 'question' : 'questions'} not asked yet.</strong> <a href="#guide">See the guide</a></p>
       <ul>
         <li>Say back what you agreed, in a sentence.</li>
         <li>Say who does what next, and by when.</li>
@@ -109,7 +180,7 @@
       <div class="hq-field">
         <label for="call-note">Notes</label>
         <textarea id="call-note" name="note" rows="6" maxlength="2000" aria-describedby="call-note-help" oninput={typed}>{view.note}</textarea>
-        <p id="call-note-help" class="hq-muted hq-small">Saved as you type. They go in the call log when you end the call.</p>
+        <p id="call-note-help" class="hq-muted hq-small">Saved as you type. They go in the call log, with the guide’s answers, when you end the call.</p>
       </div>
       <p class="call-saved" aria-live="polite">{saved}</p>
       <fieldset class="call-outcomes">
