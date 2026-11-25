@@ -16,3 +16,12 @@ test("a form still round-trips hours as people type them", () => {
   assert.equal(formatHours(100), "1.67");
   assert.deepEqual(parseHours(formatHours(90)), { ok: true, value: 90 });
 });
+
+test("hours can be typed without a leading zero or after a bare point", () => {
+  assert.deepEqual(parseHours(".25"), { ok: true, value: 15 });
+  assert.deepEqual(parseHours("0.25"), { ok: true, value: 15 });
+  assert.deepEqual(parseHours(" .5 "), { ok: true, value: 30 });
+  assert.deepEqual(parseHours("2."), { ok: true, value: 120 });
+  assert.deepEqual(parseHours(""), { ok: true, value: null });
+  for (const bad of [".", "-1", "1.255", ".255", "abc", "1,5", "100000"]) assert.deepEqual(parseHours(bad), { ok: false, error: "invalid-hours" }, bad);
+});
