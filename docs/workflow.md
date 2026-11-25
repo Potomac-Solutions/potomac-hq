@@ -15,7 +15,7 @@ each step touches. HQ is built to hold these records. Anything marked
 | Domain management | Domain registered and managed by Potomac | Cost of the domain + $10/yr |
 | Multi-page website | A multi-page site with unlimited support and updates. No upfront build fee (**provisional**) | $50/mo or $500/yr |
 | Blog platform | Blog added to a Potomac website and kept current. Add-on only | $10/mo |
-| Social media marketing | Content creation for Facebook, Instagram and LinkedIn. Monthly volume undecided (**provisional**) | $50/mo or $500/yr |
+| Social media marketing | Content creation for Facebook, Instagram and LinkedIn: 8 posts and 1 blog post a month, approved by the client each month (decision 0011) | $50/mo or $500/yr |
 | Application development | A custom application | Quoted per project, roughly $1,000 to $5,000 |
 | Automations | Workflow automations built on n8n | Quoted per project (**provisional**) |
 
@@ -103,7 +103,8 @@ Every step that changes a record also writes an Activity Event.
 1. **Fair-use limit on "unlimited support and updates".** One demanding client
    on the $50/mo plan can cost more hours than the plan pays for.
 2. **Multi-page website build fee.** Recorded as none.
-3. **Social media monthly volume.** Undecided.
+3. ~~**Social media monthly volume.**~~ Decided 2026-11-25: 8 posts and 1
+   blog post a month (decision 0011).
 4. **Automations pricing.** Recorded as quoted per project.
 5. **Where signed paper agreements are kept before v0.3**, when the file
    service ships.
