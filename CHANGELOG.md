@@ -9,6 +9,9 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- The kit now installs from its renamed private repository,
+  `Potomac-Solutions/potomac-kit`. Examples and tests use a made-up
+  `Potomac-Solutions/example-site` in place of real client repositories.
 - Social media (decision 0011), for clients on social media marketing. A
   plan on the client's page: Facebook, Instagram and LinkedIn with each
   page's address, 8 posts and 1 blog post a month unless set otherwise,
