@@ -15,6 +15,8 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { pushRoutes } from "./push/api/push-routes.ts";
+import { approvalTokens } from "./portal/adapters.ts";
+import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
@@ -346,6 +348,8 @@ export type PageContext = {
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** What an approval link from an email opens (quality of life, 2026-11-25). */
+    approval(token: string): ApprovalView;
     /** How to reach Potomac. Shown on every portal page, signed in or not. */
     readonly contact: PortalContact;
     /** True when clients are emailed that something is waiting, so the page offers to turn it off. */
@@ -709,6 +713,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
 
   const setupCounts = sqliteSetupCounts(db);
+  // Links in clients' emails that approve a deliverable (quality of life, 2026-11-25).
+  const approvals = approvalTokens(config.noticeSecret);
   const statusCounts = sqliteStatusCounts(db);
   const workloadRows = sqliteWorkload(db);
   const placesFor = services.placesFor;
@@ -788,6 +794,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return client && parsed.ok ? portalProposal(portalDeps, client, parsed.value) : missing();
           },
+          approval: (token) => approvalView(portalDeps, approvals, token),
           signUpOpen: signUpOpen(),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
@@ -1344,6 +1351,10 @@ export async function createApp(config: AppConfig): Promise<App> {
             subject: "Someone tried to book a call with your details",
             body: `Hi ${name},\n\nSomeone just tried to book a free call on the Potomac Solutions website using your email address or phone number. You already have an account with us, so we didn't book a second free call.\n\nIf it was you, open this link to sign in (or choose a new password) and book from your dashboard. It works once, for a week:\n\n${link}\n\nIf it wasn't you, please let us know${contactLine}. Nothing has been booked or changed, and nobody can use this link without access to this inbox.\n\nPotomac Solutions`,
           }),
+          "portal-sign-in": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Your link to sign in to Potomac Solutions",
+            body: `Hi ${name},\n\nHere's the link you asked for. Open it to sign in to your client portal and choose a password (or a new one). It works once, for a week:\n\n${link}\n\nIf you didn't ask for it, ignore this email and nothing changes.\n\nPotomac Solutions`,
+          }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nPotomac Solutions has set up a client portal for you. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nIn the portal you can follow your project, approve work and send messages.\n\nPotomac Solutions`,
@@ -1371,6 +1382,10 @@ export async function createApp(config: AppConfig): Promise<App> {
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
+      approvals,
+      ...(inviteMail
+        ? { signInLink: { mail: async (to, token) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-sign-in", { name: to.name, link: `${publicUrl}/portal/accept?token=${token}` })), allowPerEmail: sqliteRateLimit(db, { name: "portal-link-email", max: 3, windowMs: 60 * 60_000 }) } }
+        : {}),
       ...(inviteMail
         ? {
             signUp: {

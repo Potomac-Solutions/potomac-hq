@@ -134,6 +134,10 @@ export type ClientPortalRoutesDeps = {
   readonly refusedSignIn: (email: string, address: string) => void;
   /** True if this key may make another attempt now. */
   readonly allowAttempt: (key: string) => boolean;
+  /** Links in clients' emails that approve one deliverable. */
+  readonly approvals?: client.ApprovalTokens;
+  /** Emailing a client a sign-in link they asked for. Left out when email isn't set up. */
+  readonly signInLink?: { readonly mail: (to: { readonly email: string; readonly name: string }, token: string) => Promise<boolean>; readonly allowPerEmail: (key: string) => boolean };
   /** Signing up to book. Null when it isn't open: booking for new people is off, or email isn't set up. */
   readonly signUp?: {
     readonly open: () => boolean;
@@ -168,6 +172,28 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     if (!result.ok) return to(c, "/portal/sign-in", "problem", result.error === "locked" ? "Too many wrong tries. Wait fifteen minutes, then try again." : "That email and password don’t match.");
     c.header("set-cookie", result.value.cookie);
     return c.redirect("/portal", 303);
+  });
+
+  // Approving from an email's link, without signing in (quality of life, 2026-11-25).
+  app.post("/portal/approve/:token", async (c) => {
+    const token = c.req.param("token");
+    const back = `/portal/approve/${token}`;
+    if (!deps.approvals || limited(c, "approve")) return to(c, back, "problem", "Too many tries. Wait a minute, then try again.");
+    const { fields } = await readForm(c);
+    const decided = client.decideFromLink(deps.portal, deps.approvals, token, { decision: fields["decision"] ?? "", note: fields["note"] ?? "" });
+    if (!decided.ok) return to(c, back, "problem", decided.error === "note-required" ? "Say what should change." : decided.error === "not-awaiting-decision" ? "That’s already been decided." : "That didn’t work. Sign in to your portal to try there.");
+    return to(c, back, "done", decided.value.status === "approved" ? "Approved. Thank you! Potomac Solutions has been told." : "Sent. Potomac Solutions will be in touch about the changes.");
+  });
+
+  // A link by email, to sign in without the password (quality of life, 2026-11-25).
+  app.post("/portal/sign-in-link", async (c) => {
+    if (limited(c, "sign-in-link")) return to(c, "/portal/sign-in", "problem", "Too many tries. Wait a minute, then try again.");
+    const { fields } = await readForm(c);
+    const email = (fields["email"] ?? "").trim().toLowerCase();
+    const said = "If that email has a client portal, a link to sign in is on its way. It works once, for a week.";
+    if (!deps.signInLink) return to(c, "/portal/sign-in", "problem", "We can’t email links right now. Call or write to Potomac Solutions for one.");
+    if (email && deps.signInLink.allowPerEmail(`link ${email}`)) await client.emailSignInLink(deps.portal, email, deps.signInLink.mail);
+    return to(c, "/portal/sign-in", "done", said);
   });
 
   app.post("/portal/sign-up", async (c) => {

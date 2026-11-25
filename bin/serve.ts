@@ -37,6 +37,7 @@ import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { sendWeeklyEmails } from "../src/dashboard/index.ts";
 import { queueAlerts, sendAlerts } from "../src/push/index.ts";
 import { vapidFrom, webPushSender } from "../src/push/adapters.ts";
+import { approvalTokens } from "../src/portal/adapters.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
 import { draftMonthlyReports } from "../src/client-reports/index.ts";
@@ -210,6 +211,8 @@ const stopRetention = scheduleDaily(
 // Notices: every minute, email Potomac's people about what clients did, and
 // clients about what is waiting for them if that is turned on.
 let stopNotices: (() => void) | null = null;
+// Clients approve a deliverable from the email's link (quality of life, 2026-11-25).
+const approvals = approvalTokens(noticeSecret);
 if (email) {
   const noticeDeps = createServices(db).portal;
   const mail: Mail = async (message) => "ok" in (await email.send({ channel: "email", ...message }));
@@ -217,7 +220,7 @@ if (email) {
   const timer = setInterval(() => {
     if (busy) return;
     busy = true;
-    sendNotices(noticeDeps, mail, { publicUrl, toClients: clientNotices, phone: contact.phone })
+    sendNotices(noticeDeps, mail, { publicUrl, toClients: clientNotices, phone: contact.phone, approveLink: (deliverableId, clientUserId) => `/portal/approve/${approvals.make(deliverableId, clientUserId)}` })
       .then((sent) => {
         if (sent.failed > 0) log(`Notices: ${sent.failed} could not be emailed`);
       })

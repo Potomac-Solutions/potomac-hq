@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import * as notices from "../../src/notices/index.ts";
 import * as projects from "../../src/projects/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, wonProject, type Client, type TestApp } from "../support/harness.ts";
+import { httpClient, signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, wonProject, type Client, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
 let admin: Client;
@@ -166,3 +166,59 @@ test("phone alerts: a device turns them on, alerts are queued once, held in quie
     await vt.stop();
   }
 });
+
+test("the portal: a sign-in link by email, and approving from an email's link without signing in", async () => {
+  const { sendNotices } = await import("../../src/portal/index.ts");
+  const { approvalTokens } = await import("../../src/portal/adapters.ts");
+  const { PDF } = await import("../support/harness.ts");
+  const mails: { to: string; subject: string; body: string }[] = [];
+  const pt = await testApp({ passwordCost: TEST_PASSWORD_COST, publicUrl: "https://hq.example", email: { publicUrl: "https://hq.example", send: async (message) => (mails.push({ to: message.to, subject: message.subject, body: message.body }), { ok: true }) } });
+  try {
+    const mikey = await signIn(pt, "mikey@example.com", "Mikey Nichols", ["admin"]);
+    const mikeyId = pt.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
+    const made = await wonProject(pt.services, mikeyId, { client: "Nu-Finish Collision" });
+    await mikey.post(`/clients/${made.client.id}/portal-users`, { name: "Grover Groves", email: "grover@nufinish.example" });
+
+    // The sign-in link: the same answer whoever asks, and only a real client gets an email.
+    const asked = await httpClientFor(pt).post("/portal/sign-in-link", { email: "Grover@NuFinish.example" });
+    assert.match(query(asked, "done"), /If that email has a client portal, a link to sign in is on its way/);
+    const unknown = await httpClientFor(pt).post("/portal/sign-in-link", { email: "nobody@example.com" });
+    assert.equal(query(unknown, "done"), query(asked, "done"), "says nothing about who has an account");
+    const link = mails.find((one) => one.subject === "Your link to sign in to Potomac Solutions");
+    assert.equal(link?.to, "grover@nufinish.example");
+    const token = /\/portal\/accept\?token=([A-Za-z0-9_-]{43})/.exec(link?.body ?? "")?.[1] ?? "";
+    assert.ok(token);
+    const grover = httpClientFor(pt);
+    assert.equal((await grover.post("/portal/accept", { token, name: "Grover Groves", password: "a strong password here" })).status, 303);
+    const growerId = pt.db.prepare("select id from client_user where email = 'grover@nufinish.example'").get()?.["id"] as Id;
+
+    // A deliverable shared: the client's email carries a link that approves it.
+    const deliverable = unwrap(projects.addDeliverable(pt.services.projects, mikeyId, made.project.id, { title: "Logo, three ideas", file: { name: "logo.pdf", bytes: PDF } }));
+    unwrap(projects.setDeliverableShared(pt.services.projects, mikeyId, deliverable.id, true));
+    // The harness's notice secret, as the server signs them with its own.
+    const tokens = approvalTokens("test-secret-test-secret-test-secret-00");
+    mails.length = 0;
+    await sendNotices(pt.services.portal, async (message) => (mails.push(message), true), { publicUrl: "https://hq.example", toClients: true, phone: "", approveLink: (id, who) => `/portal/approve/${tokens.make(id, who)}` });
+    const toClient = mails.find((one) => one.to === "grover@nufinish.example");
+    const approve = /https:\/\/hq\.example(\/portal\/approve\/[A-Za-z0-9_.-]+)/.exec(toClient?.body ?? "")?.[1] ?? "";
+    assert.match(toClient?.body ?? "", /approve it, or ask for changes, in one tap:\n- Logo, three ideas: https:/);
+    assert.ok(approve);
+
+    // Opened on a phone with nobody signed in: the deliverable, and one tap.
+    const phone = httpClientFor(pt);
+    const page = textOf(await phone.page(approve));
+    assert.match(page, /Logo, three ideas For Bakery website/);
+    assert.match(page, /Waiting on you/);
+    assert.match(query(await phone.post(approve, { decision: "changes-requested", note: "" }), "problem"), /Say what should change/);
+    assert.match(query(await phone.post(approve, { decision: "approved" }), "done"), /Approved/);
+    assert.equal(pt.db.prepare("select status from deliverable where id = ?").get(deliverable.id)?.["status"], "approved");
+    assert.match(query(await phone.post(approve, { decision: "approved" }), "problem"), /already been decided/);
+    assert.match(textOf(await phone.page("/portal/approve/not.a-token")), /This link can’t be used/);
+    const forged = approvalTokens("another-secret-another-secret-0000000").make(deliverable.id, growerId);
+    assert.match(textOf(await phone.page(`/portal/approve/${forged}`)), /This link can’t be used/, "signed by someone else");
+  } finally {
+    await pt.stop();
+  }
+});
+
+const httpClientFor = (app: TestApp) => httpClient(app.origin);

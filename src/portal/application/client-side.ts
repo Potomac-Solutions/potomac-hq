@@ -423,3 +423,54 @@ export function requestCall(deps: PortalDeps, session: ClientSession, input: { r
     return ok(request.value);
   });
 }
+
+/**
+ * A sign-in link a client asks for themselves (quality of life, 2026-11-25):
+ * emailed to them, to choose a new password and be signed in, or to finish
+ * an invite they never used. Says nothing about whether the email has an
+ * account: the answer is the same either way. Only an active or invited
+ * client user of a real (not demo) client gets one.
+ */
+export async function emailSignInLink(deps: PortalDeps, typed: string, mail: (to: { readonly email: string; readonly name: string }, token: string) => Promise<boolean>): Promise<Result<true, never>> {
+  const email = typed.trim().toLowerCase();
+  const user = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? deps.clientUsers.byEmail(email) : null;
+  if (!user || user.status === "disabled") return ok(true as const);
+  const token = user.portalAccount === null ? await deps.auth.invite(user.email, user.name) : await deps.auth.resetLink(user.portalAccount);
+  if (token === null) return ok(true as const);
+  deps.transact(() => {
+    recordActivity(deps, { actorId: null, action: "client-user.reset-link-issued", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId, kind: user.portalAccount === null ? "invite" : "reset", asked: "themselves" } });
+  });
+  await mail({ email: user.email, name: user.name }, token);
+  return ok(true as const);
+}
+
+// ---- Approving from email (quality of life, 2026-11-25) -------------------
+
+export type ApprovalTokens = {
+  make(deliverableId: Id, clientUserId: Id): string;
+  /** What a link is for; null when it's been tampered with or is out of date. */
+  read(token: string): { readonly deliverableId: Id; readonly clientUserId: Id } | null;
+};
+
+export type ApprovalView =
+  | { readonly valid: false }
+  | { readonly valid: true; readonly title: string; readonly description: string; readonly projectName: string; readonly projectId: string; readonly awaiting: boolean; readonly statusLabel: string; readonly name: string };
+
+/** What an approval link opens: the deliverable, if the link is good and it's still that person's to decide. */
+export function approvalView(deps: PortalDeps, tokens: ApprovalTokens, token: string): ApprovalView {
+  const read = tokens.read(token);
+  const session = read ? sessionFor(deps.clientUsers.get(read.clientUserId)) : null;
+  const deliverable = read && session ? deps.deliverables.get(read.deliverableId) : null;
+  const project = deliverable && session ? ownProject(deps, session, deliverable.projectId) : null;
+  if (!read || !session || !deliverable || !project || deliverable.status === "draft") return { valid: false };
+  const STATUS: Readonly<Record<string, string>> = { shared: "Waiting on you", approved: "Approved", "changes-requested": "Changes asked for" };
+  return { valid: true, title: deliverable.title, description: deliverable.description, projectName: project.name, projectId: project.id, awaiting: deliverable.status === "shared", statusLabel: STATUS[deliverable.status] ?? deliverable.status, name: session.name };
+}
+
+/** Approves, or asks for changes, from an email's link, as the person it was sent to. */
+export function decideFromLink(deps: PortalDeps, tokens: ApprovalTokens, token: string, input: { readonly decision: string; readonly note?: string | null }): ReturnType<typeof decideOnDeliverable> {
+  const read = tokens.read(token);
+  const session = read ? sessionFor(deps.clientUsers.get(read.clientUserId)) : null;
+  if (!read || !session) return err("not-found");
+  return decideOnDeliverable(deps, session, read.deliverableId, input);
+}

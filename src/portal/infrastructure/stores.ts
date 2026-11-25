@@ -30,13 +30,13 @@ export function sqliteClientUserStore(db: Database): ClientUserStore {
   const read = (r: Row | undefined) => (r ? toUser(r) : null);
   const notices = db.prepare("select notices from client_user where id = ?");
   const setNotices = db.prepare("update client_user set notices = ?, updated_at = ? where id = ?");
-  const recipients = db.prepare("select name, email from client_user where organization_id = ? and status = 'active' and notices = 1 order by name collate nocase");
+  const recipients = db.prepare("select id, name, email from client_user where organization_id = ? and status = 'active' and notices = 1 order by name collate nocase");
   return {
     wantsNotices: (id) => notices.get(id)?.["notices"] === 1,
     setNotices(id, on, at) {
       setNotices.run(on ? 1 : 0, at, id);
     },
-    noticeRecipients: (organizationId) => (recipients.all(organizationId) as { name: string; email: string }[]).map((r) => ({ name: r.name, email: r.email })),
+    noticeRecipients: (organizationId) => (recipients.all(organizationId) as { id: string; name: string; email: string }[]).map((r) => ({ id: r.id as Id, name: r.name, email: r.email })),
     insert(u, at) {
       insert.run(u.id, u.organizationId, u.portalAccount, u.name, u.email, u.status, u.invitedBy, at, at);
     },
