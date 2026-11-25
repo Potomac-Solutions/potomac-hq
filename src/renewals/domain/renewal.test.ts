@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { billed, billedThisTerm, billFor, newRenewal, payBy, renewed, stateOf, yearly } from "./renewal.ts";
+import { billed, billedThisTerm, billFor, changePrice, newRenewal, occurrences, payBy, renewed, stateOf, yearly } from "./renewal.ts";
 import type { Id } from "../../shared/domain/id.ts";
 
 const ids = { id: "11111111-1111-4111-8111-111111111111" as Id, organizationId: "22222222-2222-4222-8222-222222222222" as Id };
@@ -46,4 +46,16 @@ test("a renewal billed to the client is paid a week before it renews, once a ter
   const ours = newRenewal({ id: "0190a000-0000-7000-8000-0000000000d4" as Id, organizationId: "0190a000-0000-7000-8000-0000000000d2" as Id }, { kind: "hosting", name: "Shared hosting", renewsOn: "2026-12-02", termMonths: "1", cost: "5" });
   assert.ok(ours.ok);
   assert.deepEqual(billFor(ours.value, "2026-11-23"), { ok: false, error: "not-billed-to-client" });
+});
+
+test("a price change keeps what it was; each time a renewal comes up in a span", () => {
+  const made = newRenewal(ids, { kind: "domain", name: "x.com", renewsOn: "2026-12-02", termMonths: "12", price: "25" });
+  assert.ok(made.ok);
+  const changed = changePrice(made.value, "30", "2026-11-25");
+  assert.ok(changed.ok);
+  assert.deepEqual([changed.value.price?.minor, changed.value.priceChange], [3000, { was: { minor: 2500, currency: "USD" }, on: "2026-11-25" }]);
+  assert.deepEqual(changePrice(made.value, "25.00", "2026-11-25"), { ok: false, error: "same-price" });
+  assert.deepEqual(changePrice(made.value, "lots", "2026-11-25"), { ok: false, error: "not-an-amount" });
+  assert.deepEqual(occurrences({ renewsOn: "2026-12-02", termMonths: 3 }, "2026-11-25", "2027-11-24"), ["2026-12-02", "2027-03-02", "2027-06-02", "2027-09-02"]);
+  assert.deepEqual(occurrences({ renewsOn: "2026-01-15", termMonths: 12 }, "2026-11-25", "2027-11-24"), ["2027-01-15"], "a past date moves on to the next term");
 });

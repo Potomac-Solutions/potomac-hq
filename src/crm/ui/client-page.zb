@@ -61,6 +61,16 @@
         <button class="hq-button secondary small" type="submit">{view.client.demo ? 'It’s a real client' : 'Mark as a demo'}</button>
       </form>
     </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" aria-labelledby="client-money">
+      <h2 id="client-money">Money</h2>
+      <dl class="hq-facts">
+        <dt>Owed now</dt><dd><a href="#invoices">{invoices.value.money.owed}</a></dd>
+        <dt>Overdue</dt><dd>{invoices.value.money.overdue} <status-badge zb-if={invoices.value.money.hasOverdue} variant="danger">Overdue</status-badge></dd>
+        <dt>Paid this year</dt><dd>{invoices.value.money.paidThisYear}</dd>
+        <dt zb-if={renewals && renewals.items.length > 0}>Next renewal</dt><dd zb-if={renewals && renewals.items.length > 0}><a href="#renewal-{renewals.items[0].id}">{renewals.items[0].name}</a>, {renewals.items[0].when}</dd>
+        <dt zb-if={invoices.value.prepaid}>Prepaid hours left</dt><dd zb-if={invoices.value.prepaid}><a href="#billing">{invoices.value.prepaid.left}</a> <status-badge zb-if={invoices.value.prepaid.low} variant="warning">Low</status-badge></dd>
+      </dl>
+    </section>
     <section class="hq-panel" id="contacts" aria-labelledby="client-contacts">
       <h2 id="client-contacts">Contacts</h2>
       <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
@@ -69,7 +79,7 @@
         <tbody>
           <zb-each items={view.contacts} as="contact" key={contact.id}>
             <tr>
-              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge></td>
+              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
               <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a> <form zb-if={contact.phone && touches && touches.canLog} method="post" action="/phone" class="hq-inline"><input type="hidden" name="contactId" value={contact.id}><button class="hq-button secondary hq-small" type="submit" aria-label="Start a call with {contact.name}">Start a call</button></form></td>
@@ -77,6 +87,17 @@
           </zb-each>
         </tbody>
       </table>
+      <form zb-if={view.can.setBilling && view.contacts.length > 0} method="post" action="/clients/{view.client.id}/billing-contact" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="billing-contact">Who gets the bills</label>
+          <select id="billing-contact" name="contactId">
+            <option value="" selected={!view.billingContactId}>The usual people: the primary contact, or whoever uses the portal</option>
+            <zb-each items={view.contacts} as="contact" key={contact.id}><option zb-if={contact.email} value={contact.id} selected={contact.isBilling}>{contact.name}, {contact.email}</option></zb-each>
+          </select>
+          <span class="hint">Invoices, reminders, receipts and monthly statements go to them, such as a spouse or a bookkeeper.</span>
+        </div>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
+      </form>
       <form zb-if={view.can.addContact} method="post" action="/clients/{view.client.id}/contacts" class="hq-form" data-spaced>
         <h3>Add a contact</h3>
         <text-field label="Name" name="name" required={true} autocomplete="name"></text-field>
@@ -357,7 +378,63 @@
           <text-field label="Description" name="description" required={true} maxlength={300} placeholder="Domain name betterdaystowing.com, one year"></text-field>
           <text-field label="Amount, in dollars" name="amount" required={true} inputmode="decimal" placeholder="25.00"></text-field>
           <text-field label="Due on (optional)" name="dueOn" type="date"></text-field>
-          <div><button class="hq-button" type="submit">Draft the invoice</button></div>
+          <label class="hq-check"><input type="checkbox" name="send"> Send it now: it goes straight to the client’s portal</label>
+          <div><button class="hq-button" type="submit">Save the invoice</button></div>
+        </form>
+      </details>
+    </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" id="billing" aria-labelledby="client-billing">
+      <h2 id="client-billing">Plans and prepaid hours</h2>
+      <h3>Billed on a schedule, with no project</h3>
+      <p zb-if={invoices.value.plans.length === 0} class="hq-muted">None. Hosting, upkeep or a monthly plan can bill itself here.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={invoices.value.plans} as="plan" key={plan.id}>
+          <li>
+            {plan.description} · {plan.amount} {plan.everyLabel} · next {plan.next}<span zb-if={plan.endsText}>, {plan.endsText}</span> <status-badge zb-if={!plan.active} variant="neutral">Paused</status-badge>
+            <form zb-if={invoices.value.canCreate} method="post" action="/recurring/{plan.id}/{plan.active ? 'pause' : 'resume'}" class="hq-inline"><button class="hq-button secondary hq-small" type="submit">{plan.active ? 'Pause' : 'Start again'}</button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Bill something on a schedule</summary>
+        <form method="post" action="/clients/{view.client.id}/recurring" class="hq-form">
+          <text-field label="What it’s for" name="description" required={true} maxlength={200} placeholder="Hosting and upkeep"></text-field>
+          <text-field label="Each time, in dollars" name="amount" required={true} inputmode="decimal" placeholder="49.00"></text-field>
+          <div class="hq-field">
+            <label for="plan-every">How often</label>
+            <select id="plan-every" name="every"><zb-each items={invoices.value.everyOptions} as="every" key={every.value}><option value={every.value}>{every.label}</option></zb-each></select>
+          </div>
+          <text-field label="First invoice on" name="firstOn" type="date" required={true} value={invoices.value.today}></text-field>
+          <text-field label="Last one by (optional)" name="endsOn" type="date"></text-field>
+          <label class="hq-check"><input type="checkbox" name="autoSend" value="1"> Send each one by itself, instead of waiting as a draft</label>
+          <text-field label="Due this many days after it’s sent" name="dueDays" inputmode="numeric" value="15"></text-field>
+          <div><button class="hq-button" type="submit">Save the plan</button></div>
+        </form>
+      </details>
+
+      <h3 data-spaced>Prepaid hours</h3>
+      <p zb-if={!invoices.value.prepaid} class="hq-muted">None bought. A client can buy a block of hours up front; time logged on their projects draws it down.</p>
+      <div zb-else>
+        <dl class="hq-facts">
+          <dt>Bought</dt><dd>{invoices.value.prepaid.bought}</dd>
+          <dt>Used</dt><dd>{invoices.value.prepaid.used}</dd>
+          <dt>Left</dt><dd><strong>{invoices.value.prepaid.left}</strong> <status-badge zb-if={invoices.value.prepaid.low} variant="warning">{invoices.value.prepaid.over ? 'Over' : 'Low'}</status-badge></dd>
+        </dl>
+        <ul class="hq-list">
+          <zb-each items={invoices.value.prepaid.blocks} as="block" key={block.id}>
+            <li>{block.hours}, bought {block.boughtOn}<span zb-if={block.note}> · {block.note}</span> <a zb-if={block.invoiceId} href="/invoices/{block.invoiceId}">Invoice</a></li>
+          </zb-each>
+        </ul>
+      </div>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Add hours they bought</summary>
+        <form method="post" action="/clients/{view.client.id}/prepaid" class="hq-form">
+          <text-field label="Hours" name="hours" required={true} inputmode="decimal" placeholder="10"></text-field>
+          <text-field label="Bought on" name="boughtOn" type="date" required={true} value={invoices.value.today}></text-field>
+          <text-field label="Price, in dollars (optional)" name="price" inputmode="decimal" description="With a price, HQ makes its invoice too."></text-field>
+          <label class="hq-check"><input type="checkbox" name="send"> Send that invoice now</label>
+          <text-field label="Note (optional)" name="note" maxlength={300}></text-field>
+          <div><button class="hq-button" type="submit">Add the hours</button></div>
         </form>
       </details>
     </section>
@@ -370,6 +447,8 @@
             <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <status-badge zb-if={one.state === 'overdue'} variant="danger">Overdue</status-badge></p>
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <p zb-if={one.priceNote} class="hq-small">{one.priceNote}</p>
+            <label zb-if={one.canBill} class="hq-check hq-small"><input type="checkbox" name="bill-{one.id}" form="bill-together"> Bill together with others ticked</label>
             <p zb-if={one.answerText} class="hq-small"><status-badge variant={one.answer === 'lapse' ? 'warning' : 'success'}>{one.answer === 'lapse' ? 'Let it lapse' : 'Renew it'}</status-badge> {one.answerText}</p>
             <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
             <form zb-if={one.canBill} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
@@ -387,9 +466,28 @@
               <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>
             </div>
+            <details zb-if={renewals.canEdit} class="hq-small">
+              <summary>Change what the client is billed<span class="sr-only"> for {one.name}</span></summary>
+              <form method="post" action="/renewals/{one.id}/price" class="hq-form-row">
+                <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
+                <text-field label="New price each time, in dollars" name="price" inputmode="decimal" value={one.priceText} description="From their next bill. They see the change in their portal first. Empty: we pay for it."></text-field>
+                <button class="hq-button secondary" type="submit">Change the price</button>
+              </form>
+            </details>
           </li>
         </zb-each>
       </ul>
+      <form zb-if={renewals.items.filter((one) => one.canBill).length > 1} id="bill-together" method="post" action="/clients/{view.client.id}/renewals/bill-together" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="bill-together-project">Bill the ticked ones together, on</label>
+          <select id="bill-together-project" name="projectId">
+            <option value="" selected>The client, no project</option>
+            <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
+          </select>
+          <span class="hint">One invoice, a line each, due a week before the first of them renews.</span>
+        </div>
+        <button class="hq-button" type="submit">Bill them together</button>
+      </form>
       <details zb-if={renewals.canEdit} class="hq-more">
         <summary>Add a renewal</summary>
         <form method="post" action="/clients/{view.client.id}/renewals" class="hq-form">

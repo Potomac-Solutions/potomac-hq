@@ -53,9 +53,11 @@ export type ClientDetailView = {
     readonly address: string;
     readonly demo: boolean;
   };
-  readonly contacts: readonly { readonly id: string; readonly name: string; readonly email: string; readonly phone: string; readonly title: string; readonly isPrimary: boolean }[];
+  readonly contacts: readonly { readonly id: string; readonly name: string; readonly email: string; readonly phone: string; readonly title: string; readonly isPrimary: boolean; readonly isBilling: boolean }[];
+  /** Who gets the bills, when it isn't the usual people. "" when not set. */
+  readonly billingContactId: string;
   readonly opportunities: readonly OpportunityRow[];
-  readonly can: { readonly setStatus: boolean; readonly addContact: boolean; readonly createOpportunity: boolean; readonly viewOpportunities: boolean };
+  readonly can: { readonly setStatus: boolean; readonly addContact: boolean; readonly setBilling: boolean; readonly createOpportunity: boolean; readonly viewOpportunities: boolean };
   readonly statuses: readonly Option[];
   readonly services: readonly Option[];
   readonly leadSources: readonly Option[];
@@ -175,11 +177,14 @@ export function clientDetail(deps: CrmDeps, actorId: Id | null, clientId: Id): R
       phone: contact.phone ?? "",
       title: contact.title ?? "",
       isPrimary: contact.isPrimary,
+      isBilling: deps.clients.billingContact(clientId) === contact.id,
     })),
+    billingContactId: deps.clients.billingContact(clientId) ?? "",
     opportunities: viewOpportunities ? deps.opportunities.listFor(clientId).map((o) => row(o, showValue)) : [],
     can: {
       setStatus: may(deps, actorId, "client.set-status"),
       addContact: may(deps, actorId, "contact.edit"),
+      setBilling: may(deps, actorId, "client.edit"),
       createOpportunity: may(deps, actorId, "opportunity.create"),
       viewOpportunities,
     },

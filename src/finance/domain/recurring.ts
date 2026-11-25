@@ -13,7 +13,10 @@ const MONTHS: Readonly<Record<Every, number>> = { month: 1, quarter: 3, year: 12
 
 export type RecurringInvoice = {
   readonly id: Id;
-  readonly projectId: Id;
+  /** The client billed. */
+  readonly organizationId: Id;
+  /** The project, or null for a plan on the client alone (hosting, upkeep). */
+  readonly projectId: Id | null;
   readonly description: string;
   readonly amount: Money;
   readonly every: Every;
@@ -34,7 +37,7 @@ export type RecurringInvoice = {
 export type RecurringInput = { readonly description: string; readonly amount: string; readonly every: string; readonly firstOn: string; readonly endsOn?: string | null; readonly autoSend?: boolean; readonly dueDays?: string | null };
 export type RecurringError = "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive" | "invalid-every" | "invalid-date" | "ends-before-start" | "invalid-due-days";
 
-export function newRecurring(ids: { readonly id: Id; readonly projectId: Id; readonly createdBy: Id }, input: RecurringInput): Result<RecurringInvoice, RecurringError> {
+export function newRecurring(ids: { readonly id: Id; readonly organizationId: Id; readonly projectId: Id | null; readonly createdBy: Id }, input: RecurringInput): Result<RecurringInvoice, RecurringError> {
   const description = requiredText(input.description, 200);
   if (!description.ok) return err(description.error === "missing" ? "description-missing" : "description-too-long");
   const amount = parseAmount(input.amount, "USD");

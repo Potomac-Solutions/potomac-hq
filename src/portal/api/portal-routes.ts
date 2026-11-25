@@ -297,6 +297,12 @@ export function portalDownloads(deps: PortalDownloadDeps): Hono {
     const found = id.ok ? client.portalProposalDocument(deps.portal, deps.clientOf(c.req.header("cookie") ?? ""), id.value) : null;
     return found && found.ok ? pdf(deps.renderProposalPdf(found.value), found.value.fileName) : c.text("Not found", 404);
   });
+  // What a client paid in a year, for their taxes or bookkeeper (decision 0017).
+  app.get("/portal/payments.csv", (c) => {
+    const found = client.portalPaymentsCsv(deps.portal, deps.clientOf(c.req.header("cookie") ?? ""), Number(c.req.query("year") ?? ""));
+    if (!found.ok) return c.text("Not found", 404);
+    return c.body(found.value.csv, 200, { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${found.value.fileName}"`, "cache-control": "private, no-store" });
+  });
   app.get("/portal/invoices/:id/pdf", (c) => {
     const id = parseId(c.req.param("id"));
     const found = id.ok ? client.portalInvoiceDocument(deps.portal, deps.clientOf(c.req.header("cookie") ?? ""), id.value) : null;

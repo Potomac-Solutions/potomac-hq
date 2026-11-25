@@ -11,6 +11,9 @@ export type ClientStore = {
   get(id: Id): Client | null;
   /** Every client, newest first, with how many open opportunities each has. */
   list(): (Client & { readonly openOpportunities: number })[];
+  /** Who gets the client's bills, when it isn't the primary contact. Null: the usual people. */
+  billingContact(id: Id): Id | null;
+  setBillingContact(id: Id, contactId: Id | null, at: string): void;
 };
 
 export type ContactStore = {

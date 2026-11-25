@@ -27,7 +27,7 @@ import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { approveQuietPosts } from "../src/social/index.ts";
-import { runRecurringInvoices, sendInvoiceReminders, syncFinanceSheet } from "../src/finance/index.ts";
+import { runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
@@ -239,12 +239,29 @@ const stopInvoiceReminders = email
   ? scheduleDaily(
       async () => {
         const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
-        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, { publicUrl, phone: contact.phone, address: contact.address });
+        const options = { publicUrl, phone: contact.phone, address: contact.address };
+        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, options);
         if (result.sent + result.failed + result.skipped > 0) console.log(`Invoice reminders: sent ${result.sent}, failed ${result.failed}, no one to send to ${result.skipped}.`);
+        // Monthly statements (decision 0017): in the first week of a month, once a client.
+        const statements = await sendStatements(createServices(db).invoiceReminders, mail, options);
+        if (statements.sent + statements.failed > 0) console.log(`Statements: sent ${statements.sent}, failed ${statements.failed}.`);
       },
       { zone: BUSINESS_TIME_ZONE, hour: 9, minute: 7, clock: systemClock, log, name: "invoice reminders" },
     )
   : null;
+
+// Receipts for payments recorded (decision 0017), every five minutes, when invoice emails are on.
+const receiptTimer = email
+  ? setInterval(() => {
+      const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
+      sendReceipts(createServices(db).invoiceReminders, mail, { publicUrl, phone: contact.phone, address: contact.address })
+        .then((result) => {
+          if (result.sent + result.failed > 0) console.log(`Receipts: sent ${result.sent}, failed ${result.failed}.`);
+        })
+        .catch((error: unknown) => log("receipts", error));
+    }, 5 * 60_000)
+  : null;
+receiptTimer?.unref();
 
 // Monthly reports to plan clients (decision 0013, section 4): drafted each
 // morning at 08:13 in the first week of a month, for the month before, once
@@ -516,6 +533,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(automationTimer);
     clearInterval(creditTimer);
     stopInvoiceReminders?.();
+    if (receiptTimer) clearInterval(receiptTimer);
     stopMorning?.();
     stopNotices?.();
     clearInterval(taskNoticeTimer);
