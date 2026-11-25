@@ -178,6 +178,19 @@ again sends the newest version the same way.
 The **zip** of any version can be downloaded at any time from slice 1, for
 a client who wants to host it themselves.
 
+As built (slice 4): the organization is `HQ_GITHUB_ORG`, Potomac-Solutions
+unless set. A new repository's later versions are committed straight onto
+its main branch, since nothing but the builder writes there; a client's
+own repository gets a new branch and pull request for every version. A
+version is published once. The files go at the top of the repository,
+beside whatever is there, and the build's pictures with them. Opening a
+pull request needs `HQ_GITHUB_TOKEN` to have "Pull requests: read and
+write" on that repository as well as "Contents". After a new repository is
+made, HQ tries to set the client's site up for editing (decision 0003),
+which works only if `HQ_GITHUB_TOKEN` can see the new repository and the
+client has no site set up yet; otherwise it's done by hand on the client's
+page.
+
 ## Data
 
 Migration `0056-site-builder.sql`:
