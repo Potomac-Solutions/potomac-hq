@@ -72,6 +72,8 @@ import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-rout
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
 import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
+import { aiRoutes } from "./ai/api/ai-routes.ts";
+import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
@@ -123,6 +125,26 @@ export type AppConfig = {
   readonly builderOwner?: string | null;
   /** Runs a site builder request after the answer is sent. Tests give their own to wait on it. */
   readonly runLater?: (job: () => Promise<void>) => void;
+  /** Claude, when HQ_ANTHROPIC_API_KEY is set (decision 0012). Without it, AI is off. */
+  readonly ai?: AiModel | null;
+};
+
+/** What a page sees of AI (decision 0012). Each part is null when there's nothing, or this person may not see it. */
+export type AiPageContext = {
+  /** Whether a feature's button shows, and if not, why (empty when it's simply off or not theirs). */
+  state(feature: string): FeatureState;
+  readonly canManage: boolean;
+  settings(): ReturnType<typeof aiSettingsView>;
+  drafts(): DraftsView;
+  /** How many drafts wait for this person, without reading what each is about. */
+  draftCount(): number;
+  recap(callId: string): (RecapDraft & { readonly id: string }) | null;
+  brief(bookingId: string): ReturnType<typeof callBrief>;
+  deal(opportunityId: string): { readonly triage: (TriageDraft & { readonly id: string; readonly serviceLabel: string }) | null; readonly checkIn: (MailDraft & { readonly id: string }) | null; readonly proposal: (ProposalDraft & { readonly id: string; readonly totalText: string }) | null };
+  project(projectId: string): { readonly scope: readonly (ScopeDraft & { readonly id: string; readonly when: string; readonly amountText: string })[]; readonly update: (UpdateDraft & { readonly id: string; readonly when: string }) | null };
+  receipt(projectId: string): (ReceiptDraft & { readonly id: string; readonly amountText: string; readonly categories: readonly string[] }) | null;
+  ask(): (AskDraft & { readonly when: string; readonly links: readonly { readonly slug: string }[] }) | null;
+  marketing(): readonly MarketingLine[] | null;
 };
 
 /** Potomac's own phone, email and mailing address, as clients are shown them. */
@@ -398,6 +420,7 @@ export type PageContext = {
     article(slug: string): ReturnType<typeof articleDetail>;
     revision(slug: string, number: string): ReturnType<typeof articleRevision>;
   };
+  readonly ai: AiPageContext;
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
@@ -424,12 +447,12 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos)$/;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
-const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import)$/;
+const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import|phone\/[0-9a-f-]{36}\/recap\/ai)$/;
 const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
@@ -437,7 +460,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -496,6 +519,53 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
 
   const refusedDeps = services.refused;
+
+  // What pages see of AI (decision 0012): only drafts this person may use.
+  const aiDeps = services.ai;
+  const money = (dollars: number) => `$${dollars.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const aiContext = (actor: Id | null): AiPageContext => ({
+    state: (feature) => (isFeature(feature) ? featureState(aiDeps, actor, feature) : { on: false, why: "" }),
+    canManage: actor !== null && authorize(sessionDeps, actor, "ai.manage").ok,
+    settings: () => aiSettingsView(aiDeps, actor),
+    drafts: () => waitingDrafts(aiDeps, actor, (draft) => describeDraft(aiDeps, draft)),
+    draftCount: () => waitingDrafts(aiDeps, actor, () => "").items.length,
+    recap(callId) {
+      const draft = waitingDraft<RecapDraft>(aiDeps, actor, "call-recap", callId);
+      return draft ? { ...draft.content, id: draft.id } : null;
+    },
+    brief: (bookingId) => callBrief(aiDeps, actor, bookingId as Id),
+    deal(opportunityId) {
+      const triage = waitingDraft<TriageDraft>(aiDeps, actor, "lead-triage", opportunityId);
+      const checkIn = waitingDraft<MailDraft>(aiDeps, actor, "check-in", opportunityId);
+      const proposal = waitingDraft<ProposalDraft>(aiDeps, actor, "proposal-draft", opportunityId);
+      const total = proposal ? proposal.content.lines.reduce((sum, line) => sum + Math.round(line.quantity * line.rate * 100), 0) / 100 : 0;
+      return {
+        triage: triage ? { ...triage.content, id: triage.id, serviceLabel: aiDeps.links.services.find((one) => one.key === triage.content.service)?.label ?? "Not sure" } : null,
+        checkIn: checkIn ? { ...checkIn.content, id: checkIn.id } : null,
+        proposal: proposal ? { ...proposal.content, id: proposal.id, totalText: money(total) } : null,
+      };
+    },
+    project(projectId) {
+      const scope = actor !== null && authorize(sessionDeps, actor, "finance.edit").ok ? aiDeps.ai.waitingFor("scope-check", projectId) : [];
+      const update = waitingDraft<UpdateDraft>(aiDeps, actor, "weekly-update", projectId);
+      return {
+        scope: scope.map((draft) => {
+          const content = draft.content as ScopeDraft;
+          return { ...content, id: draft.id, when: services.formatWhen(draft.createdAt), amountText: content.change ? money(content.change.amount) : "" };
+        }),
+        update: update ? { ...update.content, id: update.id, when: services.formatWhen(update.createdAt) } : null,
+      };
+    },
+    receipt(projectId) {
+      const draft = waitingDraft<ReceiptDraft>(aiDeps, actor, "receipt", projectId);
+      return draft ? { ...draft.content, id: draft.id, amountText: draft.content.amount === null ? "" : draft.content.amount.toFixed(2), categories: aiDeps.links.expenseCategories } : null;
+    },
+    ask() {
+      const found = lastAnswer(aiDeps, actor);
+      return found ? { ...found.content, when: services.formatWhen(found.createdAt), links: found.content.sources.map((slug) => ({ slug })) } : null;
+    },
+    marketing: () => marketingQueue(aiDeps, actor),
+  });
 
   const handleStaff = staffRoutes({
     refused: (draft) => recordRefusal(refusedDeps, draft),
@@ -839,6 +909,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
+        ai: aiContext(actor),
         settings: { theme: actor ? users.themeOf(actor) : "system", themes, morningEmail: { on: actor ? users.morningEmailOf(actor) : false, emailSetUp: Boolean(config.email), address: user?.email ?? "" }, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
@@ -1075,6 +1146,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // The recap email after a call (decision 0009, section 7), when email is set up.
   const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
