@@ -15,6 +15,8 @@
 //   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
 //   HQ_GITHUB_TOKEN    reads and publishes client sites' content on GitHub; off when unset
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
+//   HQ_ANTHROPIC_API_KEY  Claude, for the AI drafts of decision 0010; AI is off when unset.
+//                      Which features are on, the model and the budget are in Settings → AI.
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -36,6 +38,8 @@ import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
 import { createServices } from "../src/services.ts";
+import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
+import { claudeModel, looksLikeAnthropicKey } from "../src/ai/adapters.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
@@ -102,8 +106,19 @@ const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo
 const github = githubConfigFrom(process.env);
 console.log(github ? "Client sites' content is published to GitHub." : "Site content can't be set up or published: HQ_GITHUB_TOKEN is not set.");
 
+// AI assistance (decision 0010): Claude, when a key is set. A key that isn't
+// one stops the start, so a typo is never a silent "AI is off".
+const anthropicKey = (process.env["HQ_ANTHROPIC_API_KEY"] ?? "").trim();
+if (anthropicKey && !looksLikeAnthropicKey(anthropicKey)) {
+  console.error("HQ_ANTHROPIC_API_KEY doesn't look like an Anthropic API key (sk-ant-…).");
+  process.exit(2);
+}
+const aiModel = anthropicKey ? claudeModel(anthropicKey) : null;
+console.log(aiModel ? "AI: Claude is available. Features are turned on in Settings → AI." : "AI is off: HQ_ANTHROPIC_API_KEY is not set.");
+
 const app = await createApp({
   db,
+  ai: aiModel,
   sitePublisher: github ? githubPublisher(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
@@ -219,7 +234,8 @@ console.log(email ? "Morning email: each person's Today list at 7, unless they t
 // Client websites: checked every five minutes. Changes are emailed to the
 // alert address when email and HQ_ALERT_EMAIL are set.
 const siteChecker = httpSiteChecker();
-const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...message })) : null;
+// With site-down diagnosis on (decision 0010), AI's likely cause goes in the alert; if AI fails, the alert goes as it was.
+const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...(aiModel ? await withDiagnosis(createServices(db, { aiModel }).ai, message) : message) })) : null;
 let checkingSites = false;
 const siteTimer = setInterval(() => {
   if (checkingSites) return;
@@ -323,6 +339,29 @@ server.listen(port, async () => {
   if (setup) console.log(`Nobody has an account yet. Set up the first admin here (works once, for a day):\n${publicUrl}${setup}`);
 });
 
+// AI (decision 0010), when it's on: every five minutes, triage new leads and
+// check new client messages against what was agreed; on Fridays at 08:13,
+// draft each active project's update. Drafts wait for a person.
+let aiRunning = false;
+const aiTimer = setInterval(() => {
+  if (!aiModel || aiRunning) return;
+  aiRunning = true;
+  const ai = createServices(db, { aiModel }).ai;
+  triageNewLeads(ai)
+    .then(() => checkNewMessages(ai))
+    .catch((error: unknown) => log("AI: the run failed", error))
+    .finally(() => (aiRunning = false));
+}, 5 * 60_000);
+aiTimer.unref();
+const stopWeeklyUpdates = aiModel
+  ? scheduleDaily(
+      async () => {
+        if (Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).dayOfWeek === 5) await draftWeeklyUpdates(createServices(db, { aiModel }).ai);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 13, clock: systemClock, log, name: "weekly update drafts" },
+    )
+  : null;
+
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopBackups?.();
@@ -336,6 +375,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopNotices?.();
     clearInterval(taskNoticeTimer);
     clearInterval(webhookTimer);
+    clearInterval(aiTimer);
+    stopWeeklyUpdates?.();
     stopReminders?.();
     server.close(() => {
       db.close();

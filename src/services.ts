@@ -41,6 +41,14 @@ import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts"
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
+import { withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
+import { SERVICE_LABELS } from "./crm/domain/labels.ts";
+import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
+import { getReady, logTouch, moveOpportunity, recapFor } from "./crm/index.ts";
+import { addNote } from "./notes/index.ts";
+import { postProjectUpdate } from "./portal/index.ts";
+import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
 
@@ -93,6 +101,8 @@ export type Services = {
   readonly links: LinkDeps;
   /** The morning email of that list. */
   readonly morning: MorningDeps;
+  /** AI assistance (decision 0010): settings, budget, and the drafts each feature writes. */
+  readonly ai: FeaturesDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -121,6 +131,8 @@ export type ServiceOptions = {
   readonly webhookKey?: string;
   /** HQ's own address, for links in webhook payloads. */
   readonly publicUrl?: string;
+  /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
+  readonly aiModel?: AiModel | null;
 };
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -154,7 +166,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       return { id: project.id, name: project.name, status: project.status, client: crm.clients.get(project.organizationId)?.name ?? null, startOn: project.startOn, targetOn: project.targetOn, url: `${base}/projects/${project.id}` };
     },
   };
-  const eventLog = withWebhooks(noticingLog, { ...webhookStores, describe, users, newId, clock });
+  // And an AI draft is marked used when what it was for is done by hand (decision 0010).
+  const aiStore = sqliteAiStore(db);
+  const eventLog = withDraftOutcomes(withWebhooks(noticingLog, { ...webhookStores, describe, users, newId, clock }), aiStore);
   const crm: CrmDeps = {
     ...session,
     activityLog: eventLog,
@@ -328,5 +342,61 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const services = Object.entries(SERVICE_LABELS).map(([key, label]) => ({ key, label }));
+  const ai: FeaturesDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    today,
+    startOfDay,
+    monthStart: () => startOfDay(`${today().slice(0, 7)}-01`),
+    ai: aiStore,
+    model: options.aiModel ?? null,
+    records: sqliteAiRecords(db),
+    links: {
+      recap(actorId, callId) {
+        const recap = recapFor(calls, actorId, callId);
+        if (!recap.ok) return recap.error === "no-email" ? "no-email" : null;
+        const call = calls.calls.get(callId);
+        if (!call) return null;
+        return { client: recap.value.clientName, contact: recap.value.toName, me: users.get(actorId)?.name ?? "", notes: call.note, organizationId: call.organizationId, opportunityId: call.opportunityId };
+      },
+      getReady(actorId, bookingId) {
+        const ready = getReady(calls, actorId, bookingId);
+        if (!ready.ok) return null;
+        return { organizationId: (ready.value.clientId || null) as Id | null, client: ready.value.clientName, contact: ready.value.name, why: ready.value.topic, points: ready.value.points.map((one) => one.text) };
+      },
+      addTodo: (actorId, input) => addTodo(todos, actorId, { title: input.title, clientId: input.clientId, opportunityId: input.opportunityId }),
+      logEmail: (actorId, opportunityId, contactId, note) => logTouch(touches, actorId, { opportunityId }, { kind: "email", note, contactId }),
+      addNote: (actorId, opportunityId, body) => addNote(notes, actorId, { recordType: "opportunity", recordId: opportunityId, body }),
+      markLost: (actorId, opportunityId, reason) => moveOpportunity(crm, actorId, opportunityId, { to: "lost", lostReason: reason }),
+      startProposal(actorId, opportunityId, draft) {
+        const started = startProposal(proposals, actorId, opportunityId, {});
+        if (!started.ok) return started;
+        const saved = saveProposal(proposals, actorId, started.value.id, {
+          title: draft.title,
+          pricing: started.value.pricing,
+          scope: draft.scope,
+          assumptions: draft.assumptions,
+          exclusions: draft.exclusions,
+          deliverables: draft.deliverables,
+          lines: draft.lines.map((line) => ({ item: line.item, kind: line.kind, quantity: String(line.quantity), rate: line.rate.toFixed(2) })),
+        });
+        return saved.ok ? { ok: true, value: saved.value.id } : saved;
+      },
+      addChange: (actorId, projectId, input) => addChangeRequest(finance, actorId, projectId, input),
+      postUpdate: (actorId, projectId, body) => postProjectUpdate(portal, actorId, projectId, body),
+      addExpense: (actorId, projectId, input, receipt) => addExpense(finance, actorId, projectId, { ...input, receipt }),
+      template(service) {
+        const found = TEMPLATES[service];
+        return found ? { scope: found.scope, assumptions: found.assumptions, exclusions: found.exclusions, deliverables: found.deliverables, lines: found.lines } : null;
+      },
+      services,
+      expenseCategories: EXPENSE_CATEGORIES,
+    },
+  };
+  return { ai, notices, webhooks, publicSite, websites, referrals, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
