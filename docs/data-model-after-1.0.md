@@ -700,7 +700,7 @@ Added by decision 0012 (migration 0058). The API key is never stored: it is
   `ai.draft-used`, `ai.draft-discarded`. Their context never holds the text
   AI wrote, only the feature, model, counts and cost.
 - The budget is the site builder's `builder_settings.cap_cents`, one cap
-  for both (set to $20 by migration 0062). Each counts the other's spending:
+  for both (set to $20 by migration 0070). Each counts the other's spending:
   `ai_usage.cost` and `build_request` costs this month.
 - An unused receipt draft is discarded by the retention run after 30 days,
   and its `attachment` cleared.
