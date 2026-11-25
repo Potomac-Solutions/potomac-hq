@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Who looked at a demo (decision 0010, slice 9). Under Sales → Demos, keep
+  the Lab's demos: name, address, a line about each, and the demo sign-in
+  that stays the same across the daily reset (`demo.manage`, managers and
+  admins). On an opportunity, "Send demos" emails the contact a link to
+  each one ticked, with its sign-in and a note of your own (`contact.edit`).
+  Each link is its own short address (`/d/<code>`) that counts opens (not
+  previews or crawlers) and sends them on. Opens show on the opportunity,
+  and on Today as "… looked at Counter: follow up" for two days, or until
+  a call is logged. A demo that was sent can be turned off but not removed,
+  so its links keep working. Migration 0063.
 - Referral credit (decision 0010, slice 8). An opportunity can say who
   referred it, a client picked from the list or a person typed in ("Dale
   at the feed store"), under "Who referred them". A client can have their

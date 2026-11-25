@@ -198,6 +198,7 @@ Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approv
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |
 | See the newsletter's readers, move or forget one, and write, test and send issues | `newsletter.manage` | Yes | Yes | No | No |
+| Add, change, turn off and remove the Lab's demos and their demo sign-ins | `demo.manage` | Yes | Yes | No | No |
 | Ask a client for a review, type one in, publish or keep back reviews, and write case studies with their screenshots | `review.manage` | Yes | Yes | No | No (writes their own review, from an emailed link or the portal) |
 | Add, change, pause and remove a client's n8n automations, and make a new check-in address | `automation.manage` | Yes | Yes | No | No (sees their own automations, and whether each is running, in the portal) |
 | Read, add a line to, send or skip the monthly reports to plan clients, and draft them now | `client-report.send` | Yes | Yes | No | No (reads their own sent reports in the portal) |
@@ -205,6 +206,10 @@ Decided 2026-11-25 (`docs/decisions/0010-growth-tools.md`). Needs Mikey's approv
 
 Anyone may sign up for the newsletter, confirm, and unsubscribe: the link
 they were emailed is the only thing that says who they are.
+
+Sending demos from an opportunity needs `contact.edit`, like logging a call;
+seeing who opened them, `opportunity.view`. A demo link is opened by anyone
+who has it, and counts the open.
 
 Referral credit needs no key of its own: who referred an opportunity is
 set with `opportunity.edit`; a client's own link, and what a referral earns,

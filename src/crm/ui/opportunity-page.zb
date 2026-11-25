@@ -19,13 +19,13 @@
     if (stop) return stop
     const view = context.crm.opportunityDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), origin: context.leads.origin(params.id), referred: context.referralCredit.referredBy(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), origin: context.leads.origin(params.id), referred: context.referralCredit.referredBy(params.id), demos: context.demos.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 
   const o = view.opportunity
   const canMove = view.can.setStage && o.open
 </script>
-<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} origin={null} referred={null} done="" problem="">
+<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} origin={null} referred={null} demos={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: o.title, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -53,6 +53,24 @@
         <dt zb-if={o.lostReason}>Why it was lost</dt><dd zb-if={o.lostReason}>{o.lostReason}</dd>
         <dt zb-if={o.summary}>Notes</dt><dd zb-if={o.summary}>{o.summary}</dd>
       </dl>
+    </section>
+    <section zb-if={demos && (demos.sent.length > 0 || (demos.canSend && demos.choices.length > 0))} class="hq-panel" id="demos" aria-labelledby="opportunity-demos">
+      <h2 id="opportunity-demos">Demos</h2>
+      <ul zb-if={demos.sent.length > 0}>
+        <zb-each items={demos.sent} as="one" key={one.id}><li><strong>{one.name}</strong>, sent {one.sent}: {one.opens === 0 ? 'not opened yet' : (one.opens === 1 ? 'opened once' : 'opened ' + one.opens + ' times') + ', last ' + one.lastOpened}</li></zb-each>
+      </ul>
+      <details zb-if={demos.canSend && demos.choices.length > 0} class="hq-more">
+        <summary>Send demos</summary>
+        <p zb-if={!demos.emailTo} class="hq-muted">Nobody on this opportunity has an email yet.</p>
+        <form zb-else method="post" action="/opportunities/{o.id}/demos" class="hq-form">
+          <fieldset class="hq-checks">
+            <legend>Send {demos.emailTo} a link to</legend>
+            <zb-each items={demos.choices} as="demo" key={demo.id}><label><input type="checkbox" name="demo-{demo.id}" value="1"> {demo.name}</label></zb-each>
+          </fieldset>
+          <text-field label="A note of your own" name="note" rows={2} maxlength={1000} description="Goes after the greeting."></text-field>
+          <div><button class="hq-button" type="submit">Send</button></div>
+        </form>
+      </details>
     </section>
     <details zb-if={referred && referred.canEdit} class="hq-more hq-panel" id="referred-by">
       <summary>Who referred them</summary>

@@ -80,6 +80,7 @@ export const PERMISSIONS = [
   "client-report.send",
   "automation.manage",
   "review.manage",
+  "demo.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -126,6 +127,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "client-report.send",
   "automation.manage",
   "review.manage",
+  "demo.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {

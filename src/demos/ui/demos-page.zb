@@ -1,0 +1,70 @@
+<!--
+  The Lab's demos (decision 0010, section 8): each one's address and the
+  demo sign-in a prospect is given. Send them from an opportunity.
+-->
+<script>
+  'use route /demos'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.demos.list()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Demos', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .demo-list { list-style: none; margin: 0; padding: 0; }
+  .demo-list > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .demo-list > li:first-child { border-top: 0; }
+  .demo-list p { margin: 0 0 0.3rem; }
+  .demo-sign-in { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
+</style>
+<hq-demos view={{ demos: [] }} done="" problem="">
+  <div class="hq-page">
+    <h1>Demos</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">The Lab’s demo apps. Send them to a prospect from their opportunity: each gets a link of its own, so you see who opened what, on the opportunity and on Today.</p>
+    <section class="hq-panel" aria-labelledby="demos-all">
+      <h2 id="demos-all">{view.demos.length} {view.demos.length === 1 ? 'demo' : 'demos'}</h2>
+      <empty-state zb-if={view.demos.length === 0} heading="No demos yet">Add the first one below.</empty-state>
+      <ul zb-else class="demo-list">
+        <zb-each items={view.demos} as="demo" key={demo.id}>
+          <li>
+            <p><strong>{demo.name}</strong> <status-badge zb-if={!demo.active} variant="neutral">Off</status-badge> · <a href={demo.url} rel="noopener noreferrer">{demo.url}</a></p>
+            <p zb-if={demo.description} class="hq-small">{demo.description}</p>
+            <p zb-if={demo.signIn} class="demo-sign-in hq-small">{demo.signIn}</p>
+            <details class="hq-more">
+              <summary>Change<span class="sr-only">: {demo.name}</span></summary>
+              <form method="post" action="/demos/{demo.id}" class="hq-form">
+                <text-field label="Name" name="name" value={demo.name} required={true} maxlength={80}></text-field>
+                <text-field label="Address" name="url" value={demo.url} type="url" required={true}></text-field>
+                <text-field label="What it is" name="description" value={demo.description} maxlength={300}></text-field>
+                <text-field label="Demo sign-in" name="signIn" value={demo.signIn} rows={3} maxlength={500}></text-field>
+                <label class="hq-check"><input type="checkbox" name="active" value="1" checked={demo.active}> On: can be sent</label>
+                <div><button class="hq-button" type="submit">Save<span class="sr-only">: {demo.name}</span></button></div>
+              </form>
+              <form zb-if={!demo.sent} method="post" action="/demos/{demo.id}/remove" data-spaced><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {demo.name}</span></button></form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+    <section class="hq-panel" id="add" aria-labelledby="demos-add">
+      <h2 id="demos-add">Add a demo</h2>
+      <form method="post" action="/demos" class="hq-form">
+        <text-field label="Name" name="name" required={true} maxlength={80} description="Like: Counter"></text-field>
+        <text-field label="Address" name="url" type="url" required={true} description="Like: https://counter.potomac.solutions"></text-field>
+        <text-field label="What it is" name="description" maxlength={300} description="One line for the email, like: Ordering and parts lookup for an auto parts counter."></text-field>
+        <text-field label="Demo sign-in" name="signIn" rows={3} maxlength={500} description="The usernames and passwords that stay the same across the daily reset."></text-field>
+        <div><button class="hq-button" type="submit">Add demo</button></div>
+      </form>
+    </section>
+  </div>
+</hq-demos>

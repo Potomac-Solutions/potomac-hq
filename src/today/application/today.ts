@@ -15,6 +15,7 @@ import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import { reportsToSend, type ReportsDeps } from "../../client-reports/index.ts";
 import { automationsNeedingAttention, type AutomationsDeps } from "../../automations/index.ts";
 import { reviewsWaiting, type ShowcaseDeps } from "../../showcase/index.ts";
+import { demoFollowUps, type DemosDeps } from "../../demos/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -35,6 +36,8 @@ export type TodayDeps = {
   readonly automations: AutomationsDeps;
   /** Reviews waiting to be published or kept back (decision 0010, section 6). */
   readonly showcase: ShowcaseDeps;
+  /** Prospects who opened a demo (decision 0010, section 8). */
+  readonly demos: DemosDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -84,6 +87,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
   for (const one of deadlines.ok ? deadlines.value.items : []) {
     add("deadline", { key: `deadline-${one.key}`, text: `${one.kind}: ${one.title}`, detail: `${one.projectName} · ${one.dueText}`, href: one.href, action: "Open", overdue: one.overdue, at: one.dueOn });
   }
+  for (const one of demoFollowUps(deps.demos, actorId)) add("follow-up", { key: `demo-${one.opportunityId}`, text: one.text, detail: one.detail, href: `/opportunities/${one.opportunityId}#demos`, action: "Log a call", overdue: false, at: one.at.slice(0, 10) });
   for (const one of goingCold(deps.crm, actorId)) {
     add("cold", { key: `cold-${one.id}`, text: one.title, detail: `${one.clientName} · ${one.lastText}`, href: `/opportunities/${one.id}#touches`, action: "Log a call", overdue: false, at: String(1000 - one.days).padStart(4, "0") });
   }

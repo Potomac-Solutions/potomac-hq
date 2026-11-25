@@ -39,6 +39,7 @@
         ...(can.referrals ? [{ label: 'Referral links', href: '/referrals', current: at('/referrals') }] : []),
         ...(can.newsletter ? [{ label: 'Newsletter', href: '/newsletter', current: at('/newsletter') }] : []),
         ...(can.reviews ? [{ label: 'Reviews', href: '/reviews', current: at('/reviews') }] : []),
+        ...(can.demos ? [{ label: 'Demos', href: '/demos', current: at('/demos') }] : []),
       ] },
       { label: 'Delivery', links: [
         { label: 'Projects', href: '/projects', current: at('/projects', '/tasks') },
