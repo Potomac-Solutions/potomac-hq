@@ -1,6 +1,8 @@
 // Reminders to a client about an invoice: a few days before it is due, the
 // day after, a week late and two weeks late. Never more than one a day, and
 // never one of a kind twice. Then it is a phone call, not another email.
+import { howToPay } from "./client-mail.ts";
+
 export const REMINDER_KINDS = ["soon", "due", "late-7", "late-14"] as const;
 export type ReminderKind = (typeof REMINDER_KINDS)[number];
 export const REMINDER_LABELS: Readonly<Record<ReminderKind, string>> = { soon: "Coming due", due: "Due yesterday", "late-7": "A week late", "late-14": "Two weeks late" };
@@ -33,6 +35,8 @@ export type ReminderEmailInput = {
   readonly portalUrl: string | null;
   readonly phone: string;
   readonly address: string;
+  /** How to pay, in Potomac's words, when set. */
+  readonly instructions?: string;
 };
 
 export function reminderEmail(input: ReminderEmailInput): { readonly subject: string; readonly body: string } {
@@ -51,8 +55,7 @@ export function reminderEmail(input: ReminderEmailInput): { readonly subject: st
     "late-7": `Invoice ${input.label}${forWhat} is a week past due, with ${input.owed} still owed. If something's wrong with it, or the timing is hard, tell us and we'll work it out.`,
     "late-14": `Invoice ${input.label}${forWhat} is two weeks past due, with ${input.owed} still owed. Please call us so we can sort it out together.`,
   }[input.kind];
-  const lines = [`Hi ${first},`, "", opening, "", `How to pay: a check made out to Potomac Solutions, or cash. Write ${input.label} on the check.`];
-  if (input.address) lines.push(`Mail it to: ${input.address}`);
+  const lines = [`Hi ${first},`, "", opening, "", ...howToPay({ instructions: input.instructions ?? "", label: input.label, address: input.address })];
   if (input.portalUrl) lines.push("", `See the invoice and download it: ${input.portalUrl}`);
   if (input.phone) lines.push("", `Questions? Call ${input.phone}.`);
   lines.push("", "Thank you,", "Potomac Solutions");

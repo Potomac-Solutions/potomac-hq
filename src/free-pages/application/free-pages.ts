@@ -22,6 +22,8 @@ export type FreePagesDeps = ActivityDeps & {
    * Adds the client's domain to their renewals, yearly, ready to bill, unless
    * it's there already (Renewals). Answers whether it was added, or why not.
    */
+  /** "Your domain renews December 2, $25 a year." for a client's own domain on their renewals, or "". */
+  readonly domainRenewalText?: (organizationId: Id, domain: string) => string;
   readonly addDomainRenewal?: (actorId: Id, organizationId: Id, input: { readonly domain: string; readonly renewsOn: string; readonly cost: string; readonly price: string }) => Result<"added" | "already-there", string>;
 };
 
@@ -162,6 +164,8 @@ export type FreePageView = {
   /** "own" when the page is on the client's own domain, "potomac" otherwise. */
   readonly where: "own" | "potomac";
   readonly ownDomain: string;
+  /** Its own domain's renewal, shown with the page: "Your domain renews December 2, $25 a year." "" when none. */
+  readonly domainText: string;
   readonly address: string;
   readonly status: PageStatus | "";
   readonly statusLabel: string;
@@ -185,6 +189,7 @@ function viewOf(deps: FreePagesDeps, organizationId: Id, page: FreePage | null, 
     subdomain: page?.subdomain ?? "",
     where: page?.ownDomain ? "own" : "potomac",
     ownDomain: page?.ownDomain ?? "",
+    domainText: page?.ownDomain && deps.domainRenewalText ? deps.domainRenewalText(organizationId, page.ownDomain) : "",
     address: addressOf(page),
     status: page?.status ?? "",
     statusLabel: page ? PAGE_STATUS_LABELS[page.status] : "",

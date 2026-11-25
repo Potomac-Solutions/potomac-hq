@@ -13,10 +13,10 @@
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
     const recurring = context.money.recurring()
-    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} pay={null} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -91,6 +91,18 @@
         <li><a href="/exports/invoices.csv">Invoices (CSV)</a></li>
         <li><a href="/exports/payments.csv">Payments received (CSV)</a></li>
       </ul>
+    </section>
+    <section zb-if={pay} class="hq-panel" id="how-to-pay" aria-labelledby="money-how-to-pay">
+      <h2 id="money-how-to-pay">How clients pay</h2>
+      <p class="hq-muted">What clients read in their portal, receipts and statements, and on invoice reminders. Who checks are made out to, where to mail them, and any other way you take money, such as a bank transfer. Never put an account or card number here. Empty: checks or cash to Potomac Solutions.</p>
+      <form zb-if={pay.canEdit} method="post" action="/money/pay-instructions" class="hq-form">
+        <div class="hq-field">
+          <label for="pay-instructions">How to pay</label>
+          <textarea id="pay-instructions" name="instructions" rows="5" maxlength="2000">{pay.text}</textarea>
+        </div>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
+      </form>
+      <p zb-else class="hq-prose">{pay.text || 'Checks or cash to Potomac Solutions.'}</p>
     </section>
   </div>
 </hq-money>

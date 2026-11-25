@@ -71,7 +71,7 @@ import { addNote } from "./notes/index.ts";
 import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
-import type { Clock, Id } from "./shared/index.ts";
+import { formatMoney, type Clock, type Id } from "./shared/index.ts";
 
 /** "Due today" and the times people read are worked out here (docs/data-model.md). */
 export const BUSINESS_TIME_ZONE = "America/New_York";
@@ -414,6 +414,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     pages: sqliteFreePageStore(db),
     rounds: sqliteRoundStore(db),
     clientName: (id) => crm.clients.get(id)?.name ?? null,
+    domainRenewalText: (organizationId, domain) => {
+      const found = renewals.renewals.listFor(organizationId).find((one) => one.active && one.name.toLowerCase() === domain);
+      if (!found) return "";
+      const on = Temporal.PlainDate.from(found.renewsOn).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const term = found.termMonths === 12 ? "a year" : found.termMonths === 1 ? "a month" : `every ${found.termMonths} months`;
+      return found.price ? `Your domain renews ${on}, ${formatMoney(found.price)} ${term}.` : `Your domain renews ${on}. We pay for it.`;
+    },
     // A free page on the client's own domain: the domain goes on their renewals, yearly, ready to bill.
     addDomainRenewal: (actorId, organizationId, input) => {
       if (renewals.renewals.listFor(organizationId).some((one) => one.active && one.name.toLowerCase() === input.domain)) return { ok: true, value: "already-there" };

@@ -13,10 +13,10 @@ import { activate } from "../domain/client-user.ts";
 export type { ClientSession };
 import { daysUntil, dueText, friendlyDay, howSoon } from "../../shared/index.ts";
 import { CLIENT_UPLOAD, formatSize, MAX_FILE_BYTES, saveFileFromClient, type FileRecord } from "../../files/index.ts";
-import { changesForClient, decideChangeAsClient, documentForInvoice, invoiceLabel, type ChangeLine, type ChangeRequest, type InvoiceDocument } from "../../finance/index.ts";
+import { changesForClient, decideChangeAsClient, documentForInvoice, invoiceLabel, METHOD_LABELS, type ChangeLine, type ChangeRequest, type InvoiceDocument } from "../../finance/index.ts";
 import { linkName, decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, isMilestoneOverdue, milestoneProgress, nextMilestone, STATUS_LABELS, type Deliverable, type Project } from "../../projects/index.ts";
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
-import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, formatMoney, ok, readableHours, recordActivity, toCsv, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
 
 /** The client a Cookie header is signed in as, or null. Read from storage every time. */
@@ -90,7 +90,11 @@ export type PortalHomeView = {
   /** Projects a message can be sent about. */
   readonly messageProjects: readonly { readonly id: string; readonly name: string }[];
   readonly proposals: readonly { readonly id: string; readonly title: string; readonly statusLabel: string; readonly waiting: boolean }[];
-  readonly invoices: readonly { readonly id: string; readonly label: string; readonly projectName: string; readonly paid: boolean; readonly statusLabel: string; readonly total: string; readonly owed: string; readonly due: string }[];
+  readonly invoices: readonly { readonly id: string; readonly label: string; readonly projectName: string; readonly paid: boolean; readonly statusLabel: string; readonly total: string; readonly owed: string; readonly due: string; readonly payLink: string }[];
+  /** How to pay, in Potomac's words. "" until Potomac sets it: the portal says checks or cash. */
+  readonly payInstructions: string;
+  /** Years with payments, newest first, for the yearly summary download. */
+  readonly paymentYears: readonly number[];
   /** Everything still owed, added up. Empty when nothing is. */
   readonly owedTotal: string;
   readonly calls: readonly { readonly id: string; readonly wanted: string; readonly status: string; readonly confirmedFor: string; readonly reply: string; readonly phone: string }[];
@@ -99,6 +103,24 @@ export type PortalHomeView = {
   /** Whether this person is emailed when something is waiting. */
   readonly notices: boolean;
 };
+
+/** The years a client has paid in, newest first, back to five years ago. */
+function paymentYears(deps: PortalDeps, organizationId: Id, thisYear: number): number[] {
+  const years: number[] = [];
+  for (let year = thisYear; year >= thisYear - 5; year--) if (deps.billing.paymentsForClient(organizationId, year).length > 0) years.push(year);
+  return years;
+}
+
+/** What a client paid in a year, as a CSV for their taxes or bookkeeper. Only their own. */
+export function portalPaymentsCsv(deps: PortalDeps, session: ClientSession | null, year: number): Result<{ readonly csv: string; readonly fileName: string }, "not-found"> {
+  if (!session || !Number.isInteger(year) || year < 2000 || year > 2100) return err("not-found");
+  const rows = deps.billing.paymentsForClient(session.organizationId, year);
+  const header = ["Received", "Invoice", "For", "How", "Reference", "Amount"];
+  const lines = rows.map((one) => [one.payment.receivedOn, invoiceLabel(one.invoiceNumber), one.forWhat, (one.payment.method === "card" ? "Card" : METHOD_LABELS[one.payment.method]) ?? one.payment.method, one.payment.reference, (one.payment.amount.minor / 100).toFixed(2)]);
+  const total = rows.reduce((sum, one) => sum + one.payment.amount.minor, 0);
+  lines.push(["", "", "", "", "Total", (total / 100).toFixed(2)]);
+  return ok({ csv: toCsv(header, lines), fileName: `payments-${year}.csv` });
+}
 
 /** A client sees an invoice once it has been sent. Drafts and voided ones are Potomac's own business. */
 function ownInvoices(deps: PortalDeps, session: ClientSession) {
@@ -191,8 +213,11 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
         total: formatMoney(invoice.total),
         owed: formatMoney({ minor: owedOn(invoice), currency: invoice.total.currency }),
         due: invoice.dueOn && !paid ? ((daysUntil(invoice.dueOn, today) ?? 0) < 0 ? `Was due ${friendlyDay(invoice.dueOn, today)}` : `Due ${dueText(invoice.dueOn, today)}`) : "",
+        payLink: !paid && invoice.payLink ? invoice.payLink : "",
       };
     }),
+    payInstructions: deps.billing.payInstructions(),
+    paymentYears: paymentYears(deps, session.organizationId, Number(today.slice(0, 4))),
     owedTotal: owedMinor > 0 ? formatMoney({ minor: owedMinor, currency: unpaid[0]?.total.currency ?? "USD" }) : "",
     calls: deps.calls.listFor(session.organizationId).map((call) => ({ id: call.id, wanted: call.wanted, status: call.status, confirmedFor: call.confirmedFor ?? "", reply: call.reply, phone: call.phone })),
     people: deps.clientUsers

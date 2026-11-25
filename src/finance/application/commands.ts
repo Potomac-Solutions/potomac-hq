@@ -250,10 +250,12 @@ export function addPrepaidHours(deps: FinanceDeps, actorId: Id | null, organizat
 }
 
 /** How clients pay, in Potomac's words, for the portal. `invoice.edit`. */
-export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: string): Result<{ readonly text: string }, "forbidden" | "too-long"> {
+export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: string): Result<{ readonly text: string }, "forbidden" | "too-long" | "number-in-instructions"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   const clean = text.trim().replace(/\r\n/g, "\n");
   if (clean.length > 2000) return err("too-long");
+  // Shown to every client: never a card or account number.
+  if (/(?:\d[ -]?){13,19}/.test(clean)) return err("number-in-instructions");
   return deps.transact(() => {
     deps.billing.setPayInstructions(clean, actorId, deps.clock());
     recordActivity(deps, { actorId, action: "finance.pay-instructions-set", recordType: "setting", recordId: "finance-setting" as Id, context: { length: clean.length } });

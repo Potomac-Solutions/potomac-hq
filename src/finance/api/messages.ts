@@ -46,6 +46,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-payment-method": "Choose how it was paid.",
   "reference-too-long": "That reference is too long.",
   "looks-like-a-card-number": "That looks like a card number. HQ never keeps one. Enter the gateway’s reference instead.",
+  "number-in-instructions": "That looks like a card or account number. Every client sees this text, so leave it out: say how to ask for transfer details instead.",
   "file-missing": "Choose a file to upload.",
   "file-too-large": "That file is larger than 25 MB.",
   "file-name-invalid": "That file’s name can’t be used. Rename it and try again.",

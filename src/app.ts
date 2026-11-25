@@ -14,7 +14,7 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { clientInvoices, financeOverview, invoicesOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
@@ -313,6 +313,8 @@ export type PageContext = {
     changes(id: string): ReturnType<typeof projectChanges>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
     invoice(id: string): ReturnType<typeof invoiceDetail>;
+    /** How clients pay, in Potomac's words; null when this person may not see invoices. */
+    payInstructions(): ReturnType<typeof payInstructionsView>;
     /** Money → Invoices: every invoice, filtered by where it stands. */
     invoices(show: string | null): ReturnType<typeof invoicesOverview>;
     /** A client's invoices, on a project or not; null when this person may not see invoices. */
@@ -877,6 +879,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
           invoices: (show) => invoicesOverview(financeDeps, actor, show),
+          payInstructions: () => payInstructionsView(financeDeps, actor),
           forClient: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? clientInvoices(financeDeps, actor, parsed.value) : null;

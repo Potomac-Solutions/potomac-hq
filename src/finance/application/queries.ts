@@ -807,3 +807,9 @@ export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly 
       at: one.promisedOn as string,
     }))];
 }
+
+/** How clients pay, in Potomac's words, and whether this person may change it. `invoice.view`. */
+export function payInstructionsView(deps: FinanceDeps, actorId: Id | null): { readonly text: string; readonly canEdit: boolean } | null {
+  if (!may(deps, actorId, "invoice.view")) return null;
+  return { text: deps.billing.payInstructions(), canEdit: may(deps, actorId, "invoice.edit") };
+}
