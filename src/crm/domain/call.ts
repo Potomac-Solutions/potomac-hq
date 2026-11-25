@@ -29,6 +29,8 @@ export type Call = {
   readonly note: string;
   readonly endedAt: string | null;
   readonly touchId: Id | null;
+  /** The guide on the screen: a situation from call-guide.ts, or null before guides (migration 0053). */
+  readonly guide: string | null;
 };
 
 export type CallError = "invalid-length" | "call-ended" | "note-too-long";
@@ -50,9 +52,9 @@ export function plannedFromBooking(startsAt: string, endsAt: string): number {
   return Math.min(MAX_CALL_MINUTES, Math.max(MIN_CALL_MINUTES, stepped));
 }
 
-export function startCall(ids: Pick<Call, "id" | "organizationId" | "contactId" | "opportunityId" | "bookingId" | "userId" | "phone" | "startedAt">, plannedMinutes: number = DEFAULT_CALL_MINUTES): Result<Call, "invalid-length"> {
+export function startCall(ids: Pick<Call, "id" | "organizationId" | "contactId" | "opportunityId" | "bookingId" | "userId" | "phone" | "startedAt">, plannedMinutes: number = DEFAULT_CALL_MINUTES, guide: string | null = null): Result<Call, "invalid-length"> {
   if (!validLength(plannedMinutes)) return err("invalid-length");
-  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null });
+  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null, guide });
 }
 
 const validLength = (minutes: number) => Number.isInteger(minutes) && minutes >= MIN_CALL_MINUTES && minutes <= MAX_CALL_MINUTES && minutes % CALL_STEP_MINUTES === 0;

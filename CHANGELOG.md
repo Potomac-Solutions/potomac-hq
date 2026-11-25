@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Call guides and talking points (decision 0009, slice 2). The call screen
+  shows questions for the kind of call (a first call, a proposal follow-up, a
+  project check-in, a renewal or any call), picked from what the client has
+  and switchable. Tick each as it's asked and note what was said; it saves as
+  you type, and the answers go in the call log with the notes. "Worth
+  raising" lists what HQ's records say: what each side is waiting on, a
+  proposal not answered, a late invoice, a site down or a certificate
+  ending, a renewal coming and the last call's note, each only for those
+  who may see it. Guides are changed under Knowledge → Call guides.
+  Migration 0053.
 - The call screen (decision 0009, slice 1). "Start a call" on a client, a
   contact, an opportunity or a booked call opens a screen with a big Dial
   button and a timer kept by the server. A call is planned for 30 minutes,

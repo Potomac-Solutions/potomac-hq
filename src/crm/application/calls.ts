@@ -3,13 +3,14 @@
 // notes as they're typed, and end it into the call log with its length.
 import { callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
 import { OUTCOME_LABELS } from "../domain/touch.ts";
+import { callSummary, isSituation, MAX_ANSWER_LENGTH, pickSituation, readGuide, SITUATION_HINTS, type GuideError, type Situation } from "../domain/call-guide.ts";
 import type { Contact } from "../domain/contact.ts";
 import { authorize } from "../../identity/index.ts";
-import { err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
+import { err, formatMoney, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import { writeTouch, type LogTouchError, type TouchDeps } from "./touches.ts";
-import type { CallStore } from "./ports.ts";
+import type { CallGuideStore, CallStore, ClientFacts, ClientFactsReader } from "./ports.ts";
 
-export type CallDeps = TouchDeps & { readonly calls: CallStore };
+export type CallDeps = TouchDeps & { readonly calls: CallStore; readonly guides: CallGuideStore; readonly facts: ClientFactsReader };
 type Refused = "forbidden" | "not-found";
 const allowed = (deps: CallDeps, actorId: Id | null, action: string): actorId is Id => actorId !== null && authorize(deps, actorId, action).ok;
 
@@ -75,10 +76,12 @@ export function startCall(deps: CallDeps, actorId: Id | null, from: CallFrom): R
     }
     // No number for the person: the business's own, if it has one.
     phone = phone || deps.clients.get(organizationId)?.phone || "";
-    const made = newCall({ id: deps.newId(), organizationId, contactId, opportunityId, bookingId, userId: actorId, phone, startedAt: deps.clock() }, planned);
+    const facts = deps.facts.facts(organizationId, deps.today());
+    const guide = pickSituation({ hasProposalOrProject: facts.anyProposalOrProject, proposalWaiting: facts.proposalsWaiting.length > 0, activeProject: facts.activeProjects.length > 0, renewalSoon: facts.renewalsSoon.length > 0 });
+    const made = newCall({ id: deps.newId(), organizationId, contactId, opportunityId, bookingId, userId: actorId, phone, startedAt: deps.clock() }, planned, guide);
     if (!made.ok) return made;
     deps.calls.insert(made.value, deps.clock());
-    recordActivity(deps, { actorId, action: "call.started", recordType: "call", recordId: made.value.id, context: { clientId: organizationId, plannedMinutes: made.value.plannedMinutes, ...(bookingId ? { bookingId } : {}) } });
+    recordActivity(deps, { actorId, action: "call.started", recordType: "call", recordId: made.value.id, context: { clientId: organizationId, plannedMinutes: made.value.plannedMinutes, guide, ...(bookingId ? { bookingId } : {}) } });
     return ok({ call: made.value, already: false });
   });
 }
@@ -132,7 +135,8 @@ export function endCall(deps: CallDeps, actorId: Id | null, callId: Id, input: E
     const endedAt = deps.clock();
     const minutes = loggedMinutes(call.startedAt, endedAt);
     const where = call.opportunityId ? { opportunityId: call.opportunityId } : { clientId: call.organizationId };
-    const logged = writeTouch(deps, actorId, where, { kind: "call", outcome: input.outcome ?? "reached", note: input.note ?? call.note, contactId: call.contactId, followUpOn: input.followUpOn ?? null }, { minutes, callId });
+    const note = callSummary(input.note ?? call.note, deps.guides.answers(callId));
+    const logged = writeTouch(deps, actorId, where, { kind: "call", outcome: input.outcome ?? "reached", note, contactId: call.contactId, followUpOn: input.followUpOn ?? null }, { minutes, callId });
     if (!logged.ok) return logged;
     deps.calls.end(callId, endedAt, logged.value.id);
     recordActivity(deps, { actorId, action: "call.ended", recordType: "call", recordId: callId, context: { clientId: call.organizationId, minutes, outcome: logged.value.outcome ?? "reached" } });
@@ -152,7 +156,7 @@ export function endForgottenCalls(deps: CallDeps): number {
     deps.transact(() => {
       const endedAt = new Date(Date.parse(call.startedAt) + AUTO_END_MINUTES * 60_000).toISOString();
       const minutes = loggedMinutes(call.startedAt, endedAt);
-      const note = `${call.note ? `${call.note}\n\n` : ""}Ended by HQ after ${AUTO_END_MINUTES / 60} hours, because nobody ended it. The length is a guess.`.slice(0, 2000);
+      const note = callSummary(`${call.note ? `${call.note}\n\n` : ""}Ended by HQ after ${AUTO_END_MINUTES / 60} hours, because nobody ended it. The length is a guess.`, deps.guides.answers(call.id));
       const where = call.opportunityId ? { opportunityId: call.opportunityId } : { clientId: call.organizationId };
       const logged = writeTouch(deps, call.userId, where, { kind: "call", outcome: "reached", note, contactId: call.contactId }, { minutes, callId: call.id });
       deps.calls.end(call.id, endedAt, logged.ok ? logged.value.id : null);
@@ -194,6 +198,21 @@ export type CallScreen = {
   readonly outcomes: readonly { readonly value: string; readonly label: string }[];
   readonly ended: boolean;
   readonly endedText: string;
+  /** What HQ's records say worth raising, the ones this person may see. */
+  readonly points: readonly TalkingPoint[];
+  readonly guide: GuideOnCall;
+  /** The other guides, to switch to. */
+  readonly guides: readonly { readonly value: string; readonly label: string }[];
+};
+
+export type TalkingPoint = { readonly kind: "waiting-on-us" | "waiting-on-them" | "money" | "site" | "renewal" | "last-call"; readonly text: string };
+export type GuideOnCall = {
+  readonly situation: string;
+  readonly title: string;
+  readonly hint: string;
+  readonly questions: readonly { readonly position: number; readonly text: string; readonly asked: boolean; readonly answer: string }[];
+  /** Questions neither ticked nor answered yet. */
+  readonly left: number;
 };
 
 /** A phone number as a `tel:` address: digits and a leading plus only. A US number without a country code gets +1. */
@@ -247,6 +266,133 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
     outcomes: Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
     ended: call.endedAt !== null,
     endedText: call.endedAt ? deps.formatWhen(call.endedAt) : "",
+    points: talkingPoints(deps, actorId, deps.facts.facts(call.organizationId, deps.today(), call.id)),
+    guide: guideOnCall(deps, call),
+    guides: deps.guides.all().map((one) => ({ value: one.situation, label: one.title })),
+  });
+}
+
+/** The guide on the call: its questions as they are now, with the call's answers; a question already answered keeps the words it was asked in. */
+function guideOnCall(deps: CallDeps, call: Call): GuideOnCall {
+  const situation = call.guide && isSituation(call.guide) ? call.guide : "any";
+  const guide = deps.guides.get(situation);
+  const answers = new Map(deps.guides.answers(call.id).filter((one) => one.guide === situation).map((one) => [one.position, one]));
+  const questions = (guide?.questions ?? []).map((text, index) => {
+    const answer = answers.get(index + 1);
+    return { position: index + 1, text: answer?.question ?? text, asked: answer?.asked ?? false, answer: answer?.answer ?? "" };
+  });
+  return { situation, title: guide?.title ?? "Any call", hint: SITUATION_HINTS[situation], questions, left: questions.filter((one) => !one.asked && !one.answer.trim()).length };
+}
+
+const days = (from: string, to: string) => Math.max(0, Temporal.PlainDate.from(from).until(Temporal.PlainDate.from(to)).days);
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const amount = (minor: number, currency: string) => formatMoney({ minor, currency } as never);
+
+/**
+ * Talking points from a client's facts, each only for those who may see what
+ * it comes from: money needs invoice.view (or opportunity.view-value for a
+ * proposal's total), projects project.view, sites and renewals client.view.
+ */
+export function talkingPoints(deps: CallDeps, actorId: Id, facts: ClientFacts): TalkingPoint[] {
+  const may = (action: string) => allowed(deps, actorId, action);
+  const today = deps.today();
+  const dayOf = (instant: string) => Temporal.Instant.from(instant).toZonedDateTimeISO(deps.timeZone).toPlainDate().toString();
+  const ago = (instant: string) => {
+    const n = days(dayOf(instant), today);
+    return n === 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`;
+  };
+  const points: TalkingPoint[] = [];
+  if (may("project.view")) {
+    for (const one of facts.messagesUnanswered) points.push({ kind: "waiting-on-us", text: `They wrote about ${one.projectName} ${ago(one.at)}, and haven't had an answer.` });
+    for (const one of facts.changesAsked) points.push({ kind: "waiting-on-us", text: `They asked for changes to “${one.title}” (${one.projectName}).` });
+  }
+  if (may("client.view")) for (const one of facts.callsAsked) points.push({ kind: "waiting-on-us", text: `They asked for a call ${ago(one.at)}: ${one.wanted}.` });
+  if (may("project.view")) {
+    for (const one of facts.approvalsWaiting) points.push({ kind: "waiting-on-them", text: `Waiting on them to approve “${one.title}” (${one.projectName}).` });
+    for (const one of facts.changeRequestsWaiting) points.push({ kind: "waiting-on-them", text: `Waiting on their answer to change request ${one.number}, “${one.title}”${may("invoice.view") ? `, ${amount(one.amountMinor, one.currency)}` : ""}.` });
+  }
+  if (may("proposal.view")) for (const one of facts.proposalsWaiting) points.push({ kind: "waiting-on-them", text: `The proposal “${one.title}” was sent ${ago(one.sentAt)}${may("opportunity.view-value") ? `, ${amount(one.totalMinor, one.currency)}` : ""}, and isn't answered yet.` });
+  if (may("invoice.view")) for (const one of facts.overdueInvoices) points.push({ kind: "money", text: `INV-${String(one.number).padStart(4, "0")} is ${plural(days(one.dueOn, today), "day")} late: ${amount(one.totalMinor, one.currency)}.` });
+  if (may("client.view")) {
+    for (const one of facts.sitesDown) points.push({ kind: "site", text: `Their site ${one.url} is down${one.since ? `, since ${deps.formatWhen(one.since)}` : ""}.` });
+    for (const one of facts.certificatesEnding) points.push({ kind: "site", text: one.on < today ? `The certificate for ${one.url} has ended.` : `The certificate for ${one.url} ends on ${one.on}.` });
+    for (const one of facts.renewalsSoon) points.push({ kind: "renewal", text: `${one.name} renews ${one.on === today ? "today" : `in ${plural(days(today, one.on), "day")}`}.` });
+    if (facts.lastCall) points.push({ kind: "last-call", text: `Last call, ${deps.formatWhen(facts.lastCall.at)}: ${facts.lastCall.note.length > 240 ? `${facts.lastCall.note.slice(0, 239)}…` : facts.lastCall.note}` });
+  }
+  return points;
+}
+
+export type AnswerInput = { readonly asked: ReadonlySet<number>; readonly answers: ReadonlyMap<number, string> };
+
+/**
+ * Saves the guide's answers as they stand: each question ticked as asked,
+ * and what was said. Saved as they're typed; `call.answered` is written the
+ * first time each question is ticked.
+ */
+export function saveAnswers(deps: CallDeps, actorId: Id | null, callId: Id, input: AnswerInput): Result<Call, Refused | "call-ended" | "answer-too-long"> {
+  return deps.transact(() => {
+    const found = ownOpenCall(deps, actorId, callId);
+    if (!found.ok) return found;
+    const call = found.value;
+    for (const answer of input.answers.values()) if (answer.length > MAX_ANSWER_LENGTH) return err("answer-too-long");
+    const screen = guideOnCall(deps, call);
+    for (const question of screen.questions) {
+      const asked = input.asked.has(question.position);
+      const answer = (input.answers.get(question.position) ?? "").trim();
+      if (asked === question.asked && answer === question.answer) continue;
+      deps.guides.saveAnswer(callId, { guide: screen.situation, position: question.position, question: question.text, asked, answer });
+      if (asked && !question.asked) recordActivity(deps, { actorId: actorId as Id, action: "call.answered", recordType: "call", recordId: callId, context: { guide: screen.situation, position: question.position } });
+    }
+    return ok(call);
+  });
+}
+
+/** Switches the call to another guide. Answers to the first are kept, and are in its summary. */
+export function switchGuide(deps: CallDeps, actorId: Id | null, callId: Id, situation: string): Result<Call, Refused | "call-ended" | "invalid-guide"> {
+  return deps.transact(() => {
+    const found = ownOpenCall(deps, actorId, callId);
+    if (!found.ok) return found;
+    if (!isSituation(situation)) return err("invalid-guide");
+    if (found.value.guide === situation) return ok(found.value);
+    const changed = { ...found.value, guide: situation };
+    deps.calls.update(changed);
+    recordActivity(deps, { actorId: actorId as Id, action: "call.guide-changed", recordType: "call", recordId: callId, context: { from: found.value.guide ?? "", to: situation } });
+    return ok(changed);
+  });
+}
+
+export type GuidesView = {
+  readonly canEdit: boolean;
+  readonly guides: readonly { readonly situation: string; readonly title: string; readonly hint: string; readonly questions: string; readonly count: number; readonly updated: string }[];
+};
+
+/** The call guides, to read (knowledge.view) and change (knowledge.edit). */
+export function callGuides(deps: CallDeps, actorId: Id | null): Result<GuidesView, "forbidden"> {
+  if (!allowed(deps, actorId, "knowledge.view")) return err("forbidden");
+  return ok({
+    canEdit: allowed(deps, actorId, "knowledge.edit"),
+    guides: deps.guides.all().map((one) => ({
+      situation: one.situation,
+      title: one.title,
+      hint: isSituation(one.situation) ? SITUATION_HINTS[one.situation] : "",
+      questions: one.questions.join("\n"),
+      count: one.questions.length,
+      updated: one.updatedBy ? `Changed by ${deps.users.get(one.updatedBy)?.name ?? "someone"}, ${deps.formatWhen(one.updatedAt)}` : "As HQ came",
+    })),
+  });
+}
+
+/** Changes a guide. Calls already made keep the questions they were asked. Permission: `knowledge.edit`. */
+export function saveCallGuide(deps: CallDeps, actorId: Id | null, situation: string, input: { readonly title: string; readonly questions: string }): Result<{ readonly situation: Situation; readonly count: number }, Refused | GuideError> {
+  if (!allowed(deps, actorId, "knowledge.edit")) return err("forbidden");
+  if (!isSituation(situation)) return err("not-found");
+  const read = readGuide(input);
+  if (!read.ok) return read;
+  return deps.transact(() => {
+    if (!deps.guides.get(situation)) return err("not-found");
+    deps.guides.save(situation, read.value.title, read.value.questions, deps.clock(), actorId);
+    recordActivity(deps, { actorId, action: "call-guide.changed", recordType: "call-guide", recordId: deps.newId(), context: { situation, title: read.value.title, questions: read.value.questions.length } });
+    return ok({ situation, count: read.value.questions.length });
   });
 }
 

@@ -58,6 +58,7 @@
         <button class="hq-button" type="submit">Search</button>
         <a zb-if={view.filtered} class="hq-button secondary" href="/knowledge">Clear</a>
       </form>
+      <p class="hq-small">Also kept here: the <a href="/call-guides">call guides</a>, the questions the call screen works through.</p>
       <p zb-if={view.filter.tag} class="hq-muted" data-spaced>Tagged “{view.filter.tag}”.</p>
     </section>
 
