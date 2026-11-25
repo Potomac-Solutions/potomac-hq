@@ -9,6 +9,24 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Billing extras (decision 0017, third part; migration 0081):
+  - An invoice can record a promised payment day (Today reminds you that
+    day), carry a card payment link Potomac made itself ("Pay by card" in
+    the portal), and be written off (voided with a reason, kept apart from
+    a mistake). A one-off charge can be drafted and sent in one step.
+  - A client's billing contact gets invoices, reminders, receipts and
+    statements. The client's page has a money line (owed, overdue, paid
+    this year, next renewal), prepaid hours that time draws down (Today
+    warns when low), and recurring invoices with no project.
+  - Renewals: bill several together on one invoice; change a price and the
+    client sees it in their portal first; Renewals → the next 12 months,
+    with what each costs, is billed and earns, and losses flagged.
+  - Clients: receipts emailed when a payment is recorded and a statement in
+    the first week of each month (both only with invoice emails on, once
+    each); "How to pay" in Potomac's own words (Money page); a yearly
+    download of what they paid; the free page shown with its domain.
+  - Money → Cash forecast: the next 13 weeks of money in and out.
+
 - Renewals asked of in time (decision 0017, added). Today says "Bill
   <renewal>" from 30 days before it renews, so the bill goes out before the
   client's pay-by day, and "isn't paid" once that day passes.

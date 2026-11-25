@@ -200,6 +200,34 @@ export function renewalYear(deps: RenewalsDeps, actorId: Id | null): Result<Rene
   return ok({ months, totals: { cost: usd(totalCost), billed: usd(totalBilled), margin: signed(totalBilled - totalCost), losses: new Set(lines.filter((one) => one.atALoss).map((one) => one.renewalId)).size } });
 }
 
+/** Money a renewal moves between two days: billing the client (not billed yet) and Potomac paying for it. */
+export type RenewalCashLine = { readonly on: string; readonly label: string; readonly organizationId: string; readonly inMinor: number; readonly outMinor: number };
+
+/**
+ * For the cash forecast: each renewal's coming bills to clients that aren't
+ * sent yet (on their pay-by day), and what Potomac pays its provider (the day
+ * it renews). One a client is letting lapse moves nothing. A billed one's
+ * money in is its invoice, counted there. No permission here: the caller checks.
+ */
+export function renewalCashflow(deps: RenewalsDeps, from: string, to: string): readonly RenewalCashLine[] {
+  const today = deps.today();
+  return deps.renewals.listActive().flatMap((renewal): RenewalCashLine[] => {
+    if (answerThisTerm(renewal) === "lapse") return [];
+    const who = deps.clientName(renewal.organizationId) ?? "";
+    return occurrences(renewal, from, to).flatMap((on, index): RenewalCashLine[] => {
+      const term = { ...renewal, renewsOn: on };
+      const lines: RenewalCashLine[] = [];
+      if (renewal.cost && renewal.cost.minor > 0) lines.push({ on, label: `${renewal.name} renews (${who})`, organizationId: renewal.organizationId, inMinor: 0, outMinor: renewal.cost.minor });
+      const billedAlready = index === 0 && on === renewal.renewsOn && billState(deps, renewal, today).state !== "not-billed";
+      if (renewal.price && renewal.price.minor > 0 && !billedAlready) {
+        const due = payBy(term);
+        lines.push({ on: due < from ? from : due, label: `Bill ${renewal.name} (${who})`, organizationId: renewal.organizationId, inMinor: renewal.price.minor, outMinor: 0 });
+      }
+      return lines;
+    });
+  });
+}
+
 /** Where a renewal's coming term stands with the client. */
 export type BillState = "not-billed" | "billed" | "paid" | "late" | "ours";
 

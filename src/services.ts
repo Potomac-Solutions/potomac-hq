@@ -10,7 +10,7 @@ import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteF
 import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
-import { addRenewal, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
+import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
@@ -266,7 +266,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), billing: sqliteBillingStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), billing: sqliteBillingStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db), cashflow: (from, to) => renewalCashflow(renewals, from, to) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {

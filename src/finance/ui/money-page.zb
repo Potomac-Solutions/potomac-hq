@@ -25,7 +25,7 @@
     </div>
     <section class="hq-panel" aria-labelledby="money-summary">
       <h2 id="money-summary">Revenue and margin, an operational estimate</h2>
-      <p><a href="/money/invoices">Invoices</a>: who owes what, overdue and drafts. <a href="/money/profit">Profit and loss by month</a>: money received against money spent.</p>
+      <p><a href="/money/forecast">Cash forecast</a>: money coming in and going out, the next 13 weeks. <a href="/money/invoices">Invoices</a>: who owes what, overdue and drafts. <a href="/money/profit">Profit and loss by month</a>: money received against money spent.</p>
       <dl class="hq-facts">
         <dt>Budgets, every project</dt><dd>{view.totals.budget}</dd>
         <dt>Cost so far</dt><dd>{view.totals.cost}</dd>

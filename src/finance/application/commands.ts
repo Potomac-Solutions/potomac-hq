@@ -22,6 +22,8 @@ export type FinanceDeps = ProjectsDeps &
     readonly invoices: InvoiceStore;
     readonly recurring: RecurringStore;
     readonly billing: BillingStore;
+    /** Renewals' money in and out between two days, for the cash forecast. Absent: none counted. */
+    readonly cashflow?: (from: string, to: string) => readonly { readonly on: string; readonly label: string; readonly organizationId: string; readonly inMinor: number; readonly outMinor: number }[];
     readonly phaseEstimates: PhaseEstimates;
     readonly changes: ChangeRequestStore;
   };

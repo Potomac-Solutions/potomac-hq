@@ -5,7 +5,7 @@ import { budgetPeriod, budgetWarning, defaultFinance, standing, type Budget, typ
 import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
-import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
+import { EVERY_LABELS, monthlyMinor, nextAfter, type RecurringInvoice } from "../domain/recurring.ts";
 import { prepaidBalance } from "../domain/prepaid.ts";
 import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
@@ -812,4 +812,81 @@ export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly 
 export function payInstructionsView(deps: FinanceDeps, actorId: Id | null): { readonly text: string; readonly canEdit: boolean } | null {
   if (!may(deps, actorId, "invoice.view")) return null;
   return { text: deps.billing.payInstructions(), canEdit: may(deps, actorId, "invoice.edit") };
+}
+
+/** The cash forecast looks this many weeks ahead, from the Monday of this week. */
+export const FORECAST_WEEKS = 13;
+
+export type ForecastItem = { readonly key: string; readonly on: string; readonly label: string; readonly amount: string; readonly kind: "invoice" | "overdue" | "renewal" | "recurring" | "cost"; readonly href: string };
+export type ForecastWeek = { readonly start: string; readonly label: string; readonly coming: string; readonly going: string; readonly net: string; readonly running: string; readonly negative: boolean; readonly items: readonly ForecastItem[] };
+export type ForecastView = { readonly weeks: readonly ForecastWeek[]; readonly totals: { readonly coming: string; readonly going: string; readonly net: string; readonly overdue: string }; readonly drafts: string };
+
+/**
+ * Money → Cash forecast: the next 13 weeks, week by week. Coming in: sent
+ * invoices by their due day (overdue ones in this week), renewals not billed
+ * yet by their pay-by day, and recurring invoices as they'll be made. Going
+ * out: what renewals cost Potomac on the day they renew. Expenses aren't
+ * planned in HQ, so they aren't here; drafts are shown apart. `finance.view`.
+ */
+export function cashForecast(deps: FinanceDeps, actorId: Id | null): Result<ForecastView, "forbidden"> {
+  if (!may(deps, actorId, "finance.view")) return err("forbidden");
+  const today = Temporal.PlainDate.from(deps.today());
+  const first = today.subtract({ days: today.dayOfWeek - 1 });
+  const last = first.add({ weeks: FORECAST_WEEKS }).subtract({ days: 1 });
+  const from = today.toString();
+  const to = last.toString();
+  const entries: { readonly on: string; readonly inMinor: number; readonly outMinor: number; readonly item: Omit<ForecastItem, "amount"> }[] = [];
+  const invoices = deps.invoices.list();
+  for (const one of invoices) {
+    if (one.status !== "sent") continue;
+    const owed = one.total.minor - one.paidMinor;
+    if (owed <= 0) continue;
+    const due = one.dueOn ?? from;
+    if (due > to) continue;
+    const late = due < from;
+    entries.push({ on: late ? from : due, inMinor: owed, outMinor: 0, item: { key: `i-${one.id}`, on: due, label: `${invoiceLabel(one.number)}, ${one.clientName}${late ? " (overdue)" : ""}`, kind: late ? "overdue" : "invoice", href: `/invoices/${one.id}` } });
+  }
+  for (const plan of deps.recurring.listActive()) {
+    let on = plan.nextOn;
+    for (let n = 0; n < 60 && on <= to && (plan.endsOn === null || on <= plan.endsOn); n++) {
+      const due = Temporal.PlainDate.from(on).add({ days: plan.dueDays }).toString();
+      if (due >= from && due <= to) {
+        const who = deps.clients.get(plan.organizationId)?.name ?? "";
+        entries.push({ on: due, inMinor: plan.amount.minor, outMinor: 0, item: { key: `r-${plan.id}-${on}`, on: due, label: `${plan.description}, ${who}`, kind: "recurring", href: plan.projectId ? `/projects/${plan.projectId}/money#recurring` : `/clients/${plan.organizationId}#billing` } });
+      }
+      on = nextAfter(on, plan.every, plan.anchorDay);
+    }
+  }
+  for (const line of deps.cashflow ? deps.cashflow(from, to) : []) {
+    entries.push({ on: line.on, inMinor: line.inMinor, outMinor: line.outMinor, item: { key: `n-${line.label}-${line.on}`, on: line.on, label: line.label, kind: line.outMinor > 0 ? "cost" : "renewal", href: `/clients/${line.organizationId}#renewals` } });
+  }
+  let running = 0;
+  const weeks: ForecastWeek[] = [];
+  for (let w = 0; w < FORECAST_WEEKS; w++) {
+    const start = first.add({ weeks: w });
+    const end = start.add({ days: 6 }).toString();
+    const inWeek = entries.filter((one) => one.on >= start.toString() && one.on <= end).sort((a, b) => a.on.localeCompare(b.on));
+    const coming = inWeek.reduce((sum, one) => sum + one.inMinor, 0);
+    const going = inWeek.reduce((sum, one) => sum + one.outMinor, 0);
+    running += coming - going;
+    weeks.push({
+      start: start.toString(),
+      label: `${w === 0 ? "This week" : w === 1 ? "Next week" : "Week of"} ${start.toLocaleString("en-US", { month: "short", day: "numeric" })}`,
+      coming: formatMoney(usd(coming)),
+      going: formatMoney(usd(going)),
+      net: coming - going < 0 ? `−${formatMoney(usd(going - coming))}` : formatMoney(usd(coming - going)),
+      running: running < 0 ? `−${formatMoney(usd(-running))}` : formatMoney(usd(running)),
+      negative: coming - going < 0,
+      items: inWeek.map((one) => ({ ...one.item, amount: formatMoney(usd(one.inMinor > 0 ? one.inMinor : one.outMinor)) })),
+    });
+  }
+  const coming = entries.reduce((sum, one) => sum + one.inMinor, 0);
+  const going = entries.reduce((sum, one) => sum + one.outMinor, 0);
+  const overdue = entries.filter((one) => one.item.kind === "overdue").reduce((sum, one) => sum + one.inMinor, 0);
+  const drafts = invoices.filter((one) => one.status === "draft").reduce((sum, one) => sum + one.total.minor, 0);
+  return ok({
+    weeks,
+    totals: { coming: formatMoney(usd(coming)), going: formatMoney(usd(going)), net: coming - going < 0 ? `−${formatMoney(usd(going - coming))}` : formatMoney(usd(coming - going)), overdue: formatMoney(usd(overdue)) },
+    drafts: formatMoney(usd(drafts)),
+  });
 }
