@@ -15,7 +15,7 @@
     if (stop) return stop
     const view = context.crm.getReady(params.id)
     if (!view) return notFound()
-    return { title: `Get ready: ${view.name}`, view, done: context.notice.done, problem: context.notice.problem }
+    return { title: `Get ready: ${view.name}`, view, brief: context.ai.brief(params.id), briefState: context.ai.state('call-brief'), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -27,7 +27,7 @@
   .ready-guide { margin: 0.5rem 0 0; padding-left: 1.4rem; display: grid; gap: 0.3rem; }
   .ready-start .hq-button { min-height: 3.25rem; width: 100%; font-size: 1.1rem; }
 </style>
-<hq-get-ready view={null} done="" problem="">
+<hq-get-ready view={null} brief={null} brief-state={{ on: false, why: '' }} done="" problem="">
   <div class="ready">
     <breadcrumb-trail items={[{ label: 'Calls', href: '/calls' }, { label: 'Get ready', href: '' }]}></breadcrumb-trail>
     <div>
@@ -38,6 +38,16 @@
     <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
 
     <p zb-if={view.topic} class="hq-panel"><strong>They booked it about:</strong> {view.topic}</p>
+
+    <section zb-if={brief || briefState.on || briefState.why} class="hq-panel" id="brief" aria-labelledby="ready-brief-heading">
+      <h2 id="ready-brief-heading">Brief</h2>
+      <ul zb-if={brief} class="ready-points"><zb-each items={brief.lines} as="line" key={line}><li>{line}</li></zb-each></ul>
+      <p zb-if={brief} class="hq-muted hq-small">Written by AI {brief.when} from HQ’s records.<span zb-if={brief.stale}> Something has changed since: write it again for the latest.</span></p>
+      <p zb-if={briefState.why} class="hq-muted hq-small">{briefState.why}</p>
+      <form zb-if={briefState.on} method="post" action="/get-ready/{view.bookingId}/ai">
+        <button class="hq-button secondary" type="submit">{brief ? 'Write the brief again' : 'Write a brief with AI'}</button>
+      </form>
+    </section>
 
     <section zb-if={view.points.length > 0} class="hq-panel" aria-labelledby="ready-points-heading">
       <h2 id="ready-points-heading">Worth raising</h2>

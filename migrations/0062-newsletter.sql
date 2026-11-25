@@ -1,4 +1,4 @@
--- "Notes from the river", the newsletter (decision 0010, section 1).
+-- "Notes from the river", the newsletter (decision 0013, section 1).
 
 -- One row per address ever signed up. Once someone leaves, their email and
 -- name are cleared and only the hash stays, so they are never mailed again by

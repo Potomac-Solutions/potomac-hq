@@ -1,0 +1,17 @@
+<!--
+  While Claude is working on a build, looks again every few seconds, so the
+  page shows the new version as soon as it is ready. Without scripts, the
+  page says to reload it.
+-->
+<script>
+  import { onMount, onUnmount } from '@zubra/runtime'
+  // on: whether a request is working.
+  let timer = null
+  onMount(() => {
+    if (on) timer = setTimeout(() => location.replace(location.pathname), 5000)
+  })
+  onUnmount(() => clearTimeout(timer))
+</script>
+<build-refresh on={false}>
+  <p zb-if={on} class="hq-small hq-muted" role="status">This page looks again every few seconds.</p>
+</build-refresh>

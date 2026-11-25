@@ -1,0 +1,141 @@
+<!--
+  One build (decision 0010): the preview beside the conversation with
+  Claude, the versions, and the brief. The preview runs in a sandbox of its
+  own, so a site's code can't reach HQ.
+-->
+<script>
+  'use route /builder/:id'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import './build-refresh.zb'
+  export async function load({ context, params, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const asked = url.searchParams.get('v')
+    const view = context.builder.build(params.id, asked)
+    if (!view.ok) return view.error === 'forbidden' ? context.forbidden() : notFound()
+    const width = ['phone', 'tablet', 'full'].includes(url.searchParams.get('width')) ? url.searchParams.get('width') : 'full'
+    const keep = (next) => '?' + new URLSearchParams({ ...(asked ? { v: asked } : {}), width: next }).toString()
+    const widths = [
+      { value: 'phone', label: 'Phone', href: keep('phone'), current: width === 'phone' },
+      { value: 'tablet', label: 'Tablet', href: keep('tablet'), current: width === 'tablet' },
+      { value: 'full', label: 'Full width', href: keep('full'), current: width === 'full' },
+    ]
+    return { title: view.value.name, view: view.value, width, widths, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .build-grid { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 70rem) { .build-grid { grid-template-columns: minmax(0, 1.6fr) minmax(20rem, 1fr); align-items: start; } }
+  .preview-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+  .preview-bar p { margin: 0; }
+  .widths { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0; }
+  .widths a { display: inline-block; padding: 0.3rem 0.65rem; border: 1px solid var(--border); border-radius: 999px; text-decoration: none; color: inherit; font-size: 0.875rem; }
+  .widths a[aria-current="true"] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .frame-wrap { display: flex; justify-content: center; background: var(--muted); border-radius: 0.5rem; padding: 0.5rem; overflow: auto; }
+  .frame-wrap iframe { display: block; width: 100%; height: 75vh; min-height: 32rem; border: 1px solid var(--border); border-radius: 0.35rem; background: #fff; }
+  .frame-wrap.w-phone iframe { width: 390px; max-width: 100%; }
+  .frame-wrap.w-tablet iframe { width: 820px; max-width: 100%; }
+  .talk { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+  .talk p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .talk .from { font-size: 0.8rem; color: var(--muted-foreground); }
+  .talk .answer { margin-top: 0.3rem; padding: 0.55rem 0.75rem; border-left: 3px solid var(--border); }
+  .talk .failed .answer { border-left-color: var(--destructive); }
+  .ask-form { display: grid; gap: 0.6rem; }
+  .versions { list-style: none; margin: 0; padding: 0; }
+  .versions > li { display: grid; gap: 0.25rem; padding: 0.7rem 0; border-top: 1px solid var(--border); }
+  .versions > li:first-child { border-top: 0; }
+  .versions p { margin: 0; overflow-wrap: anywhere; }
+  .version-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .version-actions form { margin: 0; }
+  .brief-form { display: grid; gap: 1rem; }
+</style>
+<hq-build view={{ conversation: [], versions: [], budget: {} }} width="full" widths={[]} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Site builder', href: '/builder' }, { label: view.name }]}></breadcrumb-trail>
+    <h1>{view.name}</h1>
+    <p class="hq-muted">For <a href="/clients/{view.organizationId}">{view.client}</a> · {view.model} · {view.budget.left} left this month of {view.budget.cap}</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <alert-banner zb-if={!view.claudeSetUp} variant="warning">HQ has no Claude API key, so it can’t ask Claude. Set HQ_ANTHROPIC_API_KEY on the server.</alert-banner>
+    <build-refresh on={view.working}></build-refresh>
+    <div class="build-grid">
+      <section class="hq-panel" aria-labelledby="build-preview">
+        <div class="preview-bar">
+          <h2 id="build-preview">{view.shown === 0 ? 'Preview' : view.shown === view.newest ? 'Version ' + view.shown + ', the newest' : 'Version ' + view.shown}</h2>
+          <ul zb-if={view.shown > 0} class="widths" aria-label="Preview width">
+            <zb-each items={widths} as="w" key={w.value}>
+              <li><a href={w.href} aria-current={w.current ? 'true' : 'false'}>{w.label}</a></li>
+            </zb-each>
+          </ul>
+        </div>
+        <empty-state zb-if={view.shown === 0} heading={view.working ? 'Claude is making the first version' : 'No version yet'}>{view.working ? 'It usually takes a minute or two.' : 'Ask Claude for the first version.'}</empty-state>
+        <div zb-else class="frame-wrap w-{width}">
+          <iframe src={view.previewSrc} title="Preview of {view.name}, version {view.shown}" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>
+        </div>
+        <p zb-if={view.shown > 0} class="hq-small hq-muted">{view.fileCount === 1 ? '1 file' : view.fileCount + ' files'}, {view.size}. The preview link works for an hour; reload the page for a fresh one. <a href="/builder/{view.id}/versions/{view.shown}/site.zip">Download version {view.shown} (.zip)</a></p>
+      </section>
+      <div>
+        <section class="hq-panel" aria-labelledby="build-talk">
+          <h2 id="build-talk">Ask Claude</h2>
+          <p zb-if={view.conversation.length === 0} class="hq-muted">Nothing asked yet.</p>
+          <ol zb-else class="talk">
+            <zb-each items={view.conversation} as="turn" key={turn.when + turn.ask}>
+              <li class:failed={turn.state === 'failed'}>
+                <p class="from">{turn.by} · {turn.when}</p>
+                <p>{turn.ask}</p>
+                <div class="answer">
+                  <p class="from">Claude{turn.version ? ' · version ' + turn.version : ''} · {turn.cost}</p>
+                  <p>{turn.answer}</p>
+                </div>
+              </li>
+            </zb-each>
+          </ol>
+          <form id="ask" method="post" action="/builder/{view.id}/ask" class="ask-form">
+            <label for="build-ask">What should change?</label>
+            <textarea id="build-ask" name="ask" rows="4" maxlength="2000" required disabled={view.working || !view.claudeSetUp} placeholder="Make the hero darker and add a page for towing rates."></textarea>
+            <p class="hq-small hq-muted">Claude sees the brief, the client’s facts and every file, and changes only what you ask. Each request reserves its most it could cost; you’re charged what it really used.</p>
+            <div><button class="hq-button" type="submit" disabled={view.working || !view.claudeSetUp}>{view.working ? 'Claude is working…' : 'Ask Claude'}</button></div>
+          </form>
+        </section>
+        <section id="versions" class="hq-panel" aria-labelledby="build-versions">
+          <h2 id="build-versions">Versions</h2>
+          <p zb-if={view.versions.length === 0} class="hq-muted">None yet.</p>
+          <ol zb-else class="versions" reversed>
+            <zb-each items={view.versions} as="version" key={version.number}>
+              <li>
+                <p><strong>Version {version.number}</strong> <status-badge zb-if={version.current} variant="primary">Showing</status-badge> <span class="hq-small hq-muted">· {version.by} · {version.when}</span></p>
+                <p class="hq-small">{version.summary}</p>
+                <div class="version-actions">
+                  <a zb-if={!version.current} href="/builder/{view.id}?v={version.number}">Show</a>
+                  <a href="/builder/{view.id}/versions/{version.number}/site.zip">Download</a>
+                  <form zb-if={version.number !== view.newest} method="post" action="/builder/{view.id}/restore">
+                    <input type="hidden" name="version" value={version.number}>
+                    <button class="hq-button secondary" type="submit" disabled={view.working}>Make this the newest</button>
+                  </form>
+                </div>
+              </li>
+            </zb-each>
+          </ol>
+        </section>
+      </div>
+    </div>
+    <form id="brief" method="post" action="/builder/{view.id}/brief" class="hq-panel brief-form" aria-labelledby="build-brief">
+      <h2 id="build-brief">Name and brief</h2>
+      <div class="hq-field">
+        <label for="brief-name">Name</label>
+        <input id="brief-name" name="name" maxlength="80" required value={view.name}>
+      </div>
+      <div class="hq-field">
+        <label for="brief-text">Brief</label>
+        <textarea id="brief-text" name="brief" rows="8" maxlength="4000">{view.brief}</textarea>
+      </div>
+      <div><button class="hq-button secondary" type="submit">Save</button></div>
+    </form>
+  </div>
+</hq-build>

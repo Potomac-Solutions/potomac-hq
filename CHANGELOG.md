@@ -9,7 +9,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
-- Monthly reports to plan clients (decision 0010, slice 5). Each morning in
+- Monthly reports to plan clients (decision 0013, slice 5). Each morning in
   the first week of a month, HQ drafts last month's report for every client
   with an active ongoing project: their sites' uptime (from monitoring), the
   milestones finished, updates put live and changes approved, how many tasks
@@ -19,8 +19,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   and Send it to the client's primary contact, or Skip it. It's never sent
   by itself, and it's sent once. Drafts wait on Today. Sent reports are in
   the client's portal. For managers and admins (`client-report.send`).
-  Migration 0059.
-- Free landing pages (decision 0010, slice 4). Clients ask for theirs in
+  Migration 0065.
+- Free landing pages (decision 0013, slice 4). Clients ask for theirs in
   the portal, or it's recorded on the client: its address at
   `<name>.potomac.solutions`, where it stands (asked for, being built, ready
   to look at, approved, live, handed over) and its repository. In the
@@ -31,8 +31,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   downloaded from the portal and the client page (needs `HQ_GITHUB_TOKEN`).
   One free page a person: a client whose contacts share an email or phone
   with another client's free page is refused. Delivery → Landing pages lists
-  them all. Anyone at Potomac (`free-page.manage`). Migration 0058.
-- Where leads come from (decision 0010, slice 3). The inquiry form and the
+  them all. Anyone at Potomac (`free-page.manage`). Migration 0064.
+- Where leads come from (decision 0013, slice 3). The inquiry form and the
   website's booking keep where on potomac.solutions the person was: `src`
   (a river stop, a Lab demo, a Work page, the planner, the blog or the
   newsletter), `page`, and `utm_source`, `utm_medium` and `utm_campaign`.
@@ -41,8 +41,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
   365 days, and how many had a call, got a proposal and were won, with the
   value won for those who may see values. HQ's own `/contact?src=...` passes
   `src` on, and the website's booking now credits a referral link's `ref`.
-  Migration 0057.
-- The newsletter, "Notes from the river" (decision 0010, slice 2). People
+  Migration 0063.
+- The newsletter, "Notes from the river" (decision 0013, slice 2). People
   sign up at `/river`, from a form on potomac.solutions, or through the
   website's server (`POST /api/site/newsletter` with its token), and are on
   the list once they press Confirm in the email they get. Each reader
@@ -51,11 +51,60 @@ moves those lines under a version heading. See `docs/conventions.md`.
   everyone or some stops; it goes out 50 a minute, each reader once. Every
   issue carries Potomac's mailing address (needs `HQ_CONTACT_ADDRESS`), a
   one-click unsubscribe link and a `List-Unsubscribe` header. Leaving forgets
-  the address. For managers and admins (`newsletter.manage`). Migration 0056.
-- Decision 0010, growth tools: the newsletter, where leads come from, free
+  the address. For managers and admins (`newsletter.manage`). Migration 0062.
+- Decision 0013, growth tools: the newsletter, where leads come from, free
   landing pages, monthly reports to plan clients, n8n automations, reviews
   and case studies, referral credit, and who looked at a demo, in eight
   slices.
+
+- Social media (decision 0011), for clients on social media marketing. A
+  plan on the client's page: Facebook, Instagram and LinkedIn with each
+  page's address, 8 posts and 1 blog post a month unless set otherwise,
+  and notes about the business. A calendar per month to write posts and
+  blog posts against the plan, checked for each network's limit, an
+  Instagram post needing its picture. "Send to the client" puts the month
+  in their portal under "Your social media" and on "Waiting on you"; they
+  approve it in one go or ask for changes post by post, and anything
+  unanswered for 3 days counts as approved (checked hourly). A yes by
+  phone or text can be recorded. Approved posts due show on Today with
+  "Copy the words", "Open Facebook" and "It's up" with links, which the
+  client sees. Asks for changes show on Today as Waiting on you.
+  Delivery → Social media lists every client's month. New permissions
+  `social.view` and `social.edit` for every role. Migration 0057.
+
+- The site builder (decision 0010, slice 1). Delivery → Site builder, for
+  admins: start a build for a client with a brief, and Claude makes the
+  first version from it and the client's facts in HQ. Ask for changes in
+  plain words; each answer is a new version, shown in a sandboxed preview
+  at phone, tablet or full width, downloadable as a .zip, and restorable.
+  A request is refused before it is sent if its worst case would pass the
+  monthly cap ($10 to start); what it really cost is recorded. Only
+  `HQ_SITE_BUILDER_OWNER` changes the model and the cap, under Model and
+  cap, which also shows spending by person, build and month. Needs
+  `HQ_ANTHROPIC_API_KEY`. New permission `site.build`, admins only.
+  Migration 0056.
+
+- Decision 0010, the site builder: client websites made with Claude in
+  HQ, previewed in a sandbox, kept as versions, with a monthly cap that is
+  never crossed, published to a new repository or as a pull request to a
+  client's own. Four slices.
+
+- AI drafts (decision 0012, all phases). With `HQ_ANTHROPIC_API_KEY` set
+  and a feature turned on in Settings → AI, Claude drafts and a person uses
+  or discards: the recap email and next steps after a call, a brief on Get
+  ready, a triage and reply for each new lead (by itself every five
+  minutes), check-ins for deals gone quiet, a proposal's first draft checked
+  against similar finished jobs, a flag and change request for client
+  messages beyond what was agreed (by itself), each active project's weekly
+  update (by itself on Fridays), answers from the knowledge base (Ask HQ),
+  expenses read from receipt photos, a likely cause in site-down alerts, and
+  case studies and social posts (Marketing). Nothing is sent, posted or saved
+  until someone presses the button that says so. Settings → AI sets the model (Claude Haiku 5.5 to start), the monthly budget
+  ($20 to start, a hard stop, a warning at 80%), which features are on and
+  the price guide, and shows every call's cost. AI drafts waiting show on
+  Today and in the sidebar. Only `HQ_SITE_BUILDER_OWNER` changes them; other admins (`ai.manage`)
+  see them. Uses the site builder's `HQ_ANTHROPIC_API_KEY`, with its own
+  budget. Migration 0058.
 
 ## [0.16.0] - 2026-11-25
 

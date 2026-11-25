@@ -19,10 +19,10 @@
     const reports = context.clientReports.portalList()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', landing, reports, renewals: context.renewals.mine(), website, view: { ...home, attention: [...fixes, ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', landing, reports, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -81,6 +81,19 @@
             <p class="hq-muted">{website.state === 'submitted' ? 'Your changes are with Potomac Solutions to check.' : website.state === 'editing' ? 'You have changes you haven’t sent yet.' : website.hasGallery ? 'Change the photos, post a notice, or add a review.' : website.serviceArea ? 'Change where you go, on the map.' : 'Open it, or close it for a while.'}</p>
           </div>
           <a class="hq-button portal-big" href="/portal/website">Update your website</a>
+        </li>
+      </ul>
+    </section>
+
+    <section zb-if={social} class="hq-panel" id="social" aria-labelledby="portal-social">
+      <h2 id="portal-social">Your social media</h2>
+      <ul class="portal-cards">
+        <li>
+          <div>
+            <p><strong>{social.summary}</strong></p>
+            <p class="hq-muted">{social.waiting > 0 ? 'Posts for ' + social.monthName + ' are waiting for you to look over.' : 'See this month’s posts, and the ones already up.'}</p>
+          </div>
+          <a class="hq-button portal-big" href="/portal/social">See your posts</a>
         </li>
       </ul>
     </section>

@@ -22,12 +22,16 @@ import { sqliteLeadStore } from "./leads/adapters.ts";
 import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
+import type { BuilderDeps, Claude } from "./builder/index.ts";
+import { previewTokens, sqliteBuilderSettings, sqliteBuildStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
 import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
+import type { SocialDeps } from "./social/index.ts";
+import { sqliteSocialStore } from "./social/adapters.ts";
 import { addTodo, type TodosDeps } from "./todos/index.ts";
 import { withNotices, type NoticesDeps } from "./notices/index.ts";
 import { withWebhooks, type HookDescribe, type WebhooksDeps } from "./webhooks/index.ts";
@@ -49,6 +53,14 @@ import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts"
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
+import { withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
+import { SERVICE_LABELS } from "./crm/domain/labels.ts";
+import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
+import { getReady, logTouch, moveOpportunity, recapFor } from "./crm/index.ts";
+import { addNote } from "./notes/index.ts";
+import { postProjectUpdate } from "./portal/index.ts";
+import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
 import type { Clock, Id } from "./shared/index.ts";
 
@@ -74,21 +86,25 @@ export type Services = {
   readonly booking: BookingDeps;
   readonly invoiceReminders: RemindersDeps;
   readonly renewals: RenewalsDeps;
+  /** Social media plans and posts (decision 0010). */
+  readonly social: SocialDeps;
   /** Potomac's own website: open, coming soon or maintenance, and its banner. */
   readonly publicSite: PublicSiteDeps;
   readonly monitor: MonitorDeps;
   /** Referral links: short addresses printed as QR codes, and what came of them. */
   readonly referrals: ReferralsDeps;
-  /** "Notes from the river", the newsletter (decision 0010, section 1). */
+  /** "Notes from the river", the newsletter (decision 0013, section 1). */
   readonly newsletter: NewsletterDeps;
-  /** Where leads come from on the website (decision 0010, section 2). */
+  /** Where leads come from on the website (decision 0013, section 2). */
   readonly leads: LeadsDeps;
-  /** Free landing pages and their rounds of changes (decision 0010, section 3). */
+  /** Free landing pages and their rounds of changes (decision 0013, section 3). */
   readonly freePages: FreePagesDeps;
-  /** Monthly reports to plan clients (decision 0010, section 4). */
+  /** Monthly reports to plan clients (decision 0013, section 4). */
   readonly clientReports: ReportsDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
+  /** The site builder: client websites made with Claude (decision 0010). */
+  readonly builder: BuilderDeps;
   readonly touches: TouchDeps;
   /** The call screen: a timed call, logged with its length (decision 0009). */
   readonly calls: CallDeps;
@@ -109,6 +125,8 @@ export type Services = {
   readonly links: LinkDeps;
   /** The morning email of that list. */
   readonly morning: MorningDeps;
+  /** AI assistance (decision 0012): settings, budget, and the drafts each feature writes. */
+  readonly ai: FeaturesDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -137,6 +155,16 @@ export type ServiceOptions = {
   readonly webhookKey?: string;
   /** HQ's own address, for links in webhook payloads. */
   readonly publicUrl?: string;
+  /** The site builder's link to Claude. Without it, Claude can't be asked. */
+  readonly claude?: Claude | null;
+  /** The email of the one person who may change the site builder's model and cap. */
+  readonly builderOwner?: string | null;
+  /** Signs the site builder's preview addresses. Without it, a key made for this process. */
+  readonly previewSecret?: string;
+  /** Runs a job after the answer is sent: a request to Claude. Errors go to the log. */
+  readonly runLater?: (job: () => Promise<void>) => void;
+  /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
+  readonly aiModel?: AiModel | null;
 };
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -170,7 +198,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       return { id: project.id, name: project.name, status: project.status, client: crm.clients.get(project.organizationId)?.name ?? null, startOn: project.startOn, targetOn: project.targetOn, url: `${base}/projects/${project.id}` };
     },
   };
-  const eventLog = withWebhooks(noticingLog, { ...webhookStores, describe, users, newId, clock });
+  // And an AI draft is marked used when what it was for is done by hand (decision 0012).
+  const aiStore = sqliteAiStore(db);
+  const eventLog = withDraftOutcomes(withWebhooks(noticingLog, { ...webhookStores, describe, users, newId, clock }), aiStore);
   const crm: CrmDeps = {
     ...session,
     activityLog: eventLog,
@@ -353,8 +383,32 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     invoice: billedOf,
     mayBill: (actorId) => authorize({ users }, actorId, "invoice.edit").ok,
   };
+  // What a client's public website may say about them: nothing more private (decision 0010).
+  const builder: BuilderDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    builds: sqliteBuildStore(db),
+    settings: sqliteBuilderSettings(db),
+    claude: options.claude ?? null,
+    previewTokens: previewTokens(options.previewSecret ?? crypto.randomUUID() + crypto.randomUUID()),
+    clientFacts: (id) => {
+      const client = crm.clients.get(id);
+      if (!client) return null;
+      const contact = crm.contacts.listFor(id).find((one) => one.isPrimary) ?? null;
+      return { name: client.name, phone: client.phone, address: client.address, website: client.website, contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone, title: contact.title } : null };
+    },
+    clients: () => crm.clients.list().map((one) => ({ id: one.id, name: one.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    ownerEmail: options.builderOwner ?? null,
+    timeZone: BUSINESS_TIME_ZONE,
+    runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
+  };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
+  const social: SocialDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, timeZone: BUSINESS_TIME_ZONE, social: sqliteSocialStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
   const booking: BookingDeps = {
@@ -383,7 +437,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, monitor, freePages, clientReports, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -402,5 +456,62 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     emailReady: options.emailReady ?? false,
   };
   const webhooks: WebhooksDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, ...webhookStores, signer: options.webhookKey ? webhookSigner(options.webhookKey) : null, describe };
-  return { notices, webhooks, publicSite, websites, referrals, newsletter, leads, freePages, clientReports, booking, sources, links, clientImport, invoiceReminders, renewals, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  const services = Object.entries(SERVICE_LABELS).map(([key, label]) => ({ key, label }));
+  const ai: FeaturesDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    today,
+    startOfDay,
+    monthStart: () => startOfDay(`${today().slice(0, 7)}-01`),
+    ai: aiStore,
+    model: options.aiModel ?? null,
+    ownerEmail: options.builderOwner ?? null,
+    records: sqliteAiRecords(db),
+    links: {
+      recap(actorId, callId) {
+        const recap = recapFor(calls, actorId, callId);
+        if (!recap.ok) return recap.error === "no-email" ? "no-email" : null;
+        const call = calls.calls.get(callId);
+        if (!call) return null;
+        return { client: recap.value.clientName, contact: recap.value.toName, me: users.get(actorId)?.name ?? "", notes: call.note, organizationId: call.organizationId, opportunityId: call.opportunityId };
+      },
+      getReady(actorId, bookingId) {
+        const ready = getReady(calls, actorId, bookingId);
+        if (!ready.ok) return null;
+        return { organizationId: (ready.value.clientId || null) as Id | null, client: ready.value.clientName, contact: ready.value.name, why: ready.value.topic, points: ready.value.points.map((one) => one.text) };
+      },
+      addTodo: (actorId, input) => addTodo(todos, actorId, { title: input.title, clientId: input.clientId, opportunityId: input.opportunityId }),
+      logEmail: (actorId, opportunityId, contactId, note) => logTouch(touches, actorId, { opportunityId }, { kind: "email", note, contactId }),
+      addNote: (actorId, opportunityId, body) => addNote(notes, actorId, { recordType: "opportunity", recordId: opportunityId, body }),
+      markLost: (actorId, opportunityId, reason) => moveOpportunity(crm, actorId, opportunityId, { to: "lost", lostReason: reason }),
+      startProposal(actorId, opportunityId, draft) {
+        const started = startProposal(proposals, actorId, opportunityId, {});
+        if (!started.ok) return started;
+        const saved = saveProposal(proposals, actorId, started.value.id, {
+          title: draft.title,
+          pricing: started.value.pricing,
+          scope: draft.scope,
+          assumptions: draft.assumptions,
+          exclusions: draft.exclusions,
+          deliverables: draft.deliverables,
+          lines: draft.lines.map((line) => ({ item: line.item, kind: line.kind, quantity: String(line.quantity), rate: line.rate.toFixed(2) })),
+        });
+        return saved.ok ? { ok: true, value: saved.value.id } : saved;
+      },
+      addChange: (actorId, projectId, input) => addChangeRequest(finance, actorId, projectId, input),
+      postUpdate: (actorId, projectId, body) => postProjectUpdate(portal, actorId, projectId, body),
+      addExpense: (actorId, projectId, input, receipt) => addExpense(finance, actorId, projectId, { ...input, receipt }),
+      template(service) {
+        const found = TEMPLATES[service];
+        return found ? { scope: found.scope, assumptions: found.assumptions, exclusions: found.exclusions, deliverables: found.deliverables, lines: found.lines } : null;
+      },
+      services,
+      expenseCategories: EXPENSE_CATEGORIES,
+    },
+  };
+  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

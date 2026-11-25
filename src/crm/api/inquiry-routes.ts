@@ -15,7 +15,7 @@ export type InquiryRoutesDeps = {
   readonly allowPerEmail: (key: string) => boolean;
   /** Where a form on another site may send people back to: its origins, like https://potomac.solutions. */
   readonly returnOrigins: readonly string[];
-  /** Keeps where on the website the person was (`src`, `page`, `utm_*`), for the lead sources report (decision 0010). */
+  /** Keeps where on the website the person was (`src`, `page`, `utm_*`), for the lead sources report (decision 0013). */
   readonly attribute?: (opportunityId: Id, read: (name: string) => string | undefined) => void;
   /** Counts the inquiry for the referral link whose code came with the form, if one did. */
   readonly credit?: (code: string, opportunityId: Id) => void;

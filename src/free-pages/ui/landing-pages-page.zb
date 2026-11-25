@@ -1,4 +1,4 @@
-<!-- Every free landing page (decision 0010, section 3): where each stands, and rounds waiting. -->
+<!-- Every free landing page (decision 0013, section 3): where each stands, and rounds waiting. -->
 <script>
   'use route /landing-pages'
   import '../../shared/ui/zubra/empty-state.zb'
