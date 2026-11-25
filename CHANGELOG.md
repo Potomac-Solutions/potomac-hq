@@ -9,6 +9,42 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Undo and moving back (decision 0014). After a pipeline move, a client or
+  project status change, a task move on the board or ticking off a to-do,
+  an Undo bar appears at the bottom of the screen; press it or Ctrl+Z (⌘Z).
+  Opportunities can be dragged back to any earlier stage, moved back with a
+  card's Back button, and reopened from won (unless already a project) or
+  lost on their own page. Automatic moves still only go forward. Dragging
+  is clearer on the pipeline and the board: a grip on each card, the card
+  lifts and fades while dragged, columns it can go to are outlined with
+  "Drop to move here", and pipeline columns it can't go to are dimmed.
+- More undo and easier getting around (decision 0014, sections 4 to 7).
+  Undo also covers saving a task's or project's details and a deal's price
+  or follow-up, and reopening a lost deal; it is kept server-side behind a
+  one-time token (`/undo/<token>`, migration 0072). Remove buttons hide the
+  item and wait six seconds with Undo before sending. After a post HQ keeps
+  your scroll and focus, cards slide to their new place where the browser
+  supports view transitions, forms can't be sent twice, leaving a typed form
+  asks first, and green messages fade. New: a command palette (Ctrl+K or
+  "Go to…") that also moves deals, a shortcut list (?), G-then-letter
+  jumps, moving board and pipeline cards with Space and the arrow keys, and
+  dragging cards by the grip on a phone.
+- Recent changes and undo send (decision 0014, sections 8 and 9). A new
+  Recent changes page (sidebar, Ctrl+K, G then H) lists your changes from
+  the last day that can still be undone, one per thing, each with Undo.
+  An undo is now usable only by the person who made the change, and the
+  Undo bar names what it puts back. Send, publish, share, void and
+  call-cancel buttons wait eight seconds with Undo before anything leaves
+  HQ. A client's demo flag can be undone.
+- Undo for adding, a confirm step, and unsent text kept (decision 0014,
+  section 10). Adding a project link, comment, label, saved filter, time,
+  expense, demo or referral link can be undone, and so can editing a
+  comment. Turning off two-step sign-in, removing a passkey, new recovery
+  codes, resetting someone's two-step sign-in, turning an account off and
+  new webhook or automation secrets ask first. Unsent text in long boxes
+  comes back after a closed or crashed page. Ctrl+Enter sends a form.
+  Dropped cards move to their column at once. Pages leave room for the
+  Undo bars.
 - The sidebar is eight hubs (decision 0015): Home, Today, Clients, Work,
   Sites, Money, Growth and Company. The hub you're in is open; the others
   fold to one line and open with a tap. Every page keeps its address. The

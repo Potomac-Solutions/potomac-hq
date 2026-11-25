@@ -39,14 +39,24 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
       if (!where) return { ok: false as const, error: "task-not-in-project" };
       return finance.logTime(deps.finance, actor, where, { on: f["on"] ?? "", hours: f["hours"] ?? "", note: f["note"] ?? null, billable: f["billable"] === "on" });
     },
-    { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Time logged." },
+    {
+      done: (_, _id, f) => back(f, "/time"),
+      back: (_id, f) => back(f, "/time"),
+      message: "Time logged.",
+      undo: (entry, _id, f) => ({ label: "Time logged", action: `/time/${entry.id}/remove`, fields: f["returnTo"] ? { returnTo: f["returnTo"] } : {} }),
+    },
   );
   post("/time/:id/remove", (actor, _f, id) => finance.removeTime(deps.finance, actor, id as Id), { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Entry removed." });
   post("/timer/stop", (actor) => finance.stopTimer(deps.finance, actor), { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Timer stopped and the time logged." });
   post(
     "/projects/:id/expenses",
     (actor, f, id, files) => finance.addExpense(deps.finance, actor, id as Id, { category: f["category"] ?? "", amount: f["amount"] ?? "", on: f["on"] ?? "", note: f["note"] ?? null, receipt: files["receipt"] ?? null }),
-    { done: (_, id) => `${money(id)}#expenses`, back: (id) => `${money(id)}#expenses`, message: "Expense recorded." },
+    {
+      done: (_, id) => `${money(id)}#expenses`,
+      back: (id) => `${money(id)}#expenses`,
+      message: "Expense recorded.",
+      undo: (expense) => ({ label: "Expense recorded", action: `/expenses/${expense.id}/remove`, fields: {} }),
+    },
   );
   post("/expenses/:id/remove", (actor, _f, id) => finance.removeExpense(deps.finance, actor, id as Id), {
     done: (expense) => `${money(expense.projectId)}#expenses`,

@@ -12,6 +12,9 @@
   // user-avatar is the shell's alone; the account actions are a plain link
   // and a plain button, not action-button.
   import './shared/ui/zubra/user-avatar.zb'
+  // Decision 0014: keeping your place, sending once, delayed removals, and the command palette.
+  import './shared/ui/parts/page-keeper.zb'
+  import './shared/ui/parts/command-palette.zb'
   import { onMount, onUnmount } from '@zubra/runtime'
 
   export async function load({ context, url }) {
@@ -30,10 +33,26 @@
     const groups = context.user ? context.nav(path, url.search) : []
     const draftHub = aiDrafts > 0 ? 'today' : ''
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, aiDrafts, draftHub, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, aiDrafts, draftHub, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready, undo: context.user ? context.notice.undo : null, undoText: context.notice.undoLabel }
   }
 
   let menu = false
+  // The top bar's "Go to…" opens the command palette, as Ctrl+K does.
+  function openPalette() {
+    document.dispatchEvent(new CustomEvent('hq-palette'))
+  }
+  // The change just made can be put back (decision 0014): an Undo bar, and Ctrl+Z or ⌘Z.
+  let undoHidden = false
+  function undoKey(event) {
+    if (event.key !== 'z' && event.key !== 'Z') return
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.defaultPrevented) return
+    const target = event.target
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+    const button = document.getElementById('hq-undo-button')
+    if (!button || undoHidden) return
+    event.preventDefault()
+    button.click()
+  }
 
   // N goes to quick add, unless you're typing somewhere.
   function quickKey(event) {
@@ -89,11 +108,13 @@
   }
   onMount(() => {
     document.addEventListener('keydown', quickKey)
+    document.addEventListener('keydown', undoKey)
     document.addEventListener('submit', keepForm)
     refill()
   })
   onUnmount(() => {
     document.removeEventListener('keydown', quickKey)
+    document.removeEventListener('keydown', undoKey)
     document.removeEventListener('submit', keepForm)
   })
 </script>
@@ -136,14 +157,33 @@
   .hq-account-action { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); text-decoration: none; cursor: pointer; }
   .hq-account-action:hover { background: var(--accent); color: var(--accent-foreground); }
   .hq-bell { gap: 0.35rem; }
+  .hq-palette-open { gap: 0.45rem; flex: none; color: var(--muted-foreground); }
+  .hq-palette-open kbd { font: inherit; font-size: 0.72rem; padding: 0 0.3rem; border: 1px solid var(--border); border-radius: 0.25rem; }
   .hq-on-call { gap: 0.4rem; color: var(--label-green-fg); background: var(--label-green-bg); border-color: transparent; font-weight: 600; }
   .hq-ready { color: var(--label-amber-fg); background: var(--label-amber-bg); border-color: transparent; font-weight: 600; }
   .hq-on-call-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
   .hq-bell[aria-current=page] { border-color: var(--ring); }
   .hq-bell-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; font-size: 0.75rem; font-weight: 700; line-height: 1; color: var(--primary-foreground); background: var(--primary); border-radius: 999px; }
-  .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 3rem; }
+  /* Room at the bottom so the Undo bars never cover the last buttons. */
+  .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 6rem; }
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
+
+  /* The Undo bar sits at the bottom of the screen until used, dismissed or left. */
+  .hq-undo { position: fixed; z-index: 20; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: #ffffff; background: #0b2530; border: 1px solid #23414c; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; animation: hq-undo-in 180ms ease-out; }
+  .hq-undo form { margin: 0; }
+  .hq-undo-button { display: inline-flex; align-items: center; gap: 0.35rem; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
+  .hq-undo-button:hover { background: #dff1fd; }
+  .hq-undo-button:focus-visible, .hq-undo-close:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
+  .hq-undo kbd { font: inherit; font-size: 0.75rem; color: #b9cbd3; }
+  .hq-undo-text { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hq-undo-link { color: #9fd6fb; font-size: 0.85rem; font-weight: 600; }
+  .hq-undo-link:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; border-radius: 2px; }
+  .hq-undo-close { width: 1.75rem; height: 1.75rem; font: inherit; font-size: 1.1rem; line-height: 1; color: inherit; background: transparent; border: 0; border-radius: 50%; cursor: pointer; opacity: 0.8; }
+  .hq-undo-close:hover { opacity: 1; background: rgb(255 255 255 / 0.12); }
+  /* Slides up; no fade, so its text is never faint. */
+  @keyframes hq-undo-in { from { transform: translate(-50%, 0.75rem); } }
+  @media (prefers-reduced-motion: reduce) { .hq-undo { animation: none; } }
 
   @media (max-width: 60rem) {
     .hq-shell { display: block; }
@@ -152,11 +192,11 @@
     .hq-nav { display: none; padding-bottom: 0.5rem; }
     .hq-side.open .hq-nav { display: grid; }
     .hq-top { position: static; padding: 0.6rem 1rem; flex-wrap: wrap; }
-    .hq-who, .hq-account user-avatar { display: none; }
+    .hq-who, .hq-account user-avatar, .hq-palette-open kbd { display: none; }
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} ai-drafts={0} draft-hub="" searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
+<hq-app who="" groups={[]} ai-drafts={0} draft-hub="" searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null} undo={null} undo-text="">
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -190,6 +230,7 @@
           <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
           <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">
         </form>
+        <button type="button" class="hq-account-action hq-palette-open" aria-keyshortcuts="Control+K Meta+K" onclick={openPalette}>Go to… <kbd>Ctrl K</kbd></button>
         <div class="hq-account">
           <a zb-if={onCall} class="hq-account-action hq-on-call" href={onCall.href}><span class="hq-on-call-dot" aria-hidden="true"></span>{onCall.label}</a>
           <a zb-if={ready} class="hq-account-action hq-ready" href={ready.href}>{ready.label}</a>
@@ -206,6 +247,17 @@
         <zb-slot></zb-slot>
       </main>
     </div>
+    <div zb-if={undo && !undoHidden} class="hq-undo" role="region" aria-label="Undo">
+      <span class="hq-undo-text" role="status">{undoText}</span>
+      <form method="post" action={undo.action}>
+        <zb-each items={undo.fields} as="field" key={field.name}><input type="hidden" name={field.name} value={field.value}></zb-each>
+        <button id="hq-undo-button" class="hq-undo-button" type="submit" aria-keyshortcuts="Control+Z Meta+Z"><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62A7.95 7.95 0 0 1 12.5 10.5c3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8Z"/></svg>Undo</button>
+      </form>
+      <kbd aria-hidden="true">Ctrl Z</kbd>
+      <a class="hq-undo-link" href="/history">History</a>
+      <button type="button" class="hq-undo-close" aria-label="Dismiss" onclick={() => (undoHidden = true)}>×</button>
+    </div>
+    <command-palette groups={groups} adding={adding}></command-palette>
   </div>
   <div zb-else>
     <header class="hq-signed-out">
@@ -215,4 +267,5 @@
       <zb-slot></zb-slot>
     </main>
   </div>
+  <page-keeper></page-keeper>
 </hq-app>
