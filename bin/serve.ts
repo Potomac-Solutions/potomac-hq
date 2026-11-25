@@ -14,13 +14,18 @@
 //   HQ_CLIENT_NOTICES  "on" to email clients when something is waiting in the portal; needs email
 //   HQ_CONTACT_*       Potomac's phone, email and mailing address, shown to clients in the portal
 //   HQ_GITHUB_TOKEN    reads and publishes client sites' content on GitHub; off when unset
+//   HQ_ANTHROPIC_API_KEY   the site builder's Claude API key; the builder can't ask Claude when unset
+//   HQ_SITE_BUILDER_OWNER  the email of the one person who may change the builder's model and cap
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
+//   HQ_ANTHROPIC_API_KEY  Claude, for the AI drafts of decision 0012; AI is off when unset.
+//                      Which features are on, the model and the budget are in Settings → AI.
 //   PORT               defaults to 3000
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
+import { approveQuietPosts } from "../src/social/index.ts";
 import { runRecurringInvoices, sendInvoiceReminders, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
@@ -36,8 +41,12 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
+import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
+import { failLostRequests } from "../src/builder/index.ts";
 import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
+import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
+import { claudeModel } from "../src/ai/adapters.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
@@ -104,8 +113,20 @@ const inquiryEmail = process.env["HQ_INQUIRY_EMAIL"] || contact.email || alertTo
 const github = githubConfigFrom(process.env);
 console.log(github ? "Client sites' content is published to GitHub." : "Site content can't be set up or published: HQ_GITHUB_TOKEN is not set.");
 
+// The site builder (decision 0010): Claude, if a key is set, and who may change its model and cap.
+const claudeConfig = claudeConfigFrom(process.env);
+const builderOwner = builderOwnerFrom(process.env);
+console.log(claudeConfig ? `The site builder asks Claude.${builderOwner ? "" : " Nobody can change its model or cap: HQ_SITE_BUILDER_OWNER is not set."}` : "The site builder can't ask Claude: HQ_ANTHROPIC_API_KEY is not set.");
+
+// AI drafts (decision 0012) use the same key.
+const aiModel = claudeConfig ? claudeModel(claudeConfig.key) : null;
+console.log(aiModel ? "AI drafts: Claude is available. Features are turned on in Settings → AI." : "AI drafts are off: HQ_ANTHROPIC_API_KEY is not set.");
+
 const app = await createApp({
   db,
+  ai: aiModel,
+  claude: claudeConfig ? claudeApi(claudeConfig) : null,
+  builderOwner,
   sitePublisher: github ? githubPublisher(github) : null,
   siteArchive: github ? githubArchive(github) : null,
   formOrigins,
@@ -222,7 +243,8 @@ console.log(email ? "Morning email: each person's Today list at 7, unless they t
 // Client websites: checked every five minutes. Changes are emailed to the
 // alert address when email and HQ_ALERT_EMAIL are set.
 const siteChecker = httpSiteChecker();
-const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...message })) : null;
+// With site-down diagnosis on (decision 0012), AI's likely cause goes in the alert; if AI fails, the alert goes as it was.
+const siteAlert = email && alertTo ? async (message: { subject: string; body: string }) => "ok" in (await email.send({ channel: "email", to: alertTo, ...(aiModel ? await withDiagnosis(createServices(db, { aiModel }).ai, message) : message) })) : null;
 let checkingSites = false;
 const siteTimer = setInterval(() => {
   if (checkingSites) return;
@@ -232,6 +254,20 @@ const siteTimer = setInterval(() => {
     .finally(() => (checkingSites = false));
 }, 5 * 60_000);
 siteTimer.unref();
+
+// Site builder requests lost when HQ restarted mid-answer (decision 0010):
+// failed and counted at what they reserved, now and every five minutes.
+const failLost = () => {
+  try {
+    const lost = failLostRequests(createServices(db).builder);
+    if (lost > 0) console.log(`Site builder: ${lost} lost ${lost === 1 ? "request" : "requests"} marked failed.`);
+  } catch (error) {
+    log("Site builder: marking lost requests failed", error);
+  }
+};
+failLost();
+const lostTimer = setInterval(failLost, 5 * 60_000);
+lostTimer.unref();
 
 // Calls nobody ended (decision 0009, section 4): every five minutes, end any
 // call open for 3 hours and log it, so call lengths stay honest.
@@ -244,6 +280,20 @@ const callTimer = setInterval(() => {
   }
 }, 5 * 60_000);
 callTimer.unref();
+
+// Social media (decision 0011, section 4): every hour, and once now, approve
+// posts the client was sent three days ago and didn't answer.
+const approveQuiet = () => {
+  try {
+    const count = approveQuietPosts(createServices(db).social);
+    if (count > 0) console.log(`Social media: ${count} approved after 3 days with no answer.`);
+  } catch (error) {
+    log("Social media: approving quiet posts failed", error);
+  }
+};
+approveQuiet();
+const socialTimer = setInterval(approveQuiet, 60 * 60_000);
+socialTimer.unref();
 
 // Task reminders and people's notices (decision 0007, section 8): every
 // minute, fire the reminders that came due, and email new notices to those
@@ -280,7 +330,7 @@ const webhookTimer = setInterval(() => {
 }, 60_000);
 webhookTimer.unref();
 
-// The newsletter (decision 0010, section 1): every minute, the next batch of
+// The newsletter (decision 0013, section 1): every minute, the next batch of
 // any issue going out. Each reader is marked as the email goes, so a restart
 // never sends twice.
 let busyNewsletter = false;
@@ -346,6 +396,29 @@ server.listen(port, async () => {
   if (setup) console.log(`Nobody has an account yet. Set up the first admin here (works once, for a day):\n${publicUrl}${setup}`);
 });
 
+// AI (decision 0012), when it's on: every five minutes, triage new leads and
+// check new client messages against what was agreed; on Fridays at 08:13,
+// draft each active project's update. Drafts wait for a person.
+let aiRunning = false;
+const aiTimer = setInterval(() => {
+  if (!aiModel || aiRunning) return;
+  aiRunning = true;
+  const ai = createServices(db, { aiModel }).ai;
+  triageNewLeads(ai)
+    .then(() => checkNewMessages(ai))
+    .catch((error: unknown) => log("AI: the run failed", error))
+    .finally(() => (aiRunning = false));
+}, 5 * 60_000);
+aiTimer.unref();
+const stopWeeklyUpdates = aiModel
+  ? scheduleDaily(
+      async () => {
+        if (Temporal.Now.zonedDateTimeISO(BUSINESS_TIME_ZONE).dayOfWeek === 5) await draftWeeklyUpdates(createServices(db, { aiModel }).ai);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 13, clock: systemClock, log, name: "weekly update drafts" },
+    )
+  : null;
+
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopBackups?.();
@@ -354,11 +427,15 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopRecurring();
     clearInterval(siteTimer);
     clearInterval(callTimer);
+    clearInterval(lostTimer);
+    clearInterval(socialTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();
     clearInterval(taskNoticeTimer);
     clearInterval(webhookTimer);
+    clearInterval(aiTimer);
+    stopWeeklyUpdates?.();
     if (newsletterTimer) clearInterval(newsletterTimer);
     stopReminders?.();
     server.close(() => {

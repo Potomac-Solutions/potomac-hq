@@ -18,12 +18,12 @@
     const view = context.money.project(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
     const changes = context.money.changes(params.id)
-    return { title: 'Money: ' + view.value.project.name, view: view.value, changes: changes.ok ? changes.value : null, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money: ' + view.value.project.name, view: view.value, changes: changes.ok ? changes.value : null, receipt: context.ai.receipt(params.id), receiptState: context.ai.state('receipt'), done: context.notice.done, problem: context.notice.problem }
   }
   const s = view.summary
   const id = view.project.id
 </script>
-<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} done="" problem="">
+<hq-project-money view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} receipt={null} receipt-state={{ on: false, why: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${id}` }, { label: 'Money', href: '' }]}></breadcrumb-trail>
     <h1>Money</h1>
@@ -238,6 +238,28 @@
           <div><button class="hq-button" type="submit">Record expense</button></div>
         </form>
       </details>
+      <div zb-if={receipt || receiptState.on || receiptState.why} id="ai" class="hq-form" data-spaced>
+        <h3>Read a receipt with AI</h3>
+        <p zb-if={receiptState.why} class="hq-muted hq-small">{receiptState.why}</p>
+        <form zb-if={receiptState.on && !receipt} method="post" action="/projects/{id}/ai/receipt" enctype="multipart/form-data" class="hq-form">
+          <div class="hq-field">
+            <label for="ai-receipt">Photo or PDF of the receipt</label>
+            <input id="ai-receipt" name="receipt" type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" capture="environment" required aria-describedby="ai-receipt-help">
+            <p id="ai-receipt-help" class="hq-muted hq-small">Up to 5 MB. AI reads the vendor, day, amount and category for you to check; card numbers are never kept.</p>
+          </div>
+          <div><button class="hq-button secondary" type="submit">Read it</button></div>
+        </form>
+        <form zb-if={receipt} method="post" action="/ai/drafts/{receipt.id}/expense" class="hq-form">
+          <input type="hidden" name="back" value="/projects/{id}/money#ai">
+          <p>AI read <strong>{receipt.vendor || 'a receipt'}</strong><span zb-if={receipt.tax !== null}>, with ${receipt.tax.toFixed(2)} tax</span>. Check each field before it’s added; the receipt goes with it.</p>
+          <select-field label="Category" name="category" options={view.categories} value={receipt.category} required={true}></select-field>
+          <text-field label="Expense amount in dollars" name="amount" inputmode="decimal" value={receipt.amountText} required={true}></text-field>
+          <text-field label="Day" name="on" type="date" value={receipt.on || view.today} required={true}></text-field>
+          <text-field label="What it was for" name="note" value={receipt.note}></text-field>
+          <div><button class="hq-button" type="submit">Add expense</button></div>
+        </form>
+        <form zb-if={receipt} method="post" action="/ai/drafts/{receipt.id}/discard"><input type="hidden" name="back" value="/projects/{id}/money#ai"><button class="hq-button secondary" type="submit">Discard</button></form>
+      </div>
     </section>
 
     <section class="hq-panel" aria-labelledby="money-time">

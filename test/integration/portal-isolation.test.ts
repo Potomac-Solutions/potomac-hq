@@ -201,7 +201,7 @@ test("a client's session opens no internal page: each one answers 401 with the s
   // The one page anyone may open signed out: the form that asks for a password reset. It shows no records.
   // And the public booking page, with its private-link page: they show only the call whose link it is.
   // And a project shared by link: only with a working link, and only that link's project.
-  // And the newsletter's sign-up, confirm and unsubscribe pages (decision 0010): a link's token is the only key.
+  // And the newsletter's sign-up, confirm and unsubscribe pages (decision 0013): a link's token is the only key.
   const PUBLIC = ["/forgot-password", "/book", "/book/manage", "/book/with/:token", "/contact", "/contact/thanks", "/river", "/river/check", "/river/confirm", "/river/thanks", "/river/unsubscribe", "/river/left"];
   const internal = pagePatterns.filter((pattern) => !pattern.startsWith("/portal") && !PUBLIC.includes(pattern) && pattern !== "/s/:token");
   assert.equal((await ann.get(`/s/${"a".repeat(43)}`)).status, 404, "a made-up share link shows nothing");
