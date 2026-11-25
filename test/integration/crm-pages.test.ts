@@ -206,8 +206,21 @@ test("the pipeline page lists open deals, moves one, and comes back", async () =
   assert.doesNotMatch(page, /Bakery website/, "won deals are not in the pipeline");
 
   const moved = await admin.submit(`/opportunities/${id}/stage`, { to: "consult-booked", returnTo: "pipeline" });
-  assert.match(moved.location, /^\/pipeline\?done=Stage\+changed\./);
-  assert.match(moved.html, /Stage changed\./);
+  assert.match(moved.location, /^\/pipeline\?done=Moved\+to\+Consult\+booked\./);
+  assert.match(moved.html, /Moved to Consult booked\./);
+  // Undo (decision 0014): the shell offers the post that puts it back.
+  assert.match(moved.html, new RegExp(`action="/opportunities/${id}/stage"[^>]*>\\s*<input type="hidden" name="to" value="new">`));
+  assert.match(moved.html, /id="hq-undo-button"/);
+
+  const undone = await admin.submit(`/opportunities/${id}/stage`, { to: "new", back: "1", returnTo: "pipeline" });
+  assert.match(undone.location, /^\/pipeline\?done=Moved\+back\+to\+New\./);
+  assert.match(undone.html, /Moved back to New\./);
+  const forward = await admin.submit(`/opportunities/${id}/stage`, { to: "consult-booked", returnTo: "pipeline" });
+  assert.match(forward.location, /done=Moved\+to\+Consult\+booked/);
+  const unasked = await admin.submit(`/opportunities/${id}/stage`, { to: "new", returnTo: "pipeline" });
+  assert.match(unasked.location, /problem=/, "without back=1 a stage only moves forward");
+  const forged = await admin.get(`/pipeline?done=Hi&undo=${encodeURIComponent("/clients/x/status?status=lost")}`);
+  assert.doesNotMatch(await forged.text(), /hq-undo-button/, "an undo the server didn't sign is never shown");
 
   const elsewhere = await admin.submit(`/opportunities/${id}/stage`, { to: "consulted", returnTo: "https://evil.example/" });
   assert.match(elsewhere.location, new RegExp(`^/opportunities/${id}\\?`), "only the pipeline is accepted as a place to return to");

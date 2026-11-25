@@ -2,7 +2,7 @@
 // browser back to a page with a one-line message (post, redirect, get).
 import { Hono } from "hono";
 import * as crm from "../application/commands.ts";
-import { parseId, type Id } from "../../shared/index.ts";
+import { parseId, withUndo, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type CrmRoutesDeps = {
@@ -13,16 +13,28 @@ export type CrmRoutesDeps = {
   readonly sign: (location: string) => string;
 };
 
-type Answer = { ok: true; value: { id: string } } | { ok: false; error: string };
+type Answer<V = { id: string }> = { ok: true; value: V } | { ok: false; error: string };
+
+const STAGE_NAMES: Readonly<Record<string, string>> = { new: "New", "consult-booked": "Consult booked", consulted: "Consulted", quoted: "Quoted", won: "Won", lost: "Lost" };
+const ORDER = ["new", "consult-booked", "consulted", "quoted", "won"];
+
+/** "Moved to Quoted.", "Moved back to New.", "Reopened at Quoted." */
+function stageMessage(from: string, to: string): string {
+  const name = STAGE_NAMES[to] ?? to;
+  if (from === "won" || from === "lost") return to === "lost" ? `Marked lost.` : `Reopened at ${name}.`;
+  if (to === "lost") return "Marked lost.";
+  if (to === "won") return "Marked won.";
+  return ORDER.indexOf(to) < ORDER.indexOf(from) ? `Moved back to ${name}.` : `Moved to ${name}.`;
+}
 
 export function crmRoutes(deps: CrmRoutesDeps): Hono {
   const app = new Hono();
 
   /** Reads the form, runs the service, and answers 303 to `done` or back to `back`. */
-  const post = (
+  const post = <V extends { id: string }>(
     path: string,
-    run: (actor: Id | null, form: Record<string, string>, id: Id | null) => Answer,
-    places: { done: (value: { id: string }, id: Id | null) => string; back: (id: Id | null) => string; message: string },
+    run: (actor: Id | null, form: Record<string, string>, id: Id | null) => Answer<V>,
+    places: { done: (value: V, id: Id | null) => string; back: (id: Id | null) => string; message: string; undo?: (value: V, id: Id | null) => { action: string; fields: Record<string, string> } | null },
   ) =>
     app.post(path, async (c) => {
       const raw = await c.req.parseBody();
@@ -35,7 +47,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
 
       const answer = run(deps.actorOf(c.req.header("cookie") ?? ""), form, id);
       const to = answer.ok
-        ? `${places.done(answer.value, id)}?done=${encodeURIComponent(places.message)}`
+        ? withUndo(`${places.done(answer.value, id)}?done=${encodeURIComponent(places.message)}`, places.undo?.(answer.value, id))
         : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(messageFor(answer.error))}`;
       return c.redirect(deps.sign(to), 303);
     });
@@ -50,6 +62,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     done: (_, id) => `/clients/${id}`,
     back: (id) => `/clients/${id}`,
     message: "Status changed.",
+    undo: (client, id) => ({ action: `/clients/${id}/status`, fields: { status: client.from } }),
   });
 
   post("/clients/:id/demo", (actor, f, id) => crm.setClientDemo(deps.crm, actor, id as Id, f["demo"] === "1"), {
@@ -89,9 +102,13 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     for (const [key, value] of Object.entries(raw)) if (typeof value === "string") form[key] = value;
     const parsed = parseId(c.req.param("id"));
     if (!parsed.ok) return c.redirect(deps.sign(`/clients?problem=${encodeURIComponent(messageFor("not-found"))}`), 303);
-    const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null });
+    // `back=1` is a person choosing the stage: moving it back, reopening it or undoing (decision 0014). Without it a stage only moves forward.
+    const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null, byHand: form["back"] === "1" });
     const place = answer.ok || answer.error !== "not-found" ? stageReturn(form, parsed.value) : "/clients";
-    const to = answer.ok ? `${place}?done=${encodeURIComponent("Stage changed.")}` : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
+    const undo = answer.ok && answer.value.undoable
+      ? { action: `/opportunities/${parsed.value}/stage`, fields: { to: answer.value.from, back: "1", ...(form["returnTo"] === "pipeline" ? { returnTo: "pipeline" } : {}) } }
+      : null;
+    const to = answer.ok ? withUndo(`${place}?done=${encodeURIComponent(stageMessage(answer.value.from, answer.value.stage))}`, undo) : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
     return c.redirect(deps.sign(to), 303);
   });
 

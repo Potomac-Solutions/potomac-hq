@@ -77,10 +77,22 @@
       ] },
     ]
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', groups, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready, undo: context.user ? context.notice.undo : null }
   }
 
   let menu = false
+  // The change just made can be put back (decision 0014): an Undo bar, and Ctrl+Z or ⌘Z.
+  let undoHidden = false
+  function undoKey(event) {
+    if (event.key !== 'z' && event.key !== 'Z') return
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.defaultPrevented) return
+    const target = event.target
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+    const button = document.getElementById('hq-undo-button')
+    if (!button || undoHidden) return
+    event.preventDefault()
+    button.click()
+  }
 
   // N goes to quick add, unless you're typing somewhere.
   function quickKey(event) {
@@ -136,11 +148,13 @@
   }
   onMount(() => {
     document.addEventListener('keydown', quickKey)
+    document.addEventListener('keydown', undoKey)
     document.addEventListener('submit', keepForm)
     refill()
   })
   onUnmount(() => {
     document.removeEventListener('keydown', quickKey)
+    document.removeEventListener('keydown', undoKey)
     document.removeEventListener('submit', keepForm)
   })
 </script>
@@ -185,6 +199,18 @@
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
 
+  /* The Undo bar sits at the bottom of the screen until used, dismissed or left. */
+  .hq-undo { position: fixed; z-index: 20; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: var(--sidebar-foreground); background: var(--sidebar); border: 1px solid var(--sidebar-border); border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; animation: hq-undo-in 180ms ease-out; }
+  .hq-undo form { margin: 0; }
+  .hq-undo-button { display: inline-flex; align-items: center; gap: 0.35rem; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
+  .hq-undo-button:hover { background: #dff1fd; }
+  .hq-undo-button:focus-visible, .hq-undo-close:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
+  .hq-undo kbd { font: inherit; font-size: 0.75rem; color: var(--sidebar-muted); }
+  .hq-undo-close { width: 1.75rem; height: 1.75rem; font: inherit; font-size: 1.1rem; line-height: 1; color: inherit; background: transparent; border: 0; border-radius: 50%; cursor: pointer; opacity: 0.8; }
+  .hq-undo-close:hover { opacity: 1; background: rgb(255 255 255 / 0.12); }
+  @keyframes hq-undo-in { from { opacity: 0; transform: translate(-50%, 0.75rem); } }
+  @media (prefers-reduced-motion: reduce) { .hq-undo { animation: none; } }
+
   @media (max-width: 60rem) {
     .hq-shell { display: block; }
     .hq-side { position: static; height: auto; gap: 0.75rem; padding: 0.6rem 0.75rem; }
@@ -196,7 +222,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
+<hq-app who="" groups={[]} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null} undo={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -242,6 +268,15 @@
       <main id="main" class="hq-main" tabindex="-1">
         <zb-slot></zb-slot>
       </main>
+    </div>
+    <div zb-if={undo && !undoHidden} class="hq-undo" role="region" aria-label="Undo">
+      <span>Made a mistake?</span>
+      <form method="post" action={undo.action}>
+        <zb-each items={undo.fields} as="field" key={field.name}><input type="hidden" name={field.name} value={field.value}></zb-each>
+        <button id="hq-undo-button" class="hq-undo-button" type="submit" aria-keyshortcuts="Control+Z Meta+Z"><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62A7.95 7.95 0 0 1 12.5 10.5c3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8Z"/></svg>Undo</button>
+      </form>
+      <kbd aria-hidden="true">Ctrl Z</kbd>
+      <button type="button" class="hq-undo-close" aria-label="Dismiss" onclick={() => (undoHidden = true)}>×</button>
     </div>
   </div>
   <div zb-else>

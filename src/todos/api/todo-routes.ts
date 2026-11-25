@@ -33,7 +33,19 @@ export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: 
     back: (_id, f) => backTo(f),
     message: "Added.",
   });
-  post("/todos/:id/done", (actor, _f, id) => completeTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Done." });
-  post("/todos/:id/reopen", (actor, _f, id) => reopenTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Back on the list." });
+  // Ticking off and reopening undo each other (decision 0014), landing in the same place.
+  const same = (f: Readonly<Record<string, string>>): Record<string, string> => Object.fromEntries(["back", "backId", "everyone"].filter((key) => f[key]).map((key) => [key, f[key] as string]));
+  post("/todos/:id/done", (actor, _f, id) => completeTodo(deps.todos, actor, id as Id), {
+    done: (_v, _id, f) => backTo(f),
+    back: (_id, f) => backTo(f),
+    message: "Done.",
+    undo: (_v, id, f) => ({ action: `/todos/${id}/reopen`, fields: same(f) }),
+  });
+  post("/todos/:id/reopen", (actor, _f, id) => reopenTodo(deps.todos, actor, id as Id), {
+    done: (_v, _id, f) => backTo(f),
+    back: (_id, f) => backTo(f),
+    message: "Back on the list.",
+    undo: (_v, id, f) => ({ action: `/todos/${id}/done`, fields: same(f) }),
+  });
   return app;
 }

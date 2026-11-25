@@ -92,7 +92,7 @@ import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
-import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
+import { err, parseId, readUndo, recordActivity, type Id, type Result } from "./shared/index.ts";
 import { loadAssets, themeLinks } from "./shared/ui/assets.ts";
 import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
@@ -219,7 +219,12 @@ export type PageContext = {
   /** The active HQ user, or null. */
   readonly user: { readonly id: string; readonly name: string } | null;
   /** A message from the last redirect, shown once. Only ever one the server signed. */
-  readonly notice: { readonly problem: string; readonly done: string };
+  readonly notice: {
+    readonly problem: string;
+    readonly done: string;
+    /** The post that reverses the change just made (decision 0014), shown by the shell as Undo. */
+    readonly undo: { readonly action: string; readonly fields: readonly { readonly name: string; readonly value: string }[] } | null;
+  };
   /** Props for the sign-in page. */
   readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -690,8 +695,9 @@ export async function createApp(config: AppConfig): Promise<App> {
     context: ({ request }): PageContext => {
       const who = account(request.headers.get("cookie") ?? "");
       const user = who ? establishUser(sessionDeps, who) : null;
-      const notice = readNotice(new URL(request.url));
-      const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
+      const signed = readNotice(new URL(request.url));
+      const notice = { problem: signed.problem, done: signed.done, undo: readUndo(signed.undo) };
+      const signIn = { problem: notice.problem, done: notice.done, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
       const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");

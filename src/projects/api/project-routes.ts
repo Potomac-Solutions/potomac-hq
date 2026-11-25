@@ -66,6 +66,7 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => project(id),
     back: (id) => project(id),
     message: "Status changed.",
+    undo: (changed, id) => (changed.undoable ? { action: `/projects/${id}/status`, fields: { status: changed.from } } : null),
   });
   post(
     "/projects/:id/owner",
@@ -116,6 +117,8 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
         : task.next
           ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
           : "Task moved.",
+    // Not after a repeating task made its next one: undoing would leave that one behind.
+    undo: (task, id, f) => (task.next ? null : { action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {

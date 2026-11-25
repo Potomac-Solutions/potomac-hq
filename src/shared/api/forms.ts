@@ -40,7 +40,35 @@ export type Places<V> = {
   readonly back: (id: Id | null, form: FormFields) => string;
   /** What to say when it worked; a function to say something about what happened. */
   readonly message: string | ((value: V) => string);
+  /** The post that puts it back, offered as an Undo button and Ctrl+Z (decision 0014). Null when it can't be undone. */
+  readonly undo?: (value: V, id: Id | null, form: FormFields) => Undo | null;
 };
+
+/** A form post that reverses one that just worked. Runs through the same route and permission checks as any other post. */
+export type Undo = { readonly action: string; readonly fields: Readonly<Record<string, string>> };
+
+const UNDO_ACTION = /^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/;
+
+/** Adds the signed `undo` to a location. Leaves it alone when there's nothing to undo or it wouldn't fit. */
+export function withUndo(location: string, undo: Undo | null | undefined): string {
+  if (!undo || !UNDO_ACTION.test(undo.action)) return location;
+  const value = `${undo.action}?${new URLSearchParams(undo.fields as Record<string, string>).toString()}`;
+  // Notices are cut at 200 characters; a cut undo would post the wrong thing.
+  if (value.length > 200) return location;
+  const [path = "", hash = ""] = location.split("#");
+  const joined = `${path}${path.includes("?") ? "&" : "?"}undo=${encodeURIComponent(value)}`;
+  return hash ? `${joined}#${hash}` : joined;
+}
+
+/** Reads a signed `undo` back into a form to show. Null for anything that isn't a plain HQ post. */
+export function readUndo(value: string): { readonly action: string; readonly fields: readonly { readonly name: string; readonly value: string }[] } | null {
+  if (!value) return null;
+  const at = value.indexOf("?");
+  const action = at === -1 ? value : value.slice(0, at);
+  if (!UNDO_ACTION.test(action)) return null;
+  const fields = [...new URLSearchParams(at === -1 ? "" : value.slice(at + 1))].map(([name, field]) => ({ name, value: field }));
+  return { action, fields };
+}
 
 /** Adds `name=value` to a location that may already have a query. */
 export function withMessage(location: string, name: "done" | "problem", message: string): string {
@@ -83,7 +111,7 @@ export function formPosts<A = Id | null>(app: PostApp, deps: FormPostDeps<A>) {
       if (param !== undefined && id === null) return c.redirect(deps.sign(withMessage(deps.home, "problem", deps.messageFor("not-found"))), 303);
       const answer = await run(deps.actorOf(c.req.header("cookie") ?? ""), fields, id, files);
       const to = answer.ok
-        ? withMessage(places.done(answer.value, id, fields), "done", typeof places.message === "function" ? places.message(answer.value) : places.message)
+        ? withUndo(withMessage(places.done(answer.value, id, fields), "done", typeof places.message === "function" ? places.message(answer.value) : places.message), places.undo?.(answer.value, id, fields))
         : withMessage(answer.error === "not-found" ? deps.home : places.back(id, fields), "problem", deps.messageFor(answer.error));
       return c.redirect(deps.sign(to), 303);
     }) as never);
