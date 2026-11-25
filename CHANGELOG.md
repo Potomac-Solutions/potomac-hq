@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-25
+
 - Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep
   the Lab's demos: name, address, a line about each, and the demo sign-in
   that stays the same across the daily reset (`demo.manage`, managers and
