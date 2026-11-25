@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Pictures in the site builder (decision 0010, slice 2). Add a build's
+  photos and its logo, each with what it shows; a photo is shrunk in the
+  browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told
+  each one's path, size and what it shows, and the preview and the .zip
+  carry them. Migration 0059.
+
 - Social media (decision 0011), for clients on social media marketing. A
   plan on the client's page: Facebook, Instagram and LinkedIn with each
   page's address, 8 posts and 1 blog post a month unless set otherwise,

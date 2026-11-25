@@ -11,6 +11,7 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import './build-refresh.zb'
+  import './image-upload.zb'
   export async function load({ context, params, url }) {
     const stop = context.guard()
     if (stop) return stop
@@ -52,8 +53,12 @@
   .version-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
   .version-actions form { margin: 0; }
   .brief-form { display: grid; gap: 1rem; }
+  .pictures { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
+  .pictures img { display: block; width: 100%; height: 7.5rem; object-fit: contain; border: 1px solid var(--border); border-radius: 0.35rem; background: var(--muted); }
+  .pictures p { margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+  .pictures form { margin-top: 0.4rem; }
 </style>
-<hq-build view={{ conversation: [], versions: [], budget: {} }} width="full" widths={[]} done="" problem="">
+<hq-build view={{ conversation: [], versions: [], budget: {}, images: [], canAddImage: true }} width="full" widths={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Site builder', href: '/builder' }, { label: view.name }]}></breadcrumb-trail>
     <h1>{view.name}</h1>
@@ -125,6 +130,27 @@
         </section>
       </div>
     </div>
+    <section id="images" class="hq-panel" aria-labelledby="build-images">
+      <h2 id="build-images">Pictures</h2>
+      <p class="hq-muted">Photos and the logo Claude may put on the site. It’s told each one’s size and what it shows, and uses them from your next request.</p>
+      <ul zb-if={view.images.length > 0} class="pictures">
+        <zb-each items={view.images} as="image" key={image.id}>
+          <li>
+            <img src={image.src} alt={image.alt} loading="lazy">
+            <p class="hq-small"><strong>{image.kindLabel}</strong> · {image.size}</p>
+            <p class="hq-small hq-muted">{image.alt}</p>
+            <form method="post" action="/builder/{view.id}/images/remove">
+              <input type="hidden" name="image" value={image.id}>
+              <button class="hq-button secondary" type="submit">Remove<span class="sr-only">: {image.alt}</span></button>
+            </form>
+          </li>
+        </zb-each>
+      </ul>
+      <div id="add-image">
+        <image-upload zb-if={view.canAddImage} action="/builder/{view.id}/images"></image-upload>
+        <p zb-else class="hq-muted">A build holds up to 30 pictures. Remove one to add another.</p>
+      </div>
+    </section>
     <form id="brief" method="post" action="/builder/{view.id}/brief" class="hq-panel brief-form" aria-labelledby="build-brief">
       <h2 id="build-brief">Name and brief</h2>
       <div class="hq-field">

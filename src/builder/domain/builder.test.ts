@@ -150,3 +150,47 @@ test("a month starts at midnight on the 1st in the business time zone", async ()
   assert.equal(monthStart("2026-12-01T03:00:00Z", "America/New_York"), "2026-11-01T04:00:00Z");
   assert.equal(monthStart("2026-12-01T06:00:00Z", "America/New_York"), "2026-12-01T05:00:00Z");
 });
+
+test("an image is known by its first bytes, and its size is read from its header", async () => {
+  const { checkImage, imagePath, imageSize, imageType, isImagePath, MAX_IMAGES } = await import("./image.ts");
+  const png = new Uint8Array(33);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0x06, 0x40, 0, 0, 0x04, 0xb0]);
+  const pngType = imageType(png);
+  assert.ok(pngType.ok);
+  assert.deepEqual(imageSize(png, pngType.value), { width: 1600, height: 1200 });
+  // A JPEG: start, an APP0 segment, then a baseline frame of 800 by 600.
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 11, 8, 0x02, 0x58, 0x03, 0x20, 3, 0, 0, 0, 0]);
+  const jpegType = imageType(jpeg);
+  assert.ok(jpegType.ok);
+  assert.deepEqual(imageSize(jpeg, jpegType.value), { width: 800, height: 600 });
+  const webp = new Uint8Array(30);
+  webp.set([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x58, 0, 0, 0, 0, 0, 0, 0, 0, 0x1f, 0x03, 0, 0x57, 0x02, 0]);
+  const webpType = imageType(webp);
+  assert.ok(webpType.ok);
+  assert.deepEqual(imageSize(webp, webpType.value), { width: 800, height: 600 });
+  assert.deepEqual(imageType(new TextEncoder().encode("<svg onload=alert(1)>")), { ok: false, error: "image-not-a-picture" });
+  assert.deepEqual(imageType(null), { ok: false, error: "image-missing" });
+  assert.deepEqual(checkImage({ kind: "photo", alt: " ", bytes: png }, 0), { ok: false, error: "alt-missing" });
+  assert.deepEqual(checkImage({ kind: "banner", alt: "x", bytes: png }, 0), { ok: false, error: "kind-invalid" });
+  assert.deepEqual(checkImage({ kind: "photo", alt: "x", bytes: png }, MAX_IMAGES), { ok: false, error: "too-many-images" });
+  const made = checkImage({ kind: "logo", alt: " The  logo ", bytes: png }, 0);
+  assert.ok(made.ok);
+  assert.equal(made.value.alt, "The logo");
+  const path = imagePath("0190a000-0000-7000-8000-00000000abcd" as never, "logo", made.value.type);
+  assert.equal(path, "images/logo-00000000abcd.png");
+  assert.ok(isImagePath(path));
+  assert.ok(!isImagePath("images/../index.html"));
+});
+
+test("the message lists the build's images by path, kind, size and what each shows", () => {
+  const text = userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], images: [{ path: "images/logo-00000000abcd.png", kind: "logo", width: 800, height: 200, alt: "The logo" }], ask: "Go." });
+  assert.match(text, /<images>\nimages\/logo-00000000abcd\.png \| logo \| 800x200 \| shows: The logo\n<\/images>/);
+  assert.match(userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], ask: "Go." }), /<images>\n\(None uploaded\.\)/);
+});
+
+test("a zip holds pictures as bytes beside the text files", () => {
+  const zip = zipFiles({ "index.html": "hi", "images/photo-000000000001.jpg": new Uint8Array([0xff, 0xd8, 0xff, 0x00]) }, "s", new Date("2026-11-25T12:00:00Z"));
+  const end = zip.length - 22;
+  assert.equal(new DataView(zip.buffer).getUint16(end + 10, true), 2);
+  assert.ok(new TextDecoder("latin1").decode(zip).includes("s/images/photo-000000000001.jpg\xff\xd8\xff\x00"));
+});

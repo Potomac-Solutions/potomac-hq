@@ -13,14 +13,17 @@ import { applyChange, fileAt, filesFromJson, filesToJson, totalChars, type FileE
 import { costMicros, dollars, DEFAULT_MODEL, fitsUnderCap, MAX_OUTPUT_TOKENS, MODELS, modelById, parseCap, worstCaseMicros, centsToMicros, type CapError } from "../domain/pricing.ts";
 import { readAnswer, SAVE_TOOL_SCHEMA, SYSTEM_PROMPT, userMessage, type ClientFacts } from "../domain/prompt.ts";
 import { zipFiles } from "../domain/zip.ts";
+import { checkImage, imagePath, isImagePath, MAX_IMAGES, type BuildImage, type ImageError } from "../domain/image.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, PreviewTokens } from "./ports.ts";
+import type { BuilderSettingsStore, BuildStore, Claude, ClaudeError, ImageStore, PreviewTokens } from "./ports.ts";
 
 export type BuilderDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
   readonly transact: Transact;
   readonly builds: BuildStore;
+  /** Photos and a logo uploaded to builds. */
+  readonly images: ImageStore;
   readonly settings: BuilderSettingsStore;
   /** Talks to Claude. Null when HQ_ANTHROPIC_API_KEY is not set. */
   readonly claude: Claude | null;
@@ -147,6 +150,8 @@ export type BuildView = {
   readonly budget: BudgetLine;
   readonly model: string;
   readonly claudeSetUp: boolean;
+  readonly images: readonly { readonly id: Id; readonly path: string; readonly kind: string; readonly kindLabel: string; readonly alt: string; readonly size: string; readonly src: string }[];
+  readonly canAddImage: boolean;
 };
 
 const ERROR_WORDS: Readonly<Record<string, string>> = {
@@ -202,7 +207,52 @@ export function buildView(deps: BuilderDeps, actorId: Id | null, buildId: Id, ve
     budget: budgetLine(deps),
     model: currentModel(deps).label,
     claudeSetUp: deps.claude !== null,
+    images: deps.images.listFor(build.id).map((one) => ({ id: one.id, path: one.path, kind: one.kind, kindLabel: one.kind === "logo" ? "Logo" : "Photo", alt: one.alt, size: `${one.width} × ${one.height}`, src: `/builder/${build.id}/images/${one.id}` })),
+    canAddImage: deps.images.listFor(build.id).length < MAX_IMAGES,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Images (slice 2)
+
+/** Adds a photo or a logo to a build. Claude may use it from the next request. Permission: `site.build`. */
+export function addImage(deps: BuilderDeps, actorId: Id | null, buildId: Id, input: { readonly kind: string; readonly alt: string; readonly bytes: Uint8Array | null }): Result<BuildImage, "forbidden" | "not-found" | ImageError> {
+  if (!may(deps, actorId)) return err("forbidden");
+  const build = deps.builds.get(buildId);
+  if (!build) return err("not-found");
+  return deps.transact(() => {
+    const checked = checkImage(input, deps.images.listFor(build.id).length);
+    if (!checked.ok) return checked;
+    const id = deps.newId();
+    const image: BuildImage = { id, buildId: build.id, path: imagePath(id, checked.value.kind, checked.value.type), kind: checked.value.kind, contentType: checked.value.type.contentType, width: checked.value.width, height: checked.value.height, alt: checked.value.alt, bytes: (input.bytes as Uint8Array).length, addedBy: actorId, createdAt: deps.clock() };
+    deps.images.insert(image, input.bytes as Uint8Array);
+    recordActivity(deps, { actorId, action: "build.image-added", recordType: "build", recordId: build.id, context: { kind: image.kind, path: image.path } });
+    return ok(image);
+  });
+}
+
+/**
+ * Removes an image from a build. A version that shows it shows a missing
+ * picture from then on, in the preview and the zip. Permission: `site.build`.
+ */
+export function removeImage(deps: BuilderDeps, actorId: Id | null, buildId: Id, imageId: string): Result<Build, "forbidden" | "not-found"> {
+  if (!may(deps, actorId)) return err("forbidden");
+  const build = deps.builds.get(buildId);
+  const image = build ? deps.images.get(imageId as Id) : null;
+  if (!build || !image || image.buildId !== build.id) return err("not-found");
+  return deps.transact(() => {
+    deps.images.remove(image.id);
+    recordActivity(deps, { actorId, action: "build.image-removed", recordType: "build", recordId: build.id, context: { kind: image.kind, path: image.path } });
+    return ok(build);
+  });
+}
+
+/** An image's bytes, for its thumbnail on the build page. Permission: `site.build`. */
+export function imageFor(deps: BuilderDeps, actorId: Id | null, buildId: Id, imageId: Id): { readonly body: Uint8Array; readonly contentType: string } | null {
+  if (!may(deps, actorId)) return null;
+  const image = deps.images.get(imageId);
+  const body = image && image.buildId === buildId ? deps.images.body(image.id) : null;
+  return image && body ? { body, contentType: image.contentType } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +280,8 @@ export function askClaude(deps: BuilderDeps, actorId: Id | null, buildId: Id, te
     .requests(build.id)
     .filter((one) => one.state === "done")
     .map((one) => ({ ask: one.ask, summary: summaries.get(one.id) ?? "" }));
-  const message = userMessage({ facts, brief: build.brief, files, history, ask: ask.value });
+  const images = deps.images.listFor(build.id).map((one) => ({ path: one.path, kind: one.kind, width: one.width, height: one.height, alt: one.alt }));
+  const message = userMessage({ facts, brief: build.brief, files, history, images, ask: ask.value });
   const model = currentModel(deps);
   const reserve = worstCaseMicros(model, SYSTEM_PROMPT.length + JSON.stringify(SAVE_TOOL_SCHEMA).length + message.length);
   const requestId = deps.newId();
@@ -328,15 +379,26 @@ export function versionZip(deps: BuilderDeps, actorId: Id | null, buildId: Id, n
   const version = build ? deps.builds.version(build.id, number) : null;
   if (!build || !version) return err("not-found");
   const slug = build.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "site";
-  return ok({ name: `${slug}-v${number}.zip`, bytes: zipFiles(filesFromJson(version.filesJson), slug, new Date(deps.clock())) });
+  // The build's images go with every version's files: they're not part of a version.
+  const images = Object.fromEntries(deps.images.listFor(build.id).flatMap((one) => {
+    const body = deps.images.body(one.id);
+    return body ? [[one.path, body] as const] : [];
+  }));
+  return ok({ name: `${slug}-v${number}.zip`, bytes: zipFiles({ ...filesFromJson(version.filesJson), ...images }, slug, new Date(deps.clock())) });
 }
 
 /** One file of a version, for the preview frame. The token is the only key: the frame sends no cookies. */
-export function previewFile(deps: BuilderDeps, token: string, path: string): { readonly content: string; readonly type: string } | null {
+export function previewFile(deps: BuilderDeps, token: string, path: string): { readonly content: string | Uint8Array; readonly type: string } | null {
   const target = deps.previewTokens.read(token);
   if (!target) return null;
   const version = deps.builds.version(target.buildId, target.version);
-  return version ? fileAt(filesFromJson(version.filesJson), path) : null;
+  if (!version) return null;
+  if (isImagePath(path)) {
+    const image = deps.images.atPath(target.buildId, path);
+    const body = image ? deps.images.body(image.id) : null;
+    return image && body ? { content: body, type: image.contentType } : null;
+  }
+  return fileAt(filesFromJson(version.filesJson), path);
 }
 
 // ---------------------------------------------------------------------------

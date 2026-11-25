@@ -11,6 +11,7 @@ import type { Claude, ClaudeAnswer } from "../../src/builder/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
+import { png } from "../support/png.ts";
 
 let t: TestApp;
 let browser: Browser;
@@ -65,6 +66,15 @@ test("Mikey makes a client's site with Claude and sees it in the preview", async
   assert.equal(await frame.getByText("but a cookie").count(), 0);
   assert.match(await text(page), /Made a home page\./);
   await assertAccessible(page, "a build with its first version");
+
+  // The logo, shrunk in the browser to 800 pixels wide and kept a PNG.
+  await page.getByLabel("The logo").check();
+  await page.getByLabel("Choose a picture").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from(png(2400, 600)) });
+  await page.getByLabel("What it shows").fill("Better Days Towing logo");
+  await page.getByRole("button", { name: "Add picture" }).click();
+  await page.getByText("Added. Claude can use it from your next request.").waitFor();
+  assert.match(await text(page), /Logo · 800 × 200/);
+  await assertAccessible(page, "a build with a picture");
 
   // A change, at phone width.
   next = { ok: true, input: { summary: "Added a rates page.", write: [{ path: "rates.html", content: "<!doctype html><html lang=\"en\"><title>Rates</title><h1>Rates</h1></html>" }], remove: [] }, inputTokens: 5_000, outputTokens: 1_000 };

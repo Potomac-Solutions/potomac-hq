@@ -1,4 +1,5 @@
 import type { Build, BuildRequest, BuildVersion, RequestState } from "../domain/build.ts";
+import type { BuildImage } from "../domain/image.ts";
 import type { Id } from "../../shared/index.ts";
 
 /** A version without its files: for lists. */
@@ -61,4 +62,16 @@ export type PreviewTokens = {
   make(buildId: Id, version: number): string;
   /** What a token is for, or null when it is wrong or expired. */
   read(token: string): { readonly buildId: Id; readonly version: number } | null;
+};
+
+/** A build's photos and logo, with their bytes (decision 0010, slice 2). */
+export type ImageStore = {
+  insert(image: BuildImage, body: Uint8Array): void;
+  get(id: Id): BuildImage | null;
+  /** The image at a path in a build's site. */
+  atPath(buildId: Id, path: string): BuildImage | null;
+  body(id: Id): Uint8Array | null;
+  /** A build's images, oldest first. */
+  listFor(buildId: Id): BuildImage[];
+  remove(id: Id): void;
 };

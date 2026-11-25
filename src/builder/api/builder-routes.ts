@@ -20,6 +20,13 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "already-newest": "That is already the newest version.",
   "model-unknown": "Choose one of the models listed.",
   "cap-invalid": "Enter the cap in dollars, from $1 to $1,000, like 10 or 12.50.",
+  "image-missing": "Choose a picture first.",
+  "image-too-large": "That picture is too big for a web page. Try again in a current browser, which shrinks it for you, or send a smaller copy.",
+  "image-not-a-picture": "That file isn’t a JPEG, PNG or WebP picture HQ can read.",
+  "kind-invalid": "Say whether it’s a photo or the logo.",
+  "alt-missing": "Say what the picture shows, for someone who can’t see it.",
+  "alt-too-long": "Keep what it shows under 200 characters.",
+  "too-many-images": "A build holds up to 30 pictures. Remove one first.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
@@ -44,6 +51,8 @@ export function builderRoutes(deps: BuilderRoutesDeps): Hono {
   post("/builder/:id/ask", (actor, f, id) => builder.askClaude(deps.builder, actor, id as Id, f["ask"] ?? ""), { done: (_b, id) => page(id), back: (id) => `${page(id)}#ask`, message: "Sent. Claude is working on it. This page updates when it’s ready." });
   post("/builder/:id/brief", (actor, f, id) => builder.saveBrief(deps.builder, actor, id as Id, { name: f["name"] ?? "", brief: f["brief"] ?? "" }), { done: (_b, id) => `${page(id)}#brief`, back: (id) => `${page(id)}#brief`, message: "Saved. Claude uses it from the next request." });
   post("/builder/:id/restore", (actor, f, id) => builder.restoreVersion(deps.builder, actor, id as Id, versionOf(f["version"])), { done: (_b, id) => page(id), back: (id) => `${page(id)}#versions`, message: "Restored as the newest version." });
+  post("/builder/:id/images", (actor, f, id, files) => builder.addImage(deps.builder, actor, id as Id, { kind: f["kind"] ?? "", alt: f["alt"] ?? "", bytes: files["image"]?.bytes ?? null }), { done: (_i, id) => `${page(id)}#images`, back: (id) => `${page(id)}#add-image`, message: "Added. Claude can use it from your next request." });
+  post("/builder/:id/images/remove", (actor, f, id) => builder.removeImage(deps.builder, actor, id as Id, f["image"] ?? ""), { done: (_b, id) => `${page(id)}#images`, back: (id) => `${page(id)}#images`, message: "Removed. Ask Claude to take it off any page that shows it." });
   post("/builder/settings", (actor, f) => builder.saveBuilderSettings(deps.builder, actor, { model: f["model"] ?? "", cap: f["cap"] ?? "" }), { done: () => "/builder/settings", back: () => "/builder/settings", message: "Saved." });
   return app;
 }
@@ -62,6 +71,14 @@ export function builderDownloads(deps: Pick<BuilderRoutesDeps, "builder" | "acto
     if (!made.ok) return missing();
     return new Response(made.value.bytes, { status: 200, headers: { "content-type": "application/zip", "content-length": String(made.value.bytes.length), "content-disposition": `attachment; filename="${made.value.name}"`, "cache-control": "no-store" } });
   });
+  // A build's picture, for its thumbnail. Its bytes never change under its id.
+  app.get("/builder/:id/images/:image", (c) => {
+    const id = parseId(c.req.param("id"));
+    const image = parseId(c.req.param("image"));
+    const found = id.ok && image.ok ? builder.imageFor(deps.builder, deps.actorOf(c.req.header("cookie") ?? ""), id.value, image.value) : null;
+    if (!found) return missing();
+    return new Response(new Uint8Array(found.body), { status: 200, headers: { "content-type": found.contentType, "content-length": String(found.body.length), "cache-control": "private, max-age=86400, immutable", "content-security-policy": "default-src 'none'; sandbox" } });
+  });
   // The frame's address without its trailing slash: add it, so the site's relative links resolve under the token.
   app.get("/builder/preview/:token", (c) => c.redirect(`/builder/preview/${encodeURIComponent(c.req.param("token"))}/`, 302));
   app.get("/builder/preview/:token/*", (c) => {
@@ -70,7 +87,7 @@ export function builderDownloads(deps: Pick<BuilderRoutesDeps, "builder" | "acto
     const path = c.req.path.startsWith(prefix) ? decodeURIComponent(c.req.path.slice(prefix.length)) : "";
     const file = builder.previewFile(deps.builder, token, path);
     if (!file) return missing();
-    return new Response(file.content, {
+    return new Response(typeof file.content === "string" ? file.content : new Uint8Array(file.content), {
       status: 200,
       headers: {
         "content-type": file.type,
