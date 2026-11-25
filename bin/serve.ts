@@ -32,6 +32,7 @@ import { deliverDue } from "../src/webhooks/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
+import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
 import { createServices } from "../src/services.ts";
@@ -229,6 +230,18 @@ const siteTimer = setInterval(() => {
 }, 5 * 60_000);
 siteTimer.unref();
 
+// Calls nobody ended (decision 0009, section 4): every five minutes, end any
+// call open for 3 hours and log it, so call lengths stay honest.
+const callTimer = setInterval(() => {
+  try {
+    const ended = endForgottenCalls(createServices(db).calls);
+    if (ended > 0) console.log(`Calls: ended ${ended} left open for 3 hours.`);
+  } catch (error) {
+    log("Calls: ending forgotten calls failed", error);
+  }
+}, 5 * 60_000);
+callTimer.unref();
+
 // Task reminders and people's notices (decision 0007, section 8): every
 // minute, fire the reminders that came due, and email new notices to those
 // who asked for them when email is set up. Reminders work without email.
@@ -317,6 +330,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     stopRetention();
     stopRecurring();
     clearInterval(siteTimer);
+    clearInterval(callTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();

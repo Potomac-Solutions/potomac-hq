@@ -1,3 +1,4 @@
+import type { Call } from "../domain/call.ts";
 import type { Touch } from "../domain/touch.ts";
 import type { Client } from "../domain/client.ts";
 import type { Contact } from "../domain/contact.ts";
@@ -45,4 +46,20 @@ export type TouchStore = {
   lastByClient(): ReadonlyMap<Id, string>;
   /** Each open opportunity's last sign of life: the latest touch with its client, or its own last change, whichever is later. An instant. */
   lastActiveByOpportunity(): ReadonlyMap<Id, string>;
+};
+
+/** A booked call, as the call screen needs it (decision 0009). */
+export type BookedCall = { readonly id: Id; readonly organizationId: Id | null; readonly name: string; readonly phone: string; readonly topic: string; readonly startsAt: string; readonly endsAt: string; readonly booked: boolean };
+
+export type CallStore = {
+  insert(call: Call, at: string): void;
+  get(id: Id): Call | null;
+  /** The person's open call, if they're on one. */
+  openFor(userId: Id): Call | null;
+  /** Saves the planned length, the warning and the note. */
+  update(call: Call): void;
+  end(id: Id, endedAt: string, touchId: Id | null): void;
+  /** Open calls that started at or before this instant. */
+  openStartedBy(instant: string): Call[];
+  booking(id: Id): BookedCall | null;
 };
