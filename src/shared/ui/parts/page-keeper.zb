@@ -14,6 +14,12 @@
     waits the same way, so a wrong click can be called back before it goes.
     Leaving the page sends it straight away. Not under Settings or in the
     client portal.
+  - The few things that can't be undone or held (turning off two-step
+    sign-in, removing a passkey, new secrets, turning an account off) ask
+    first, with Cancel as the default.
+  - Text typed in a long box and not sent is kept on this device, and put
+    back if the page is closed or crashes before it's sent, with Discard.
+  - Ctrl+Enter (⌘Enter) sends the form you're typing in.
 -->
 <script>
   import { onMount, onUnmount } from '@zubra/runtime'
@@ -30,6 +36,20 @@
     { test: /^\/calls\/[^/]+\/cancel$/, doing: 'Cancelling the call…', undone: 'The call is still on.', wait: 8000, hide: false },
   ]
   const heldFor = (path) => (path.startsWith('/settings/') || path.startsWith('/portal/') ? null : HELD.find((one) => one.test.test(path)) || null)
+  // Asked first: what it does, and the word on the button that does it.
+  const ASK = [
+    { test: /^\/settings\/passkeys\/[^/]+\/remove$/, say: 'Remove this passkey? You won’t be able to sign in with it again.', yes: 'Remove passkey' },
+    { test: /^\/settings\/two-factor\/off$/, say: 'Turn off two-step sign-in? Your password alone will get into HQ.', yes: 'Turn it off' },
+    { test: /^\/settings\/two-factor\/recovery-codes$/, say: 'Make new recovery codes? The ones you have now stop working.', yes: 'Make new codes' },
+    { test: /^\/people\/[^/]+\/two-factor-reset$/, say: 'Reset their two-step sign-in? They’ll have to set it up again.', yes: 'Reset it' },
+    { test: /^\/people\/[^/]+\/status$/, when: (form) => form.elements.on && form.elements.on.value === '0', say: 'Turn this account off? They’re signed out at once.', yes: 'Turn account off' },
+    { test: /^\/(webhooks|automations)\/[^/]+\/secret$/, say: 'Make a new secret? The old one stops working right away, so update wherever it’s used.', yes: 'Make a new secret' },
+  ]
+  const askFor = (form) => ASK.find((one) => one.test.test(actionOf(form)) && (!one.when || one.when(form))) || null
+  let asking = null
+  let askSay = ''
+  let askYes = ''
+  let restored = 0
   let pending = null
   let removing = false
   let doing = ''
@@ -88,6 +108,16 @@
     const form = event.target
     if (!isPost(form) || event.defaultPrevented) return
     if (form.hasAttribute('data-hq-sending')) return event.preventDefault()
+    const ask = askFor(form)
+    if (ask && !form.hasAttribute('data-hq-confirmed')) {
+      event.preventDefault()
+      asking = { form, submitter: event.submitter }
+      askSay = ask.say
+      askYes = ask.yes
+      document.getElementById('hq-confirm')?.showModal()
+      return
+    }
+    form.removeAttribute('data-hq-confirmed')
     const kind = heldFor(actionOf(form))
     if (kind && !form.hasAttribute('data-hq-now')) {
       event.preventDefault()
@@ -101,6 +131,8 @@
     if (form.target && form.target !== '_self') return
     rememberPlace(form, event.submitter)
     form.removeAttribute('data-hq-dirty')
+    dropDrafts(form)
+    if (actionOf(form) === '/staff/sign-out') dropEveryDraft()
     form.setAttribute('data-hq-sending', '')
     if (event.submitter) event.submitter.setAttribute('aria-busy', 'true')
     setTimeout(() => {
@@ -112,6 +144,88 @@
     if (!event.persisted) return
     for (const form of document.querySelectorAll('[data-hq-sending]')) form.removeAttribute('data-hq-sending')
     for (const button of document.querySelectorAll('[aria-busy=true]')) button.removeAttribute('aria-busy')
+  }
+
+  function confirmed() {
+    const ask = asking
+    asking = null
+    document.getElementById('hq-confirm')?.close()
+    if (!ask) return
+    ask.form.setAttribute('data-hq-confirmed', '')
+    ask.form.requestSubmit(ask.submitter && ask.submitter.form === ask.form ? ask.submitter : undefined)
+  }
+  function notConfirmed() {
+    const ask = asking
+    asking = null
+    document.getElementById('hq-confirm')?.close()
+    if (ask && ask.submitter) ask.submitter.focus()
+  }
+
+  // ── Unsent text is kept on this device ──────────────────────────────────
+  const DRAFT = 'hq-draft:'
+  const draftKey = (field) => DRAFT + location.pathname + '|' + (field.form.getAttribute('action') || '') + '|' + field.name
+  const drafted = (field) => field instanceof HTMLTextAreaElement && field.name && isPost(field.form) && !field.form.closest('[data-no-warn]')
+  let saving = 0
+  function keepDraft(field) {
+    clearTimeout(saving)
+    saving = setTimeout(() => {
+      try {
+        if (field.value.trim() && field.value !== field.defaultValue) localStorage.setItem(draftKey(field), JSON.stringify({ value: field.value, at: Date.now() }))
+        else localStorage.removeItem(draftKey(field))
+      } catch {}
+    }, 400)
+  }
+  function dropDrafts(form) {
+    clearTimeout(saving)
+    try {
+      for (const field of form.querySelectorAll('textarea[name]')) localStorage.removeItem(draftKey(field))
+    } catch {}
+  }
+  function dropEveryDraft() {
+    try {
+      for (const key of Object.keys(localStorage)) if (key.startsWith(DRAFT)) localStorage.removeItem(key)
+    } catch {}
+  }
+  function bringBackDrafts() {
+    let found = 0
+    for (const field of document.querySelectorAll('form textarea[name]')) {
+      if (!drafted(field) || field.value !== field.defaultValue) continue
+      let draft = null
+      try { draft = JSON.parse(localStorage.getItem(draftKey(field)) || 'null') } catch {}
+      if (!draft || !draft.value || draft.value === field.value) continue
+      if (Date.now() - draft.at > 7 * 24 * 60 * 60 * 1000) {
+        try { localStorage.removeItem(draftKey(field)) } catch {}
+        continue
+      }
+      field.value = draft.value
+      field.form.setAttribute('data-hq-dirty', '')
+      field.closest('details')?.setAttribute('open', '')
+      found++
+    }
+    restored = found
+  }
+  function discardDrafts() {
+    for (const field of document.querySelectorAll('form textarea[name]')) {
+      if (!drafted(field)) continue
+      try {
+        if (localStorage.getItem(draftKey(field))) {
+          localStorage.removeItem(draftKey(field))
+          field.value = field.defaultValue
+          field.form.removeAttribute('data-hq-dirty')
+        }
+      } catch {}
+    }
+    restored = 0
+  }
+
+  // ── Ctrl+Enter sends the form you're typing in ─────────────────────────
+  function sendKey(event) {
+    if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+    const field = event.target
+    const form = field && field.form
+    if (!(form instanceof HTMLFormElement) || !typing(field)) return
+    event.preventDefault()
+    form.requestSubmit()
   }
 
   function holdRemoval(form, submitter, kind) {
@@ -178,6 +292,7 @@
     const form = field && field.form
     if (!isPost(form) || field.type === 'hidden' || form.closest('[data-no-warn]')) return
     form.setAttribute('data-hq-dirty', '')
+    if (drafted(field)) keepDraft(field)
   }
   function beforeLeaving(event) {
     if (pending) leaving()
@@ -211,6 +326,7 @@
     document.addEventListener('input', edited, true)
     document.addEventListener('change', edited, true)
     addEventListener('keydown', undoKey, true)
+    document.addEventListener('keydown', sendKey)
     addEventListener('beforeunload', beforeLeaving)
     addEventListener('pagehide', leaving)
     addEventListener('pageshow', shown)
@@ -218,6 +334,7 @@
     addEventListener('pagereveal', reveal)
     restorePlace()
     fadeDone()
+    bringBackDrafts()
   })
   onUnmount(() => {
     document.removeEventListener('submit', guard, true)
@@ -225,6 +342,7 @@
     document.removeEventListener('input', edited, true)
     document.removeEventListener('change', edited, true)
     removeEventListener('keydown', undoKey, true)
+    document.removeEventListener('keydown', sendKey)
     removeEventListener('beforeunload', beforeLeaving)
     removeEventListener('pagehide', leaving)
     removeEventListener('pageshow', shown)
@@ -233,15 +351,24 @@
   })
 </script>
 <style>
-  .keeper-bar { position: fixed; z-index: 21; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: var(--sidebar-foreground); background: var(--sidebar); border: 1px solid var(--sidebar-border); border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; }
+  .keeper-bar { position: fixed; z-index: 21; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: #ffffff; background: #0b2530; border: 1px solid #23414c; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; }
   .keeper-bar button { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
   .keeper-bar button:hover { background: #dff1fd; }
   .keeper-bar button:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
-  .keeper-bar kbd { font: inherit; font-size: 0.75rem; color: var(--sidebar-muted); }
-  .keeper-clock { width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid var(--sidebar-muted); border-top-color: #9fd6fb; animation: keeper-turn 6s linear forwards; }
+  .keeper-bar kbd { font: inherit; font-size: 0.75rem; color: #b9cbd3; }
+  .keeper-clock { width: 1rem; height: 1rem; border-radius: 50%; border: 2px solid #5d7a85; border-top-color: #9fd6fb; animation: keeper-turn 6s linear forwards; }
   .keeper-clock.slow { animation-duration: 8s; }
   @keyframes keeper-turn { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .keeper-clock { animation: none; } }
+  .keeper-bar a, .keeper-link { color: #9fd6fb; font: inherit; font-size: 0.85rem; font-weight: 600; background: none; border: 0; padding: 0; height: auto; cursor: pointer; text-decoration: underline; }
+  .keeper-confirm { width: min(28rem, calc(100vw - 2rem)); padding: 1.25rem 1.5rem; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: 0 24px 60px rgb(0 0 0 / 0.3); }
+  .keeper-confirm::backdrop { background: rgb(9 24 31 / 0.45); }
+  .keeper-confirm h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+  .keeper-confirm p { margin: 0 0 1.25rem; }
+  .keeper-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+  /* A fixed dark red with white, so it reads in both themes. */
+  .keeper-danger { color: #fff; background: #b42318; border-color: transparent; }
+  .keeper-danger:hover { background: #912018; }
 </style>
 <page-keeper>
   <div zb-if={removing} class="keeper-bar" role="region" aria-label="Waiting to go">
@@ -251,4 +378,17 @@
     <kbd aria-hidden="true">Ctrl Z</kbd>
   </div>
   <div zb-if={!removing && undoneSaid} class="keeper-bar" role="status">{undoneSaid}</div>
+  <div zb-if={!removing && !undoneSaid && restored > 0} class="keeper-bar" role="region" aria-label="Unsent text">
+    <span role="status">{restored === 1 ? 'Brought back text you hadn’t sent.' : 'Brought back ' + restored + ' boxes of text you hadn’t sent.'}</span>
+    <button type="button" class="keeper-link" onclick={discardDrafts}>Discard</button>
+    <button type="button" class="keeper-link" onclick={() => (restored = 0)}>Keep</button>
+  </div>
+  <dialog id="hq-confirm" class="keeper-confirm" aria-labelledby="hq-confirm-title" aria-describedby="hq-confirm-say" oncancel={notConfirmed}>
+    <h2 id="hq-confirm-title">This can’t be undone</h2>
+    <p id="hq-confirm-say">{askSay}</p>
+    <div class="keeper-confirm-actions">
+      <button type="button" class="hq-button secondary" autofocus onclick={notConfirmed}>Cancel</button>
+      <button type="button" class="hq-button keeper-danger" onclick={confirmed}>{askYes}</button>
+    </div>
+  </dialog>
 </page-keeper>

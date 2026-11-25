@@ -205,23 +205,25 @@
   .hq-on-call-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
   .hq-bell[aria-current=page] { border-color: var(--ring); }
   .hq-bell-count { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; font-size: 0.75rem; font-weight: 700; line-height: 1; color: var(--primary-foreground); background: var(--primary); border-radius: 999px; }
-  .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 3rem; }
+  /* Room at the bottom so the Undo bars never cover the last buttons. */
+  .hq-main { width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.75rem 6rem; }
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
 
   /* The Undo bar sits at the bottom of the screen until used, dismissed or left. */
-  .hq-undo { position: fixed; z-index: 20; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: var(--sidebar-foreground); background: var(--sidebar); border: 1px solid var(--sidebar-border); border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; animation: hq-undo-in 180ms ease-out; }
+  .hq-undo { position: fixed; z-index: 20; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: #ffffff; background: #0b2530; border: 1px solid #23414c; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; animation: hq-undo-in 180ms ease-out; }
   .hq-undo form { margin: 0; }
   .hq-undo-button { display: inline-flex; align-items: center; gap: 0.35rem; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
   .hq-undo-button:hover { background: #dff1fd; }
   .hq-undo-button:focus-visible, .hq-undo-close:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }
-  .hq-undo kbd { font: inherit; font-size: 0.75rem; color: var(--sidebar-muted); }
+  .hq-undo kbd { font: inherit; font-size: 0.75rem; color: #b9cbd3; }
   .hq-undo-text { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hq-undo-link { color: #9fd6fb; font-size: 0.85rem; font-weight: 600; }
   .hq-undo-link:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; border-radius: 2px; }
   .hq-undo-close { width: 1.75rem; height: 1.75rem; font: inherit; font-size: 1.1rem; line-height: 1; color: inherit; background: transparent; border: 0; border-radius: 50%; cursor: pointer; opacity: 0.8; }
   .hq-undo-close:hover { opacity: 1; background: rgb(255 255 255 / 0.12); }
-  @keyframes hq-undo-in { from { opacity: 0; transform: translate(-50%, 0.75rem); } }
+  /* Slides up; no fade, so its text is never faint. */
+  @keyframes hq-undo-in { from { transform: translate(-50%, 0.75rem); } }
   @media (prefers-reduced-motion: reduce) { .hq-undo { animation: none; } }
 
   @media (max-width: 60rem) {
