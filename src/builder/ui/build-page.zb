@@ -57,8 +57,14 @@
   .pictures img { display: block; width: 100%; height: 7.5rem; object-fit: contain; border: 1px solid var(--border); border-radius: 0.35rem; background: var(--muted); }
   .pictures p { margin: 0.3rem 0 0; overflow-wrap: anywhere; }
   .pictures form { margin-top: 0.4rem; }
+  .publish-form { display: grid; gap: 1rem; max-width: 40rem; }
+  .targets { display: grid; gap: 0.35rem; border: 0; margin: 0; padding: 0; }
+  .targets legend { padding: 0; margin-bottom: 0.35rem; font-weight: 600; }
+  .targets label { display: flex; gap: 0.5rem; align-items: baseline; }
+  .published { list-style: none; margin: 1rem 0 0; padding: 0; }
+  .published li { padding: 0.5rem 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 </style>
-<hq-build view={{ conversation: [], versions: [], budget: {}, images: [], canAddImage: true }} width="full" widths={[]} done="" problem="">
+<hq-build view={{ conversation: [], versions: [], budget: {}, images: [], canAddImage: true, publishes: [] }} width="full" widths={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Site builder', href: '/builder' }, { label: view.name }]}></breadcrumb-trail>
     <h1>{view.name}</h1>
@@ -150,6 +156,42 @@
         <image-upload zb-if={view.canAddImage} action="/builder/{view.id}/images"></image-upload>
         <p zb-else class="hq-muted">A build holds up to 30 pictures. Remove one to add another.</p>
       </div>
+    </section>
+    <section id="publish" class="hq-panel" aria-labelledby="build-publish">
+      <h2 id="build-publish">Put it on GitHub</h2>
+      <p zb-if={!view.githubSetUp} class="hq-muted">HQ has no GitHub token, so versions can only be downloaded. Set HQ_GITHUB_ADMIN_TOKEN (to make new repositories) or HQ_GITHUB_TOKEN (for pull requests to a client’s own) on the server.</p>
+      <p zb-else-if={view.newest === 0} class="hq-muted">Publish once there’s a version.</p>
+      <form zb-else-if={view.publishedTo} method="post" action="/builder/{view.id}/publish" class="publish-form">
+        <p>Version {view.newest} goes to {view.publishedTo}, the same way as before.</p>
+        <div><button class="hq-button" type="submit" disabled={view.working}>Publish version {view.newest}</button></div>
+      </form>
+      <form zb-else method="post" action="/builder/{view.id}/publish" class="publish-form">
+        <fieldset class="targets">
+          <legend>Where should version {view.newest} go?</legend>
+          <label><input type="radio" name="target" value="new" checked={view.adminSetUp} disabled={!view.adminSetUp}> <span>A new private repository under {view.organization}. Its first commit is this version; connect it to Railway or Netlify to put it online.</span></label>
+          <label><input type="radio" name="target" value="existing" checked={!view.adminSetUp}> <span>The client’s own repository, as a pull request. Never straight onto the branch their site deploys from.</span></label>
+        </fieldset>
+        <div class="hq-field">
+          <label for="publish-name">New repository’s name</label>
+          <input id="publish-name" name="repoName" maxlength="100" value={view.suggestedRepo} disabled={!view.adminSetUp}>
+        </div>
+        <div class="hq-field">
+          <label for="publish-repo">Or the client’s repository</label>
+          <input id="publish-repo" name="repo" maxlength="140" placeholder="Potomac-Solutions/better-days-towing">
+        </div>
+        <div class="hq-field">
+          <label for="publish-branch">Into the branch (optional)</label>
+          <input id="publish-branch" name="branch" maxlength="100" placeholder="Its main branch">
+        </div>
+        <p class="hq-small hq-muted">Later versions go the same way as this one.</p>
+        <div><button class="hq-button" type="submit" disabled={view.working}>Publish version {view.newest}</button></div>
+      </form>
+      <p zb-if={view.publishedTo && view.publishes.some((one) => one.kind !== 'Pull request')} class="hq-small hq-muted">To put it online, connect the repository to Railway or Netlify once, as a static site. After that each publish rebuilds it.</p>
+      <ul zb-if={view.publishes.length > 0} class="published">
+        <zb-each items={view.publishes} as="one" key={one.url}>
+          <li class="hq-small"><strong>Version {one.version}</strong> · {one.kind} · <a href={one.url}>{one.where}</a> · {one.by}, {one.when}</li>
+        </zb-each>
+      </ul>
     </section>
     <form id="brief" method="post" action="/builder/{view.id}/brief" class="hq-panel brief-form" aria-labelledby="build-brief">
       <h2 id="build-brief">Name and brief</h2>

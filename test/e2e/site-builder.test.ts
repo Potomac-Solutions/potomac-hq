@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
-import type { Claude, ClaudeAnswer } from "../../src/builder/index.ts";
+import type { Claude, ClaudeAnswer, SitePublishing } from "../../src/builder/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
@@ -18,6 +18,14 @@ let browser: Browser;
 const jobs: (() => Promise<void>)[] = [];
 let next: ClaudeAnswer = { ok: false, error: "failed", inputTokens: 0, outputTokens: 0 };
 const claude: Claude = { ask: async () => next };
+const publishing: SitePublishing = {
+  organization: "Potomac-Solutions",
+  canCreate: true,
+  createRepo: async () => ({ ok: true, value: { branch: "main" } }),
+  defaultBranch: async () => ({ ok: true, value: "main" }),
+  commit: async () => ({ ok: true, value: { commit: "c".repeat(40) } }),
+  pullRequest: async () => ({ ok: true, value: { url: "https://github.com/x/y/pull/1", number: 1 } }),
+};
 const runJobs = async () => {
   while (jobs.length > 0) await jobs.shift()?.();
 };
@@ -30,7 +38,7 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
 </script></body></html>`;
 
 before(async () => {
-  t = await testApp({ passwordCost: TEST_PASSWORD_COST, claude, builderOwner: "mikey@example.com", runLater: (job) => void jobs.push(job) });
+  t = await testApp({ passwordCost: TEST_PASSWORD_COST, claude, builderPublishing: publishing, builderOwner: "mikey@example.com", runLater: (job) => void jobs.push(job) });
   browser = await chromium.launch();
 });
 after(async () => {
@@ -86,6 +94,14 @@ test("Mikey makes a client's site with Claude and sees it in the preview", async
   await page.getByRole("link", { name: "Phone" }).click();
   assert.equal(await page.locator("iframe").evaluate((el) => Math.round(el.getBoundingClientRect().width)), 390);
   await assertAccessible(page, "a build with two versions at phone width");
+
+  // Going live: a new private repository.
+  await page.getByRole("link", { name: "Full width" }).click();
+  await assertAccessible(page, "a build ready to publish");
+  await page.getByRole("button", { name: "Publish version 2" }).click();
+  await page.getByText("Published to Potomac-Solutions/better-days-towing-site, a new private repository.").waitFor();
+  await page.getByText("the same way as before").waitFor();
+  await assertAccessible(page, "a published build");
 
   await page.goto(`${t.origin}/builder/settings`);
   await page.getByLabel("Monthly cap, in dollars").fill("25");

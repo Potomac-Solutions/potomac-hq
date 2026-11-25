@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Going live from the site builder (decision 0010, slice 4). "Put it on
+  GitHub" sends the newest version to a new private repository under
+  Potomac-Solutions (with `HQ_GITHUB_ADMIN_TOKEN`), or as a branch and pull
+  request to a client's own repository, never onto its deploy branch.
+  Later versions go the same way. A new repository is set up for client
+  editing (decision 0003) when HQ's everyday token can see it. Migration
+  0061.
+
 - Rework a site a client already has (decision 0010, slice 3). From its
   repository on GitHub or its address on the web: a plain HTML repository
   becomes version 1 as it was, a project (React, Vue, Zubra…) or a live

@@ -12,10 +12,10 @@ import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapt
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
-import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
+import { setUpSite, type SitePublisher, type WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import type { BuilderDeps, Claude, RepoReader } from "./builder/index.ts";
-import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore } from "./builder/adapters.ts";
+import type { BuilderDeps, Claude, RepoReader, SitePublishing } from "./builder/index.ts";
+import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore, sqlitePublishStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
 import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
@@ -147,6 +147,8 @@ export type ServiceOptions = {
   readonly previewSecret?: string;
   /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
   readonly builderRepos?: RepoReader | null;
+  /** Puts site builder versions on GitHub. Without it, versions can only be downloaded. */
+  readonly builderPublishing?: SitePublishing | null;
   /** Runs a job after the answer is sent: a request to Claude. Errors go to the log. */
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
@@ -324,6 +326,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     settings: sqliteBuilderSettings(db),
     claude: options.claude ?? null,
     repos: options.builderRepos ?? null,
+    publishing: options.builderPublishing ?? null,
+    publishes: sqlitePublishStore(db),
+    setUpEditing: async (actorId, organizationId, input) => (await setUpSite(websites, actorId, organizationId, { ...input, siteUrl: "" })).ok,
     fetchPage: options.outsideFetch ?? outsideFetch,
     previewTokens: previewTokens(options.previewSecret ?? crypto.randomUUID() + crypto.randomUUID()),
     clientFacts: (id) => {

@@ -354,6 +354,12 @@ Claude only uses the facts it's given. Where something is missing it
 writes a placeholder in square brackets, like [Hours: ask the owner]:
 look for those before a site goes anywhere.
 
+When it's right, put it on GitHub under "Put it on GitHub": a new private
+repository under Potomac-Solutions, or a pull request to the client's own
+repository. A new repository then needs connecting to Railway or Netlify
+once; after that, each publish rebuilds the site. Later versions go the
+same way as the first.
+
 Each request shows what it cost. This month's spending and what's left
 are at the top. A request that could pass the monthly cap isn't sent;
 Mikey can change the cap and the model under Model and cap.

@@ -92,3 +92,45 @@ export type PageError = "address-invalid" | "address-private" | "unreachable" | 
 
 /** Reads one public web address, refusing anything inside a private network. */
 export type PageFetch = (url: string) => Promise<{ readonly ok: true; readonly value: { readonly status: number; readonly text: string } } | { readonly ok: false; readonly error: PageError | string }>;
+
+export type PublishError = "everyday-not-set-up" | "admin-not-set-up" | "repo-refused" | "repo-missing" | "repo-changed" | "repo-failed" | "repo-exists";
+type PublishResult<T> = Promise<{ readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: PublishError }>;
+export type RepoName = { readonly owner: string; readonly name: string };
+
+/**
+ * Puts a version on GitHub (decision 0010, slice 4). `admin` calls use the
+ * token that may make repositories; the rest use HQ's everyday one. Never throws.
+ */
+export type SitePublishing = {
+  /** The organization new repositories are made under. */
+  readonly organization: string;
+  /** Whether it has the token that makes repositories. */
+  readonly canCreate: boolean;
+  /** Makes a private repository with a first commit on its main branch, and answers that branch. */
+  createRepo(name: string, description: string): PublishResult<{ readonly branch: string }>;
+  defaultBranch(repo: RepoName, admin: boolean): PublishResult<string>;
+  /** One commit on `branch`, on top of what's there; made from `from` first when it's a new branch. Never forced. */
+  commit(repo: RepoName, change: { readonly branch: string; readonly from: string | null; readonly message: string; readonly write: readonly { readonly path: string; readonly bytes: Uint8Array }[] }, admin: boolean): PublishResult<{ readonly commit: string }>;
+  pullRequest(repo: RepoName, request: { readonly head: string; readonly base: string; readonly title: string; readonly body: string }): PublishResult<{ readonly url: string; readonly number: number }>;
+};
+
+/** A publish, as recorded. */
+export type Publish = {
+  readonly id: Id;
+  readonly buildId: Id;
+  readonly version: number;
+  /** new-repo: the first publish made the repository; commit: a later one to it; pull-request: to a client's own repository. */
+  readonly kind: "new-repo" | "commit" | "pull-request";
+  readonly repo: string;
+  readonly branch: string;
+  readonly commit: string;
+  readonly url: string;
+  readonly by: Id;
+  readonly at: string;
+};
+
+export type PublishStore = {
+  insert(publish: Publish): void;
+  /** A build's publishes, newest first. */
+  listFor(buildId: Id): Publish[];
+};

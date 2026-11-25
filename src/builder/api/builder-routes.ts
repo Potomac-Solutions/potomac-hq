@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import * as builder from "../application/builder.ts";
 import { startRework } from "../application/rework.ts";
+import { publishVersion } from "../application/publish.ts";
 import type { BuilderDeps } from "../application/builder.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 
@@ -39,6 +40,15 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "repo-missing": "GitHub has no such repository or branch, or HQ’s token can’t see it.",
   "repo-failed": "HQ couldn’t reach GitHub. Try again in a minute.",
   "nothing-to-read": "That repository has no pages, code or pictures HQ can read.",
+  "nothing-to-publish": "There’s no version to publish yet.",
+  "already-sent": "This version has already been published. Ask Claude for a change, or restore a version, to publish again.",
+  "target-invalid": "Choose a new repository or the client’s own.",
+  "repo-name-invalid": "A repository name is letters, numbers, dashes, dots and underscores, like better-days-towing-site.",
+  "repo-exists": "There’s already a repository with that name. Choose another.",
+  "admin-not-set-up": "HQ can’t make repositories: set HQ_GITHUB_ADMIN_TOKEN on the server. A pull request to the client’s own repository works without it.",
+  "repo-changed": "The repository changed while HQ was publishing. Try again.",
+  "publishing-not-set-up": "HQ has no GitHub token, so versions can only be downloaded. Set HQ_GITHUB_ADMIN_TOKEN or HQ_GITHUB_TOKEN on the server.",
+  "everyday-not-set-up": "HQ can’t open pull requests: set HQ_GITHUB_TOKEN on the server, with Contents and Pull requests read and write on the client’s repository.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
@@ -74,6 +84,16 @@ export function builderRoutes(deps: BuilderRoutesDeps): Hono {
       },
     },
   );
+  post("/builder/:id/publish", (actor, f, id) => publishVersion(deps.builder, actor, id as Id, { target: f["target"] ?? "", repoName: f["repoName"] ?? "", repo: f["repo"] ?? "", branch: f["branch"] ?? "" }), {
+    done: (_o, id) => `${page(id)}#publish`,
+    back: (id) => `${page(id)}#publish`,
+    message: (made) =>
+      made.publish.kind === "pull-request"
+        ? `Published as a pull request to ${made.publish.repo}. Check and merge it on GitHub.`
+        : made.publish.kind === "new-repo"
+          ? `Published to ${made.publish.repo}, a new private repository.${made.editing === "set-up" ? " The client can edit it in their portal." : made.editing === "failed" ? " Set up website editing on the client’s page later." : ""}`
+          : `Published to ${made.publish.repo}. Its host rebuilds it in a minute or two.`,
+  });
   post("/builder/:id/ask", (actor, f, id) => builder.askClaude(deps.builder, actor, id as Id, f["ask"] ?? ""), { done: (_b, id) => page(id), back: (id) => `${page(id)}#ask`, message: "Sent. Claude is working on it. This page updates when it’s ready." });
   post("/builder/:id/brief", (actor, f, id) => builder.saveBrief(deps.builder, actor, id as Id, { name: f["name"] ?? "", brief: f["brief"] ?? "" }), { done: (_b, id) => `${page(id)}#brief`, back: (id) => `${page(id)}#brief`, message: "Saved. Claude uses it from the next request." });
   post("/builder/:id/restore", (actor, f, id) => builder.restoreVersion(deps.builder, actor, id as Id, versionOf(f["version"])), { done: (_b, id) => page(id), back: (id) => `${page(id)}#versions`, message: "Restored as the newest version." });

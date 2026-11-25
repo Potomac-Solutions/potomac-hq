@@ -1,4 +1,4 @@
-import type { BuilderSettingsStore, BuildStore, ImageStore, VersionLine } from "../application/ports.ts";
+import type { BuilderSettingsStore, BuildStore, ImageStore, Publish, PublishStore, VersionLine } from "../application/ports.ts";
 import type { BuildImage, ImageKind } from "../domain/image.ts";
 import type { Build, BuildRequest, BuildVersion, RequestState } from "../domain/build.ts";
 import type { Database } from "../../shared/adapters.ts";
@@ -178,6 +178,30 @@ export function sqliteImageStore(db: Database): ImageStore {
     },
     remove(id) {
       remove.run(id);
+    },
+  };
+}
+
+export function sqlitePublishStore(db: Database): PublishStore {
+  const insert = db.prepare("insert into build_publish (id, build_id, version, kind, repo, branch, commit_sha, url, published_by, published_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const list = db.prepare("select * from build_publish where build_id = ? order by published_at desc, version desc");
+  return {
+    insert(p) {
+      insert.run(p.id, p.buildId, p.version, p.kind, p.repo, p.branch, p.commit, p.url, p.by, p.at);
+    },
+    listFor(buildId) {
+      return list.all(buildId).map((row): Publish => ({
+        id: text(row["id"]) as Id,
+        buildId: text(row["build_id"]) as Id,
+        version: int(row["version"]),
+        kind: text(row["kind"]) as Publish["kind"],
+        repo: text(row["repo"]),
+        branch: text(row["branch"]),
+        commit: text(row["commit_sha"]),
+        url: text(row["url"]),
+        by: text(row["published_by"]) as Id,
+        at: text(row["published_at"]),
+      }));
     },
   };
 }
