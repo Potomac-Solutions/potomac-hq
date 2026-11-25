@@ -72,6 +72,8 @@ import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/
 import type { PushDeps } from "./push/index.ts";
 import type { UndoDeps } from "./undo/index.ts";
 import { sqliteUndoStore } from "./undo/adapters.ts";
+import type { RepliesDeps } from "./replies/index.ts";
+import { sqliteReplyStore } from "./replies/adapters.ts";
 import { isQuiet } from "./notices/index.ts";
 import { followUpsDue } from "./crm/index.ts";
 import { staffWaiting } from "./portal/index.ts";
@@ -194,6 +196,8 @@ export type Services = {
   readonly push: PushDeps;
   /** Undo on everyday buttons (quality of life, 2026-11-25). */
   readonly undo: UndoDeps;
+  /** Saved replies (quality of life, 2026-11-25). */
+  readonly replies: RepliesDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -860,6 +864,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       setTodoDone: (actorId, todoId, done) => (done ? completeTodo(todos, actorId, todoId) : reopenTodo(todos, actorId, todoId)),
     },
   };
+  const replies: RepliesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, replies: sqliteReplyStore(db) };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
     users,
@@ -906,5 +911,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, undo, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, undo, replies, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

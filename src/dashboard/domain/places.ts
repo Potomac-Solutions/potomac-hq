@@ -51,6 +51,7 @@ export const PLACES: readonly Place[] = [
   { key: "hours", label: "Calendar hours", hub: "clients", href: "/calls/hours", hidden: true, gate: "perm:call.respond", words: ["hours", "availability", "open hours", "when i'm free", "calendar"], what: "The hours people can book you" },
   { key: "availability", label: "Availability", hub: "clients", href: "/calls/availability", hidden: true, gate: "perm:call.respond", words: ["availability", "timeful", "calendly", "paint times", "grid"], what: "Paint your availability, or fill it from Timeful or Calendly" },
   { key: "guides", label: "Call guides", hub: "clients", href: "/call-guides", hidden: true, gate: "perm:call.respond", words: ["questions", "script", "guide"], what: "The questions each kind of call works through" },
+  { key: "replies", label: "Saved replies", hub: "clients", href: "/replies", gate: "perm:contact.edit", words: ["snippets", "templates", "canned", "messages", "email text"], what: "Messages written once and used again" },
   { key: "monthly-reports", label: "Monthly reports", hub: "clients", href: "/monthly-reports", gate: "perm:client-report.send", words: ["client reports", "monthly", "plan clients"], what: "Monthly reports to plan clients" },
 
   { key: "projects", label: "Projects", hub: "work", href: "/projects", also: ["/tasks", "/imports"], words: ["jobs", "phases", "milestones", "deliverables"], what: "Projects, phases and milestones" },

@@ -16,6 +16,8 @@ import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistor
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { pushRoutes } from "./push/api/push-routes.ts";
 import { undoRoutes } from "./undo/api/undo-routes.ts";
+import { replyRoutes } from "./replies/api/reply-routes.ts";
+import { listReplies, type Reply } from "./replies/index.ts";
 import { rememberUndo, undoOffer } from "./undo/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
@@ -531,6 +533,8 @@ export type PageContext = {
   workload(): { readonly lines: readonly WorkloadLine[]; readonly week: string } | null;
   /** Phone alerts: whether they're set up, the key a browser subscribes with, and this person's devices. */
   push(): DevicesView;
+  /** Saved replies this person may use, and their first name for {me}. */
+  replies(): { readonly can: boolean; readonly items: readonly Reply[]; readonly me: string };
   /** The Undo a page offers after a change (?undo=), if it's this person's and still undoable. */
   undo(id: string): { readonly id: string; readonly label: string } | null;
   /** The role an admin is viewing HQ as, read-only, or null. */
@@ -1137,6 +1141,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         push: () => devicesFor(services.push, actor, services.formatWhen),
         undo: (id) => undoOffer(services.undo, actor, id),
+        replies: () => ({ can: actor !== null && authorize(sessionDeps, actor, "contact.edit").ok, items: listReplies(services.replies, actor), me: (user?.name ?? "").split(" ")[0] ?? "" }),
         preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
         canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
         workload: () => {
@@ -1309,6 +1314,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
   const rememberUndo_ = (actor: Id, step: Parameters<typeof rememberUndo>[2]) => rememberUndo(services.undo, actor, step);
+  forms.route("/", replyRoutes({ replies: services.replies, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", undoRoutes({ undo: services.undo, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, undo: rememberUndo_, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
