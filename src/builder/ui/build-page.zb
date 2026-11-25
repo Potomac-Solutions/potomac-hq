@@ -4,8 +4,8 @@
   own, so a site's code can't reach HQ.
 -->
 <script>
-  import '../../shared/ui/parts/model-pick.zb'
   'use route /builder/:id'
+  import '../../shared/ui/parts/model-pick.zb'
   import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
