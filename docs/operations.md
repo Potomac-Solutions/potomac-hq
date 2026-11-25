@@ -306,6 +306,15 @@ field and fill it from the address:
 Keeping it in `sessionStorage` carries the code from the page they landed
 on to the page with the form. HQ's own `/contact` needs none of this.
 
+To say where on the site the person was (the lead sources report, decision
+0010, section 2), add hidden fields: `src` (`stop:lakes`, `lab:counter`,
+`work:better-days-towing`, `planner`, `blog:<slug>` or `newsletter`), `page`
+(the path, like `/stops/lakes`), and any of `utm_source`, `utm_medium` and
+`utm_campaign` the visitor arrived with. The website's booking call
+(`POST /api/site/booking`) takes the same fields, and `ref`, in its JSON.
+HQ keeps the first it sees for each opportunity; anything odd is dropped,
+never refused. HQ's own `/contact?src=...` passes `src` on by itself.
+
 `return_to` must be on a listed site; HQ sends people back there with
 `?done=` or `?problem=` and a sentence to show. Only `/contact` accepts
 posts from those sites. Five an hour from one address, three a day for one

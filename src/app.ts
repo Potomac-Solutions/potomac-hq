@@ -45,6 +45,7 @@ import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTE
 import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
+import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
@@ -293,6 +294,12 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Where leads came from on the website (decision 0010, section 2). */
+  readonly leads: {
+    /** Where an opportunity came from, or null when the site said nothing. */
+    origin(opportunityId: string): LeadOrigin | null;
+    sources(days: string): ReturnType<typeof leadSources>;
+  };
   /** "Notes from the river" (decision 0010, section 1). */
   readonly newsletter: {
     overview(): ReturnType<typeof newsletterOverview>;
@@ -704,6 +711,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        leads: {
+          origin: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? leadOrigin(services.leads, actor, parsed.value) : null;
+          },
+          sources: (days) => leadSources(services.leads, actor, days),
+        },
         newsletter: {
           overview: () => newsletterOverview(services.newsletter, actor),
           issue: (id) => withId(id, (issueId) => issueDetail(services.newsletter, actor, issueId)),
@@ -1038,6 +1052,8 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
       returnOrigins: formOrigins,
+      // Where on the website they were (decision 0010, section 2).
+      attribute: (opportunityId, read) => void keepLeadTouch(services.leads, { opportunityId }, touchFields(read)),
       // An inquiry that came by a referral link is counted for that link.
       credit: (code, opportunityId) => void creditInquiry(services.referrals, code, opportunityId),
       notify: async (inquiry) => {
@@ -1140,6 +1156,11 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowPerVisitor: sqliteRateLimit(db, { name: "site-booking-visitor", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "site-booking-email", max: 3, windowMs: 24 * 60 * 60_000 }),
       allowApi: (incoming) => allowSiteApi(clientAddressOf(incoming as never)),
+      attribute: (organizationId, read) => void keepLeadTouch(services.leads, { organizationId }, touchFields(read)),
+      credit: (code, organizationId) => {
+        const opportunityId = services.leads.leads.newestOpenAt(organizationId);
+        if (opportunityId) creditInquiry(services.referrals, code, opportunityId);
+      },
     }),
   );
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
