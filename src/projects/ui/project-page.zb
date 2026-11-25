@@ -13,16 +13,17 @@
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/text-field.zb'
   import '../../shared/ui/parts/notes-panel.zb'
+  import '../../shared/ui/parts/ai-project-panel.zb'
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} done="" problem="">
+<hq-project view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -290,6 +291,7 @@
         </form>
       </details>
     </section>
+    <ai-project-panel ai={ai} states={aiStates} project-id={p.id} active={p.status === 'active'}></ai-project-panel>
     <section zb-if={updates.canView} class="hq-panel" id="updates" aria-labelledby="project-updates">
       <h2 id="project-updates">Updates for the client</h2>
       <p class="hq-muted hq-small">What you post here, the client reads in the portal. Their messages come back here. Notes, below, stay inside HQ.</p>

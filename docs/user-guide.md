@@ -370,6 +370,42 @@ page once; that browser sees the site for 12 hours. Make a new link any time
 and the old one stops working. An announcement, if you write one, shows across
 the top of every page while the site is open.
 
+## AI drafts
+
+With the site builder's API key on the server and a feature turned on in
+Settings → AI (by the owner in `HQ_SITE_BUILDER_OWNER`; other admins see
+it), Claude drafts some of the day's writing. It only ever drafts: you
+read it, change it and press the button that sends, posts or saves it, or
+discard it. **AI drafts** in the sidebar, and a line on Today, show what's
+waiting for you.
+
+- **After a call:** on the recap page, "Draft with AI" writes the recap email
+  and the next steps from your notes (paste a transcript if you have one).
+  "Add these as to-dos" adds the steps.
+- **Before a call:** Get ready can write a few lines on the client.
+- **A new lead:** HQ triages it by itself: the likely service, a price range
+  from the price guide, how urgent it is, whether it's spam, and a reply. On
+  the deal's page, keep it as a note, close it as spam, or send the reply.
+- **A quiet deal:** "Draft a check-in" on Today or the deal's page.
+- **A proposal:** "Draft a proposal" on the deal's page starts one from the
+  template and your notes, checked against similar finished jobs. It's a
+  draft proposal: edit it before you send it.
+- **A client asks for more:** client messages that look beyond what was
+  agreed are flagged on the project, with a change request ready to draft.
+- **Fridays:** each active project gets a draft update. Post it to the
+  portal from the project's page, or discard it.
+- **Ask HQ:** ask a question; the answer comes from the knowledge base and
+  links the articles it used.
+- **Receipts:** on a project's Money page, "Read a receipt with AI" fills in
+  an expense from a photo. Check it, then add it; the receipt goes with it.
+- **Site alerts:** a likely cause and a first step are added to the email.
+- **Marketing:** a project's page drafts a case study or social posts; copy
+  them from Marketing, then mark them done.
+
+Settings → AI shows what AI has cost this month against the budget, call by
+call. At the budget, AI stops until the first of the month or until the
+budget is raised; HQ works as usual without it.
+
 ## Habits that keep HQ worth using
 
 1. If a client said it, it goes in a note the same day.
