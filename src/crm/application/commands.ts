@@ -11,6 +11,7 @@ import {
   type Opportunity,
   type OpportunityError,
   type OpportunityInput,
+  type Stage,
   type StageError,
   type ValueError,
 } from "../domain/opportunity.ts";
@@ -46,7 +47,7 @@ export function createClient(deps: CrmDeps, actorId: Id | null, input: ClientInp
   });
 }
 
-export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id, to: string): Result<Client, Refused | "invalid-status" | "unchanged"> {
+export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id, to: string): Result<Client & { readonly from: Client["status"] }, Refused | "invalid-status" | "unchanged"> {
   if (!allowed(deps, actorId, "client.set-status")) return err("forbidden");
   return deps.transact(() => {
     const client = deps.clients.get(clientId);
@@ -55,7 +56,7 @@ export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id,
     if (!changed.ok) return changed;
     deps.clients.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "client.status-changed", recordType: "client-organization", recordId: clientId, context: { from: client.status, to: changed.value.status } });
-    return ok(changed.value);
+    return ok({ ...changed.value, from: client.status });
   });
 }
 
@@ -152,17 +153,24 @@ export function applyOpportunityValue(deps: CrmDeps, actorId: Id | null, opportu
 }
 
 /** Moving to won also makes the client active, recorded as its own event. */
-export function applyStageMove(deps: CrmDeps, actorId: Id | null, opportunity: Opportunity, input: { readonly to: string; readonly lostReason?: string | null }): Result<Opportunity, StageError> {
+export function applyStageMove(
+  deps: CrmDeps,
+  actorId: Id | null,
+  opportunity: Opportunity,
+  input: { readonly to: string; readonly lostReason?: string | null; readonly byHand?: boolean },
+): Result<Opportunity, StageError | "has-project"> {
   const at = deps.clock();
-  const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null });
+  const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null, byHand: input.byHand === true });
   if (!moved.ok) return moved;
+  // A won deal that already became a project stays won: the project is the work now.
+  if (opportunity.stage === "won" && deps.projects.byOpportunity(opportunity.id)) return err("has-project");
   deps.opportunities.update(moved.value, at);
   recordActivity(deps, {
     actorId,
     action: "opportunity.stage-changed",
     recordType: "opportunity",
     recordId: opportunity.id,
-    context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}) },
+    context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}), ...(opportunity.lostReason && !moved.value.lostReason ? { reopened: true } : {}) },
   });
   if (moved.value.stage === "won") {
     const client = deps.clients.get(opportunity.organizationId);
@@ -201,13 +209,17 @@ export function moveOpportunity(
   deps: CrmDeps,
   actorId: Id | null,
   opportunityId: Id,
-  input: { readonly to: string; readonly lostReason?: string | null },
-): Result<Opportunity, Refused | StageError> {
+  input: { readonly to: string; readonly lostReason?: string | null; readonly byHand?: boolean },
+): Result<Opportunity & { readonly from: Stage; readonly undoable: boolean }, Refused | StageError | "has-project"> {
   if (!allowed(deps, actorId, "opportunity.set-stage")) return err("forbidden");
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    return applyStageMove(deps, actorId, opportunity, input);
+    const moved = applyStageMove(deps, actorId, opportunity, input);
+    if (!moved.ok) return moved;
+    // Undo is offered only when the reverse move would be allowed too (not back into lost: that needs a reason).
+    const undoable = moveStage(moved.value, opportunity.stage, { at: deps.clock(), byHand: true }).ok;
+    return ok({ ...moved.value, from: opportunity.stage, undoable });
   });
 }
 

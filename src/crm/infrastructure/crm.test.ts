@@ -216,6 +216,30 @@ test("the free landing page goes from consulted straight to won and becomes a fi
   assert.equal(unwrap(crm.convertOpportunity(deps, admin, opportunity.id)).kind, "fixed");
 });
 
+test("a person can move a deal back or reopen it; a won deal that is a project stays won (decision 0014)", () => {
+  const admin = user("admin");
+  const client = unwrap(crm.createClient(deps, admin, { name: "A" }));
+  const lost = unwrap(crm.createOpportunity(deps, admin, client.id, { title: "Lost one", leadSource: "phone" }));
+  unwrap(crm.moveOpportunity(deps, admin, lost.id, { to: "lost", lostReason: "No budget" }));
+  const reopened = unwrap(crm.moveOpportunity(deps, admin, lost.id, { to: "new", byHand: true }));
+  assert.equal(reopened.from, "lost");
+  assert.equal(reopened.undoable, false, "back into lost needs a reason, so no undo");
+  const stored = deps.opportunities.get(lost.id);
+  assert.equal(stored?.stage, "new");
+  assert.equal(stored?.lostReason, null);
+  assert.equal(stored?.closedAt, null);
+
+  const won = unwrap(crm.createOpportunity(deps, admin, client.id, { title: "Won one", leadSource: "phone", service: "landing-page" }));
+  for (const to of ["consult-booked", "consulted"]) unwrap(crm.moveOpportunity(deps, admin, won.id, { to }));
+  const moved = unwrap(crm.moveOpportunity(deps, admin, won.id, { to: "new", byHand: true }));
+  assert.equal(moved.undoable, true);
+  unwrap(crm.moveOpportunity(deps, admin, won.id, { to: "consulted", byHand: true }));
+  unwrap(crm.setOpportunityValue(deps, admin, won.id, { pricing: "free", amount: "" }));
+  unwrap(crm.moveOpportunity(deps, admin, won.id, { to: "won" }));
+  unwrap(crm.convertOpportunity(deps, admin, won.id));
+  assert.deepEqual(crm.moveOpportunity(deps, admin, won.id, { to: "consulted", byHand: true }), { ok: false, error: "has-project" });
+});
+
 test("the database itself refuses what the rules refuse", () => {
   const admin = user("admin");
   const client = unwrap(crm.createClient(deps, admin, { name: "A" }));
