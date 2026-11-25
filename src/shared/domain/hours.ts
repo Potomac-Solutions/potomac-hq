@@ -1,11 +1,11 @@
 // Hours as people type them, kept as whole minutes.
 import { err, ok, type Result } from "./result.ts";
 
-/** "1.5" → 90. Empty is "none". At most 10,000 hours, never negative. */
+/** "1.5" → 90, ".25" → 15, "2." → 120. Empty is "none". At most 10,000 hours, never negative. */
 export function parseHours(text: string | null | undefined): Result<number | null, "invalid-hours"> {
   const cleaned = (text ?? "").trim();
   if (cleaned === "") return ok(null);
-  if (!/^\d{1,5}(\.\d{1,2})?$/.test(cleaned)) return err("invalid-hours");
+  if (!/^(\d{1,5}(\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) return err("invalid-hours");
   const minutes = Math.round(Number(cleaned) * 60);
   return minutes > 600_000 ? err("invalid-hours") : ok(minutes);
 }
