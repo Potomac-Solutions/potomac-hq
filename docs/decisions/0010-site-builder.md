@@ -143,6 +143,17 @@ All four are **Confirmed** and can be combined:
    its home page and up to 10 pages it links to on the same site, only over
    https, and never an address that resolves to a private network.
 
+   As built (slice 3): a repository that is already a plain static site (an
+   `index.html` at its top, no `package.json`, no framework files) becomes
+   version 1 as it is, and Claude is then asked to rework it. Anything else
+   (a React, Vue or Zubra project, or an address) is kept as reference text,
+   at most 150,000 characters, the home page and readme first, and goes
+   with each request only until the build has files of its own. A
+   repository's pictures (up to 30, each up to 3 MB) become the build's,
+   at their old paths so the old pages still show them, described "From
+   the old site: …" until someone says better. Pictures are not copied
+   from an address. Nothing is saved when the old site can't be read.
+
 ### 6. Going live
 
 Both are **Confirmed**, chosen on the build page by `site.build`:

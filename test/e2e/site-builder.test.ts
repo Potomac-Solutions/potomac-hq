@@ -48,9 +48,10 @@ test("Mikey makes a client's site with Claude and sees it in the preview", async
   await page.getByRole("link", { name: "Site builder" }).click();
   await page.getByRole("heading", { name: "Site builder", level: 1 }).waitFor();
   await assertAccessible(page, "the site builder with no builds");
-  await page.getByLabel("Client").selectOption({ label: "Better Days Towing" });
-  await page.getByLabel("Name").fill("Better Days website");
-  await page.getByLabel("Brief").fill("Towing across Western Maryland, day and night.");
+  const start = page.locator("#start");
+  await start.getByLabel("Client").selectOption({ label: "Better Days Towing" });
+  await start.getByLabel("Name").fill("Better Days website");
+  await start.getByLabel("Brief").fill("Towing across Western Maryland, day and night.");
   next = { ok: true, input: { summary: "Made a home page.", write: [{ path: "index.html", content: PAGE }, { path: "site.css", content: "h1 { color: #0b3d91; }" }], remove: [] }, inputTokens: 4_000, outputTokens: 3_000 };
   await page.getByRole("button", { name: "Start and make the first version" }).click();
   await page.getByText("Claude is making the first version").first().waitFor();

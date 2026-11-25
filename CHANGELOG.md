@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Rework a site a client already has (decision 0010, slice 3). From its
+  repository on GitHub or its address on the web: a plain HTML repository
+  becomes version 1 as it was, a project (React, Vue, Zubra…) or a live
+  site is read as reference for Claude to rewrite as plain files, and a
+  repository's pictures come along at their old paths. Migration 0058.
+
 - Pictures in the site builder (decision 0010, slice 2). Add a build's
   photos and its logo, each with what it shows; a photo is shrunk in the
   browser to 1,600 pixels as a JPEG, a logo to 800 as a PNG. Claude is told

@@ -365,6 +365,11 @@ reserved, since Claude may have billed it.
 The preview is served by HQ at `/builder/preview/…`, sandboxed and only by
 an address the build page signs, good for an hour. It is never public.
 
+Reworking a client's existing repository reads it with `HQ_GITHUB_TOKEN`
+(see "Site content"), so that token must be allowed to read the
+repository. Reworking from an address needs nothing: HQ reads public https
+pages only, never one inside a private network.
+
 Without the key HQ starts and says "The site builder can't ask Claude".
 Builds can still be seen and downloaded.
 
