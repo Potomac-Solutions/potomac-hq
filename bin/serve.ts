@@ -35,6 +35,8 @@ import { sendBookingReminders } from "../src/booking/index.ts";
 import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { sendWeeklyEmails } from "../src/dashboard/index.ts";
+import { queueAlerts, sendAlerts } from "../src/push/index.ts";
+import { vapidFrom, webPushSender } from "../src/push/adapters.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
 import { draftMonthlyReports } from "../src/client-reports/index.ts";
@@ -129,9 +131,12 @@ console.log(claudeConfig ? `The site builder asks Claude.${builderOwner.length >
 const aiModel = claudeConfig ? claudeModel(claudeConfig.key) : null;
 console.log(aiModel ? "AI drafts: Claude is available. Features are turned on in Settings → AI." : "AI drafts are off: HQ_ANTHROPIC_API_KEY is not set.");
 
+// Phone alerts (quality of life, 2026-11-25): on when HQ_VAPID_* is set.
+const vapid = vapidFrom(process.env);
 const app = await createApp({
   db,
   backups: backupConfigFrom(process.env) !== null,
+  vapidPublicKey: vapid?.publicKey ?? null,
   ai: aiModel,
   claude: claudeConfig ? claudeApi(claudeConfig) : null,
   builderOwner,
@@ -270,6 +275,25 @@ const sendWeekly = async () => {
   if (result.sent + result.failed > 0) console.log(`Weekly owner email: sent ${result.sent}, failed ${result.failed}.`);
 };
 const stopWeekly = email ? scheduleDaily(sendWeekly, { zone: BUSINESS_TIME_ZONE, hour: 7, minute: 23, clock: systemClock, log, name: "weekly owner email" }) : null;
+
+// Phone alerts: every minute, queue what happened in the last half hour (and
+// calls in the next 15 minutes), then send what can go.
+const pushSend = vapid ? webPushSender(vapid) : null;
+let pushing = false;
+const pushTimer = pushSend
+  ? setInterval(() => {
+      if (pushing) return;
+      pushing = true;
+      const deps = createServices(db, { vapidPublicKey: vapid?.publicKey ?? null }).push;
+      const now = Temporal.Now.instant();
+      queueAlerts(deps, now.subtract({ minutes: 30 }).toString(), now.add({ minutes: 15 }).toString());
+      sendAlerts(deps, pushSend)
+        .catch((error: unknown) => log("Phone alerts: the run failed", error))
+        .finally(() => (pushing = false));
+    }, 60_000)
+  : null;
+pushTimer?.unref();
+console.log(vapid ? "Phone alerts: on." : "Phone alerts are off: HQ_VAPID_PUBLIC_KEY and HQ_VAPID_PRIVATE_KEY aren't set (npm run push:keygen).");
 
 // Client websites: checked every five minutes. Changes are emailed to the
 // alert address when email and HQ_ALERT_EMAIL are set.
@@ -477,6 +501,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopBackups?.();
     stopWeekly?.();
+    if (pushTimer) clearInterval(pushTimer);
     stopSheet?.();
     stopRetention();
     stopRecurring();

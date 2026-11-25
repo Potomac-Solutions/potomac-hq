@@ -130,3 +130,39 @@ test("the weekly owner email: last week to each admin, once", async () => {
   assert.match(mails[0]?.body ?? "", /new deals?, \d+ won/);
   assert.deepEqual(await sendWeeklyEmails(deps, mail, { publicUrl: "https://hq.example" }), { sent: 0, failed: 0 }, "never twice for a week");
 });
+
+test("phone alerts: a device turns them on, alerts are queued once, held in quiet hours, and a gone device is forgotten", async () => {
+  const { queueAlerts, sendAlerts } = await import("../../src/push/index.ts");
+  const off = textOf(await admin.page("/settings"));
+  assert.match(off, /Phone alerts and the HQ app/);
+  assert.match(off, /Alerts need HQ_VAPID_PUBLIC_KEY/);
+  assert.match(query(await admin.post("/push/devices", { endpoint: "https://push.example/a", p256dh: "B".repeat(87), auth: "a".repeat(22), ua: "Android Chrome/130" }), "problem"), /HQ_VAPID/);
+
+  const vt = await testApp({ passwordCost: TEST_PASSWORD_COST, vapidPublicKey: "B".repeat(87) });
+  try {
+    const mikey = await signIn(vt, "mikey@example.com", "Mikey Nichols", ["admin"]);
+    assert.match(query(await mikey.post("/push/devices", { endpoint: "http://push.example/a", p256dh: "B".repeat(87), auth: "a".repeat(22), ua: "" }), "problem"), /didn’t give HQ/);
+    assert.match(query(await mikey.post("/push/devices", { endpoint: "https://push.example/a", p256dh: "B".repeat(87), auth: "a".repeat(22), ua: "Mozilla/5.0 (Linux; Android 14) Chrome/130" }), "done"), /Alerts are on/);
+    assert.match(textOf(await mikey.page("/settings")), /Android, Chrome since/);
+    await mikey.post("/push/test", {});
+    // A site going down, recorded as the monitor records it.
+    vt.db.prepare("insert into activity_event (id, occurred_at, actor_id, action, record_type, record_id, context) values ('00000000-0000-4000-8000-0000000000e1', ?, null, 'site.down', 'site', 's1', '{\"url\":\"betterdaystowing.com\"}')").run(new Date().toISOString());
+    const deps = vt.services.push;
+    const since = new Date(Date.now() - 30 * 60_000).toISOString();
+    const until = new Date(Date.now() + 15 * 60_000).toISOString();
+    queueAlerts(deps, since, until);
+    queueAlerts(deps, since, until);
+    const sentTo: string[] = [];
+    let answer: "sent" | "gone" = "sent";
+    const sender = async (_device: { endpoint: string }, alert: { title: string }) => (sentTo.push(alert.title), answer);
+    assert.deepEqual(await sendAlerts({ ...deps, quietNow: () => true }, sender), { sent: 0, held: 2, dropped: 0 }, "quiet hours hold them");
+    assert.deepEqual(await sendAlerts(deps, sender), { sent: 2, held: 0, dropped: 0 });
+    assert.deepEqual(sentTo.sort(), ["Alerts from HQ work", "Site down: betterdaystowing.com"]);
+    answer = "gone";
+    await mikey.post("/push/test", {});
+    await sendAlerts(deps, sender);
+    assert.equal(Number(vt.db.prepare("select count(*) as n from push_subscription").get()?.["n"]), 0, "a device that's gone is forgotten");
+  } finally {
+    await vt.stop();
+  }
+});

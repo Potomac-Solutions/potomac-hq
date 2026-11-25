@@ -126,6 +126,8 @@
     document.addEventListener('submit', keepForm)
     refill()
     remember()
+    // Lets HQ be installed on a phone, and show alerts (quality of life, 2026-11-25).
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
   })
   onUnmount(() => {
     document.removeEventListener('keydown', quickKey)

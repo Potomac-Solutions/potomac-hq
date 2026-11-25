@@ -68,6 +68,9 @@ import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts"
 import { sqliteAssistantStore } from "./assistant/adapters.ts";
 import { placeAt, PLACES, search, type PinsDeps, type Place, type WeeklyDeps } from "./dashboard/index.ts";
 import { sqlitePinStore, sqliteWeekFacts, sqliteWeeklySent } from "./dashboard/adapters.ts";
+import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/adapters.ts";
+import type { PushDeps } from "./push/index.ts";
+import { isQuiet } from "./notices/index.ts";
 import { followUpsDue } from "./crm/index.ts";
 import { staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
@@ -185,6 +188,8 @@ export type Services = {
   readonly pins: PinsDeps;
   /** The weekly owner email (quality of life, 2026-11-25). */
   readonly weekly: WeeklyDeps;
+  /** Phone alerts (quality of life, 2026-11-25). */
+  readonly push: PushDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -228,6 +233,8 @@ export type ServiceOptions = {
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
   readonly aiModel?: AiModel | null;
+  /** HQ's VAPID public key, when phone alerts are set up. */
+  readonly vapidPublicKey?: string | null;
 };
 
 const ownersOf = (owner: string | readonly string[] | null | undefined): readonly string[] => (owner == null ? [] : typeof owner === "string" ? [owner.toLowerCase()] : owner.map((one) => one.toLowerCase()));
@@ -827,6 +834,20 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
 
+  const noticePrefs = sqliteNoticeSettings(db);
+  const push: PushDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    devices: sqliteDeviceStore(db),
+    queue: sqliteAlertQueue(db),
+    sources: sqliteAlertSources(db),
+    publicKey: options.vapidPublicKey ?? null,
+    quietNow: (userId) => isQuiet(noticePrefs.preferencesOf(userId).quiet, Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).hour),
+    timeOf: (instant) => Temporal.Instant.from(instant).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
   const weekFacts = sqliteWeekFacts(db);
   const weekly: WeeklyDeps = {
     users,
@@ -859,5 +880,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

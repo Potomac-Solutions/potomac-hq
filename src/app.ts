@@ -14,6 +14,8 @@ import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, 
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
+import { pushRoutes } from "./push/api/push-routes.ts";
+import { devicesFor, type DevicesView } from "./push/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
@@ -98,7 +100,7 @@ import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, last
 import type { Database, EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
-import { loadAssets, themeLinks } from "./shared/ui/assets.ts";
+import { loadAssets, MANIFEST, themeLinks } from "./shared/ui/assets.ts";
 import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
 export { BUSINESS_TIME_ZONE } from "./services.ts";
@@ -156,6 +158,8 @@ export type AppConfig = {
   readonly ai?: AiModel | null;
   /** Whether nightly backups are configured (HQ_BACKUP_*), for Get HQ ready. */
   readonly backups?: boolean;
+  /** HQ's VAPID public key (HQ_VAPID_PUBLIC_KEY), when phone alerts are set up. */
+  readonly vapidPublicKey?: string | null;
 };
 
 /** What a page sees of AI (decision 0012). Each part is null when there's nothing, or this person may not see it. */
@@ -214,7 +218,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-frame-options": "DENY",
   "referrer-policy": "same-origin",
   "content-security-policy":
-    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; worker-src 'self'; manifest-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 type Answer = ReturnType<typeof show>;
@@ -519,6 +523,8 @@ export type PageContext = {
   history(recordType: string, recordId: string): ReturnType<typeof recordHistory>;
   /** Team workload, for whoever may see reports; null for anyone else. */
   workload(): { readonly lines: readonly WorkloadLine[]; readonly week: string } | null;
+  /** Phone alerts: whether they're set up, the key a browser subscribes with, and this person's devices. */
+  push(): DevicesView;
   /** The role an admin is viewing HQ as, read-only, or null. */
   readonly preview: { readonly role: string; readonly label: string } | null;
   /** Whether this person may view HQ as another role (an admin, not already previewing). */
@@ -592,7 +598,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -1118,6 +1124,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
+        push: () => devicesFor(services.push, actor, services.formatWhen),
         preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
         canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
         workload: () => {
@@ -1461,6 +1468,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", assistantRoutes({ assistant: services.assistant, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", pushRoutes({ push: services.push, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", navRoutes({ pins: services.pins, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
@@ -1588,7 +1596,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
+  web.route("/", staticRoutes({ assets: loadAssets(), manifest: MANIFEST, healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
@@ -1615,7 +1623,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
