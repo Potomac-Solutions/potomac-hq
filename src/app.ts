@@ -35,6 +35,7 @@ import { publicSiteRoutes, siteApiRoutes } from "./public-site/api/public-site-r
 import { listTodos, todosAt, todosDueFor, type TodosPanel, type TodosView } from "./todos/index.ts";
 import { todoRoutes } from "./todos/api/todo-routes.ts";
 import { noticeLinks, noticeRoutes } from "./notices/api/notice-routes.ts";
+import { paletteRoutes } from "./dashboard/api/palette-routes.ts";
 import { webhookRoutes } from "./webhooks/api/webhook-routes.ts";
 import { webhookSecretPage } from "./webhooks/ui/views.ts";
 import { listWebhooks, webhookDetail } from "./webhooks/index.ts";
@@ -90,9 +91,9 @@ import { activeProjects, board, labelsPage, listProjects, pinnedFilters, project
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
-import type { Database, EmailConfig } from "./shared/adapters.ts";
+import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
-import { err, parseId, recordActivity, type Id, type Result } from "./shared/index.ts";
+import { err, parseId, readUndo, recordActivity, stashUndo, type Id, type Result } from "./shared/index.ts";
 import { loadAssets, themeLinks } from "./shared/ui/assets.ts";
 import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
@@ -219,7 +220,16 @@ export type PageContext = {
   /** The active HQ user, or null. */
   readonly user: { readonly id: string; readonly name: string } | null;
   /** A message from the last redirect, shown once. Only ever one the server signed. */
-  readonly notice: { readonly problem: string; readonly done: string };
+  readonly notice: {
+    readonly problem: string;
+    readonly done: string;
+    /** The post that reverses the change just made (decision 0014), shown by the shell as Undo. */
+    readonly undo: { readonly action: string; readonly fields: readonly { readonly name: string; readonly value: string }[] } | null;
+    /** What the undo puts back, naming the thing changed. */
+    readonly undoLabel: string;
+  };
+  /** This person's changes that can still be undone, newest first (decision 0014, section 8). */
+  readonly recentChanges: () => readonly { readonly undo: string; readonly label: string; readonly at: string; readonly when: string }[];
   /** Props for the sign-in page. */
   readonly signIn: { readonly problem: string; readonly done: string; readonly needsOwner: boolean; readonly emailEnabled: boolean };
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -572,6 +582,11 @@ export async function createApp(config: AppConfig): Promise<App> {
     render: (res, title, body) => sendHtml(res, 200, title, body),
   });
 
+  // Undo (decision 0014): a page's `undo` is kept in the database and the
+  // address carries only its token, then the messages are signed as before.
+  const undoStash = sqliteUndoStash(db, services.crm.clock);
+  const signNotice = (location: string): string => notices.sign(stashUndo(location, (action, fields, label) => undoStash.keep(action, fields, label)));
+
   const account = (input: IncomingMessage | string): SignedInAccount | null => {
     const who = staff.session(input);
     return who ? { account: who.account, name: who.name, email: who.email, isOwner: who.roles.includes("owner") } : null;
@@ -690,8 +705,14 @@ export async function createApp(config: AppConfig): Promise<App> {
     context: ({ request }): PageContext => {
       const who = account(request.headers.get("cookie") ?? "");
       const user = who ? establishUser(sessionDeps, who) : null;
-      const notice = readNotice(new URL(request.url));
-      const signIn = { ...notice, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
+      const signed = readNotice(new URL(request.url));
+      // The page that shows an Undo makes it this person's (decision 0014, section 8).
+      // One that isn't theirs, used, or too old isn't offered.
+      const offered = readUndo(signed.undo);
+      const undoToken = /^\/undo\/([0-9a-f]{32})$/.exec(offered?.action ?? "")?.[1];
+      const undoLabel = undoToken && user ? undoStash.claim(undoToken, user.id) : "";
+      const notice = { problem: signed.problem, done: signed.done, undo: undoLabel ? offered : null, undoLabel };
+      const signIn = { problem: notice.problem, done: notice.done, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
       const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
@@ -745,6 +766,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         signedIn: who !== null && !pending,
         user: user && !pending ? { id: user.id, name: user.name } : null,
         notice,
+        recentChanges: () => (user ? undoStash.recent(user.id).map((change) => ({ undo: `/undo/${change.token}`, label: change.label, at: change.at, when: services.formatWhen(change.at) })) : []),
         signIn,
         today: date,
         todayLabel: Temporal.PlainDate.from(date).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" }),
@@ -1154,11 +1176,23 @@ export async function createApp(config: AppConfig): Promise<App> {
     const actor = actorOf(c.req.header("cookie") ?? "");
     if (actor) recordRefusal(refusedDeps, { kind: "permission", userId: actor, address: clientAddressOf(c.env.incoming), detail: `POST ${c.req.path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ":id")}` });
   });
-  forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
-  forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
+  // Undo (decision 0014): the kept post is run as if the browser had sent it,
+  // through the same route, permission check and activity event.
+  forms.post("/undo/:token", async (c) => {
+    const kept = undoStash.take(c.req.param("token"), actorOf(c.req.header("cookie") ?? ""));
+    if (!kept) return c.redirect(signNotice(`/?problem=${encodeURIComponent("That can’t be undone any more. Undo works once, for a day.")}`), 303);
+    const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
+    for (const name of ["cookie", "origin", "host", "user-agent"]) {
+      const value = c.req.header(name);
+      if (value) headers.set(name, value);
+    }
+    return forms.fetch(new Request(new URL(kept.action, "http://hq.invalid"), { method: "POST", headers, body: new URLSearchParams(kept.fields as Record<string, string>).toString() }), c.env);
+  });
+  forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: signNotice }));
+  forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: signNotice }));
+  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: signNotice, feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
+  forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
+  forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   const bookerOf = (cookieHeader: string): PortalBooker | null => {
     const session = clientOf(cookieHeader);
@@ -1216,7 +1250,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     staffPortalRoutes({
       portal: portalDeps,
       actorOf,
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       publicUrl,
       mailLink: inviteMail ? async (to, link) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-link", { name: to.name, link })) : null,
       linkPage: (view) => renderPage("Send this link", linkPage(view)),
@@ -1227,7 +1261,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     clientPortalRoutes({
       portal: portalDeps,
       clientOf,
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
@@ -1245,19 +1279,19 @@ export async function createApp(config: AppConfig): Promise<App> {
         : {}),
     }),
   );
-  forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", noteRoutes({ notes: notesDeps, actorOf, sign: signNotice }));
   forms.route(
     "/",
     peopleRoutes({
       people: sessionDeps,
       actorOf,
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       publicUrl,
       mailLink: inviteMail ? async (to, link, kind) => "ok" in (await inviteMail.notify({ email: to.email }, kind === "invite" ? "hq-invite" : "hq-reset", { name: to.name, link })) : null,
       linkPage: (view) => renderPage("Send this link", userLinkPage(view)),
     }),
   );
-  forms.route("/", knowledgeRoutes({ knowledge: services.knowledge, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", knowledgeRoutes({ knowledge: services.knowledge, actorOf, sign: signNotice }));
   forms.route(
     "/",
     twoFactorRoutes({
@@ -1274,7 +1308,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       siteOf: passkeySite,
       allowAttempt: secondStepLimit,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       codesPage: (codes, fresh, withPasskey) => renderPage("Your recovery codes", recoveryCodesPage(codes, fresh, withPasskey)),
       refused: (draft) => recordRefusal(refusedDeps, draft),
     }),
@@ -1293,7 +1327,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     inquiryRoutes({
       crm: services.crm,
       ownerFor: leadOwner,
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowPerAddress: sqliteRateLimit(db, { name: "inquiry-address", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "inquiry-email", max: 3, windowMs: 24 * 60 * 60_000 }),
@@ -1317,22 +1351,22 @@ export async function createApp(config: AppConfig): Promise<App> {
   const publicBooking = bookingPublicRoutes({
     booking: services.booking,
     emails: bookingEmails,
-    sign: (location) => notices.sign(location),
+    sign: signNotice,
   });
   forms.route("/", publicBooking);
-  forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
-  forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: signNotice, allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
+  forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: signNotice }));
+  forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: signNotice }));
   // The recap email after a call (decision 0009, section 7), when email is set up.
   const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
-  forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: signNotice }));
+  forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: signNotice }));
+  forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: signNotice }));
+  forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
+  forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
+  forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: signNotice }));
+  forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: signNotice }));
+  forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: signNotice }));
   // The newsletter (decision 0013, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
@@ -1347,18 +1381,18 @@ export async function createApp(config: AppConfig): Promise<App> {
           body: `Hi ${to.name.split(/\s+/)[0] ?? ""},\n\nThank you for trusting Potomac Solutions with ${clientName || "your business"}'s work. Would you tell others how it went? It takes a minute: a few stars, a few words, and whether we may show it on our website.\n\n${link}\n\nThe link works once, for 30 days. If you'd rather not, ignore this email: no hard feelings.\n\nMikey and Jayanti\nPotomac Solutions`,
         }))
     : null;
-  forms.route("/", demoRoutes({ demos: services.demos, actorOf, sign: (location) => notices.sign(location), publicUrl, mail: sendOne }));
-  forms.route("/", referralCreditRoutes({ credit: services.referralCredit, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", showcaseStaffRoutes({ showcase: services.showcase, actorOf, sign: (location) => notices.sign(location), publicUrl, mail: askMail }));
-  forms.route("/", reviewWritingRoutes({ showcase: services.showcase, sign: (location) => notices.sign(location), clientOf }));
-  forms.route("/", automationRoutes({ automations: services.automations, actorOf, sign: (location) => notices.sign(location), publicUrl, secretPage: (view) => renderPage("Check-in address", automationSecretPage(view)) }));
-  forms.route("/", reportRoutes({ reports: services.clientReports, actorOf, sign: (location) => notices.sign(location), mail: sendOne, contactLine: reportContactLine }));
-  forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: (location) => notices.sign(location), footer: newsletterFooter, mail: sendOne }));
+  forms.route("/", demoRoutes({ demos: services.demos, actorOf, sign: signNotice, publicUrl, mail: sendOne }));
+  forms.route("/", referralCreditRoutes({ credit: services.referralCredit, actorOf, sign: signNotice }));
+  forms.route("/", showcaseStaffRoutes({ showcase: services.showcase, actorOf, sign: signNotice, publicUrl, mail: askMail }));
+  forms.route("/", reviewWritingRoutes({ showcase: services.showcase, sign: signNotice, clientOf }));
+  forms.route("/", automationRoutes({ automations: services.automations, actorOf, sign: signNotice, publicUrl, secretPage: (view) => renderPage("Check-in address", automationSecretPage(view)) }));
+  forms.route("/", reportRoutes({ reports: services.clientReports, actorOf, sign: signNotice, mail: sendOne, contactLine: reportContactLine }));
+  forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: signNotice, footer: newsletterFooter, mail: sendOne }));
   forms.route(
     "/",
     riverRoutes({
       newsletter: services.newsletter,
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
       mailConfirm: confirmNewsletter,
       publicUrl,
       returnOrigins: formOrigins,
@@ -1368,19 +1402,19 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", shareRoutes({ projects: projectsDeps, sign: (location) => notices.sign(location), allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
-  forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: (location) => notices.sign(location), secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
-  forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", builderRoutes({ builder: services.builder, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", socialStaffRoutes({ social: services.social, actorOf, clientOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", socialPortalRoutes({ social: services.social, actorOf, clientOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, calls: services.calls, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: signNotice }));
+  forms.route("/", shareRoutes({ projects: projectsDeps, sign: signNotice, allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
+  forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: signNotice, secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
+  forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: signNotice }));
+  forms.route("/", builderRoutes({ builder: services.builder, actorOf, sign: signNotice }));
+  forms.route("/", publicSiteRoutes({ website: services.publicSite, actorOf, sign: signNotice }));
+  forms.route("/", socialStaffRoutes({ social: services.social, actorOf, clientOf, sign: signNotice }));
+  forms.route("/", socialPortalRoutes({ social: services.social, actorOf, clientOf, sign: signNotice }));
+  forms.route("/", renewalRoutes({ renewals: services.renewals, actorOf, sign: signNotice }));
+  forms.route("/", inviteRoutes({ invites: services.invites, emails: bookingEmails, actorOf, bookerOf, sign: signNotice }));
+  forms.route("/", sourceRoutes({ sources: services.sources, actorOf, bookerOf, sign: signNotice }));
+  forms.route("/", bookingStaffRoutes({ booking: services.booking, crm: services.crm, calls: services.calls, emails: bookingEmails, actorOf, sign: signNotice }));
+  forms.route("/", settingsRoutes({ preferences: sessionDeps, actorOf, sign: signNotice }));
   forms.route(
     "/",
     forgotRoutes({
@@ -1388,7 +1422,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       clientOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowPerAddress: sqliteRateLimit(db, { name: "forgot-address", max: 5, windowMs: 60 * 60_000 }),
       allowPerEmail: sqliteRateLimit(db, { name: "forgot-email", max: 3, windowMs: 60 * 60_000 }),
-      sign: (location) => notices.sign(location),
+      sign: signNotice,
     }),
   );
   forms.notFound((c) => c.html(renderPage("Not found", problemPage({ title: "Not found", message: "There is no page at this address." })), 404));
@@ -1459,8 +1493,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   const downloads = new Hono();
   downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
   downloads.route("/", publicBooking);
-  downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: (location) => notices.sign(location) }));
-  downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: (location) => notices.sign(location), canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
+  downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: signNotice }));
+  downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: signNotice, canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
   downloads.route("/", twoFactorQrRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", twoFactorAppRoute({ twoFactor: twoFactorDeps, actorOf: setupActorOf }));
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
@@ -1476,6 +1510,23 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", shareFiles({ projects: projectsDeps }));
   downloads.route("/", calendarFeeds({ projects: projectsDeps, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
+  downloads.route(
+    "/",
+    paletteRoutes({
+      actorOf,
+      search: (actor, q) => search(services.search, actor, q),
+      moves: (actor, id, title) => {
+        const detail = opportunityDetail(services.crm, actor, id, today());
+        if (!detail.ok || !detail.value.can.setStage) return [];
+        const view = detail.value;
+        const back = view.backStages[0];
+        return [
+          ...(view.nextStage ? [{ label: `Move ${title} to ${view.nextStageLabel}`, action: `/opportunities/${id}/stage`, fields: { to: view.nextStage } }] : []),
+          ...(back ? [{ label: `${view.opportunity.open ? "Move" : "Reopen"} ${title} ${view.opportunity.open ? "back to" : "at"} ${back.label}`, action: `/opportunities/${id}/stage`, fields: { to: back.value, back: "1" } }] : []),
+        ];
+      },
+    }),
+  );
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
@@ -1517,7 +1568,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/palette.json" || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

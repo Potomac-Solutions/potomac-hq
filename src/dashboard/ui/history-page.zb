@@ -1,0 +1,46 @@
+<!--
+  Recent changes (decision 0014, section 8): the changes you made in the last
+  day that can still be undone, newest first, each with its own Undo. One per
+  thing changed: undoing an older change to the same thing would put back
+  something a newer change already replaced, so only the newest is listed.
+  Each undo works once.
+-->
+<script>
+  'use route /history'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    return { title: 'Recent changes', changes: context.recentChanges(), done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .changes { list-style: none; margin: 0; padding: 0; }
+  .changes li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.75rem 0.25rem; border-top: 1px solid var(--border); }
+  .changes li:first-child { border-top: 0; }
+  .changes p { margin: 0; overflow-wrap: anywhere; }
+  .changes form { margin: 0; }
+</style>
+<hq-history changes={[]} done="" problem="">
+  <div class="hq-page">
+    <h1>Recent changes</h1>
+    <p class="hq-muted">What you changed in the last day that can still be put back. Each one can be undone once. Ctrl+Z undoes the latest from any page while its Undo bar is showing.</p>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <empty-state zb-if={changes.length === 0} heading="Nothing to undo">Moves, status changes and saved edits show here for a day.</empty-state>
+    <section zb-else class="hq-panel" aria-labelledby="changes-title">
+      <h2 id="changes-title" class="sr-only">Changes you can undo</h2>
+      <ul class="changes">
+        <zb-each items={changes} as="change" key={change.undo}>
+          <li>
+            <p><strong>{change.label}</strong> <span class="hq-muted"><time datetime={change.at}>{change.when}</time></span></p>
+            <form method="post" action={change.undo}><button class="hq-button secondary small" type="submit">Undo<span class="sr-only">: {change.label}</span></button></form>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-history>
