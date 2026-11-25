@@ -36,6 +36,7 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
+import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
@@ -106,6 +107,7 @@ console.log(github ? "Client sites' content is published to GitHub." : "Site con
 const app = await createApp({
   db,
   sitePublisher: github ? githubPublisher(github) : null,
+  siteArchive: github ? githubArchive(github) : null,
   formOrigins,
   ...(inquiryEmail ? { inquiryEmail } : {}),
   ...(busyCalendar ? { busyCalendar } : {}),

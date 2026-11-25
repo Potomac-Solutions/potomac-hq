@@ -1,0 +1,75 @@
+<!--
+  The client's free landing page in the portal (decision 0010, section 3):
+  ask for it, see it, send rounds of changes, and approve it. Before a round
+  that would be paid, the form says so.
+-->
+<script>
+  'use route /portal/landing-page'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = context.freePages.mine()
+    if (!view) return notFound()
+    return { title: 'Your free landing page', view, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .pl-text { white-space: pre-wrap; }
+  .pl-rounds { margin: 0; padding-left: 1.2rem; }
+  .pl-rounds li { margin: 0 0 0.6rem; }
+  .pl-paid { display: flex; gap: 0.5rem; align-items: flex-start; }
+  .pl-paid input { width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; }
+</style>
+<hq-portal-landing-page view={{ exists: false, address: '', statusLabel: '', approved: false, used: '', freeLeft: 0, rounds: [], downloadable: false, canAsk: false, canApprove: false, paidNext: false, paidText: '' }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
+    <h1>Your free landing page</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+
+    <section zb-if={!view.exists} class="hq-panel" aria-labelledby="pl-ask">
+      <h2 id="pl-ask">A page of your own, free</h2>
+      <p>We’ll build your business a one-page website at its own address on potomac.solutions: who you are, what you do, and how to reach you. It’s free for good, with four rounds of changes before you approve it.</p>
+      <form method="post" action="/portal/landing-page"><button class="hq-button portal-big" type="submit">Ask for my free page</button></form>
+    </section>
+
+    <section zb-if={view.exists} class="hq-panel" aria-labelledby="pl-status">
+      <h2 id="pl-status">{view.statusLabel}</h2>
+      <p zb-if={view.address}>Your page: <a href={view.address} rel="noopener noreferrer">{view.address}</a></p>
+      <p zb-if={!view.address} class="hq-muted">We’ll choose its address with you.</p>
+      <p><strong>Rounds of changes: {view.used}.</strong></p>
+      <p zb-if={view.downloadable}><a class="hq-button secondary" href="/portal/landing-page.zip">Download your site to host it yourself</a></p>
+    </section>
+
+    <section zb-if={view.canAsk} class="hq-panel" id="changes" aria-labelledby="pl-change">
+      <h2 id="pl-change">Ask for changes</h2>
+      <p zb-if={!view.paidNext}>Put everything you’d like changed in one message: that’s one round. You have {view.freeLeft} free {view.freeLeft === 1 ? 'round' : 'rounds'} left.</p>
+      <alert-banner zb-if={view.paidNext} variant="warning">{view.approved ? 'Your page is approved, so changes from here are paid' : 'Your free rounds are used'}: they’re {view.paidText}, or we’ll quote a bigger job first. We’ll check the price with you before we start.</alert-banner>
+      <form method="post" action="/portal/landing-page/rounds" class="hq-form">
+        <text-field label="What you’d like changed" name="text" rows={5} required={true} maxlength={4000}></text-field>
+        <label zb-if={view.paidNext} class="pl-paid"><input type="checkbox" name="paid" value="1" required> I know these changes are paid.</label>
+        <div><button class="hq-button portal-big" type="submit">Send</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.canApprove} class="hq-panel" aria-labelledby="pl-approve">
+      <h2 id="pl-approve">Happy with it?</h2>
+      <p>Approve it and we’ll put it live. That’s the final approval: changes after it are paid.</p>
+      <form method="post" action="/portal/landing-page/approve"><button class="hq-button portal-big" type="submit">Approve my page</button></form>
+    </section>
+
+    <section zb-if={view.rounds.length > 0} class="hq-panel" aria-labelledby="pl-rounds">
+      <h2 id="pl-rounds">What you’ve asked for</h2>
+      <ol class="pl-rounds">
+        <zb-each items={view.rounds} as="round" key={round.id}>
+          <li><strong>Round {round.number}</strong>, {round.when}{round.free ? '' : ' (paid)'}{round.done ? ': done' : ''}<div class="pl-text">{round.text}</div></li>
+        </zb-each>
+      </ol>
+    </section>
+  </div>
+</hq-portal-landing-page>

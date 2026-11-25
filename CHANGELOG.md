@@ -9,6 +9,18 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Free landing pages (decision 0010, slice 4). Clients ask for theirs in
+  the portal, or it's recorded on the client: its address at
+  `<name>.potomac.solutions`, where it stands (asked for, being built, ready
+  to look at, approved, live, handed over) and its repository. In the
+  portal, the client sends rounds of changes and sees "2 of 4 free rounds
+  used". After four, or after approving, they must tick that the changes
+  are paid ($50 an hour) before sending. Each round waits on Today until
+  it's marked done, or priced. Once approved, a zip of the page's code can be
+  downloaded from the portal and the client page (needs `HQ_GITHUB_TOKEN`).
+  One free page a person: a client whose contacts share an email or phone
+  with another client's free page is refused. Delivery → Landing pages lists
+  them all. Anyone at Potomac (`free-page.manage`). Migration 0058.
 - Where leads come from (decision 0010, slice 3). The inquiry form and the
   website's booking keep where on potomac.solutions the person was: `src`
   (a river stop, a Lab demo, a Work page, the planner, the blog or the

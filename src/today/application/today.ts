@@ -11,6 +11,7 @@ import { staffWaiting, type PortalDeps } from "../../portal/index.ts";
 import { upcomingDeadlines, type ProjectsDeps } from "../../projects/index.ts";
 import { renewalsComingUp, type RenewalsDeps } from "../../renewals/index.ts";
 import { daysUntil } from "../../shared/index.ts";
+import { roundsWaiting, type FreePagesDeps } from "../../free-pages/index.ts";
 import type { Id } from "../../shared/index.ts";
 import { todosDoneSince, todosDueFor, type TodoLine, type TodosDeps } from "../../todos/index.ts";
 
@@ -23,6 +24,8 @@ export type TodayDeps = {
   readonly projects: ProjectsDeps;
   readonly renewals: RenewalsDeps;
   readonly monitor: MonitorDeps;
+  /** Free landing pages: rounds of changes asked for (decision 0010, section 3). */
+  readonly freePages: FreePagesDeps;
   readonly timeZone: string;
   readonly today: () => string;
   readonly clock: () => string;
@@ -54,6 +57,7 @@ export function todayFor(deps: TodayDeps, actorId: Id | null): TodayView {
     add("call", { key: `call-${call.id}`, text: `${call.who}, ${call.when}`, detail: [call.kindLabel, call.topic, call.phone].filter(Boolean).join(" · "), href: call.crmHref || "/calls", action: "Open", overdue: false, at: call.whenIso });
   }
   for (const one of staffWaiting(deps.portal, actorId).items) add("waiting", { key: `waiting-${one.key}`, text: one.text, detail: one.detail, href: one.href, action: one.action, overdue: false, at: one.since });
+  for (const one of roundsWaiting(deps.freePages, actorId)) add("waiting", { key: `round-${one.key}`, text: one.text, detail: one.detail, href: one.href, action: "Open", overdue: false, at: one.since });
   for (const site of sitesNeedingAttention(deps.monitor, actorId)) {
     if (site.state !== "down") continue;
     add("site", { key: `site-${site.id}`, text: `${site.host} is down`, detail: `${site.clientName}. ${site.lastResult}`, href: "/sites", action: "Open", overdue: false, at: "" });

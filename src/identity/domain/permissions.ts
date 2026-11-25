@@ -76,6 +76,7 @@ export const PERMISSIONS = [
   "webhook.manage",
   // Growth tools (decision 0010)
   "newsletter.manage",
+  "free-page.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

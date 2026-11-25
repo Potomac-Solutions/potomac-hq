@@ -440,3 +440,10 @@ Every issue carries a one-click unsubscribe link and a `List-Unsubscribe`
 header. Mail apps post to `/river/one-click?t=...`, which needs no cookie
 or Origin.
 
+## Free landing pages
+
+Delivery → Landing pages, and each client's Free landing page
+(`docs/decisions/0010-growth-tools.md`, section 3). "Download its code"
+zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
+read access to that repository too. Without the token there is no download.
+

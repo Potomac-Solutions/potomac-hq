@@ -46,6 +46,8 @@ import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./web
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
 import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
+import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type PortalFreePage, type SiteArchive } from "./free-pages/index.ts";
+import { freePageDownloads, freePagePortalRoutes, freePageStaffRoutes } from "./free-pages/api/free-page-routes.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
@@ -114,6 +116,8 @@ export type AppConfig = {
   readonly contact?: PortalContact;
   /** Reads and commits to client sites' repositories on GitHub. Without it, sites can't be set up or published. */
   readonly sitePublisher?: SitePublisher | null;
+  /** Zips a free landing page's code from GitHub, to hand over. Without it, there is no download. */
+  readonly siteArchive?: SiteArchive | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
 };
@@ -294,6 +298,14 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** Free landing pages (decision 0010, section 3). */
+  readonly freePages: {
+    /** A client's, or null for someone who may not see clients. */
+    forClient(organizationId: string): FreePageView | null;
+    all(): ReturnType<typeof allFreePages>;
+    /** The signed-in client's, or null when signed out. */
+    mine(): PortalFreePage | null;
+  };
   /** Where leads came from on the website (decision 0010, section 2). */
   readonly leads: {
     /** Where an opportunity came from, or null when the site said nothing. */
@@ -711,6 +723,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        freePages: {
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientFreePage(services.freePages, actor, parsed.value) : null;
+          },
+          all: () => allFreePages(services.freePages, actor),
+          mine: () => portalFreePage(services.freePages, client),
+        },
         leads: {
           origin: (id) => {
             const parsed = parseId(id);
@@ -1081,6 +1101,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: (location) => notices.sign(location) }));
   // The newsletter (decision 0010, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
@@ -1190,6 +1212,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", auditDownloads({ audit: services.audit, actorOf, today }));
   downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
+  downloads.route("/", freePageDownloads({ freePages: services.freePages, actorOf, clientOf, archive: config.siteArchive ?? null }));
   downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", workDownloads({ projects: projectsDeps, actorOf }));
@@ -1237,7 +1260,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/websites/photos/") || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

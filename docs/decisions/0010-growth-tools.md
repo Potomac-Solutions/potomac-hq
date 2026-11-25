@@ -92,10 +92,12 @@ potomac.solutions' server calls with its token.
   Sending a round of changes is one message with what to change. Four
   rounds are free, then **Approve it** is the final approval. Staff can
   record a round sent by phone or email.
-- **After four rounds**, the form says more changes are $50 an hour (the
-  price from the public site settings) and sending one drafts a change
-  request for Potomac to price, as change requests already work. Staff see
-  "Free rounds used up" on the client and on Today.
+- **After four rounds**, the form says more changes are $50 an hour and
+  asks the client to tick that they know it's paid. The round goes on Today
+  as "Paid changes to price". Changed while building it (slice 4): it does
+  not draft a change request, because a change request belongs to a project
+  and a free page usually has none. Price it with the client and make the
+  change request by hand if the work is big enough to need one.
 - **Handing it over.** For a client who wants to host it themselves,
   "Download your site" in the portal (and on the client page) gives a zip
   of the site's repository, read from GitHub through the same token as

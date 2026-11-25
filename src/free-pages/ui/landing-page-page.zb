@@ -1,0 +1,86 @@
+<!--
+  A client's free landing page (decision 0010, section 3): its address,
+  where it stands, its repository, and the rounds of changes asked for.
+-->
+<script>
+  'use route /clients/:id/landing-page'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.freePages.forClient(params.id)
+    if (!view) return notFound()
+    return { title: 'Free landing page', view, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .fp-rounds { list-style: none; margin: 0; padding: 0; }
+  .fp-rounds > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .fp-rounds > li:first-child { border-top: 0; }
+  .fp-rounds p { margin: 0 0 0.3rem; }
+  .fp-text { white-space: pre-wrap; }
+  .fp-rounds form { margin: 0.4rem 0 0; }
+</style>
+<hq-landing-page view={{ organizationId: '', clientName: '', exists: false, subdomain: '', address: '', status: '', statusLabel: '', repo: '', approved: false, used: '', freeLeft: 0, rounds: [], canManage: false, downloadable: false, statuses: [] }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: '/clients/' + view.organizationId }, { label: 'Free landing page', href: '' }]}></breadcrumb-trail>
+    <h1>Free landing page <status-badge zb-if={view.exists} variant={view.approved ? 'success' : 'neutral'}>{view.statusLabel}</status-badge></h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">One informational page at a name of the client’s own on potomac.solutions, free for good. Four rounds of changes are free, then the final approval. Anything after that is paid, at $50 an hour or a quote.</p>
+
+    <section zb-if={view.exists} class="hq-panel" aria-labelledby="fp-where">
+      <h2 id="fp-where">{view.address || 'No address yet'}</h2>
+      <p zb-if={view.address}><a href={view.address} rel="noopener noreferrer">Open {view.address}</a></p>
+      <p><strong>{view.used}</strong><span zb-if={!view.approved}> · {view.freeLeft} left</span></p>
+      <p zb-if={view.repo} class="hq-small hq-muted">Code: {view.repo}</p>
+      <p zb-if={view.downloadable}><a class="hq-button secondary" href="/clients/{view.organizationId}/landing-page.zip">Download its code as a zip</a></p>
+    </section>
+
+    <section zb-if={view.canManage} class="hq-panel" aria-labelledby="fp-setup">
+      <h2 id="fp-setup">{view.exists ? 'Change it' : 'Record a free landing page'}</h2>
+      <form method="post" action="/clients/{view.organizationId}/landing-page" class="hq-form">
+        <text-field label="Address" name="subdomain" value={view.subdomain} maxlength={60} description="The name before .potomac.solutions, like moats-hardware. Leave empty until it’s chosen."></text-field>
+        <div class="hq-field">
+          <label for="fp-status">Where it stands</label>
+          <select id="fp-status" name="status">
+            <zb-each items={view.statuses} as="one" key={one.value}><option value={one.value} selected={one.value === (view.status || 'building')}>{one.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Repository" name="repo" value={view.repo} description="On GitHub, as owner/name, for handing the code over. Optional."></text-field>
+        <div><button class="hq-button" type="submit">Save</button></div>
+      </form>
+    </section>
+
+    <section zb-if={view.exists} class="hq-panel" aria-labelledby="fp-rounds">
+      <h2 id="fp-rounds">Rounds of changes</h2>
+      <p zb-if={view.rounds.length === 0} class="hq-muted">None asked for yet.</p>
+      <ol zb-else class="fp-rounds">
+        <zb-each items={view.rounds} as="round" key={round.id}>
+          <li id="round-{round.number}">
+            <p><strong>Round {round.number}</strong> <status-badge variant={round.free ? 'neutral' : 'warning'}>{round.free ? 'Free' : 'Paid'}</status-badge> <status-badge zb-if={round.done} variant="success">Done</status-badge></p>
+            <p class="fp-text">{round.text}</p>
+            <p class="hq-small hq-muted">{round.from}, {round.when}</p>
+            <form zb-if={view.canManage && !round.done} method="post" action="/landing-page-rounds/{round.id}/done">
+              <input type="hidden" name="organizationId" value={view.organizationId}>
+              <button class="hq-button secondary small" type="submit">{round.free ? 'Mark done' : 'Priced'}<span class="sr-only">: round {round.number}</span></button>
+            </form>
+          </li>
+        </zb-each>
+      </ol>
+      <details zb-if={view.canManage} class="hq-more" id="record" data-spaced>
+        <summary>Write down a round asked for by phone or email</summary>
+        <form method="post" action="/clients/{view.organizationId}/landing-page/rounds" class="hq-form">
+          <text-field label="What they asked to change" name="text" rows={4} required={true} maxlength={4000}></text-field>
+          <div><button class="hq-button" type="submit">Write it down</button></div>
+        </form>
+      </details>
+    </section>
+  </div>
+</hq-landing-page>
