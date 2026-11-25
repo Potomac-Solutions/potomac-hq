@@ -365,10 +365,11 @@
       <p zb-if={renewals.items.length === 0} class="hq-muted">Domains, hosting, certificates and licenses this client depends on. Each shows on the dashboard 30 days before it renews.</p>
       <ul zb-else class="hq-list">
         <zb-each items={renewals.items} as="one" key={one.id}>
-          <li>
+          <li id="renewal-{one.id}">
             <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <status-badge zb-if={one.state === 'overdue'} variant="danger">Overdue</status-badge></p>
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <p zb-if={one.answerText} class="hq-small"><status-badge variant={one.answer === 'lapse' ? 'warning' : 'success'}>{one.answer === 'lapse' ? 'Let it lapse' : 'Renew it'}</status-badge> {one.answerText}</p>
             <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
             <form zb-if={one.canBill} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
               <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>

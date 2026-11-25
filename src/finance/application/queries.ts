@@ -286,6 +286,54 @@ function invoiceSuggestions(budget: Money | null, invoices: readonly Invoice[]):
   return { deposit: plain(depositShare(budget.minor)), balance: plain(budget.minor - invoiced), full: plain(budget.minor) };
 }
 
+export const INVOICE_FILTERS = ["unpaid", "overdue", "drafts", "paid", "void", "all"] as const;
+export type InvoiceFilter = (typeof INVOICE_FILTERS)[number];
+const FILTER_LABELS: Readonly<Record<InvoiceFilter, string>> = { unpaid: "Waiting for payment", overdue: "Overdue", drafts: "Drafts", paid: "Paid", void: "Voided", all: "All" };
+
+export type InvoicesView = {
+  readonly filter: InvoiceFilter;
+  readonly filters: readonly { readonly value: InvoiceFilter; readonly label: string; readonly count: number; readonly current: boolean }[];
+  readonly items: readonly (InvoiceRowView & { readonly clientName: string; readonly organizationId: string; readonly projectName: string; readonly forWhat: string })[];
+  /** Owed on everything sent and not paid, overdue among it, and drafts not sent yet. */
+  readonly totals: { readonly owed: string; readonly overdue: string; readonly drafts: string };
+  /** Owed, by client, most first: who owes us what. */
+  readonly byClient: readonly { readonly organizationId: string; readonly clientName: string; readonly owed: string; readonly overdue: boolean }[];
+};
+
+/** Money → Invoices: every invoice, on a project or not, by where it stands. `invoice.view`. */
+export function invoicesOverview(deps: FinanceDeps, actorId: Id | null, wanted: string | null): Result<InvoicesView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const today = deps.today();
+  const filter: InvoiceFilter = (INVOICE_FILTERS as readonly string[]).includes(wanted ?? "") ? (wanted as InvoiceFilter) : "unpaid";
+  const all = deps.invoices.list().reverse();
+  const owedOf = (one: InvoiceRow) => (one.status === "sent" ? Math.max(0, one.total.minor - one.paidMinor) : 0);
+  const overdue = (one: InvoiceRow) => one.status === "sent" && one.dueOn !== null && one.dueOn < today;
+  const matches: Readonly<Record<InvoiceFilter, (one: InvoiceRow) => boolean>> = {
+    unpaid: (one) => one.status === "sent",
+    overdue,
+    drafts: (one) => one.status === "draft",
+    paid: (one) => one.status === "paid",
+    void: (one) => one.status === "void",
+    all: () => true,
+  };
+  const byClient = new Map<string, { clientName: string; owed: number; overdue: boolean }>();
+  for (const one of all.filter((invoice) => invoice.status === "sent")) {
+    const was = byClient.get(one.organizationId) ?? { clientName: one.clientName, owed: 0, overdue: false };
+    byClient.set(one.organizationId, { clientName: was.clientName, owed: was.owed + owedOf(one), overdue: was.overdue || overdue(one) });
+  }
+  const sum = (list: readonly InvoiceRow[], amount: (one: InvoiceRow) => number) => formatMoney(usd(list.reduce((total, one) => total + amount(one), 0)));
+  return ok({
+    filter,
+    filters: INVOICE_FILTERS.map((value) => ({ value, label: FILTER_LABELS[value], count: all.filter(matches[value]).length, current: value === filter })),
+    items: all.filter(matches[filter]).map((one) => ({ ...invoiceRowView(one, today), clientName: one.clientName, organizationId: one.organizationId, projectName: one.projectName, forWhat: one.projectName || one.lines[0]?.description || "" })),
+    totals: { owed: sum(all, owedOf), overdue: sum(all.filter(overdue), owedOf), drafts: sum(all.filter((one) => one.status === "draft"), (one) => one.total.minor) },
+    byClient: [...byClient]
+      .filter(([, one]) => one.owed > 0)
+      .sort(([, a], [, b]) => b.owed - a.owed)
+      .map(([organizationId, one]) => ({ organizationId, clientName: one.clientName, owed: formatMoney(usd(one.owed)), overdue: one.overdue })),
+  });
+}
+
 /** A client's invoices, on a project or not, and whether this person may bill them for a one-off charge. `invoice.view`. */
 export type ClientInvoicesView = {
   readonly items: readonly (InvoiceRowView & { readonly projectName: string })[];

@@ -43,3 +43,24 @@ $10 a year.
   page's breadcrumb leads to the client, not a project's Money page.
 - Reminder emails leave out "for <project>" when there is none.
 - Decision 0006's "needs a project" consequence no longer holds.
+
+## Added the same day: billing renewals in time, and the client's answer
+
+Asked for by Mikey after a look at what admins, managers and clients see.
+
+- **Today says to bill a renewal from 30 days before it renews** ("Bill
+  betterdaystowing.com", due a week before it renews), so the bill goes out
+  before the client's pay-by day. Before, a renewal showed on Today only in
+  the week it renewed, already past that day. Once the pay-by day passes
+  unpaid, Today says it "isn't paid", to decide.
+- **The client answers in the portal: "Renew it" or "Let it lapse"**
+  (migration 0074, on `renewal`: the answer, the renewal date it was for,
+  when, and who). An answer counts for one term; marking it renewed starts
+  the next term unanswered. They may change their mind until the day it
+  renews, but not once it's paid. A renewal they let lapse isn't offered for
+  billing, and Today says "Let <it> lapse". Every answer is in the activity
+  log, by the client user.
+- **Money → Invoices** lists every invoice, filtered by where it stands, with
+  what's owed, what's overdue, drafts not sent, and who owes what.
+- **The portal names a no-project invoice by its first line** ("Domain name,
+  one year"), not a vague "for your business".

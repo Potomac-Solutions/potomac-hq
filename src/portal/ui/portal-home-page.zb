@@ -167,6 +167,10 @@
               <p class={one.state === 'late' ? '' : 'hq-muted'}>{one.say}</p>
             </div>
             <a zb-if={one.owing} class="hq-button portal-big" href="#invoices">How to pay</a>
+            <div zb-if={one.canAnswer} class="hq-form-row">
+              <form zb-if={one.answer !== 'renew'} method="post" action="/portal/renewals/{one.id}/answer"><input type="hidden" name="choice" value="renew"><button class={one.answer === 'lapse' ? 'hq-button portal-big' : 'hq-button secondary portal-big'} type="submit">Renew it<span class="sr-only">: {one.name}</span></button></form>
+              <form zb-if={one.answer !== 'lapse'} method="post" action="/portal/renewals/{one.id}/answer"><input type="hidden" name="choice" value="lapse"><button class="hq-button secondary portal-big" type="submit">Let it lapse<span class="sr-only">: {one.name}</span></button></form>
+            </div>
           </li>
         </zb-each>
       </ul>

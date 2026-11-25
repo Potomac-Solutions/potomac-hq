@@ -20,6 +20,9 @@ import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Resu
 import type { PortalDeps } from "./staff-side.ts";
 
 /** The client a Cookie header is signed in as, or null. Read from storage every time. */
+/** What an invoice is for, as the client reads it: its project, or for a charge with none, its first line ("Domain name, one year"). */
+const forWhat = (invoice: { readonly projectName: string; readonly lines: readonly { readonly description: string }[] }): string => invoice.projectName || invoice.lines[0]?.description || "Your account";
+
 export function clientSession(deps: PortalDeps, cookieHeader: string): ClientSession | null {
   const who = deps.auth.session(cookieHeader);
   return who ? sessionFor(deps.clientUsers.byPortalAccount(who.account)) : null;
@@ -155,7 +158,7 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
   }
   for (const invoice of unpaid) {
     const due = invoice.dueOn ? ((daysUntil(invoice.dueOn, today) ?? 0) < 0 ? ` It was due ${friendlyDay(invoice.dueOn, today)}.` : ` Due ${dueText(invoice.dueOn, today)}.`) : "";
-    attention.push({ key: `i-${invoice.id}`, text: `Pay invoice ${invoiceLabel(invoice.number)}: ${formatMoney({ minor: owedOn(invoice), currency: invoice.total.currency })}`, detail: `${invoice.projectName || "For your business"}.${due}`, href: "/portal#invoices", action: "How to pay" });
+    attention.push({ key: `i-${invoice.id}`, text: `Pay invoice ${invoiceLabel(invoice.number)}: ${formatMoney({ minor: owedOn(invoice), currency: invoice.total.currency })}`, detail: `${forWhat(invoice)}.${due}`, href: "/portal#invoices", action: "How to pay" });
   }
 
   const latest = projects
@@ -182,7 +185,7 @@ export function portalHome(deps: PortalDeps, session: ClientSession): PortalHome
       return {
         id: invoice.id,
         label: invoiceLabel(invoice.number),
-        projectName: invoice.projectName,
+        projectName: forWhat(invoice),
         paid,
         statusLabel: paid ? "Paid, thank you" : "Waiting for payment",
         total: formatMoney(invoice.total),

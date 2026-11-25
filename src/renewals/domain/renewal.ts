@@ -40,7 +40,16 @@ export type Renewal = {
   /** The invoice last sent for it, and the renewal date that invoice was for. Null until it is first billed. */
   readonly invoiceId: Id | null;
   readonly billedFor: string | null;
+  /** The client's answer in the portal, and the renewal date it was for. Null until they answer. */
+  readonly answer: { readonly choice: RenewalChoice; readonly forTerm: string; readonly at: string; readonly by: Id } | null;
 };
+
+export const RENEWAL_CHOICES = ["renew", "lapse"] as const;
+export type RenewalChoice = (typeof RENEWAL_CHOICES)[number];
+export const isRenewalChoice = (value: string): value is RenewalChoice => (RENEWAL_CHOICES as readonly string[]).includes(value);
+
+/** The client's answer for the coming term, or null: an answer for an earlier term doesn't count. */
+export const answerThisTerm = (renewal: Renewal): RenewalChoice | null => (renewal.answer && renewal.answer.forTerm === renewal.renewsOn ? renewal.answer.choice : null);
 
 export type RenewalInput = { readonly kind: string; readonly name: string; readonly provider?: string | null; readonly renewsOn: string; readonly termMonths: string; readonly cost?: string | null; readonly price?: string | null; readonly autoRenews?: boolean; readonly note?: string | null };
 export type RenewalError = "invalid-kind" | "name-missing" | "name-too-long" | "provider-too-long" | "invalid-date" | "invalid-term" | "not-an-amount" | "note-too-long";
@@ -68,7 +77,7 @@ export function newRenewal(ids: { readonly id: Id; readonly organizationId: Id }
   if (!price.ok) return price;
   const note = optionalText(input.note, 500);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true, invoiceId: null, billedFor: null });
+  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true, invoiceId: null, billedFor: null, answer: null });
 }
 
 /** Renewed: its date moves on one term, from the date it was due, not from today. */
