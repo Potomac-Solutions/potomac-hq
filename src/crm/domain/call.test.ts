@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
+import { addBusinessDays, fillScript, readReturnTo, callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
 
 const AT = "2026-11-25T15:00:00.000Z";
 const ids = { id: "c1" as Id, organizationId: "o1" as Id, contactId: null, opportunityId: null, bookingId: null, userId: "u1" as Id, phone: "304-555-0100", startedAt: AT };
@@ -76,4 +76,22 @@ test("timers and lengths read plainly", () => {
   assert.equal(lengthText(14), "14 min");
   assert.equal(lengthText(65), "1 h 5 min");
   assert.equal(lengthText(120), "2 h");
+});
+
+test("trying again skips the weekend", () => {
+  assert.equal(addBusinessDays("2026-11-25", 2), "2026-11-27", "Wednesday to Friday");
+  assert.equal(addBusinessDays("2026-11-27", 2), "2026-12-01", "Friday to Tuesday");
+  assert.equal(addBusinessDays("2026-11-28", 2), "2026-12-01", "Saturday to Tuesday");
+});
+
+test("the voicemail script fills its blanks, plainly when there's nothing to fill them", () => {
+  const script = "Hi {name}, this is {me}, about {about}.";
+  assert.equal(fillScript(script, { name: "Dale Hensley", me: "Mikey Nichols", about: "the new website" }), "Hi Dale, this is Mikey, about the new website.");
+  assert.equal(fillScript(script, { name: "", me: "", about: "" }), "Hi there, this is me, about your project.");
+  assert.equal(fillScript("{unknown} stays", { name: "a", me: "b", about: "c" }), "{unknown} stays");
+});
+
+test("a call only goes back to a page in HQ", () => {
+  assert.equal(readReturnTo("/today#calls-to-make"), "/today#calls-to-make");
+  for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example", "today", "", "/" + "x".repeat(200), "/a b"]) assert.equal(readReturnTo(bad), null, bad);
 });

@@ -31,6 +31,8 @@ export type Call = {
   readonly touchId: Id | null;
   /** The guide on the screen: a situation from call-guide.ts, or null before guides (migration 0053). */
   readonly guide: string | null;
+  /** Where ending the call goes: the list it was started from, or null for the client's call log. */
+  readonly returnTo: string | null;
 };
 
 export type CallError = "invalid-length" | "call-ended" | "note-too-long";
@@ -54,7 +56,7 @@ export function plannedFromBooking(startsAt: string, endsAt: string): number {
 
 export function startCall(ids: Pick<Call, "id" | "organizationId" | "contactId" | "opportunityId" | "bookingId" | "userId" | "phone" | "startedAt">, plannedMinutes: number = DEFAULT_CALL_MINUTES, guide: string | null = null): Result<Call, "invalid-length"> {
   if (!validLength(plannedMinutes)) return err("invalid-length");
-  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null, guide });
+  return ok({ ...ids, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes), note: "", endedAt: null, touchId: null, guide, returnTo: null });
 }
 
 const validLength = (minutes: number) => Number.isInteger(minutes) && minutes >= MIN_CALL_MINUTES && minutes <= MAX_CALL_MINUTES && minutes % CALL_STEP_MINUTES === 0;
@@ -129,4 +131,36 @@ export function lengthText(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** After a voicemail or no answer, try again this many business days later. Default to confirm (decision 0009, section 5). */
+export const RETRY_BUSINESS_DAYS = 2;
+/** An invoice this many days late is worth a call. Default to confirm (decision 0009, section 5). */
+export const OVERDUE_CALL_DAYS = 7;
+
+/** `days` business days after `day`, skipping Saturdays and Sundays: Friday plus 2 is Tuesday. */
+export function addBusinessDays(day: string, days: number): string {
+  let date = Temporal.PlainDate.from(day);
+  let left = days;
+  while (left > 0) {
+    date = date.add({ days: 1 });
+    if (date.dayOfWeek <= 5) left -= 1;
+  }
+  return date.toString();
+}
+
+/**
+ * The voicemail script with its blanks filled: {name} is their first name,
+ * {me} yours, {about} what the call is about. A blank with nothing to fill it
+ * is said plainly ("there", "your project").
+ */
+export function fillScript(script: string, blanks: { readonly name: string; readonly me: string; readonly about: string }): string {
+  const first = (full: string) => full.trim().split(/\s+/)[0] ?? "";
+  return script.replace(/\{(name|me|about)\}/g, (_, key: string) => (key === "name" ? first(blanks.name) || "there" : key === "me" ? first(blanks.me) || "me" : blanks.about.trim() || "your project"));
+}
+
+/** Where a call goes back to when it ends: a path in HQ, never another site. */
+export function readReturnTo(text: string | null | undefined): string | null {
+  const to = (text ?? "").trim();
+  return /^\/(?![\/\\])[\x21-\x7e]{0,199}$/.test(to) ? to : null;
 }
