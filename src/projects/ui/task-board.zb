@@ -8,21 +8,45 @@
 <script>
   import '../../shared/ui/zubra/status-badge.zb'
   import './label-chips.zb'
+  // Three ways to move a card (decision 0014): drag it with a mouse, drag its
+  // grip with a finger, or focus it and press Space, the arrow keys and Space
+  // again. Each one sets the card's own menu and sends its form.
   let over = ''
   let dragging = ''
   let from = ''
+  let held = ''
+  let touching = ''
+  let said = ''
+  let touch = null
+  const statusAt = (index) => board.columns[index]
+  const indexOf = (status) => board.columns.findIndex((column) => column.status === status)
 
+  function moveTo(id, status) {
+    const allowed = from !== '' && status && status !== from
+    end()
+    if (!allowed || !/^[0-9a-f-]{36}$/.test(id)) return false
+    const form = document.getElementById('move-' + id)
+    const select = form ? form.querySelector('select') : null
+    if (!select || select.dataset.now === status) return false
+    select.value = status
+    form.requestSubmit()
+    return true
+  }
+  function end() {
+    dragging = ''
+    from = ''
+    over = ''
+    held = ''
+    touching = ''
+  }
+
+  // ── With a mouse ──
   function start(event, id, status) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', id)
     from = status
     // Let the browser take its picture of the card before it fades.
     requestAnimationFrame(() => { if (from) dragging = id })
-  }
-  function end() {
-    dragging = ''
-    from = ''
-    over = ''
   }
   function enter(event, status) {
     if (!from || status === from) return
@@ -36,16 +60,78 @@
   }
   function drop(event, status) {
     event.preventDefault()
-    const id = event.dataTransfer.getData('text/plain')
-    const allowed = from !== '' && from !== status
-    end()
-    if (!allowed) return
-    if (!/^[0-9a-f-]{36}$/.test(id)) return
-    const form = event.currentTarget.getRootNode().querySelector('#move-' + id)
-    const select = form ? form.querySelector('select') : null
-    if (!select || select.dataset.now === status) return
-    select.value = status
-    form.requestSubmit()
+    moveTo(event.dataTransfer.getData('text/plain'), status)
+  }
+
+  // ── With the keyboard ──
+  function key(event, card, column) {
+    if (event.target !== event.currentTarget || !board.canMove) return
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault()
+      if (held !== card.id) {
+        held = card.id
+        dragging = card.id
+        from = column.status
+        over = ''
+        said = 'Picked up ' + card.title + ', in ' + column.label + '. Left and right arrows choose a column, Space drops it, Escape puts it back.'
+        return
+      }
+      const target = board.columns.find((one) => one.status === over)
+      if (!target) {
+        said = card.title + ' put back in ' + column.label + '.'
+        return end()
+      }
+      said = card.title + ' moved to ' + target.label + '.'
+      return void moveTo(card.id, target.status)
+    }
+    if (held !== card.id) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      said = card.title + ' put back in ' + column.label + '.'
+      return end()
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      const step = event.key === 'ArrowLeft' ? -1 : 1
+      let index = indexOf(over || from) + step
+      if (statusAt(index) && statusAt(index).status === from) index += step
+      const target = statusAt(index)
+      if (!target) return
+      over = target.status
+      said = 'Over ' + target.label + '.'
+    }
+  }
+
+  // ── With a finger, by the grip ──
+  function touchStart(event, id, status) {
+    if (event.pointerType === 'mouse' || !board.canMove) return
+    event.preventDefault()
+    const grip = event.currentTarget
+    try { grip.setPointerCapture(event.pointerId) } catch {}
+    touch = { card: grip.closest('li'), x: event.clientX, y: event.clientY, scroll: scrollY, id }
+    from = status
+    dragging = id
+    touching = id
+  }
+  function touchMove(event) {
+    if (!touch) return
+    const dx = event.clientX - touch.x
+    const dy = event.clientY - touch.y + (scrollY - touch.scroll)
+    touch.card.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) rotate(1.5deg)'
+    if (event.clientY < 70) scrollBy(0, -14)
+    else if (event.clientY > innerHeight - 70) scrollBy(0, 14)
+    const lane = [...touch.card.closest('.board').querySelectorAll('section.board-column')].find((section) => {
+      const box = section.getBoundingClientRect()
+      return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
+    })
+    over = lane && lane.dataset.status !== from ? lane.dataset.status : ''
+  }
+  function touchEnd(cancelled) {
+    if (!touch) return
+    touch.card.style.transform = ''
+    const id = touch.id
+    touch = null
+    if (cancelled || !over || !moveTo(id, over)) end()
   }
 </script>
 <style>
@@ -65,9 +151,14 @@
   .board-card[draggable=true] { cursor: grab; padding-left: 1.5rem; }
   .board-card[draggable=true]:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--ring) 60%, var(--border)); box-shadow: 0 8px 20px rgb(0 0 0 / 0.12); }
   .board-card[draggable=true]:active { cursor: grabbing; }
-  .board-grip { position: absolute; top: 0.8rem; left: 0.4rem; width: 0.75rem; height: 1.15rem; color: var(--muted-foreground); opacity: 0.55; }
+  .board-grip { width: 0.75rem; height: 1.15rem; color: var(--muted-foreground); opacity: 0.55; }
   .board-card:hover .board-grip { opacity: 1; color: var(--ring); }
   .board-card.board-card-dragging { opacity: 0.4; transform: none; box-shadow: none; border-style: dashed; border-color: var(--ring); }
+  /* Picked up with the keyboard or a finger: it stays solid and lifts. */
+  .board-card.board-card-held { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent), 0 12px 28px rgb(0 0 0 / 0.18); }
+  .board-card.board-card-lifted { z-index: 30; transition: none; opacity: 0.95; border-color: var(--ring); box-shadow: 0 18px 40px rgb(0 0 0 / 0.25); }
+  .board-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .board-grip-handle { position: absolute; inset: 0 auto 0 0; width: 1.5rem; display: flex; justify-content: center; padding-top: 0.8rem; touch-action: none; cursor: grab; }
   @media (prefers-reduced-motion: reduce) { .board-card, .board-column { transition: none; } .board-card[draggable=true]:hover { transform: none; } }
   .board-card p { margin: 0; }
   .board-meta { color: var(--muted-foreground); font-size: 0.85rem; }
@@ -77,16 +168,18 @@
   .board-empty { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
 </style>
 <task-board board={{ columns: [], statuses: [], canMove: false, returnTo: "", project: null }}>
+  <p zb-if={board.canMove} id="board-how" class="sr-only">Drag a card by its grip to another column. With the keyboard, press Space, then the arrow keys, then Space again.</p>
+  <p class="sr-only" aria-live="assertive">{said}</p>
   <div class="board" class:board-dragging={dragging !== ''}>
     <zb-each items={board.columns} as="column" key={column.status}>
-      <section class="board-column" class:board-over={over === column.status} class:board-home={dragging !== '' && from === column.status} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
+      <section class="board-column" data-status={column.status} class:board-over={over === column.status} class:board-home={dragging !== '' && from === column.status} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
         <h2 id="column-{column.status}"><span>{column.label}</span> <status-badge>{column.cards.length}</status-badge></h2>
         <div zb-if={dragging !== '' && from !== column.status} class="board-drop-hint" aria-hidden="true">Drop to move here</div>
         <p zb-if={column.cards.length === 0 && dragging === ''} class="board-empty">Nothing here.</p>
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
-            <li class="board-card" class:board-card-dragging={dragging === card.id} draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id, card.status)} ondragend={end}>
-              <svg zb-if={board.canMove} class="board-grip" aria-hidden="true" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg>
+            <li class="board-card" data-vt="card-{card.id}" class:board-card-dragging={dragging === card.id && held === '' && touching === ''} class:board-card-held={held === card.id} class:board-card-lifted={touching === card.id} draggable={board.canMove ? "true" : "false"} tabindex={board.canMove ? "0" : null} aria-roledescription={board.canMove ? "movable card" : null} aria-describedby={board.canMove ? "board-how" : null} aria-label="{card.title}, {column.label}" ondragstart={(event) => start(event, card.id, card.status)} ondragend={() => end()} onkeydown={(event) => key(event, card, column)} onblur={(event) => { if (held === card.id && !event.currentTarget.contains(event.relatedTarget)) end() }}>
+              <span zb-if={board.canMove} class="board-grip-handle" aria-hidden="true" onpointerdown={(event) => touchStart(event, card.id, card.status)} onpointermove={touchMove} onpointerup={() => touchEnd(false)} onpointercancel={() => touchEnd(true)}><svg class="board-grip" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg></span>
               <p><a draggable="false" href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
               <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={card.subtasks || card.waiting > 0} class="board-meta"><span zb-if={card.subtasks}>Subtasks {card.subtasks}</span><span zb-if={card.subtasks && card.waiting > 0}> · </span><span zb-if={card.waiting > 0}>Waiting on {card.waiting}</span></p>
