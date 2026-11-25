@@ -15,6 +15,8 @@ import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes } from "./dashboard/api/nav-routes.ts";
 import { pushRoutes } from "./push/api/push-routes.ts";
+import { undoRoutes } from "./undo/api/undo-routes.ts";
+import { rememberUndo, undoOffer } from "./undo/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
@@ -529,6 +531,8 @@ export type PageContext = {
   workload(): { readonly lines: readonly WorkloadLine[]; readonly week: string } | null;
   /** Phone alerts: whether they're set up, the key a browser subscribes with, and this person's devices. */
   push(): DevicesView;
+  /** The Undo a page offers after a change (?undo=), if it's this person's and still undoable. */
+  undo(id: string): { readonly id: string; readonly label: string } | null;
   /** The role an admin is viewing HQ as, read-only, or null. */
   readonly preview: { readonly role: string; readonly label: string } | null;
   /** Whether this person may view HQ as another role (an admin, not already previewing). */
@@ -1132,6 +1136,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
         push: () => devicesFor(services.push, actor, services.formatWhen),
+        undo: (id) => undoOffer(services.undo, actor, id),
         preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
         canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
         workload: () => {
@@ -1303,7 +1308,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
   forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
+  const rememberUndo_ = (actor: Id, step: Parameters<typeof rememberUndo>[2]) => rememberUndo(services.undo, actor, step);
+  forms.route("/", undoRoutes({ undo: services.undo, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, undo: rememberUndo_, sign: (location) => notices.sign(location), feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: (location) => notices.sign(location) }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
@@ -1526,7 +1533,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: (location) => notices.sign(location) }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, undo: rememberUndo_, sign: (location) => notices.sign(location) }));
   forms.route("/", shareRoutes({ projects: projectsDeps, sign: (location) => notices.sign(location), allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
   forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: (location) => notices.sign(location), secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
   forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: (location) => notices.sign(location) }));

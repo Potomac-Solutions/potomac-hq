@@ -18,6 +18,8 @@ export type ProjectRoutesDeps = {
   readonly projects: projects.ProjectsDeps;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
+  /** Records a change that Undo can put back, and answers its id (quality of life, 2026-11-25). */
+  readonly undo?: (actorId: Id, step: { readonly kind: "task-status"; readonly recordId: string; readonly was: string; readonly label: string }) => string;
   /** The page that shows a new calendar address, once. */
   readonly feedPage?: (view: { readonly address: string; readonly replaced: boolean }) => string;
   /** The page that shows a new share link, once. */
@@ -107,8 +109,19 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     message: "Task saved.",
   });
   const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
-  post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
-    done: (_, id, f) => back(id, f),
+  const STATUS_NAMES: Readonly<Record<string, string>> = { todo: "To do", doing: "Working on", blocked: "Blocked", done: "Done" };
+  post("/tasks/:id/status", (actor, f, id) => {
+    const was = deps.projects.tasks.get(id as Id)?.status ?? "";
+    const moved = projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? "");
+    if (!moved.ok || !deps.undo || actor === null) return moved.ok ? { ok: true as const, value: { ...moved.value, undo: null as string | null } } : moved;
+    return { ok: true as const, value: { ...moved.value, undo: deps.undo(actor, { kind: "task-status", recordId: id as string, was, label: `Moved “${moved.value.title}” to ${STATUS_NAMES[moved.value.status] ?? moved.value.status}` }) } };
+  }, {
+    done: (task, id, f) => {
+      const to = back(id, f);
+      if (!task.undo) return to;
+      const [path = "", hash = ""] = to.split("#");
+      return `${path}${path.includes("?") ? "&" : "?"}undo=${task.undo}${hash ? `#${hash}` : ""}`;
+    },
     back,
     // Blocked tasks may be worked on; this says what they are still waiting on.
     message: (task) =>

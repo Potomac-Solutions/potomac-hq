@@ -39,8 +39,11 @@
     const chat = chatOpen ? context.assistant() : null
     const join = (href, add) => href + (href.includes('?') ? '&' : '?') + add
     const askHref = path === '/' ? '/#chat' : join(here, 'chat=open') + '#assistant'
+    // Undo after an everyday change (quality of life, 2026-11-25).
+    const undo = context.user && url.searchParams.get('undo') ? context.undo(url.searchParams.get('undo')) : null
+    const undoBack = path + url.search.replace(/[?&](undo|done|problem)=[^&]*/g, '').replace(/^&/, '?')
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', preview: context.user ? context.preview : null, groups, aiDrafts, draftHub, pins, here, askOn, chat, askHref, closeHref: here, atHome: path === '/', searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', preview: context.user ? context.preview : null, groups, aiDrafts, draftHub, pins, here, askOn, chat, askHref, closeHref: here, atHome: path === '/', undo, undoBack, searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready }
   }
 
   let menu = false
@@ -242,6 +245,8 @@
   .hq-main:focus { outline: none; }
   .hq-main.narrow { max-width: 64rem; padding: 1.5rem 1rem 3rem; }
 
+  .hq-undo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 1rem; padding: 0.5rem 0.75rem; font-size: 0.9rem; color: var(--background); background: var(--foreground); border-radius: calc(var(--radius) - 2px); }
+  .hq-undo .hq-account-action { color: var(--foreground); }
   .hq-restored { margin: 0 0 1rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; color: var(--label-amber-fg); background: var(--label-amber-bg); border-radius: calc(var(--radius) - 2px); }
   .hq-pin-form { display: inline; margin: 0; }
   .hq-pin-form button { gap: 0.3rem; }
@@ -267,7 +272,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" preview={null} groups={[]} ai-drafts={0} draft-hub="" pins={{ items: [], here: false, href: '/' }} here="/" ask-on={false} chat={null} ask-href="/" close-href="/" at-home={false} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
+<hq-app who="" preview={null} groups={[]} ai-drafts={0} draft-hub="" pins={{ items: [], here: false, href: '/' }} here="/" ask-on={false} chat={null} ask-href="/" close-href="/" at-home={false} undo={null} undo-back="/" searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -341,6 +346,11 @@
         </div>
       </header>
       <main id="main" class="hq-main" tabindex="-1">
+        <form zb-if={undo} method="post" action="/undo/{undo.id}" class="hq-undo" role="status">
+          <span>{undo.label}.</span>
+          <input type="hidden" name="back" value={undoBack}>
+          <button class="hq-account-action" type="submit">Undo</button>
+        </form>
         <p zb-if={restored > 0} class="hq-restored" role="status">{restored === 1 ? 'Brought back what you were typing here before.' : 'Brought back ' + restored + ' things you were typing here before.'} It wasn’t sent yet.</p>
         <zb-slot></zb-slot>
       </main>

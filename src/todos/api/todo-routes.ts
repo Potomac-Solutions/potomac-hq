@@ -25,7 +25,16 @@ export function backTo(form: Readonly<Record<string, string>>): string {
   return back === "everyone" || form["everyone"] === "1" ? "/todos?everyone=1" : "/todos";
 }
 
-export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
+/** An address with ?undo= added, before any #. */
+const withUndo = (location: string, undo: string | null): string => {
+  if (!undo) return location;
+  const [path = "", hash = ""] = location.split("#");
+  return `${path}${path.includes("?") ? "&" : "?"}undo=${undo}${hash ? `#${hash}` : ""}`;
+};
+
+type Remember = (actorId: Id, step: { readonly kind: "todo-done" | "todo-reopen"; readonly recordId: string; readonly was: string; readonly label: string }) => string;
+
+export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string; readonly undo?: Remember }): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/todos" });
   post("/todos", (actor, f) => addTodo(deps.todos, actor, { title: f["title"] ?? "", dueOn: f["dueOn"] ?? null, assigneeId: f["assigneeId"] ?? null, clientId: f["clientId"] ?? null, opportunityId: f["opportunityId"] ?? null }), {
@@ -33,7 +42,13 @@ export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: 
     back: (_id, f) => backTo(f),
     message: "Added.",
   });
-  post("/todos/:id/done", (actor, _f, id) => completeTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Done." });
-  post("/todos/:id/reopen", (actor, _f, id) => reopenTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Back on the list." });
+  // Ticking off or back on offers Undo for ten minutes (quality of life, 2026-11-25).
+  const tick = (done: boolean) => (actor: Id | null, _f: Readonly<Record<string, string>>, id: Id | null) => {
+    const changed = done ? completeTodo(deps.todos, actor, id as Id) : reopenTodo(deps.todos, actor, id as Id);
+    if (!changed.ok || !deps.undo || actor === null) return changed.ok ? { ok: true as const, value: { undo: null as string | null } } : changed;
+    return { ok: true as const, value: { undo: deps.undo(actor, { kind: done ? "todo-done" : "todo-reopen", recordId: id as string, was: "", label: `${done ? "Ticked off" : "Put back"} “${changed.value.title}”` }) } };
+  };
+  post("/todos/:id/done", tick(true), { done: (v, _id, f) => withUndo(backTo(f), v.undo), back: (_id, f) => backTo(f), message: "Done." });
+  post("/todos/:id/reopen", tick(false), { done: (v, _id, f) => withUndo(backTo(f), v.undo), back: (_id, f) => backTo(f), message: "Back on the list." });
   return app;
 }
