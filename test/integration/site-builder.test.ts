@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { failLostRequests, type Claude, type ClaudeAnswer, type ClaudeCall } from "../../src/builder/index.ts";
 import { actions, events, idIn, signIn, testApp, textOf, type Client, type TestApp } from "../support/harness.ts";
+import { png } from "../support/png.ts";
 
 let t: TestApp;
 let mikey: Client;
@@ -135,6 +136,39 @@ test("an older version can be shown, downloaded and restored as the newest", asy
   assert.match(textOf(await mikey.page(`/builder/${buildId}`)), /Version 3, the newest/);
   assert.equal(problemOf(await mikey.post(`/builder/${buildId}/restore`, { version: "3" })), "That is already the newest version.");
   assert.ok(actions(t.db).includes("build.restored"));
+});
+
+test("pictures are uploaded to a build, named to Claude, served in the preview and the zip, and removed", async () => {
+  const logo = png(400, 100);
+  const refused = await mikey.upload(`/builder/${buildId}/images`, { kind: "logo", alt: "" }, { field: "image", name: "logo.png", bytes: logo, type: "image/png" });
+  assert.equal(problemOf(refused), "Say what the picture shows, for someone who can’t see it.");
+  const notPicture = await mikey.upload(`/builder/${buildId}/images`, { kind: "photo", alt: "x" }, { field: "image", name: "x.png", bytes: new TextEncoder().encode("<svg/>"), type: "image/png" });
+  assert.equal(problemOf(notPicture), "That file isn’t a JPEG, PNG or WebP picture HQ can read.");
+  const added = await mikey.upload(`/builder/${buildId}/images`, { kind: "logo", alt: "Better Days Towing logo" }, { field: "image", name: "logo.png", bytes: logo, type: "image/png" });
+  assert.equal(doneOf(added), "Added. Claude can use it from your next request.");
+  const path = String(t.db.prepare("select path from build_image").get()?.["path"]);
+  assert.match(path, /^images\/logo-[0-9a-f]{12}\.png$/);
+  const page = await mikey.page(`/builder/${buildId}`);
+  assert.match(textOf(page), /Logo · 400 × 100/);
+  const thumb = /<img src="(\/builder\/[^"]+\/images\/[^"]+)"/.exec(page)?.[1] ?? "";
+  assert.equal((await mikey.get(thumb)).status, 200);
+  assert.equal((await manager.get(thumb)).status, 404);
+
+  next = answer({ summary: "Put the logo in the header.", write: [{ path: "index.html", content: `<!doctype html><html lang="en"><body><header><img src="${path}" alt="Better Days Towing logo" width="400" height="100"></header></body></html>` }], remove: [] });
+  await mikey.post(`/builder/${buildId}/ask`, { ask: "Use the logo." });
+  await runJobs();
+  assert.ok((calls.at(-1)?.message ?? "").includes(`${path} | logo | 400x100 | shows: Better Days Towing logo`));
+  const src = previewSrc(await mikey.page(`/builder/${buildId}`));
+  const served = await fetch(`${t.origin}${src}${path}`);
+  assert.equal(served.headers.get("content-type"), "image/png");
+  assert.deepEqual(new Uint8Array(await served.arrayBuffer()), logo);
+  const zip = new TextDecoder("latin1").decode(await (await mikey.get(`/builder/${buildId}/versions/4/site.zip`)).arrayBuffer());
+  assert.ok(zip.includes(`better-days-website/${path}`));
+
+  const imageId = String(t.db.prepare("select id from build_image").get()?.["id"]);
+  assert.equal(doneOf(await mikey.post(`/builder/${buildId}/images/remove`, { image: imageId })), "Removed. Ask Claude to take it off any page that shows it.");
+  assert.equal((await fetch(`${t.origin}${src}${path}`)).status, 404);
+  assert.ok(actions(t.db).includes("build.image-added") && actions(t.db).includes("build.image-removed"));
 });
 
 test("only the owner changes the model and the cap", async () => {

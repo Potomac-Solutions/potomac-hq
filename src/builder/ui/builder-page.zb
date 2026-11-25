@@ -23,8 +23,11 @@
   .builds p { margin: 0; overflow-wrap: anywhere; }
   .start { display: grid; gap: 1rem; max-width: 40rem; }
   .budget-note { margin: 0.4rem 0 0; }
+  .sources { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; border: 0; margin: 0; padding: 0; }
+  .sources legend { padding: 0; margin-bottom: 0.35rem; font-weight: 600; }
+  .sources label { display: inline-flex; gap: 0.4rem; align-items: center; }
 </style>
-<hq-builder view={{ builds: [], clients: [], budget: { spent: '', cap: '', left: '', percent: 0 }, model: '', claudeSetUp: true }} done="" problem="">
+<hq-builder view={{ builds: [], clients: [], budget: { spent: '', cap: '', left: '', percent: 0 }, model: '', claudeSetUp: true, githubSetUp: true }} done="" problem="">
   <div class="hq-page">
     <h1>Site builder</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -72,6 +75,48 @@
       </div>
       <p class="hq-small hq-muted">Starting asks Claude for the first version straight away.</p>
       <div><button class="hq-button" type="submit">Start and make the first version</button></div>
+    </form>
+    <form id="rework" method="post" action="/builder/rework" class="hq-panel start" aria-labelledby="builder-rework">
+      <h2 id="builder-rework">Rework a site they already have</h2>
+      <p class="hq-small hq-muted">HQ reads the old site first. A repository that is already plain HTML becomes version 1 as it is; anything else (a React, Vue or Zubra project, or a live site) is read as reference, and Claude rewrites it as plain files. Its pictures keep their paths.</p>
+      <div class="hq-field">
+        <label for="rework-client">Client</label>
+        <select id="rework-client" name="organizationId" required>
+          <option value="">Choose a client</option>
+          <zb-each items={view.clients} as="client" key={client.id}>
+            <option value={client.id}>{client.name}</option>
+          </zb-each>
+        </select>
+      </div>
+      <div class="hq-field">
+        <label for="rework-name">Name</label>
+        <input id="rework-name" name="name" maxlength="80" required placeholder="Better Days Towing redesign">
+      </div>
+      <fieldset class="sources">
+        <legend>Read it from</legend>
+        <label><input type="radio" name="source" value="repo" checked={view.githubSetUp} disabled={!view.githubSetUp}> Its repository on GitHub</label>
+        <label><input type="radio" name="source" value="address" checked={!view.githubSetUp}> Its address on the web</label>
+      </fieldset>
+      <div class="hq-field">
+        <label for="rework-repo">Repository</label>
+        <input id="rework-repo" name="repo" maxlength="140" placeholder="Potomac-Solutions/better-days-towing" aria-describedby="rework-repo-help" disabled={!view.githubSetUp}>
+        <p id="rework-repo-help" class="hq-small hq-muted">{view.githubSetUp ? 'Read with HQ’s GitHub token, so it must be one that token can see.' : 'HQ has no GitHub token (HQ_GITHUB_TOKEN), so only an address can be read.'}</p>
+      </div>
+      <div class="hq-field">
+        <label for="rework-branch">Branch (optional)</label>
+        <input id="rework-branch" name="branch" maxlength="100" placeholder="main" disabled={!view.githubSetUp}>
+      </div>
+      <div class="hq-field">
+        <label for="rework-address">Address</label>
+        <input id="rework-address" name="address" maxlength="300" inputmode="url" placeholder="betterdaystowing.com" aria-describedby="rework-address-help">
+        <p id="rework-address-help" class="hq-small hq-muted">The home page and up to ten pages it links to on the same site, as text. Pictures aren’t copied from an address: add them under Pictures.</p>
+      </div>
+      <div class="hq-field">
+        <label for="rework-brief">Brief</label>
+        <textarea id="rework-brief" name="brief" rows="6" maxlength="4000" aria-describedby="rework-brief-help"></textarea>
+        <p id="rework-brief-help" class="hq-small hq-muted">What should change: the look, the pages, the tone. Claude keeps the old site’s real content unless you say otherwise.</p>
+      </div>
+      <div><button class="hq-button" type="submit">Read it and rework it</button></div>
     </form>
   </div>
 </hq-builder>

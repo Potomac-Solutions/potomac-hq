@@ -62,7 +62,7 @@ import { demosList, opportunityDemos, type OpportunityDemos } from "./demos/inde
 import { demoLinkRoutes, demoRoutes } from "./demos/api/demo-routes.ts";
 import { reviewWritingRoutes, showcaseApiRoutes, showcaseDownloads, showcaseStaffRoutes, type AskMail } from "./showcase/api/showcase-routes.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
-import { buildsView, buildView, builderSettingsView, type Claude } from "./builder/index.ts";
+import { buildsView, buildView, builderSettingsView, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
 import { builderDownloads, builderRoutes } from "./builder/api/builder-routes.ts";
 import { inquiryRoutes } from "./crm/api/inquiry-routes.ts";
 import { touchRoutes } from "./crm/api/touch-routes.ts";
@@ -141,6 +141,10 @@ export type AppConfig = {
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
   readonly builderOwner?: string | null;
+  /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
+  readonly builderRepos?: RepoReader | null;
+  /** Puts site builder versions on GitHub. Without it, versions can only be downloaded. */
+  readonly builderPublishing?: SitePublishing | null;
   /** Runs a site builder request after the answer is sent. Tests give their own to wait on it. */
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set (decision 0012). Without it, AI is off. */
@@ -532,7 +536,8 @@ const MAX_FORM_BYTES = 16 * 1024;
 // own size limit: the file, plus room for the form's other fields.
 const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
-const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|case-studies\/[0-9a-f-]{36}\/shots)$/;
+// A photo or logo for the site builder, shrunk the same way (decision 0010).
+const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import|phone\/[0-9a-f-]{36}\/recap\/ai)$/;
@@ -543,7 +548,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -1509,7 +1514,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/versions\/\d{1,6}\/site\.zip$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     await router.notFound(req, res);
   }

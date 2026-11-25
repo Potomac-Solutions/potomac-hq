@@ -37,7 +37,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "note-too-long": "Keep the note under 1,000 characters.",
   "name-missing": "Give the site a name, like Nu Finish website.",
   "name-too-long": "Keep the name under 80 characters.",
-  "repo-invalid": "Enter the repository as owner/name, like Potomac-Solutions/nu-finish-site.",
+  "repo-invalid": "Enter the repository as owner/name, like Potomac-Solutions/example-site.",
   "branch-invalid": "That isn’t a branch name.",
   "content-path-invalid": "The content file is a path to a .json file in the repository, like src/content/site.json.",
   "photo-dir-invalid": "The photo folder is a path in the repository, like public/gallery.",

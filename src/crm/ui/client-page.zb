@@ -184,7 +184,7 @@
         <p zb-if={!website.githubSetUp} class="hq-muted">HQ has no GitHub token yet. Set HQ_GITHUB_TOKEN on the server first.</p>
         <form method="post" action="/clients/{view.client.id}/website" class="hq-form">
           <text-field label="What to call it" name="name" required={true} maxlength={80} description="The client sees this. Like: Nu Finish website"></text-field>
-          <text-field label="Repository" name="repo" required={true} description="On GitHub, as owner/name. Like: Potomac-Solutions/nu-finish-site"></text-field>
+          <text-field label="Repository" name="repo" required={true} description="On GitHub, as owner/name. Like: Potomac-Solutions/example-site"></text-field>
           <text-field label="Branch" name="branch" value={website.defaults.branch} required={true} description="The branch the live site builds from."></text-field>
           <text-field label="Content file" name="contentPath" value={website.defaults.contentPath} required={true}></text-field>
           <text-field label="Photo folder" name="photoDir" value={website.defaults.photoDir} required={true}></text-field>

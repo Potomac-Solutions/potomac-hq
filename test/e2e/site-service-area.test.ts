@@ -45,7 +45,7 @@ test("the owner changes where he goes, on the map, and the site has it at once",
   await staff.goto(`${t.origin}/clients/${client.id}`);
   await staff.getByText("Set up website editing").click();
   await staff.getByLabel("What to call it").fill("Better Days website");
-  await staff.getByLabel("Repository").fill("Potomac-Solutions/better-days-towing");
+  await staff.getByLabel("Repository").fill("Potomac-Solutions/example-towing");
   await staff.getByRole("button", { name: "Set up and read the site" }).click();
   await staff.getByRole("heading", { name: "Service area" }).waitFor();
   assert.equal(await staff.getByRole("heading", { name: "Nothing is waiting" }).count(), 0, "no photos to check on a site without them");

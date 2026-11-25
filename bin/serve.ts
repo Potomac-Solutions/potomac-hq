@@ -16,6 +16,7 @@
 //   HQ_GITHUB_TOKEN    reads and publishes client sites' content on GitHub; off when unset
 //   HQ_ANTHROPIC_API_KEY   the site builder's Claude API key; the builder can't ask Claude when unset
 //   HQ_SITE_BUILDER_OWNER  the email of the one person who may change the builder's model and cap
+//   HQ_GITHUB_ADMIN_TOKEN  makes the builder's new repositories; HQ_GITHUB_ORG names their organization
 //   HQ_DOCS_DIR        the documents put into the knowledge base; defaults to ./docs
 //   HQ_ANTHROPIC_API_KEY  Claude, for the AI drafts of decision 0012; AI is off when unset.
 //                      Which features are on, the model and the budget are in Settings → AI.
@@ -44,7 +45,7 @@ import { checkSites } from "../src/monitor/index.ts";
 import { endForgottenCalls } from "../src/crm/index.ts";
 import { httpSiteChecker } from "../src/monitor/adapters.ts";
 import { githubConfigFrom, githubPublisher } from "../src/websites/adapters.ts";
-import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "../src/builder/adapters.ts";
+import { builderGithub, builderOwnerFrom, claudeApi, claudeConfigFrom, githubSitePublishing, publisherConfigFrom } from "../src/builder/adapters.ts";
 import { failLostRequests } from "../src/builder/index.ts";
 import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
@@ -118,6 +119,8 @@ console.log(github ? "Client sites' content is published to GitHub." : "Site con
 
 // The site builder (decision 0010): Claude, if a key is set, and who may change its model and cap.
 const claudeConfig = claudeConfigFrom(process.env);
+// Where its versions go live: a new repository (HQ_GITHUB_ADMIN_TOKEN) or a pull request to a client's own (HQ_GITHUB_TOKEN).
+const builderPublishing = publisherConfigFrom(process.env, github?.token ?? null);
 const builderOwner = builderOwnerFrom(process.env);
 console.log(claudeConfig ? `The site builder asks Claude.${builderOwner ? "" : " Nobody can change its model or cap: HQ_SITE_BUILDER_OWNER is not set."}` : "The site builder can't ask Claude: HQ_ANTHROPIC_API_KEY is not set.");
 
@@ -130,6 +133,8 @@ const app = await createApp({
   ai: aiModel,
   claude: claudeConfig ? claudeApi(claudeConfig) : null,
   builderOwner,
+  builderRepos: github ? builderGithub(github) : null,
+  builderPublishing: builderPublishing.token || builderPublishing.adminToken ? githubSitePublishing(builderPublishing) : null,
   sitePublisher: github ? githubPublisher(github) : null,
   siteArchive: github ? githubArchive(github) : null,
   formOrigins,

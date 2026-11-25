@@ -67,7 +67,7 @@ closed site is a page that says not to list it.
 ## What a site has to do
 
 Read `launch` from its content file before drawing anything, as
-`nu-finish-site` does in `src/launch.js` and `src/App.jsx`. A site that
+the Nu Finish site does in `src/launch.js` and `src/App.jsx`. A site that
 does not is unaffected by the block and always open. HQ cannot tell which
 kind a site is, so setting a status on one that ignores it does nothing.
 

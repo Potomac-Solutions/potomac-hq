@@ -339,9 +339,26 @@ darker", "add a page for towing rates"). Each answer is a new version.
 Show an older one, download any one as a .zip, or make an older one the
 newest again.
 
+To redo a site a client already has, use "Rework a site they already
+have" instead: give its repository (one HQ's GitHub token can read) or its
+address, and say in the brief what should change. A repository that is
+already plain HTML becomes version 1 as it was; anything else is read and
+Claude rewrites it. Pictures from a repository come along with "From the
+old site" as their description; fix those under Pictures.
+
+Under Pictures, add the client's photos and logo. Say what each one shows:
+Claude reads that to decide where it goes, and the site uses it as the
+picture's description. Ask Claude to use them once they're added.
+
 Claude only uses the facts it's given. Where something is missing it
 writes a placeholder in square brackets, like [Hours: ask the owner]:
 look for those before a site goes anywhere.
+
+When it's right, put it on GitHub under "Put it on GitHub": a new private
+repository under Potomac-Solutions, or a pull request to the client's own
+repository. A new repository then needs connecting to Railway or Netlify
+once; after that, each publish rebuilds the site. Later versions go the
+same way as the first.
 
 Each request shows what it cost. This month's spending and what's left
 are at the top. A request that could pass the monthly cap isn't sent;
