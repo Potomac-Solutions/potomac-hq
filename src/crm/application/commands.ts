@@ -121,14 +121,15 @@ export function setOpportunityValue(
   actorId: Id | null,
   opportunityId: Id,
   input: { readonly pricing: string; readonly amount: string },
-): Result<Opportunity, Refused | ValueError | "not-an-amount" | "not-whole-minor-units" | "unknown-currency"> {
+): Result<Opportunity & { readonly previous: Opportunity }, Refused | ValueError | "not-an-amount" | "not-whole-minor-units" | "unknown-currency"> {
   if (!allowed(deps, actorId, "opportunity.set-value")) return err("forbidden");
   const amount = parseAmount(input.pricing === "free" && input.amount.trim() === "" ? "0" : input.amount, "USD");
   if (!amount.ok) return amount;
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    return applyOpportunityValue(deps, actorId, opportunity, input.pricing, amount.value);
+    const priced = applyOpportunityValue(deps, actorId, opportunity, input.pricing, amount.value);
+    return priced.ok ? ok({ ...priced.value, previous: opportunity }) : priced;
   });
 }
 
@@ -210,7 +211,7 @@ export function moveOpportunity(
   actorId: Id | null,
   opportunityId: Id,
   input: { readonly to: string; readonly lostReason?: string | null; readonly byHand?: boolean },
-): Result<Opportunity & { readonly from: Stage; readonly undoable: boolean }, Refused | StageError | "has-project"> {
+): Result<Opportunity & { readonly from: Stage; readonly fromLostReason: string; readonly undoable: boolean }, Refused | StageError | "has-project"> {
   if (!allowed(deps, actorId, "opportunity.set-stage")) return err("forbidden");
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
@@ -218,12 +219,12 @@ export function moveOpportunity(
     const moved = applyStageMove(deps, actorId, opportunity, input);
     if (!moved.ok) return moved;
     // Undo is offered only when the reverse move would be allowed too (not back into lost: that needs a reason).
-    const undoable = moveStage(moved.value, opportunity.stage, { at: deps.clock(), byHand: true }).ok;
-    return ok({ ...moved.value, from: opportunity.stage, undoable });
+    const undoable = moveStage(moved.value, opportunity.stage, { at: deps.clock(), byHand: true, lostReason: opportunity.lostReason }).ok;
+    return ok({ ...moved.value, from: opportunity.stage, fromLostReason: opportunity.lostReason ?? "", undoable });
   });
 }
 
-export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opportunityId: Id, on: string | null): Result<Opportunity, Refused | "closed" | "invalid-date"> {
+export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opportunityId: Id, on: string | null): Result<Opportunity & { readonly previous: Opportunity }, Refused | "closed" | "invalid-date"> {
   if (!allowed(deps, actorId, "opportunity.set-follow-up")) return err("forbidden");
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
@@ -232,7 +233,7 @@ export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opport
     if (!changed.ok) return changed;
     deps.opportunities.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "opportunity.follow-up-set", recordType: "opportunity", recordId: opportunityId, context: { on: changed.value.followUpOn } });
-    return ok(changed.value);
+    return ok({ ...changed.value, previous: opportunity });
   });
 }
 

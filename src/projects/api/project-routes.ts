@@ -10,7 +10,7 @@ import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
-import { formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
+import { formatHours, formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type ProjectRoutesDeps = {
@@ -60,7 +60,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
   post(
     "/projects/:id",
     (actor, f, id) => projects.editProjectDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", description: f["description"] ?? null, health: f["health"] ?? "", startOn: f["startOn"] ?? null, targetOn: f["targetOn"] ?? null }),
-    { done: (_, id) => project(id), back: (id) => project(id), message: "Project saved." },
+    {
+      done: (_, id) => project(id),
+      back: (id) => project(id),
+      message: "Project saved.",
+      undo: ({ previous: p }, id) => ({ action: `/projects/${id}`, fields: { name: p.name, description: p.description, health: p.health, startOn: p.startOn ?? "", targetOn: p.targetOn ?? "" } }),
+    },
   );
   post("/projects/:id/status", (actor, f, id) => projects.setProjectStatus(deps.projects, actor, id as Id, f["status"] ?? ""), {
     done: (_, id) => project(id),
@@ -105,6 +110,19 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => `/tasks/${id}`,
     back: (id) => `/tasks/${id}`,
     message: "Task saved.",
+    undo: ({ previous: t }, id) => ({
+      action: `/tasks/${id}`,
+      fields: {
+        title: t.title,
+        description: t.description,
+        assigneeId: t.assigneeId ?? "",
+        phaseId: t.phaseId ?? "",
+        priority: t.priority,
+        dueOn: t.dueOn ?? "",
+        startOn: t.startOn ?? "",
+        estimate: t.estimateMinutes === null ? "" : formatHours(t.estimateMinutes),
+      },
+    }),
   });
   const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
   post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {

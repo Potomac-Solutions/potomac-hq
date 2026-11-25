@@ -223,7 +223,8 @@ test("a person can move a deal back or reopen it; a won deal that is a project s
   unwrap(crm.moveOpportunity(deps, admin, lost.id, { to: "lost", lostReason: "No budget" }));
   const reopened = unwrap(crm.moveOpportunity(deps, admin, lost.id, { to: "new", byHand: true }));
   assert.equal(reopened.from, "lost");
-  assert.equal(reopened.undoable, false, "back into lost needs a reason, so no undo");
+  assert.equal(reopened.undoable, true, "undo marks it lost again, with the reason it had");
+  assert.equal(reopened.fromLostReason, "No budget");
   const stored = deps.opportunities.get(lost.id);
   assert.equal(stored?.stage, "new");
   assert.equal(stored?.lostReason, null);

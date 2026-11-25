@@ -72,7 +72,7 @@ export function applyBaseline(deps: Pick<ProjectsDeps, "baselines" | "activityLo
 
 const activeUser = (deps: ProjectsDeps, id: Id): boolean => deps.users.get(id)?.status === "active";
 
-export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, projectId: Id, edit: ProjectEdit): Result<Project, Refused | ProjectEditError> {
+export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, projectId: Id, edit: ProjectEdit): Result<Project & { readonly previous: Project }, Refused | ProjectEditError> {
   if (!allowed(deps, actorId, "project.edit")) return err("forbidden");
   return deps.transact(() => {
     const project = deps.projects.get(projectId);
@@ -87,7 +87,7 @@ export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, proje
       recordId: projectId,
       context: { name: edited.value.name, health: edited.value.health, startOn: edited.value.startOn, targetOn: edited.value.targetOn },
     });
-    return ok(edited.value);
+    return ok({ ...edited.value, previous: project });
   });
 }
 
@@ -215,7 +215,7 @@ export function addTask(deps: ProjectsDeps, actorId: Id | null, projectId: Id, i
   });
 }
 
-export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, input: TaskInput): Result<Task, TaskChangeError> {
+export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, input: TaskInput): Result<Task & { readonly previous: Task }, TaskChangeError> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);
@@ -233,7 +233,7 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
       recordId: taskId,
       context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, assigneeWas: task.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
     });
-    return ok(edited.value);
+    return ok({ ...edited.value, previous: task });
   });
 }
 

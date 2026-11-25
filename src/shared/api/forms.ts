@@ -49,15 +49,31 @@ export type Undo = { readonly action: string; readonly fields: Readonly<Record<s
 
 const UNDO_ACTION = /^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
-/** Adds the signed `undo` to a location. Leaves it alone when there's nothing to undo or it wouldn't fit. */
+/**
+ * Adds `undo` to a location. Before the location is signed, the app swaps it
+ * for a token (`stashUndo`), so its length doesn't matter here.
+ */
 export function withUndo(location: string, undo: Undo | null | undefined): string {
   if (!undo || !UNDO_ACTION.test(undo.action)) return location;
   const value = `${undo.action}?${new URLSearchParams(undo.fields as Record<string, string>).toString()}`;
-  // Notices are cut at 200 characters; a cut undo would post the wrong thing.
-  if (value.length > 200) return location;
   const [path = "", hash = ""] = location.split("#");
   const joined = `${path}${path.includes("?") ? "&" : "?"}undo=${encodeURIComponent(value)}`;
   return hash ? `${joined}#${hash}` : joined;
+}
+
+/**
+ * Swaps a location's `undo` for `/undo/<token>`, keeping the post with `keep`.
+ * A location with no undo comes back as it was.
+ */
+export function stashUndo(location: string, keep: (action: string, fields: Readonly<Record<string, string>>) => string): string {
+  const url = new URL(location, "http://hq.invalid");
+  const raw = url.searchParams.get("undo");
+  if (raw === null) return location;
+  const undo = readUndo(raw);
+  if (undo === null || undo.action.startsWith("/undo/")) url.searchParams.delete("undo");
+  else url.searchParams.set("undo", `/undo/${keep(undo.action, Object.fromEntries(undo.fields.map((field) => [field.name, field.value])))}`);
+  const local = `${url.pathname}${url.search}${url.hash}`;
+  return url.origin === "http://hq.invalid" ? local : `${url.origin}${local}`;
 }
 
 /** Reads a signed `undo` back into a form to show. Null for anything that isn't a plain HQ post. */

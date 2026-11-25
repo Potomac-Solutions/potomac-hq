@@ -106,7 +106,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     const answer = crm.moveOpportunity(deps.crm, deps.actorOf(c.req.header("cookie") ?? ""), parsed.value, { to: form["to"] ?? "", lostReason: form["lostReason"] ?? null, byHand: form["back"] === "1" });
     const place = answer.ok || answer.error !== "not-found" ? stageReturn(form, parsed.value) : "/clients";
     const undo = answer.ok && answer.value.undoable
-      ? { action: `/opportunities/${parsed.value}/stage`, fields: { to: answer.value.from, back: "1", ...(form["returnTo"] === "pipeline" ? { returnTo: "pipeline" } : {}) } }
+      ? { action: `/opportunities/${parsed.value}/stage`, fields: { to: answer.value.from, back: "1", ...(answer.value.from === "lost" ? { lostReason: answer.value.fromLostReason } : {}), ...(form["returnTo"] === "pipeline" ? { returnTo: "pipeline" } : {}) } }
       : null;
     const to = answer.ok ? withUndo(`${place}?done=${encodeURIComponent(stageMessage(answer.value.from, answer.value.stage))}`, undo) : `${place}?problem=${encodeURIComponent(messageFor(answer.error))}`;
     return c.redirect(deps.sign(to), 303);
@@ -116,12 +116,15 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
     done: (_, id) => `/opportunities/${id}`,
     back: (id) => `/opportunities/${id}`,
     message: "Price saved.",
+    // A price can be changed but not cleared, so a first price has nothing to go back to.
+    undo: (o, id) => (o.previous.pricing && o.previous.value ? { action: `/opportunities/${id}/value`, fields: { pricing: o.previous.pricing, amount: (o.previous.value.minor / 100).toFixed(2) } } : null),
   });
 
   post("/opportunities/:id/follow-up", (actor, f, id) => crm.setOpportunityFollowUp(deps.crm, actor, id as Id, f["clear"] === "1" ? null : (f["on"] ?? "")), {
     done: (_, id) => `/opportunities/${id}`,
     back: (id) => `/opportunities/${id}`,
     message: "Follow-up saved.",
+    undo: (o, id) => ({ action: `/opportunities/${id}/follow-up`, fields: o.previous.followUpOn ? { on: o.previous.followUpOn } : { clear: "1" } }),
   });
 
   post("/opportunities/:id/convert", (actor, _f, id) => crm.convertOpportunity(deps.crm, actor, id as Id), {

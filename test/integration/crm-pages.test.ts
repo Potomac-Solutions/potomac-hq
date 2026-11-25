@@ -208,13 +208,18 @@ test("the pipeline page lists open deals, moves one, and comes back", async () =
   const moved = await admin.submit(`/opportunities/${id}/stage`, { to: "consult-booked", returnTo: "pipeline" });
   assert.match(moved.location, /^\/pipeline\?done=Moved\+to\+Consult\+booked\./);
   assert.match(moved.html, /Moved to Consult booked\./);
-  // Undo (decision 0014): the shell offers the post that puts it back.
-  assert.match(moved.html, new RegExp(`action="/opportunities/${id}/stage"[^>]*>\\s*<input type="hidden" name="to" value="new">`));
+  // Undo (decision 0014): the shell offers a kept post that puts it back, once.
+  const token = /action="(\/undo\/[0-9a-f]{32})"/.exec(moved.html)?.[1] ?? "";
+  assert.ok(token, "the page offers Undo");
   assert.match(moved.html, /id="hq-undo-button"/);
-
-  const undone = await admin.submit(`/opportunities/${id}/stage`, { to: "new", back: "1", returnTo: "pipeline" });
+  const undone = await admin.submit(token, {});
   assert.match(undone.location, /^\/pipeline\?done=Moved\+back\+to\+New\./);
   assert.match(undone.html, /Moved back to New\./);
+  const again = await admin.submit(token, {});
+  assert.match(again.location, /problem=That\+can/, "an undo works once");
+  const redo = /action="(\/undo\/[0-9a-f]{32})"/.exec(undone.html)?.[1] ?? "";
+  assert.match((await admin.submit(redo, {})).location, /done=Moved\+to\+Consult\+booked/, "undoing the undo puts it back");
+  assert.match((await admin.submit(`/opportunities/${id}/stage`, { to: "new", back: "1", returnTo: "pipeline" })).location, /done=Moved\+back\+to\+New/);
   const forward = await admin.submit(`/opportunities/${id}/stage`, { to: "consult-booked", returnTo: "pipeline" });
   assert.match(forward.location, /done=Moved\+to\+Consult\+booked/);
   const unasked = await admin.submit(`/opportunities/${id}/stage`, { to: "new", returnTo: "pipeline" });
