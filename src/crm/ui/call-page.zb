@@ -216,6 +216,7 @@
       </fieldset>
       <text-field zb-if={view.canFollowUp} label="Next follow-up" name="followUpOn" type="date"></text-field>
       <text-field zb-if={view.canAddTodos} label="Next steps for you" name="nextSteps" rows={3} description="One a line. Each becomes a to-do for you, at this client."></text-field>
+      <label zb-if={view.recapTo} class="hq-check"><input type="checkbox" name="recap" value="on"> Then write {view.recapTo} a recap email, to read before it goes</label>
       <fieldset zb-if={view.projects.length > 0} class="call-outcomes">
         <legend>Log this call’s time</legend>
         <label><input type="radio" name="logTo" value="" checked={!view.projects.some((project) => project.hourly)}> Don’t log it</label>

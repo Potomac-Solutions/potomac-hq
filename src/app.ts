@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
+import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
@@ -187,6 +187,10 @@ export type PageContext = {
     /** A booked call starting within 15 minutes (decision 0009, section 6). */
     comingUp(): ComingUp | null;
     getReady(bookingId: string): GetReadyView | null;
+    /** An ended call's recap email; "no-email" when the contact has none. */
+    recap(callId: string): RecapView | "no-email" | null;
+    /** Whether HQ can send email. */
+    emailOn: boolean;
     /** The person's open call, for the shell. */
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     opportunityTouches(id: string): TouchesView | null;
@@ -591,6 +595,12 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
           callsToMake: () => callsToMake(services.calls, actor),
           comingUp: () => comingUp(services.calls, actor),
+          recap: (id) => {
+            const parsed = parseId(id);
+            const view = parsed.ok ? recapFor(services.calls, actor, parsed.value) : null;
+            return view?.ok ? view.value : view && !view.ok && view.error === "no-email" ? "no-email" : null;
+          },
+          emailOn: Boolean(config.email),
           getReady: (id) => {
             const parsed = parseId(id);
             const view = parsed.ok ? getReady(services.calls, actor, parsed.value) : null;
@@ -1013,7 +1023,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", linkRoutes({ links: services.links, emails: bookingEmails, actorOf, sign: (location) => notices.sign(location), allowAttempt: sqliteRateLimit(db, { name: "link-booking", max: 10, windowMs: 60 * 60_000 }), addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage) }));
   forms.route("/", bookingPortalRoutes({ booking: services.booking, emails: bookingEmails, bookerOf, sign: (location) => notices.sign(location) }));
   forms.route("/", touchRoutes({ touches: services.touches, actorOf, sign: (location) => notices.sign(location) }));
-  forms.route("/", callRoutes({ calls: services.calls, actorOf, sign: (location) => notices.sign(location) }));
+  // The recap email after a call (decision 0009, section 7), when email is set up.
+  const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
+  forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: (location) => notices.sign(location) }));
