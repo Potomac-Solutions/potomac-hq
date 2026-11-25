@@ -150,3 +150,103 @@ test("a month starts at midnight on the 1st in the business time zone", async ()
   assert.equal(monthStart("2026-12-01T03:00:00Z", "America/New_York"), "2026-11-01T04:00:00Z");
   assert.equal(monthStart("2026-12-01T06:00:00Z", "America/New_York"), "2026-12-01T05:00:00Z");
 });
+
+test("an image is known by its first bytes, and its size is read from its header", async () => {
+  const { checkImage, imagePath, imageSize, imageType, isImagePath, MAX_IMAGES } = await import("./image.ts");
+  const png = new Uint8Array(33);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0x06, 0x40, 0, 0, 0x04, 0xb0]);
+  const pngType = imageType(png);
+  assert.ok(pngType.ok);
+  assert.deepEqual(imageSize(png, pngType.value), { width: 1600, height: 1200 });
+  // A JPEG: start, an APP0 segment, then a baseline frame of 800 by 600.
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 11, 8, 0x02, 0x58, 0x03, 0x20, 3, 0, 0, 0, 0]);
+  const jpegType = imageType(jpeg);
+  assert.ok(jpegType.ok);
+  assert.deepEqual(imageSize(jpeg, jpegType.value), { width: 800, height: 600 });
+  const webp = new Uint8Array(30);
+  webp.set([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x58, 0, 0, 0, 0, 0, 0, 0, 0, 0x1f, 0x03, 0, 0x57, 0x02, 0]);
+  const webpType = imageType(webp);
+  assert.ok(webpType.ok);
+  assert.deepEqual(imageSize(webp, webpType.value), { width: 800, height: 600 });
+  assert.deepEqual(imageType(new TextEncoder().encode("<svg onload=alert(1)>")), { ok: false, error: "image-not-a-picture" });
+  assert.deepEqual(imageType(null), { ok: false, error: "image-missing" });
+  assert.deepEqual(checkImage({ kind: "photo", alt: " ", bytes: png }, 0), { ok: false, error: "alt-missing" });
+  assert.deepEqual(checkImage({ kind: "banner", alt: "x", bytes: png }, 0), { ok: false, error: "kind-invalid" });
+  assert.deepEqual(checkImage({ kind: "photo", alt: "x", bytes: png }, MAX_IMAGES), { ok: false, error: "too-many-images" });
+  const made = checkImage({ kind: "logo", alt: " The  logo ", bytes: png }, 0);
+  assert.ok(made.ok);
+  assert.equal(made.value.alt, "The logo");
+  const path = imagePath("0190a000-0000-7000-8000-00000000abcd" as never, "logo", made.value.type);
+  assert.equal(path, "images/logo-00000000abcd.png");
+  assert.ok(isImagePath(path));
+  assert.ok(!isImagePath("images/../index.html"));
+});
+
+test("the message lists the build's images by path, kind, size and what each shows", () => {
+  const text = userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], images: [{ path: "images/logo-00000000abcd.png", kind: "logo", width: 800, height: 200, alt: "The logo" }], ask: "Go." });
+  assert.match(text, /<images>\nimages\/logo-00000000abcd\.png \| logo \| 800x200 \| shows: The logo\n<\/images>/);
+  assert.match(userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], ask: "Go." }), /<images>\n\(None uploaded\.\)/);
+});
+
+test("a zip holds pictures as bytes beside the text files", () => {
+  const zip = zipFiles({ "index.html": "hi", "images/photo-000000000001.jpg": new Uint8Array([0xff, 0xd8, 0xff, 0x00]) }, "s", new Date("2026-11-25T12:00:00Z"));
+  const end = zip.length - 22;
+  assert.equal(new DataView(zip.buffer).getUint16(end + 10, true), 2);
+  assert.ok(new TextDecoder("latin1").decode(zip).includes("s/images/photo-000000000001.jpg\xff\xd8\xff\x00"));
+});
+
+test("a repository is read as owner/name, or a GitHub address, with an optional branch", async () => {
+  const { parseRepo, parseAddress } = await import("./rework.ts");
+  assert.deepEqual(parseRepo(" https://github.com/Potomac-Solutions/better-days-towing.git "), { ok: true, value: { owner: "Potomac-Solutions", name: "better-days-towing", branch: null } });
+  assert.deepEqual(parseRepo("a/b", "feat/x"), { ok: true, value: { owner: "a", name: "b", branch: "feat/x" } });
+  for (const bad of ["", "nobody", "a/b/c", "a/..", "-a/b"]) assert.equal(parseRepo(bad).ok, false, bad);
+  assert.deepEqual(parseRepo("a/b", "../x"), { ok: false, error: "branch-invalid" });
+  const address = parseAddress("betterdaystowing.com/about#top");
+  assert.ok(address.ok);
+  assert.equal(address.value.toString(), "https://betterdaystowing.com/about");
+  for (const bad of ["http://x.com", "https://user:pw@x.com", "localhost", "ftp://x.com"]) assert.equal(parseAddress(bad).ok, false, bad);
+});
+
+test("a static repository is taken as it is; a project is read as reference, home page and readme first", async () => {
+  const { planRepo } = await import("./rework.ts");
+  const e = (path: string, size = 100) => ({ path, size, sha: path });
+  const plain = planRepo([e("index.html"), e("about.html"), e("css/site.css"), e("img/truck.jpg"), e(".github/workflows/ci.yml"), e("node_modules/x/index.js"), e("photos/huge.jpg", 9_000_000)]);
+  assert.equal(plain.kind, "static");
+  assert.deepEqual(plain.files.map((one) => one.path), ["index.html", "about.html", "css/site.css"]);
+  assert.deepEqual(plain.pictures.map((one) => one.path), ["img/truck.jpg"]);
+  const project = planRepo([e("package.json"), e("package-lock.json", 90_000), e("src/App.jsx", 3_000), e("README.md", 500), e("index.html", 400), e("src/big.js", 50_000), e("dist/index.html"), e("public/logo.png")]);
+  assert.equal(project.kind, "reference");
+  assert.deepEqual(project.files.map((one) => one.path), ["index.html", "README.md", "src/App.jsx", "package.json"]);
+  assert.deepEqual(project.pictures.map((one) => one.path), ["public/logo.png"]);
+});
+
+test("a page from the web is slimmed, and only its same-site links are followed", async () => {
+  const { importedAlt, importedImagePath, referenceText, sameSiteLinks, slimPage, MAX_REFERENCE_CHARS } = await import("./rework.ts");
+  assert.equal(slimPage("<p>Hi</p>\n\n\n<script>track()</script><!-- note --><svg><path d='M0'/></svg>"), "<p>Hi</p>\n<script>…</script><svg>…</svg>");
+  const base = new URL("https://towing.example/");
+  const links = sameSiteLinks('<a href="/rates">x</a><a href="https://other.example/">y</a><a href="/rates#a">z</a><a href="menu.pdf">m</a><a href="about.html?x=1">a</a>', base, 10);
+  assert.deepEqual(links.map(String), ["https://towing.example/rates", "https://towing.example/about.html"]);
+  assert.equal(sameSiteLinks('<a href="/a">1</a><a href="/b">2</a>', base, 1).length, 1);
+  const text = referenceText([{ from: "a", text: "x".repeat(MAX_REFERENCE_CHARS + 10) }, { from: "b", text: "never" }]);
+  assert.match(text, /\[cut short\]\n<\/source>$/);
+  assert.doesNotMatch(text, /never/);
+  assert.equal(importedImagePath("img/truck.jpg"), "img/truck.jpg");
+  assert.equal(importedImagePath("../x.jpg"), null);
+  assert.equal(importedImagePath("img/.hidden.png"), null);
+  assert.equal(importedAlt("img/flatbed_on-route-50.jpg"), "From the old site: flatbed on route 50");
+});
+
+test("the old site goes in the message as reference", () => {
+  const text = userMessage({ facts: { name: "X", phone: null, address: null, website: null, contact: null }, brief: "", files: {}, history: [], reference: { from: "github.com/a/b", text: '<source from="index.html">\n<h1>Old</h1>\n</source>' }, ask: "Go." });
+  assert.match(text, /<old_site from="github.com\/a\/b">\n<source from="index.html">\n<h1>Old<\/h1>\n<\/source>\n<\/old_site>/);
+});
+
+test("a new repository is named for the client, and checked", async () => {
+  const { checkRepoName, commitMessage, pullBranch, suggestedRepoName } = await import("./publish.ts");
+  assert.equal(suggestedRepoName("Better Days Towing, LLC"), "better-days-towing-llc-site");
+  assert.equal(suggestedRepoName("!!!"), "client-site");
+  assert.deepEqual(checkRepoName(" bdt-site "), { ok: true, value: "bdt-site" });
+  for (const bad of ["", "a b", "..", "x.git", "a/b"]) assert.equal(checkRepoName(bad).ok, false, bad);
+  assert.equal(pullBranch(4), "hq/site-builder-v4");
+  assert.match(commitMessage("BDT", 4, "Darker."), /^BDT: version 4\n\nDarker\.\n\nPublished from the Potomac HQ site builder\.$/);
+});

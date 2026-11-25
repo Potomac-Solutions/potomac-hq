@@ -10,6 +10,8 @@ export type Build = {
   readonly brief: string;
   readonly createdBy: Id;
   readonly createdAt: string;
+  /** Where it was reworked from, like github.com/owner/name or an address; "" for a new site. */
+  readonly referenceFrom?: string;
 };
 
 export type BuildVersion = {
