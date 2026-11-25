@@ -52,6 +52,9 @@ import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type P
 import { freePageDownloads, freePagePortalRoutes, freePageStaffRoutes } from "./free-pages/api/free-page-routes.ts";
 import { monthlyReports, portalReport, portalReports, reportDetail, type PortalReportLine } from "./client-reports/index.ts";
 import { reportRoutes } from "./client-reports/api/report-routes.ts";
+import { allAutomations, clientAutomations, portalAutomations, type ClientAutomationsView } from "./automations/index.ts";
+import { automationHookRoutes, automationRoutes } from "./automations/api/automation-routes.ts";
+import { automationSecretPage } from "./automations/ui/views.ts";
 import { newsletterApiRoutes, newsletterRoutes, riverRoutes, type ConfirmMail } from "./newsletter/api/newsletter-routes.ts";
 import { buildsView, buildView, builderSettingsView, type Claude } from "./builder/index.ts";
 import { builderDownloads, builderRoutes } from "./builder/api/builder-routes.ts";
@@ -340,6 +343,13 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** n8n automations run for clients (decision 0013, section 5). */
+  readonly automations: {
+    forClient(organizationId: string): ClientAutomationsView | null;
+    all(): ReturnType<typeof allAutomations>;
+    /** The signed-in client's. */
+    mine(): ReturnType<typeof portalAutomations>;
+  };
   /** Monthly reports to plan clients (decision 0013, section 4). */
   readonly clientReports: {
     month(month: string): ReturnType<typeof monthlyReports>;
@@ -839,6 +849,14 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        automations: {
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? clientAutomations(services.automations, actor, parsed.value) : null;
+          },
+          all: () => allAutomations(services.automations, actor),
+          mine: () => portalAutomations(services.automations, client?.organizationId ?? null),
+        },
         clientReports: {
           month: (month) => monthlyReports(services.clientReports, actor, month),
           detail: (id) => withId(id, (reportId) => reportDetail(services.clientReports, actor, reportId, reportContactLine)),
@@ -1248,6 +1266,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   // The newsletter (decision 0013, section 1): issues for staff, and signing up and leaving for anyone.
   const sendOne = email ? async (message: { to: string; subject: string; body: string; headers?: Readonly<Record<string, string>> }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   const newsletterFooter = { publicUrl, address: contact.address };
+  forms.route("/", automationRoutes({ automations: services.automations, actorOf, sign: (location) => notices.sign(location), publicUrl, secretPage: (view) => renderPage("Check-in address", automationSecretPage(view)) }));
   forms.route("/", reportRoutes({ reports: services.clientReports, actorOf, sign: (location) => notices.sign(location), mail: sendOne, contactLine: reportContactLine }));
   forms.route("/", newsletterRoutes({ newsletter: services.newsletter, actorOf, sign: (location) => notices.sign(location), footer: newsletterFooter, mail: sendOne }));
   forms.route(
@@ -1331,6 +1350,9 @@ export async function createApp(config: AppConfig): Promise<App> {
       },
     }),
   );
+  // n8n checking in (decision 0013, section 5): no cookie and no Origin, the token is the key.
+  const allowCheckIn = sqliteRateLimit(db, { name: "automation-check-in", max: 120, windowMs: 60_000 });
+  web.route("/", automationHookRoutes({ automations: services.automations, allow: (incoming) => allowCheckIn(clientAddressOf(incoming as never)) }));
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route(
     "/",
@@ -1369,7 +1391,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/river/one-click" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });

@@ -55,6 +55,7 @@
         ...(can.siteBuilder ? [{ label: 'Site builder', href: '/builder', current: at('/builder') }] : []),
         ...(can.social ? [{ label: 'Social media', href: '/social', current: at('/social') }] : []),
         { label: 'Landing pages', href: '/landing-pages', current: at('/landing-pages') },
+        { label: 'Automations', href: '/automations', current: at('/automations') },
         ...(can.monthlyReports ? [{ label: 'Monthly reports', href: '/monthly-reports', current: at('/monthly-reports') }] : []),
       ] },
       { label: 'Finance', links: [

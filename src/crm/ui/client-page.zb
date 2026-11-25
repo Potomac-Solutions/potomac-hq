@@ -20,10 +20,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -102,6 +102,53 @@
         <div class="hq-field"><label for="site-url">Website address</label><input id="site-url" name="url" placeholder="feedstore.com" required></div>
         <button class="hq-button secondary" type="submit">Watch this site</button>
       </form>
+    </section>
+    <section zb-if={automations && (automations.items.length > 0 || automations.canManage)} class="hq-panel" id="automations" aria-labelledby="client-automations">
+      <h2 id="client-automations">Automations</h2>
+      <p zb-if={automations.items.length === 0} class="hq-muted">n8n workflows run for this client. Each one checks in at the end of a run, so you hear when one stops.</p>
+      <ul zb-else class="hq-activity">
+        <zb-each items={automations.items} as="one" key={one.id}>
+          <li>
+            <span>
+              <strong>{one.name}</strong> <status-badge variant={one.attention ? 'danger' : one.state === 'ok' ? 'success' : 'neutral'}>{one.stateLabel}</status-badge><br>
+              <span class="hq-scope">{one.every}<span zb-if={one.lastRun}> · last ran {one.lastRun}</span><span zb-if={one.lastMessage}> · {one.lastMessage}</span></span>
+              <span zb-if={one.description} class="hq-small hq-muted"><br>{one.description}</span>
+              <span zb-if={one.n8nUrl}><br><a class="hq-small" href={one.n8nUrl} rel="noopener noreferrer">Open in n8n<span class="sr-only">: {one.name}</span></a></span>
+            </span>
+            <details zb-if={automations.canManage} class="hq-more">
+              <summary>Change<span class="sr-only">: {one.name}</span></summary>
+              <form method="post" action="/automations/{one.id}" class="hq-form">
+                <text-field label="Name" name="name" value={one.name} required={true} maxlength={80}></text-field>
+                <text-field label="What it does" name="description" value={one.description} maxlength={500}></text-field>
+                <text-field label="Link to it in n8n" name="n8nUrl" value={one.n8nUrl} type="url"></text-field>
+                <div class="hq-field">
+                  <label for="every-{one.id}">How often it runs</label>
+                  <select id="every-{one.id}" name="every"><zb-each items={automations.schedules} as="s" key={s.value}><option value={s.value} selected={Number(s.value) === one.everyMinutes}>{s.label}</option></zb-each></select>
+                </div>
+                <label class="hq-check"><input type="checkbox" name="active" value="1" checked={one.active}> On (off pauses alerts)</label>
+                <div><button class="hq-button" type="submit">Save<span class="sr-only">: {one.name}</span></button></div>
+              </form>
+              <div class="hq-actions" data-spaced>
+                <form method="post" action="/automations/{one.id}/secret"><button class="hq-button secondary small" type="submit">New check-in address<span class="sr-only">: {one.name}</span></button></form>
+                <form method="post" action="/automations/{one.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {one.name}</span></button></form>
+              </div>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={automations.canManage} class="hq-more" data-spaced>
+        <summary>Add an automation</summary>
+        <form method="post" action="/clients/{view.client.id}/automations" class="hq-form">
+          <text-field label="Name" name="name" required={true} maxlength={80} description="Like: Orders to the sheet"></text-field>
+          <text-field label="What it does" name="description" maxlength={500} description="The client sees this in their portal."></text-field>
+          <text-field label="Link to it in n8n" name="n8nUrl" type="url" description="For you only. Optional."></text-field>
+          <div class="hq-field">
+            <label for="every-new">How often it runs</label>
+            <select id="every-new" name="every"><zb-each items={automations.schedules} as="s" key={s.value}><option value={s.value} selected={s.value === '1440'}>{s.label}</option></zb-each></select>
+          </div>
+          <div><button class="hq-button" type="submit">Add and get its address</button></div>
+        </form>
+      </details>
     </section>
     <section zb-if={freePage} class="hq-panel" id="landing-page" aria-labelledby="client-landing-page">
       <h2 id="client-landing-page">Free landing page</h2>

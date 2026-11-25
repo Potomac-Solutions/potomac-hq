@@ -128,8 +128,9 @@ potomac.solutions' server calls with its token.
   posts `failed`. HQ keeps the last 50 runs of each.
 - **Late or failed.** An automation that failed, or hasn't checked in
   within its schedule plus half again (**Default**), is shown on Today and
-  the Sites page, and emailed to the alert address once, then again when
-  it recovers, as site monitoring does.
+  on its own Automations page (changed while building it: not the Sites
+  page, which is about websites), and emailed to the alert address once,
+  then again when it recovers, as site monitoring does.
 - **Default:** clients see their automations and whether each last ran
   fine in the portal, without the n8n link or the secret.
 

@@ -476,3 +476,13 @@ Delivery → Landing pages, and each client's Free landing page
 zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
 read access to that repository too. Without the token there is no download.
 
+## Automations
+
+Delivery → Automations, and each client's Automations
+(`docs/decisions/0013-growth-tools.md`, section 5). Adding one shows its
+check-in address once. In n8n, the workflow's last node is an HTTP Request
+posting to it with `?status=ok`; an Error Trigger workflow posts to it with
+`?status=failed` and a `message`. HQ checks every five minutes, and emails
+`HQ_ALERT_EMAIL` when one fails or doesn't run on time, and when it runs
+again. The address takes 120 check-ins a minute from one caller.
+

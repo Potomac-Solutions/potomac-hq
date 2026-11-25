@@ -16,6 +16,8 @@ import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
 import type { ReportsDeps } from "./client-reports/index.ts";
+import type { AutomationsDeps } from "./automations/index.ts";
+import { sqliteAutomationStore } from "./automations/adapters.ts";
 import { sqliteFactsReader, sqlitePlanClients, sqliteReportStore } from "./client-reports/adapters.ts";
 import { sqliteFreePageStore, sqliteRoundStore } from "./free-pages/adapters.ts";
 import { sqliteLeadStore } from "./leads/adapters.ts";
@@ -101,6 +103,8 @@ export type Services = {
   readonly freePages: FreePagesDeps;
   /** Monthly reports to plan clients (decision 0013, section 4). */
   readonly clientReports: ReportsDeps;
+  /** n8n automations run for clients (decision 0013, section 5). */
+  readonly automations: AutomationsDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
@@ -347,6 +351,17 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       return found ? { leadSource: found.leadSource, referralCode: null } : null;
     },
   };
+  const automations: AutomationsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    automations: sqliteAutomationStore(db),
+    tokens: siteTokens,
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+  };
   const freePages: FreePagesDeps = {
     users,
     transact: sqliteTransact(db),
@@ -437,7 +452,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -513,5 +528,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       expenseCategories: EXPENSE_CATEGORIES,
     },
   };
-  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

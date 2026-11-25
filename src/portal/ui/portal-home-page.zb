@@ -17,12 +17,13 @@
     const website = context.websites.mine()
     const landing = context.freePages.mine()
     const reports = context.clientReports.portalList()
+    const automations = context.automations.mine()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', landing, reports, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', landing, reports, automations, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} automations={[]} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -59,6 +60,12 @@
       </ul>
     </section>
 
+    <section zb-if={automations.length > 0} class="hq-panel" id="automations" aria-labelledby="portal-automations">
+      <h2 id="portal-automations">Your automations</h2>
+      <ul>
+        <zb-each items={automations} as="one" key={one.name}><li><strong>{one.name}</strong>: {one.status}<span zb-if={one.lastRun}>, last ran {one.lastRun}</span>. <span class="hq-muted">{one.every}.</span><span zb-if={one.description}><br>{one.description}</span></li></zb-each>
+      </ul>
+    </section>
     <section zb-if={reports.length > 0} class="hq-panel" id="reports" aria-labelledby="portal-reports">
       <h2 id="portal-reports">Your monthly reports</h2>
       <ul>

@@ -85,6 +85,7 @@ export const PERMISSIONS = [
   "newsletter.manage",
   "free-page.manage",
   "client-report.send",
+  "automation.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -131,6 +132,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "project.share",
   "newsletter.manage",
   "client-report.send",
+  "automation.manage",
 ];
 
 export const ROLE_GRANTS: { readonly [K in RoleKey]: readonly Permission[] } = {
