@@ -118,7 +118,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: docker build -t potomac-hq:ci .
+      # The kit is private: the build stage that installs it needs the token
+      # (see the Dockerfile). It stays out of the image that is started.
+      - name: Build the image
+        env:
+          KIT_READ_TOKEN: ${{ secrets.KIT_READ_TOKEN }}
+        run: docker build --build-arg KIT_READ_TOKEN -t potomac-hq:ci .
       - name: Start it and wait for the health check
         run: |
           docker run -d --name hq -p 3000:3000 \

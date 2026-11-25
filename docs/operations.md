@@ -57,6 +57,7 @@ and Variables tabs:
 | Volume | Attached to the service, mounted at `/data` |
 | `HQ_DATABASE_PATH` | `/data/hq.db`. It must start with `/data/`: a relative path is inside the read-only app folder |
 | `RAILWAY_RUN_UID` | `0` |
+| `KIT_READ_TOKEN` | A GitHub token that can read `Potomac-Solutions/potomac-kit` (fine-grained, Contents: read-only). The build installs the private kit with it; without it the build stops at `npm ci` |
 | `PORT` | `3000`, the same as the domain's target port. Without it Railway uses 8080 and the domain answers 502 |
 | Replicas | 1 |
 | Start command | Empty. The `Dockerfile` runs `bin/start.sh` |

@@ -103,6 +103,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   and case studies, referral credit, and who looked at a demo, in eight
   slices.
 
+- The container builds again now that the kit is private. The build
+  installs it with `KIT_READ_TOKEN` in a throwaway stage, so the image that
+  ships carries no token. Railway needs the same variable on HQ's service
+  (docs/operations.md, "Railway settings that work"), and CI passes its
+  secret to the container build.
 - The kit now installs from its renamed private repository,
   `Potomac-Solutions/potomac-kit`. Examples and tests use a made-up
   `Potomac-Solutions/example-site` in place of real client repositories.
