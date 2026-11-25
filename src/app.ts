@@ -26,7 +26,7 @@ import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
-import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { allRenewals, clientRenewals, renewalYear, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalPortalRoutes, renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { clientSocial, clientSocialSummary, portalSocial, portalSocialWaiting, socialOverview, socialToDo } from "./social/index.ts";
 import { socialPortalRoutes, socialStaffRoutes } from "./social/api/social-routes.ts";
@@ -459,6 +459,8 @@ export type PageContext = {
   readonly publicSite: { view(): ReturnType<typeof publicSiteView> };
   readonly renewals: {
     all(): ReturnType<typeof allRenewals>;
+    /** The next 12 months of renewals, month by month, with what each earns. */
+    year(): ReturnType<typeof renewalYear>;
     /** A client's, or null when this person may not see them. */
     forClient(id: string): ClientRenewalsView | null;
     comingUp(): ReturnType<typeof renewalsComingUp>;
@@ -1010,6 +1012,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         publicSite: { view: () => publicSiteView(services.publicSite, actor) },
         renewals: {
           all: () => allRenewals(services.renewals, actor),
+          year: () => renewalYear(services.renewals, actor),
           forClient: (id) => {
             const parsed = parseId(id);
             const view = parsed.ok ? clientRenewals(services.renewals, actor, parsed.value) : null;

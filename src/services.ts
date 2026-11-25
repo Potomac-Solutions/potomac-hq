@@ -7,7 +7,7 @@ import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import { addRenewal, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
@@ -439,6 +439,22 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       const input = { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn };
       const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
       if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      const sent = sendInvoiceNow(finance, actorId, made.value.id);
+      if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
+      const row = billedOf(sent.value.id);
+      return row ? { ok: true, value: row } : { ok: false, error: "not-found" };
+    },
+    sendTogether(actorId, organizationId, projectId, lines, dueOn) {
+      const [first, ...rest] = lines;
+      if (!first) return { ok: false, error: "not-found" };
+      if (projectId !== null && projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const input = { kind: "other", description: first.description, amount: (first.amount.minor / 100).toFixed(2), dueOn };
+      const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
+      if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      for (const line of rest) {
+        const added = addLineToInvoice(finance, actorId, made.value.id, { description: line.description, amount: (line.amount.minor / 100).toFixed(2) });
+        if (!added.ok) return { ok: false, error: "not-found" };
+      }
       const sent = sendInvoiceNow(finance, actorId, made.value.id);
       if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
       const row = billedOf(sent.value.id);

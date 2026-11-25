@@ -29,6 +29,8 @@ export type RenewalBilling = {
   projectsFor(organizationId: Id): readonly { readonly id: Id; readonly name: string }[];
   /** Makes an invoice with one line on one of the client's projects, and sends it. */
   send(actorId: Id | null, organizationId: Id, projectId: Id | null, line: { readonly description: string; readonly amount: Money; readonly dueOn: string }): Result<BilledInvoice, "forbidden" | "not-found">;
+  /** One invoice with several lines, due on one day, sent: renewals billed together. */
+  sendTogether(actorId: Id | null, organizationId: Id, projectId: Id | null, lines: readonly { readonly description: string; readonly amount: Money }[], dueOn: string): Result<BilledInvoice, "forbidden" | "not-found">;
   invoice(id: Id): BilledInvoice | null;
   /** Whether the actor may bill: `invoice.edit`. */
   mayBill(actorId: Id | null): boolean;

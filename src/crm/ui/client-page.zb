@@ -446,6 +446,8 @@
             <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <status-badge zb-if={one.state === 'overdue'} variant="danger">Overdue</status-badge></p>
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <p zb-if={one.priceNote} class="hq-small">{one.priceNote}</p>
+            <label zb-if={one.canBill} class="hq-check hq-small"><input type="checkbox" name="bill-{one.id}" form="bill-together"> Bill together with others ticked</label>
             <p zb-if={one.answerText} class="hq-small"><status-badge variant={one.answer === 'lapse' ? 'warning' : 'success'}>{one.answer === 'lapse' ? 'Let it lapse' : 'Renew it'}</status-badge> {one.answerText}</p>
             <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
             <form zb-if={one.canBill} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
@@ -463,9 +465,28 @@
               <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>
             </div>
+            <details zb-if={renewals.canEdit} class="hq-small">
+              <summary>Change what the client is billed<span class="sr-only"> for {one.name}</span></summary>
+              <form method="post" action="/renewals/{one.id}/price" class="hq-form-row">
+                <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
+                <text-field label="New price each time, in dollars" name="price" inputmode="decimal" value={one.priceText} description="From their next bill. They see the change in their portal first. Empty: we pay for it."></text-field>
+                <button class="hq-button secondary" type="submit">Change the price</button>
+              </form>
+            </details>
           </li>
         </zb-each>
       </ul>
+      <form zb-if={renewals.items.filter((one) => one.canBill).length > 1} id="bill-together" method="post" action="/clients/{view.client.id}/renewals/bill-together" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="bill-together-project">Bill the ticked ones together, on</label>
+          <select id="bill-together-project" name="projectId">
+            <option value="" selected>The client, no project</option>
+            <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
+          </select>
+          <span class="hint">One invoice, a line each, due a week before the first of them renews.</span>
+        </div>
+        <button class="hq-button" type="submit">Bill them together</button>
+      </form>
       <details zb-if={renewals.canEdit} class="hq-more">
         <summary>Add a renewal</summary>
         <form method="post" action="/clients/{view.client.id}/renewals" class="hq-form">

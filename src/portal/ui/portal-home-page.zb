@@ -164,6 +164,7 @@
             <div>
               <p><strong>{one.name}</strong> · {one.kindLabel}</p>
               <p>Renews <time datetime={one.renewsOn}>{one.renews}</time>. {one.price}.</p>
+              <p zb-if={one.priceNote}><strong>{one.priceNote}</strong></p>
               <p class={one.state === 'late' ? '' : 'hq-muted'}>{one.say}</p>
             </div>
             <a zb-if={one.owing} class="hq-button portal-big" href="#invoices">How to pay</a>
