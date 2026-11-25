@@ -27,6 +27,7 @@ function deps(access: Access | null): RecentActivityDeps & { asked: { scope: str
     activeAdminsOtherThan: () => 0,
   };
   const activity: ActivityReader = {
+    forRecord: (recordType, recordId) => (recordType === "invoice" ? [{ id: id(3), occurredAt: "2026-11-15T03:00:00Z", action: "invoice.sent", actorName: "Mikey Nichols" }] : []),
     recent(scope, limit) {
       asked.push({ scope, limit });
       return [
@@ -85,4 +86,13 @@ test("holding dashboard.view alone is not enough", () => {
   const d = deps(partial);
   assert.deepEqual(recentActivity(d, id(9)), { ok: false, error: "forbidden" });
   assert.deepEqual(d.asked, []);
+});
+
+test("a record's history is its own events, for someone who may see the record", async () => {
+  const { recordHistory } = await import("./recent-activity.ts");
+  const admin = deps(access("admin"));
+  assert.equal(recordHistory(admin, id(9), "invoice", "inv-1").length, 1);
+  assert.equal(recordHistory(admin, id(9), "invoice", "inv-1")[0]?.text, "Mikey Nichols sent an invoice");
+  assert.deepEqual(recordHistory(deps(null), id(9), "invoice", "inv-1"), [], "nobody signed in");
+  assert.deepEqual(recordHistory(admin, id(9), "user", "u-1"), [], "not a record with a history");
 });

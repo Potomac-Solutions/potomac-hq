@@ -19,6 +19,7 @@ export const FEATURES = [
   "site-diagnosis",
   "case-study",
   "social-posts",
+  "assistant",
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
@@ -38,6 +39,7 @@ export const FEATURE_TEXT: { readonly [K in Feature]: { readonly label: string; 
   "site-diagnosis": { label: "Site-down diagnosis", what: "Adds a likely cause and a first step to site alerts.", phase: "Money and admin" },
   "case-study": { label: "Case study drafts", what: "Drafts a case study for the Work page from a project's history.", phase: "Marketing" },
   "social-posts": { label: "Social post drafts", what: "Drafts Facebook, Instagram and LinkedIn posts from finished work.", phase: "Marketing" },
+  assistant: { label: "The assistant", what: "The box on Home: say what needs to happen, and it finds things and proposes changes you confirm (decision 0015).", phase: "Everywhere" },
 };
 
 export type AiSettings = {

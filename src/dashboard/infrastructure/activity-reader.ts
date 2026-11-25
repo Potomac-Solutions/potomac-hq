@@ -15,7 +15,9 @@ export function sqliteActivityReader(db: Database): ActivityReader {
   const clientRecords = db.prepare(
     `${select} where e.record_type in (${CLIENT_RECORD_TYPES.map(() => "?").join(", ")}) ${order}`,
   );
+  const oneRecord = db.prepare(`${select} where e.record_type = ? and e.record_id = ? ${order}`);
   return {
+    forRecord: (recordType, recordId, limit) => oneRecord.all(recordType, recordId, limit).map((row) => ({ ...row })) as ActivityRow[],
     recent(scope, limit) {
       const rows = scope === "everything" ? everything.all(limit) : clientRecords.all(...CLIENT_RECORD_TYPES, limit);
       return rows.map((row) => ({ ...row })) as ActivityRow[];

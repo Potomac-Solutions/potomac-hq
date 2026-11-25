@@ -45,5 +45,5 @@ test("turn it on in Settings, then sign in with the password and a code", async 
   await assertAccessible(fresh, "the second step at sign-in");
   await fresh.getByLabel("Code").fill(codeAt(secret(), stepOf(Date.now()) + 1));
   await fresh.getByRole("button", { name: "Continue" }).click();
-  await fresh.getByRole("heading", { name: "Dashboard" }).waitFor();
+  await fresh.getByRole("heading", { name: "Home", level: 1 }).waitFor();
 });

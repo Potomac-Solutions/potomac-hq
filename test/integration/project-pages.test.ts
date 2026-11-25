@@ -88,10 +88,10 @@ test("tasks: the list, a task's page, and both boards", async () => {
 
   // A move goes back where it came from, and nowhere else.
   const moved = await admin.submit(`/tasks/${taskId}/status`, { to: "doing", returnTo: `/projects/${projectId}/board` });
-  assert.match(moved.location, new RegExp(`^/projects/${projectId}/board\\?done=`));
+  assert.match(moved.location, new RegExp(`^/projects/${projectId}/board\\?(undo=[0-9a-f-]+&)?done=`));
   assert.match(moved.html, /Task moved\./);
   const elsewhere = await admin.post(`/tasks/${taskId}/status`, { to: "blocked", returnTo: "https://example.com/" });
-  assert.match(elsewhere.headers.get("location") ?? "", new RegExp(`^/tasks/${taskId}\\?done=`));
+  assert.match(elsewhere.headers.get("location") ?? "", new RegExp(`^/tasks/${taskId}\\?(undo=[0-9a-f-]+&)?done=`));
   assert.match(await admin.page("/board?mine=1"), /Nothing assigned to you/);
 });
 

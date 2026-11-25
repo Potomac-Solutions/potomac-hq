@@ -6,13 +6,14 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/parts/passkey-button.zb'
+  import '../../shared/ui/parts/push-setup.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
-    return { title: 'Settings', twoFactor: context.settings.twoFactor, theme: context.settings.theme, morning: context.settings.morningEmail, themes: context.settings.themes, audit: context.can.audit, ai: context.ai.canManage, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Settings', twoFactor: context.settings.twoFactor, theme: context.settings.theme, morning: context.settings.morningEmail, themes: context.settings.themes, audit: context.can.audit, ai: context.ai.canManage, push: context.push(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-settings two-factor={{}} morning={{ on: false, emailSetUp: false, address: "" }} theme="system" themes={[]} audit={false} ai={false} done="" problem="">
+<hq-settings two-factor={{}} morning={{ on: false, emailSetUp: false, address: "" }} theme="system" themes={[]} audit={false} ai={false} push={{ ready: false, publicKey: "", devices: [] }} done="" problem="">
   <div class="hq-page">
     <h1>Settings</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -43,6 +44,7 @@
         <button class="hq-button" type="submit">Save</button>
       </form>
     </section>
+    <push-setup view={push}></push-setup>
     <section zb-if={ai} class="hq-panel" aria-labelledby="settings-ai">
       <h2 id="settings-ai">AI</h2>
       <p>Which AI features are on, the model, the monthly budget and what it’s cost: <a href="/settings/ai">the model and budget</a>.</p>

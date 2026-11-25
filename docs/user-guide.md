@@ -69,7 +69,8 @@ mistake you notice later can still be undone.
   deal, project, task or invoice, or move a deal on ("Move Feed store site
   to Quoted").
 - **?** shows every shortcut. **G** then a letter jumps to a page: **P**
-  Pipeline, **C** Clients, **B** Board, **T** Today and more. **/** searches.
+  Pipeline, **C** Clients, **B** Board, **T** Today and more. **/** opens
+  the same box as Ctrl+K.
 - On the pipeline or the board, focus a card and press **Space**, the
   **arrow keys**, then **Space** again to move it. **Escape** puts it back.
 - On a phone, drag a card by its grip (the dots on its left edge).
@@ -466,6 +467,73 @@ budget shared with the site builder ($20 a month to start, set under Site
 builder → Model and cap). At the budget, AI drafts and the site builder stop
 until the first of the month or until the cap is raised; HQ works as usual
 without them. A receipt draft nobody uses is discarded after 30 days.
+
+## Finding your way, and the assistant
+
+The sidebar is eight hubs: **Home**, **Today**, **Clients**, **Work**,
+**Sites**, **Money**, **Growth** and **Company**. The hub you're in is open;
+tap another to open it. Settings is in the top bar. Can't find a page? Type
+what it does in the search box ("booking hours", "dark mode", "invoices"):
+**Pages** come first.
+
+Press **/** (or Ctrl+K, ⌘K on a Mac) anywhere, or tap **Go to…**, and type:
+pages and records come up as you type. If nothing fits, Enter hands it to
+the assistant. **Pin** in the top bar keeps the page you're on at the top
+of your sidebar; **Recent** in the sidebar lists the records you opened on
+this device. On a phone, Home, Today, Search, Add and Ask sit along the
+bottom.
+
+Admins see **Get HQ ready** on Home until everything on it is done. Each
+line ticks itself when HQ can see it's true.
+
+**The assistant** is the box at the top of Home, once it's turned on in
+Settings → AI. Say what needs to happen in plain words: "add a to-do to call
+Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
+"where do I set my hours?", "what's due today?".
+
+- It opens with your day: who's waiting, what's due, your next call.
+- **Ask** in the top bar opens it beside any page. "Log a call here" then
+  means the client you're looking at.
+- **Speak** turns what you say into text, where your browser can.
+- It looks things up by itself: records, pages, the knowledge base, what's
+  due.
+- Besides tasks, notes, calls, clients and deals, it can set a deal's
+  follow-up day, mark a project's health, stop your timer, make a booking
+  link, start a proposal and draft an invoice. Invoices and proposals stay
+  drafts.
+- Every change shows a card first. Nothing happens until you tap **Do it**.
+- It acts as you, so it can't do anything you can't. What it does shows in
+  Audit history as yours.
+- Under **How changes are made** you can let small changes (moving a task,
+  ticking off or reopening a to-do, a follow-up day, a project's health) go
+  straight through, each with **Undo** for a day.
+- It can't send, post, pay or delete. For those it links the page.
+- **New chat** starts over. Conversations are kept 90 days.
+- It uses the same monthly AI budget as the drafts and the site builder.
+
+## Day to day, a little easier (decision 0016)
+
+- **Notices** → *What's emailed, and when*: right away, the 7 AM digest, or
+  never, for each kind, and quiet hours.
+- **All work**: tick rows, then *With the ticked ones* to move, give, date or
+  label them together.
+- **What changed here** at the bottom of a client, deal, invoice, task or
+  proposal.
+- **Settings** → *Phone alerts and the HQ app*: install HQ on your phone and
+  turn on alerts for it.
+- Managers: **Team workload** under Work.
+- Admins: **System status** under Company; **View as a manager / member** on
+  People (read-only, Stop viewing at the top); and a **weekly email** on
+  Mondays.
+- Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
+  straight from the email when work is shared with them.
+- **Saved replies** under Clients: write it once, then *Use a saved reply*
+  beside a message to a client.
+- Adding a client that's already here? HQ asks first. A duplicate can be
+  merged from *Is this a duplicate?* on its page (managers and admins).
+- Booked calls show in your calendar feed at their times.
+- Clients see *Waiting on you*, *What we're doing next* and *Done* at the
+  top of each project in the portal.
 
 ## Habits that keep HQ worth using
 

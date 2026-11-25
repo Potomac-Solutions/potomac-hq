@@ -70,6 +70,10 @@
           </select>
         </div>
         <text-field label="Website" name="website" description="Optional, like example.com" autocomplete="url"></text-field>
+        <div zb-if={problem && problem.includes('already in HQ')} class="hq-check">
+          <input id="client-different" name="different" type="checkbox" value="1">
+          <label for="client-different">It’s a different business: add it anyway</label>
+        </div>
         <text-field label="Phone" name="phone" type="tel" autocomplete="tel"></text-field>
         <text-field label="Address" name="address" rows={2} autocomplete="street-address"></text-field>
         <div><button class="hq-button" type="submit">Add client</button></div>

@@ -22,6 +22,7 @@
   }
 </script>
 <style>
+  .work-bulk { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.75rem; padding: 0.6rem 0.75rem; background: var(--muted); border-radius: calc(var(--radius) - 2px); }
   .work-saved { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
   .work-saved a { display: inline-block; padding: 0.3rem 0.75rem; border: 1px solid var(--border); border-radius: 999px; color: var(--foreground); background: var(--card); font-size: 0.875rem; font-weight: 600; text-decoration: none; }
   .work-saved a[aria-current=page] { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
@@ -39,7 +40,7 @@
   .work-table th[aria-sort=descending] a::after { content: " ↓"; }
   .work-small-form { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; }
 </style>
-<hq-work view={{ form: { projects: [], clients: [], people: [], labels: [], statuses: [], priorities: [], due: [], shows: [], dueFrom: '', dueTo: '', words: '' }, filtering: false, query: '', headers: [], show: {}, columns: [], rows: [], csvHref: '', saved: [], savedName: '' }} sort="" dir="" done="" problem="">
+<hq-work view={{ form: { canEdit: false, projects: [], clients: [], people: [], labels: [], statuses: [], priorities: [], due: [], shows: [], dueFrom: '', dueTo: '', words: '' }, filtering: false, query: '', headers: [], show: {}, columns: [], rows: [], csvHref: '', saved: [], savedName: '' }} sort="" dir="" done="" problem="">
   <div class="hq-page">
     <h1>{view.savedName || 'All work'}</h1>
     <p class="hq-muted">Every task and to-do, from any project. Filter, sort by any column, and save the views you use.</p>
@@ -128,16 +129,38 @@
         <a href={view.csvHref}>Download as CSV</a>
       </div>
       <empty-state zb-if={view.rows.length === 0} heading="Nothing matches">{view.filtering ? 'Try fewer choices, or clear the filter.' : 'No open tasks or to-dos. Add one from a project or My work.'}</empty-state>
+      <form zb-if={view.rows.length > 0 && view.form.canEdit} id="work-bulk" method="post" action="/work/bulk" class="work-bulk">
+        <input type="hidden" name="query" value={view.query}>
+        <label for="bulk-action">With the ticked ones</label>
+        <select id="bulk-action" name="action">
+          <option value="status">Move to</option>
+          <option value="assign">Give to</option>
+          <option value="due">Make due</option>
+          <option zb-if={view.form.labels.length > 0} value="label">Add the label</option>
+        </select>
+        <label class="sr-only" for="bulk-status">Status</label>
+        <select id="bulk-status" name="value-status"><zb-each items={view.form.statuses} as="one" key={one.value}><option value={one.value}>{one.label}</option></zb-each></select>
+        <label class="sr-only" for="bulk-assign">Person</label>
+        <select id="bulk-assign" name="value-assign"><zb-each items={view.form.people} as="one" key={one.value}><option value={one.value}>{one.label}</option></zb-each></select>
+        <label class="sr-only" for="bulk-due">Due date</label>
+        <input id="bulk-due" type="date" name="value-due">
+        <label zb-if={view.form.labels.length > 0} class="sr-only" for="bulk-label">Label</label>
+        <select zb-if={view.form.labels.length > 0} id="bulk-label" name="value-label"><zb-each items={view.form.labels} as="one" key={one.value}><option value={one.value}>{one.label}</option></zb-each></select>
+        <button class="hq-button secondary" type="submit">Apply</button>
+        <span class="hq-small hq-muted">Pick the action, then fill in only its own box.</span>
+      </form>
       <div zb-if={view.rows.length > 0} class="hq-scroll">
         <table tabindex="0" class="hq-table work-table">
           <thead>
             <tr>
+              <th zb-if={view.form.canEdit} scope="col"><span class="sr-only">Pick</span></th>
               <zb-each items={view.headers} as="header" key={header.key}><th scope="col" aria-sort={header.sorted}><a href={header.href}>{header.label}</a></th></zb-each>
             </tr>
           </thead>
           <tbody>
             <zb-each items={view.rows} as="row" key={row.id}>
               <tr>
+                <td zb-if={view.form.canEdit}><input type="checkbox" form="work-bulk" name={'task-' + row.id} aria-label={'Pick ' + row.title}></td>
                 <td><a href={row.href}>{row.title}</a></td>
                 <td zb-if={view.show.project}><a zb-if={row.projectId} href="/projects/{row.projectId}">{row.projectName}</a><span zb-if={!row.projectId} class="hq-muted">To-do</span></td>
                 <td zb-if={view.show.client}>{row.clientName}</td>

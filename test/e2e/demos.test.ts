@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -30,7 +30,7 @@ test("add a demo, send it, and see it opened", async () => {
   const contact = unwrap(crm.addContact(t.services.crm, mikeyId, client.id, { name: "Brenda Kight", email: "brenda@example.com", isPrimary: true }));
   const lead = unwrap(crm.createOpportunity(t.services.crm, mikeyId, client.id, { title: "Ordering site", leadSource: "phone", contactId: contact.id })).id;
 
-  await page.getByRole("link", { name: "Demos" }).click();
+  await sidebar(page, "Demos");
   await page.getByRole("heading", { name: "No demos yet" }).waitFor();
   await assertAccessible(page, "demos, empty");
   await page.getByRole("textbox", { name: /^Name/ }).last().fill("Counter");

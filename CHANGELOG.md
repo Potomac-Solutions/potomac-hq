@@ -45,6 +45,41 @@ moves those lines under a version heading. See `docs/conventions.md`.
   comes back after a closed or crashed page. Ctrl+Enter sends a form.
   Dropped cards move to their column at once. Pages leave room for the
   Undo bars.
+- The sidebar is eight hubs (decision 0015): Home, Today, Clients, Work,
+  Sites, Money, Growth and Company. The hub you're in is open; the others
+  fold to one line and open with a tap. Every page keeps its address. The
+  dashboard is now Home. One list in code names every page, its hub, the
+  words people use for it and who may open it.
+- Search finds pages as well as records: "where do I set my hours",
+  "invoices" or "dark mode" offer the page that does it, under **Pages**.
+- **Get HQ ready** on Home, for admins (decision 0015): backups, email, how
+  clients reach you, two-factor sign-in, booking hours, clients, a second
+  person and AI, each with why it matters and a link to where it's done.
+  Every line is worked out from HQ itself; the panel folds at three
+  quarters and goes away when all are done. `bin/serve.ts` tells HQ whether
+  backups are configured.
+- **The assistant** on Home (decision 0015): say what needs to happen in
+  plain words. It finds records and pages, reads the knowledge base and
+  checks what's due by itself; every change it proposes (quick add a task
+  or to-do, move a task, tick off or reopen a to-do, add a note, log a call
+  or message, add a client, open a deal) shows a card and happens on **Do
+  it**, as you, through the same services as the buttons. A setting lets
+  small changes go through with **Undo**. It is a feature in Settings → AI
+  (off to start), shares the monthly AI budget, and takes a model picked
+  beside the box up to the ceiling. Conversations are kept 90 days.
+  Migration 0073.
+- Finding your way, part two (decision 0015, follow-up): a command bar on
+  `/` or Ctrl+K (⌘K) and **Go to…**, with pages and records as you type and
+  Enter to ask the assistant when nothing fits; **Ask** in the top bar
+  opens the assistant beside any page, sent with that page's address;
+  a tab bar along the bottom on phones; the conversation opens with your
+  day from HQ's own records; **Pin** keeps pages at the top of your sidebar
+  (migration 0074) and **Recent** lists records opened on this device;
+  **Speak** where the browser can. The assistant can also set a follow-up
+  day and a project's health (with Undo), stop the timer, make a booking
+  link, start a proposal and draft an invoice. Decision 0014's command
+  palette is now this command bar: it moves a deal it finds on or back a
+  stage, and "keys" opens the shortcut list.
 
 - Pick a model per request (decision 0012, added). Settings → AI has a new
   "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
@@ -60,6 +95,30 @@ moves those lines under a version heading. See `docs/conventions.md`.
   now show Anthropic's own reason (such as a model the key can't use or a
   limit passed), not just "refused". Only the error message is kept, never
   the rest of the response.
+
+- Quality of life (decision 0016):
+  - **System status** for admins: backups, email, errors, AI spend and
+    server settings in one place.
+  - **What changed here** on clients, deals, invoices, tasks and proposals.
+  - **Notice settings**: right away, a 7 AM digest or never for each kind,
+    and quiet hours (migration 0075).
+  - **Many at once** on All work (move, give, date, label), and marking
+    several draft invoices sent.
+  - **Team workload** for managers and admins.
+  - **View as a manager or member**, read-only, for admins.
+  - **The weekly owner email**, Mondays at 7:23.
+  - **HQ on a phone**: install to the home screen, and alerts for client
+    messages and call requests, calls about to start, sites down and
+    notices (migration 0076; `npm run push:keygen`, `HQ_VAPID_*`).
+  - **The portal**: Email me a link to sign in (self-serve password reset),
+    and approving a deliverable from the email in one tap.
+  - **Booked calls in the calendar feed**, at their times.
+  - **Saved replies** beside a message to a client (migration 0077).
+  - **Duplicate clients**: a name like one already here asks first, and a
+    duplicate can be merged into the client to keep.
+  - **The portal's timeline**: waiting on you, next, and done.
+  - **Keyboard**: the command bar keeps focus inside, closes on Escape and
+    puts focus back.
 
 ## [0.17.0] - 2026-11-25
 

@@ -1,0 +1,138 @@
+<!--
+  The assistant on Home (decision 0015): the conversation so far, a card for
+  each change it proposes (Do it / Cancel, or Undo once done), and the box.
+  Works without scripts: every button is a form. With scripts, Enter sends
+  and the button says it's thinking. `view` is the page context's
+  assistant(); `models` the models this person may pick; `can-manage` shows
+  where to turn it on when it's off.
+-->
+<script>
+  import './model-pick.zb'
+  import { onMount } from '@zubra/runtime'
+  let busy = false
+  let listening = false
+  let canTalk = false
+  // Speak instead of typing, where the browser can (most phones can).
+  function talk(event) {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition
+    const box = event.target.closest('form')?.querySelector('textarea')
+    if (!Speech || !box || listening) return
+    const heard = new Speech()
+    heard.lang = 'en-US'
+    heard.interimResults = false
+    heard.onresult = (result) => {
+      box.value = (box.value ? box.value + ' ' : '') + result.results[0][0].transcript
+      box.focus()
+    }
+    heard.onend = () => (listening = false)
+    listening = true
+    heard.start()
+  }
+  onMount(() => (canTalk = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)))
+  function sending() {
+    busy = true
+  }
+  // Enter sends; Shift+Enter is a new line.
+  function key(event) {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+    const form = event.target.form
+    if (!form || !event.target.value.trim()) return
+    event.preventDefault()
+    busy = true
+    form.requestSubmit()
+  }
+</script>
+<style>
+  :host { display: block; }
+  .chat { display: grid; gap: 0.9rem; border-top: 0.3rem solid var(--primary); }
+  .chat-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
+  .chat-head h2 { margin: 0; }
+  .chat-head form { margin: 0; }
+  /* Reversed so the newest message is in view, with no script. */
+  .chat-scroll { display: flex; flex-direction: column-reverse; max-height: 28rem; overflow-y: auto; }
+  .chat-log { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+  .chat-log li { display: flex; min-width: 0; }
+  .chat-you { justify-content: flex-end; }
+  .chat-bubble { max-width: min(36rem, 90%); padding: 0.55rem 0.8rem; border-radius: calc(var(--radius) + 2px); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+  .chat-you .chat-bubble { color: var(--primary-foreground); background: var(--primary); border-bottom-right-radius: 0.2rem; }
+  .chat-hq .chat-bubble { background: var(--muted); border-bottom-left-radius: 0.2rem; }
+  .chat-looked { font-size: 0.8125rem; color: var(--muted-foreground); }
+  .chat-looked::before { content: "↳ "; }
+  .chat-card { flex: 1 1 auto; max-width: 36rem; display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; background: var(--card); border: 1px solid var(--border); border-left: 0.25rem solid var(--primary); border-radius: var(--radius); }
+  .chat-card.settled { border-left-color: var(--border); }
+  .chat-card p { margin: 0; }
+  .chat-card-status { font-size: 0.8125rem; font-weight: 600; color: var(--muted-foreground); }
+  .chat-card-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .chat-card-actions form { margin: 0; }
+  .chat-box { display: grid; gap: 0.5rem; }
+  .chat-box textarea { width: 100%; min-height: 3.2rem; padding: 0.6rem 0.75rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); resize: vertical; }
+  .chat-box textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .chat-send { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: space-between; }
+  .chat-ideas { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+  .chat-ideas form { margin: 0; }
+  .chat-ideas button { padding: 0.3rem 0.7rem; font: inherit; font-size: 0.8125rem; color: var(--foreground); background: var(--muted); border: 1px solid var(--border); border-radius: 999px; cursor: pointer; }
+  .chat-ideas button:hover { border-color: var(--ring); }
+  .chat-settings summary { cursor: pointer; font-size: 0.875rem; color: var(--muted-foreground); }
+  .chat-settings form { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; margin: 0.5rem 0 0; }
+</style>
+<assistant-panel view={{ on: false, why: '', lines: [], autoSmall: false, suggestions: [] }} models={[]} can-manage={false}>
+  <section class="hq-panel chat" id="chat" aria-labelledby="chat-heading">
+    <div class="chat-head">
+      <h2 id="chat-heading">What needs to happen?</h2>
+      <form zb-if={view.lines.length > 0} method="post" action="/assistant/new"><button class="hq-button secondary small" type="submit">New chat</button></form>
+    </div>
+
+    <p zb-if={!view.on && view.why} class="hq-muted" role="status">{view.why}</p>
+    <p zb-if={!view.on && !view.why && canManage} class="hq-muted">The assistant is off. Turn on <strong>The assistant</strong> in <a href="/settings/ai">AI model and budget</a>. It uses the same monthly budget as the other AI features.</p>
+
+    <div zb-if={view.lines.length > 0} class="chat-scroll" tabindex="0" role="log" aria-label="Conversation with the assistant">
+    <ol class="chat-log">
+      <zb-each items={view.lines} as="line" key={line.key}>
+        <li class={'chat-' + line.who}>
+          <span zb-if={line.who === 'you'} class="chat-bubble"><span class="sr-only">You: </span>{line.text}</span>
+          <span zb-if={line.who === 'hq'} class="chat-bubble"><span class="sr-only">Assistant: </span><zb-each items={line.segments} as="part" key={part.text + part.href}><a zb-if={part.href} href={part.href}>{part.text}</a><span zb-else>{part.text}</span></zb-each></span>
+          <span zb-if={line.who === 'looked'}>{line.text}</span>
+          <div zb-if={line.who === 'card'} class="chat-card" class:settled={line.card.status !== 'waiting'}>
+            <p class="chat-card-status">{line.card.statusText}</p>
+            <p>{line.card.summary}</p>
+            <p zb-if={line.card.problem} class="hq-small">{line.card.problem}</p>
+            <div class="chat-card-actions">
+              <form zb-if={line.card.status === 'waiting'} method="post" action="/assistant/actions/{line.card.id}/do"><button class="hq-button small" type="submit">Do it<span class="sr-only">: {line.card.summary}</span></button></form>
+              <form zb-if={line.card.status === 'waiting'} method="post" action="/assistant/actions/{line.card.id}/cancel"><button class="hq-button secondary small" type="submit">Cancel<span class="sr-only">: {line.card.summary}</span></button></form>
+              <form zb-if={line.card.canUndo} method="post" action="/assistant/actions/{line.card.id}/undo"><button class="hq-button secondary small" type="submit">Undo<span class="sr-only">: {line.card.summary}</span></button></form>
+              <a zb-if={line.card.href} href={line.card.href}>Open it</a>
+            </div>
+          </div>
+        </li>
+      </zb-each>
+    </ol>
+    </div>
+
+    <form zb-if={view.on} method="post" action="/assistant" class="chat-box" onsubmit={sending}>
+      <label class="sr-only" for="chat-message">Tell the assistant what needs to happen</label>
+      <textarea id="chat-message" name="message" required maxlength="1000" rows="2" placeholder="Add a to-do to call Stacy Friday… Where do I set my hours?… What's due today?" onkeydown={key}></textarea>
+      <div class="chat-send">
+        <model-pick models={models} field-id="chat-model"></model-pick>
+        <span>
+        <button zb-if={canTalk} type="button" class="hq-button secondary" onclick={talk} aria-pressed={listening ? 'true' : 'false'}>{listening ? 'Listening…' : 'Speak'}</button>
+        <button class="hq-button" type="submit" aria-busy={busy ? 'true' : 'false'}>{busy ? 'Thinking…' : 'Send'}</button>
+        </span>
+      </div>
+    </form>
+
+    <ul zb-if={view.on && view.suggestions.length > 0} class="chat-ideas" aria-label="Ideas to start with">
+      <zb-each items={view.suggestions} as="idea" key={idea}>
+        <li><form method="post" action="/assistant" onsubmit={sending}><input type="hidden" name="message" value={idea}><button type="submit">{idea}</button></form></li>
+      </zb-each>
+    </ul>
+
+    <details zb-if={view.on} class="chat-settings">
+      <summary>How changes are made</summary>
+      <p class="hq-small">Every change shows a card first and happens when you tap <strong>Do it</strong>. Small changes (moving a task, ticking off or reopening a to-do, a follow-up day, a project's health) can go straight through instead, each with <strong>Undo</strong> for a day.</p>
+      <form method="post" action="/assistant/settings">
+        <label><input type="checkbox" name="autoSmall" checked={view.autoSmall}> Let small changes go through without asking</label>
+        <button class="hq-button secondary small" type="submit">Save</button>
+      </form>
+    </details>
+  </section>
+</assistant-panel>

@@ -1,0 +1,39 @@
+<!--
+  "Use a saved reply" beside a message box (quality of life, 2026-11-25):
+  picking one puts its text in the box of the same form, with {first name},
+  {client}, {project} and {me} filled in from the page. Needs scripts; shows
+  nothing without them or without replies. `replies` is [{ id, title, body }].
+-->
+<script>
+  import { onMount } from '@zubra/runtime'
+  let ready = false
+  const fill = (body) => {
+    const known = { '{first name}': firstName, '{client}': client, '{project}': project, '{me}': me }
+    return body.replace(/\{(first name|client|project|me)\}/gi, (match) => known[match.toLowerCase()] || match)
+  }
+  function use(event) {
+    const reply = replies.find((one) => one.id === event.target.value)
+    const box = event.target.closest('form')?.querySelector('textarea')
+    if (!reply || !box) return
+    const text = fill(reply.body)
+    box.value = box.value.trim() ? box.value.replace(/\s*$/, '\n\n') + text : text
+    box.dispatchEvent(new Event('input', { bubbles: true }))
+    box.focus()
+    event.target.value = ''
+  }
+  onMount(() => (ready = true))
+</script>
+<style>
+  :host { display: block; }
+  .reply-pick { display: flex; flex-wrap: wrap; gap: 0.35rem 0.5rem; align-items: center; font-size: 0.875rem; }
+</style>
+<reply-picker replies={[]} first-name="" client="" project="" me="" field-id="reply-pick">
+  <div zb-if={ready && replies.length > 0} class="reply-pick">
+    <label for={fieldId}>Use a saved reply</label>
+    <select id={fieldId} onchange={use}>
+      <option value="">Choose one…</option>
+      <zb-each items={replies} as="reply" key={reply.id}><option value={reply.id}>{reply.title}</option></zb-each>
+    </select>
+    <a href="/replies" class="hq-small">Edit the list</a>
+  </div>
+</reply-picker>

@@ -17,7 +17,7 @@
   }
   const p = view.project
 </script>
-<hq-portal-project view={{ project: {}, progress: {}, steps: [], deliverables: [], updates: [], files: [], links: [], changes: [] }} done="" problem="">
+<hq-portal-project view={{ project: {}, progress: {}, timeline: { done: [], next: [], yours: [], more: 0 }, steps: [], deliverables: [], updates: [], files: [], links: [], changes: [] }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{p.name}</h1>
@@ -32,6 +32,30 @@
       <p zb-if={p.target}>Planned finish: {p.target}</p>
       <p zb-if={p.description} class="hq-prose">{p.description}</p>
       <p zb-if={view.billableHours} class="hq-muted">Billable hours so far: {view.billableHours}</p>
+      <div zb-if={view.steps.length > 0 || view.timeline.yours.length > 0} class="portal-timeline">
+        <section aria-labelledby="pp-yours" class="portal-lane" data-lane="yours">
+          <h3 id="pp-yours">Waiting on you</h3>
+          <p zb-if={view.timeline.yours.length === 0} class="hq-muted">Nothing right now. We’ll email you when there is.</p>
+          <ul zb-if={view.timeline.yours.length > 0}>
+            <zb-each items={view.timeline.yours} as="one" key={one.key}><li><a href={one.href}>{one.text}</a><span zb-if={one.when} class="hq-muted hq-small"> · {one.when}</span></li></zb-each>
+          </ul>
+        </section>
+        <section aria-labelledby="pp-next" class="portal-lane" data-lane="next">
+          <h3 id="pp-next">What we’re doing next</h3>
+          <p zb-if={view.timeline.next.length === 0} class="hq-muted">{view.project.open ? 'Wrapping up.' : 'All done.'}</p>
+          <ul zb-if={view.timeline.next.length > 0}>
+            <zb-each items={view.timeline.next} as="one" key={one.key}><li>{one.text} <span class="hq-muted hq-small">· {one.when}</span></li></zb-each>
+          </ul>
+        </section>
+        <section aria-labelledby="pp-done" class="portal-lane" data-lane="done">
+          <h3 id="pp-done">Done</h3>
+          <p zb-if={view.timeline.done.length === 0} class="hq-muted">Nothing yet. It’s early days.</p>
+          <ul zb-if={view.timeline.done.length > 0}>
+            <li zb-if={view.timeline.more > 0} class="hq-muted">…and {view.timeline.more} earlier {view.timeline.more === 1 ? 'step' : 'steps'}</li>
+            <zb-each items={view.timeline.done} as="one" key={one.key}><li><span aria-hidden="true">✓ </span>{one.text} <span class="hq-muted hq-small">· {one.when}</span></li></zb-each>
+          </ul>
+        </section>
+      </div>
       <p zb-if={view.progress.total > 0} class="portal-progress" data-spaced><progress max={view.progress.total} value={view.progress.done} aria-label="Steps done"></progress> <span class="hq-muted">{view.progress.text}</span></p>
       <ol zb-if={view.steps.length > 0} class="portal-steps">
         <zb-each items={view.steps} as="step" key={step.id}>

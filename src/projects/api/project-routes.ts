@@ -10,6 +10,7 @@ import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
+import * as bulk from "../application/bulk.ts";
 import { formatHours, formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
@@ -252,6 +253,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
   });
   // The work table's forms. Each sends the browser back to the filter it was on, read and written again so only filter fields go back.
   const toWork = (f: FormFields) => work.workAddress(f["query"] ?? "");
+  // Many at once: each ticked box is task-<id>.
+  post("/work/bulk", (actor, f) => bulk.bulkChangeTasks(deps.projects, actor, Object.keys(f).filter((key) => key.startsWith("task-") && f[key] === "on").map((key) => key.slice(5)), bulk.readBulkAction(f["action"] ?? "", f[`value-${f["action"] ?? ""}`] ?? "")), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: (result) => (result.skipped > 0 ? `Changed ${result.changed}. ${result.skipped} couldn’t be changed.` : result.changed === 1 ? "Changed 1." : `Changed ${result.changed}.`),
+  });
   post("/work/filters", (actor, f) => work.saveFilter(deps.projects, actor, { name: f["name"] ?? "", query: f["query"] ?? "", shared: f["shared"] === "1", pinned: f["pinned"] === "1" }), {
     done: (_, _id, f) => toWork(f),
     back: (_id, f) => toWork(f),

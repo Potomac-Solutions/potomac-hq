@@ -26,6 +26,7 @@
     "site:token": "node bin/site-token.ts",
     "backup": "node bin/backup.ts",
     "backup:keygen": "node bin/backup-keygen.ts",
+    "push:keygen": "node bin/push-keygen.ts",
     "restore": "node bin/restore.ts",
     "restore:drill": "node bin/restore-drill.ts",
     "retention": "node bin/retention.ts",

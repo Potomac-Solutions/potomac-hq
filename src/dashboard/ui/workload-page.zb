@@ -1,0 +1,43 @@
+<!--
+  Team workload: each person's open work, what's due this week, what's
+  overdue, and their hours against their own usual week. Whoever needs a
+  look comes first. Each name opens their work on All work.
+-->
+<script>
+  'use route /workload'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.workload()
+    if (!view) return context.forbidden()
+    return { title: 'Team workload', view }
+  }
+</script>
+<hq-workload view={{ lines: [], week: '' }}>
+  <div class="hq-page">
+    <h1>Team workload</h1>
+    <p class="hq-muted">This week, {view.week}. Hours are against each person’s own usual week, the four before averaged.</p>
+    <section class="hq-panel" aria-labelledby="workload-people">
+      <h2 id="workload-people">{view.lines.length === 1 ? '1 person' : view.lines.length + ' people'}</h2>
+      <div class="hq-scroll">
+        <table tabindex="0" class="hq-table">
+          <thead><tr><th scope="col">Who</th><th scope="col" class="hq-number">Open</th><th scope="col" class="hq-number">Due this week</th><th scope="col" class="hq-number">Overdue</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Usual</th><th scope="col">Look at</th></tr></thead>
+          <tbody>
+            <zb-each items={view.lines} as="line" key={line.userId}>
+              <tr>
+                <td><a href={line.href}>{line.name}</a></td>
+                <td class="hq-number">{line.open}</td>
+                <td class="hq-number">{line.dueThisWeek}</td>
+                <td class="hq-number">{line.overdue}</td>
+                <td class="hq-number">{line.hours}</td>
+                <td class="hq-number">{line.usual}</td>
+                <td><status-badge zb-if={line.flag} variant="warning">{line.flag}</status-badge></td>
+              </tr>
+            </zb-each>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</hq-workload>
