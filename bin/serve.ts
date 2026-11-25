@@ -37,6 +37,7 @@ import { deliverDue } from "../src/webhooks/index.ts";
 import { sendDueIssues } from "../src/newsletter/index.ts";
 import { draftMonthlyReports } from "../src/client-reports/index.ts";
 import { checkAutomations } from "../src/automations/index.ts";
+import { earnCredits } from "../src/referral-credit/index.ts";
 import { httpsHookSend } from "../src/webhooks/adapters.ts";
 import { calendarConfigFrom, googleBusyCalendar } from "../src/booking/adapters.ts";
 import { checkSites } from "../src/monitor/index.ts";
@@ -293,6 +294,18 @@ const automationTimer = setInterval(() => {
 }, 5 * 60_000);
 automationTimer.unref();
 
+// Referral credit (decision 0013, section 7): every ten minutes, give the
+// credits that came due when a referred client paid an invoice.
+const creditTimer = setInterval(() => {
+  try {
+    const earned = earnCredits(createServices(db).referralCredit);
+    if (earned > 0) console.log(`Referral credit: ${earned} earned.`);
+  } catch (error) {
+    log("Referral credit: the run failed", error);
+  }
+}, 10 * 60_000);
+creditTimer.unref();
+
 // Calls nobody ended (decision 0009, section 4): every five minutes, end any
 // call open for 3 hours and log it, so call lengths stay honest.
 const callTimer = setInterval(() => {
@@ -455,6 +468,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(lostTimer);
     clearInterval(socialTimer);
     clearInterval(automationTimer);
+    clearInterval(creditTimer);
     stopInvoiceReminders?.();
     stopMorning?.();
     stopNotices?.();

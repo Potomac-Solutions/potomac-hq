@@ -20,13 +20,13 @@
     if (stop) return stop
     const view = context.crm.opportunityDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), ai: context.ai.deal(params.id), aiStates: { triage: context.ai.state('lead-triage'), checkIn: context.ai.state('check-in'), proposal: context.ai.state('proposal-draft') }, emailOn: context.crm.emailOn, origin: context.leads.origin(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), ai: context.ai.deal(params.id), aiStates: { triage: context.ai.state('lead-triage'), checkIn: context.ai.state('check-in'), proposal: context.ai.state('proposal-draft') }, emailOn: context.crm.emailOn, origin: context.leads.origin(params.id), referred: context.referralCredit.referredBy(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 
   const o = view.opportunity
   const canMove = view.can.setStage && o.open
 </script>
-<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} ai={{ triage: null, checkIn: null, proposal: null }} ai-states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} email-on={false} origin={null} done="" problem="">
+<hq-opportunity view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} ai={{ triage: null, checkIn: null, proposal: null }} ai-states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} email-on={false} origin={null} referred={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: o.title, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -47,6 +47,7 @@
         <dt zb-if={view.can.viewValue}>Price</dt><dd zb-if={view.can.viewValue}>{o.price || "Not set"}</dd>
         <dt>Follow-up</dt><dd><time zb-if={o.followUpOn} datetime={o.followUpOn}>{o.followUpText}</time><span zb-else>None</span> <status-badge zb-if={o.followUpDue} variant="danger">Due</status-badge></dd>
         <dt>Found you by</dt><dd>{o.leadSourceLabel}</dd>
+        <dt zb-if={referred && referred.text}>Referred by</dt><dd zb-if={referred && referred.text}><a zb-if={referred.organizationId} href="/clients/{referred.organizationId}">{referred.text}</a><span zb-else>{referred.text}</span></dd>
         <dt zb-if={origin}>On the website</dt><dd zb-if={origin}>{origin.label}<span zb-if={origin.page} class="hq-muted"> · {origin.page}</span><span zb-if={origin.campaign} class="hq-muted"><br>Campaign: {origin.campaign}</span></dd>
         <dt>Contact</dt><dd>{view.contactName || "None"}<span zb-if={view.contactIsPrimary} class="hq-muted"> (primary at the client)</span><span zb-if={view.contactPhone}> · <a href="tel:{view.contactPhone}" class="hq-nowrap">{view.contactPhone}</a></span><span zb-if={view.contactEmail}> · <a href="mailto:{view.contactEmail}">{view.contactEmail}</a></span></dd>
         <dt>Owner</dt><dd>{view.ownerName}</dd>
@@ -54,6 +55,20 @@
         <dt zb-if={o.summary}>Notes</dt><dd zb-if={o.summary}>{o.summary}</dd>
       </dl>
     </section>
+    <details zb-if={referred && referred.canEdit} class="hq-more hq-panel" id="referred-by">
+      <summary>Who referred them</summary>
+      <form method="post" action="/opportunities/{o.id}/referred-by" class="hq-form">
+        <div class="hq-field">
+          <label for="referred-client">A client</label>
+          <select id="referred-client" name="organizationId">
+            <option value="">Not a client</option>
+            <zb-each items={referred.clients} as="c" key={c.value}><option value={c.value} selected={c.value === referred.organizationId}>{c.label}</option></zb-each>
+          </select>
+        </div>
+        <text-field label="Or a person" name="name" value={referred.name} maxlength={100} description="Like: Dale at the feed store. Only when it isn’t a client."></text-field>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
+      </form>
+    </details>
     <section zb-if={canMove} class="hq-panel" aria-labelledby="opportunity-stage">
       <h2 id="opportunity-stage">Move it on</h2>
       <div class="hq-actions">

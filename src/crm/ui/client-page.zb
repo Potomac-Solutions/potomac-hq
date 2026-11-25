@@ -20,10 +20,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -149,6 +149,16 @@
           <div><button class="hq-button" type="submit">Add and get its address</button></div>
         </form>
       </details>
+    </section>
+    <section zb-if={referrals} class="hq-panel" id="referrals" aria-labelledby="client-referrals">
+      <h2 id="client-referrals">Referrals</h2>
+      <p zb-if={referrals.link}>Their own link: <span class="hq-nowrap">{referrals.link.address}</span></p>
+      <form zb-if={referrals.canMakeLink} method="post" action="/clients/{view.client.id}/referral-link"><button class="hq-button secondary" type="submit">Make them their own referral link</button></form>
+      <p zb-if={referrals.referred.length === 0} class="hq-muted">Nobody they referred yet. Each new client they send who pays an invoice earns them {referrals.creditEach} of credit.</p>
+      <ul zb-else>
+        <zb-each items={referrals.referred} as="one" key={one.opportunityId}><li><a href="/opportunities/{one.opportunityId}">{one.clientName}: {one.title}</a>, {one.when}<span zb-if={one.credited}> · credit earned</span></li></zb-each>
+      </ul>
+      <p zb-if={referrals.earned !== '$0.00'}>Credit earned {referrals.earned}, used {referrals.used}, <strong>{referrals.available} left</strong>. Take it off one of their draft invoices.</p>
     </section>
     <section zb-if={showcase} class="hq-panel" id="showcase" aria-labelledby="client-showcase">
       <h2 id="client-showcase">Reviews and case study</h2>

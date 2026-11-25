@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- Referral credit (decision 0013, slice 8). An opportunity can say who
+  referred it, a client picked from the list or a person typed in ("Dale
+  at the feed store"), under "Who referred them". A client can have their
+  own referral link, named for them (`/r/moats-hardware`), shown on their
+  page and in their portal under "Send a friend our way". An inquiry or a
+  website booking that comes by it is marked as referred by them. When a
+  referred client pays an invoice, the client who referred them earns a
+  credit, once ($25 unless changed under Sales → Referral links). On one of
+  the referrer's draft invoices, "Take … of referral credit off" adds a
+  negative line for what's available, up to all but the invoice's last
+  dollar. Invoices can now carry a credit line. Migration 0068.
 - Reviews and case studies (decision 0013, slice 7). On a client's Reviews
   and case study page, "Email the link" asks their primary contact for a
   review. The link works once, for 30 days, and is written on a page of its
