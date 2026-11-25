@@ -36,6 +36,7 @@ export function callRoutes(deps: { readonly calls: CallDeps; readonly actorOf: (
   });
   post("/phone/:id/longer", (actor, _f, id) => changeCallLength(deps.calls, actor, id as Id, 1), { done: (_, id) => screen(id), back: screen, message: (call) => `Planned for ${call.plannedMinutes} minutes.` });
   post("/phone/:id/shorter", (actor, _f, id) => changeCallLength(deps.calls, actor, id as Id, -1), { done: (_, id) => screen(id), back: screen, message: (call) => `Planned for ${call.plannedMinutes} minutes.` });
+  post("/phone/:id/length", (actor, f, id) => changeCallLength(deps.calls, actor, id as Id, { minutes: Number(f["minutes"] ?? "") }), { done: (_, id) => screen(id), back: screen, message: (call) => `Planned for ${call.plannedMinutes} minutes.` });
   post("/phone/:id/note", (actor, f, id) => keepCallNote(deps.calls, actor, id as Id, f["note"] ?? ""), { done: (_, id) => screen(id), back: screen, message: "Notes saved." });
   post("/phone/:id/end", (actor, f, id) => endCall(deps.calls, actor, id as Id, { outcome: f["outcome"] ?? null, note: f["note"] ?? null, followUpOn: f["followUpOn"] ?? null }), {
     done: (call) => (call.opportunityId ? `/opportunities/${call.opportunityId}#touches` : `/clients/${call.organizationId}#touches`),

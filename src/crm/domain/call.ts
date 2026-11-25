@@ -4,13 +4,15 @@
 import type { Id } from "../../shared/domain/id.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 
-/** A call that wasn't booked is planned for this long. Default to confirm (decision 0009, section 1). */
-export const DEFAULT_CALL_MINUTES = 15;
+/** A call that wasn't booked is planned for this long. Confirmed by Mikey: most calls are 30 minutes (decision 0009, section 1). */
+export const DEFAULT_CALL_MINUTES = 30;
+/** One tap sets these, for a call picked up with only 15 minutes to give, or one that runs long. */
+export const QUICK_CALL_MINUTES = [15, 30, 45, 60] as const;
 export const MIN_CALL_MINUTES = 5;
 export const MAX_CALL_MINUTES = 240;
 /** The planned length changes in steps of this many minutes. */
 export const CALL_STEP_MINUTES = 5;
-/** A call left open this long is ended by HQ. Default to confirm (decision 0009, section 4). */
+/** A call left open this long is ended by HQ. Confirmed by Mikey (decision 0009, section 4). */
 export const AUTO_END_MINUTES = 180;
 
 export type Call = {
@@ -57,10 +59,15 @@ const validLength = (minutes: number) => Number.isInteger(minutes) && minutes >=
 
 /** Longer or shorter by `steps` of 5 minutes. The warning moves with it. */
 export function changeLength(call: Call, steps: number): Result<Call, CallError> {
+  if (!Number.isInteger(steps) || steps === 0) return err("invalid-length");
+  return setLength(call, call.plannedMinutes + steps * CALL_STEP_MINUTES);
+}
+
+/** Planned for exactly this many minutes, like 15 for a call picked up with only that to give. */
+export function setLength(call: Call, minutes: number): Result<Call, CallError> {
   if (call.endedAt !== null) return err("call-ended");
-  const plannedMinutes = call.plannedMinutes + steps * CALL_STEP_MINUTES;
-  if (!Number.isInteger(steps) || steps === 0 || !validLength(plannedMinutes)) return err("invalid-length");
-  return ok({ ...call, plannedMinutes, warnMinutes: warnMinutesFor(plannedMinutes) });
+  if (!validLength(minutes)) return err("invalid-length");
+  return ok({ ...call, plannedMinutes: minutes, warnMinutes: warnMinutesFor(minutes) });
 }
 
 export function keepNote(call: Call, note: string): Result<Call, CallError> {

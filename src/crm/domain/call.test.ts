@@ -1,20 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
+import { callClock, changeLength, forgotten, keepNote, lengthText, loggedMinutes, plannedFromBooking, setLength, startCall, timerText, warnMinutesFor, type Call } from "./call.ts";
 
 const AT = "2026-11-25T15:00:00.000Z";
 const ids = { id: "c1" as Id, organizationId: "o1" as Id, contactId: null, opportunityId: null, bookingId: null, userId: "u1" as Id, phone: "304-555-0100", startedAt: AT };
 const call = (): Call => {
-  const made = startCall(ids);
+  const made = startCall(ids, 15);
   assert.ok(made.ok);
   return made.value;
 };
 const later = (minutes: number, seconds = 0) => new Date(Date.parse(AT) + minutes * 60_000 + seconds * 1000).toISOString();
 
-test("a call is planned for 15 minutes unless it was booked", () => {
-  assert.equal(call().plannedMinutes, 15);
-  assert.equal(call().warnMinutes, 5);
+test("a call is planned for 30 minutes unless it was booked", () => {
+  const usual = startCall(ids);
+  assert.ok(usual.ok);
+  assert.deepEqual([usual.value.plannedMinutes, usual.value.warnMinutes], [30, 5]);
   assert.equal(plannedFromBooking("2026-11-25T15:00:00Z", "2026-11-25T15:30:00Z"), 30);
   assert.equal(plannedFromBooking("2026-11-25T15:00:00Z", "2026-11-25T15:22:00Z"), 20, "rounded to 5 minutes");
   assert.equal(plannedFromBooking("2026-11-25T15:00:00Z", "2026-11-25T15:01:00Z"), 5, "never under 5");
@@ -52,6 +53,11 @@ test("the length moves in 5-minute steps, and the warning with it", () => {
   assert.deepEqual(changeLength(call(), 0), { ok: false, error: "invalid-length" });
   assert.deepEqual(changeLength({ ...call(), endedAt: later(3) }, 1), { ok: false, error: "call-ended" });
   assert.deepEqual(keepNote({ ...call(), endedAt: later(3) }, "x"), { ok: false, error: "call-ended" });
+  const hour = setLength(call(), 60);
+  assert.ok(hour.ok);
+  assert.deepEqual([hour.value.plannedMinutes, hour.value.warnMinutes], [60, 5]);
+  assert.deepEqual(setLength(call(), 17), { ok: false, error: "invalid-length" });
+  assert.deepEqual(setLength({ ...call(), endedAt: later(3) }, 30), { ok: false, error: "call-ended" });
   assert.deepEqual(keepNote(call(), "x".repeat(2001)), { ok: false, error: "note-too-long" });
 });
 

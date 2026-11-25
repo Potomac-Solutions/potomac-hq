@@ -48,6 +48,8 @@
   .call-plan form { margin: 0; }
   .call-plan p { margin: 0; flex: 1 1 12rem; }
   .call-steps { display: flex; gap: 0.5rem; }
+  .call-lengths { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; flex: 1 1 100%; }
+  .call-lengths .hq-button { min-height: 2.75rem; min-width: 4.25rem; }
   .call-steps .hq-button { min-width: 3rem; min-height: 2.75rem; }
   .call-wrap ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
   .call-end { display: grid; gap: 0.75rem; }
@@ -81,6 +83,11 @@
 
     <div zb-if={!view.ended} class="call-plan">
       <p>Planned for {view.plannedMinutes} min. Wrap up at {view.wrapUpText}, done by {view.endsText}.</p>
+      <form method="post" action="/phone/{view.id}/length" class="call-lengths" aria-label="How long this call is">
+        <zb-each items={view.lengths} as="length" key={length.minutes}>
+          <button class="hq-button {length.current ? '' : 'secondary'}" type="submit" name="minutes" value={length.minutes} aria-pressed={length.current ? 'true' : 'false'}>{length.label}</button>
+        </zb-each>
+      </form>
       <div class="call-steps">
         <form method="post" action="/phone/{view.id}/shorter"><button class="hq-button secondary" type="submit" disabled={!view.canShorter} aria-label="5 minutes shorter">−5</button></form>
         <form method="post" action="/phone/{view.id}/longer"><button class="hq-button secondary" type="submit" disabled={!view.canLonger} aria-label="5 minutes longer">+5</button></form>

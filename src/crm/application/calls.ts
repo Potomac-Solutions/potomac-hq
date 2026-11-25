@@ -1,7 +1,7 @@
 // The call screen (decision 0009, call mode): start a call with someone at a
 // client, keep its timer on the server, change its planned length, keep
 // notes as they're typed, and end it into the call log with its length.
-import { callClock, changeLength, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
+import { callClock, changeLength, setLength, QUICK_CALL_MINUTES, forgotten, keepNote, loggedMinutes, plannedFromBooking, startCall as newCall, timerText, CALL_STEP_MINUTES, MAX_CALL_MINUTES, MIN_CALL_MINUTES, AUTO_END_MINUTES, type Call, type CallClock, type CallError } from "../domain/call.ts";
 import { OUTCOME_LABELS } from "../domain/touch.ts";
 import type { Contact } from "../domain/contact.ts";
 import { authorize } from "../../identity/index.ts";
@@ -92,13 +92,14 @@ function ownOpenCall(deps: CallDeps, actorId: Id | null, callId: Id): Result<Cal
   return ok(call);
 }
 
-/** Longer or shorter by `steps` of 5 minutes. */
-export function changeCallLength(deps: CallDeps, actorId: Id | null, callId: Id, steps: number): Result<Call, Refused | CallError> {
+/** Longer or shorter by `steps` of 5 minutes, or set to exactly `{ minutes }`. */
+export function changeCallLength(deps: CallDeps, actorId: Id | null, callId: Id, change: number | { readonly minutes: number }): Result<Call, Refused | CallError> {
   return deps.transact(() => {
     const call = ownOpenCall(deps, actorId, callId);
     if (!call.ok) return call;
-    const changed = changeLength(call.value, steps);
+    const changed = typeof change === "number" ? changeLength(call.value, change) : setLength(call.value, change.minutes);
     if (!changed.ok) return changed;
+    if (changed.value.plannedMinutes === call.value.plannedMinutes) return ok(call.value);
     deps.calls.update(changed.value);
     recordActivity(deps, { actorId, action: "call.length-changed", recordType: "call", recordId: callId, context: { from: call.value.plannedMinutes, to: changed.value.plannedMinutes } });
     return ok(changed.value);
@@ -187,6 +188,8 @@ export type CallScreen = {
   readonly note: string;
   readonly canLonger: boolean;
   readonly canShorter: boolean;
+  /** One-tap lengths: 15, 30, 45 and 60 minutes, the current one marked. */
+  readonly lengths: readonly { readonly minutes: number; readonly label: string; readonly current: boolean }[];
   readonly canFollowUp: boolean;
   readonly outcomes: readonly { readonly value: string; readonly label: string }[];
   readonly ended: boolean;
@@ -239,6 +242,7 @@ export function callScreen(deps: CallDeps, actorId: Id | null, callId: Id): Resu
     note: call.note,
     canLonger: call.plannedMinutes + CALL_STEP_MINUTES <= MAX_CALL_MINUTES,
     canShorter: call.plannedMinutes - CALL_STEP_MINUTES >= MIN_CALL_MINUTES,
+    lengths: QUICK_CALL_MINUTES.map((minutes) => ({ minutes, label: minutes === 60 ? "1 h" : `${minutes} min`, current: minutes === call.plannedMinutes })),
     canFollowUp: opportunity !== null && allowed(deps, actorId, "opportunity.set-follow-up"),
     outcomes: Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
     ended: call.endedAt !== null,
