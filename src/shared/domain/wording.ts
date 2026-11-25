@@ -211,6 +211,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "build.version-made": "Claude made a new version of a website",
   "build.request-failed": "A request to Claude for a website failed",
   "build.restored": "restored an earlier version of a website",
+  "build.image-added": "added a picture to a website in the site builder",
+  "build.image-removed": "removed a picture from a website in the site builder",
   "builder.settings-changed": "changed the site builder’s model or monthly cap",
 };
 

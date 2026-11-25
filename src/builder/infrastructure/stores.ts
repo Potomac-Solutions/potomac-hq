@@ -1,4 +1,5 @@
-import type { BuilderSettingsStore, BuildStore, VersionLine } from "../application/ports.ts";
+import type { BuilderSettingsStore, BuildStore, ImageStore, VersionLine } from "../application/ports.ts";
+import type { BuildImage, ImageKind } from "../domain/image.ts";
 import type { Build, BuildRequest, BuildVersion, RequestState } from "../domain/build.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
@@ -121,6 +122,53 @@ export function sqliteBuilderSettings(db: Database): BuilderSettingsStore {
     },
     save(settings, at) {
       write.run(settings.model, settings.capCents, at);
+    },
+  };
+}
+
+const IMAGE_COLUMNS = "id, build_id, path, kind, content_type, width, height, alt, size_bytes, added_by, created_at";
+const toImage = (row: Row): BuildImage => ({
+  id: text(row["id"]) as Id,
+  buildId: text(row["build_id"]) as Id,
+  path: text(row["path"]),
+  kind: text(row["kind"]) as ImageKind,
+  contentType: text(row["content_type"]),
+  width: int(row["width"]),
+  height: int(row["height"]),
+  alt: text(row["alt"]),
+  bytes: int(row["size_bytes"]),
+  addedBy: text(row["added_by"]) as Id,
+  createdAt: text(row["created_at"]),
+});
+
+export function sqliteImageStore(db: Database): ImageStore {
+  const insert = db.prepare(`insert into build_image (${IMAGE_COLUMNS}, body) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const get = db.prepare(`select ${IMAGE_COLUMNS} from build_image where id = ?`);
+  const atPath = db.prepare(`select ${IMAGE_COLUMNS} from build_image where build_id = ? and path = ?`);
+  const body = db.prepare("select body from build_image where id = ?");
+  const list = db.prepare(`select ${IMAGE_COLUMNS} from build_image where build_id = ? order by created_at, id`);
+  const remove = db.prepare("delete from build_image where id = ?");
+  return {
+    insert(i, bytes) {
+      insert.run(i.id, i.buildId, i.path, i.kind, i.contentType, i.width, i.height, i.alt, i.bytes, i.addedBy, i.createdAt, bytes);
+    },
+    get(id) {
+      const row = get.get(id);
+      return row ? toImage(row) : null;
+    },
+    atPath(buildId, path) {
+      const row = atPath.get(buildId, path);
+      return row ? toImage(row) : null;
+    },
+    body(id) {
+      const value = body.get(id)?.["body"];
+      return value instanceof Uint8Array ? value : null;
+    },
+    listFor(buildId) {
+      return list.all(buildId).map(toImage);
+    },
+    remove(id) {
+      remove.run(id);
     },
   };
 }

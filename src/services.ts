@@ -15,7 +15,7 @@ import type { ReferralsDeps } from "./referrals/index.ts";
 import type { SitePublisher, WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
 import type { BuilderDeps, Claude } from "./builder/index.ts";
-import { previewTokens, sqliteBuilderSettings, sqliteBuildStore } from "./builder/adapters.ts";
+import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
 import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
@@ -300,6 +300,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     newId,
     formatWhen,
     builds: sqliteBuildStore(db),
+    images: sqliteImageStore(db),
     settings: sqliteBuilderSettings(db),
     claude: options.claude ?? null,
     previewTokens: previewTokens(options.previewSecret ?? crypto.randomUUID() + crypto.randomUUID()),
