@@ -33,7 +33,11 @@ test("a timed call, from Start a call to the call log", async () => {
   await setUpAdmin(t, page);
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   const shop = unwrap(crm.createClient(t.services.crm, mikey, { name: "Hensley Body Shop" }));
-  unwrap(crm.addContact(t.services.crm, mikey, shop.id, { name: "Dale Hensley", phone: "304-555-0100", isPrimary: true }));
+  unwrap(crm.addContact(t.services.crm, mikey, shop.id, { name: "Dale Hensley", email: "dale@example.com", phone: "304-555-0100", isPrimary: true }));
+  // Open hours every day, so there are times to book from the wrap-up panel.
+  const allWeek = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].flatMap((day) => [[`start-${day}-0`, "00:00"], [`end-${day}-0`, "23:00"]]));
+  const hours = await page.request.post(`${t.origin}/calls/hours`, { form: { ...allWeek, "call-minutes": "30", "gap-minutes": "0", "notice-hours": "1", "days-ahead": "14" }, headers: { origin: t.origin }, maxRedirects: 0 });
+  assert.equal(hours.status(), 303);
 
   await page.goto(`${t.origin}/clients/${shop.id}`);
   await page.getByRole("button", { name: "Start a call", exact: true }).click();
@@ -63,6 +67,7 @@ test("a timed call, from Start a call to the call log", async () => {
   await page.getByRole("region", { name: "Wrapping up" }).waitFor();
   assert.match(await page.locator("[aria-live=assertive]").innerText(), /5 minutes left\. Time to start wrapping up\./);
   assert.deepEqual(await page.evaluate(BUZZES), [300]);
+  await page.getByRole("group", { name: "Book another call (30 min)" }).waitFor();
   await assertAccessible(page, "the call screen, wrapping up");
   // A reload doesn't buzz again.
   await page.reload();
@@ -90,11 +95,18 @@ test("a timed call, from Start a call to the call log", async () => {
   await page.getByText("Notes saved.").waitFor({ timeout: 5000 });
   assert.equal(t.db.prepare("select note from call where id = ?").get(id)?.["note"], "Wants online booking. Quote by Friday.");
 
-  // End it.
+  // Book the next call while they're still on the line.
+  await page.getByRole("group", { name: "Book another call (30 min)" }).getByRole("radio").first().check();
+  await page.getByRole("button", { name: "Book it" }).click();
+  await page.getByText(/^Booked: /).waitFor();
+  assert.equal(t.db.prepare("select count(*) as n from booking where crm_client_id = ?").get(shop.id)?.["n"], 1);
+
+  // End it, with a next step for later.
+  await page.getByLabel("Next steps for you").fill("Send the quote");
   await page.getByLabel("Talked").check();
   await page.getByRole("button", { name: "End call" }).click();
   await page.waitForURL((url) => url.pathname === `/clients/${shop.id}`);
-  await page.getByText("Call ended and logged.").waitFor();
+  await page.getByText("Call ended and logged. 1 to-do added.").waitFor();
   assert.match(await text(page), /Call, talked, 1[67] min/);
   assert.match(await text(page), /Wants online booking\. Quote by Friday\. - What does the business do, and who are its customers\? Collision repair, local drivers\./);
   assert.deepEqual(problems, []);
