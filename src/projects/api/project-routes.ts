@@ -55,6 +55,8 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, id) => `${project(id)}#links`,
     back: (id) => `${project(id)}#links`,
     message: "Link added.",
+    // Adding something undoes by removing it (decision 0014, section 10).
+    undo: (link) => ({ label: `Link added: ${link.label || link.url}`, action: `/project-links/${link.id}/remove`, fields: {} }),
   });
   post("/project-links/:id/remove", (actor, _f, id) => projects.removeProjectLink(deps.projects, actor, id as Id), { done: (link) => `${project(link.projectId)}#links`, back: () => "/projects", message: "Link removed." });
   post(
@@ -144,12 +146,14 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (comment, id) => `/tasks/${id}#comment-${comment.id}`,
     back: (id) => `/tasks/${id}#comments`,
     message: "Comment added.",
+    undo: (comment, id) => ({ label: "Comment added", action: `/comments/${comment.id}/remove`, fields: { taskId: id ?? "" } }),
   });
   const onTask = (f: FormFields) => `/tasks/${optionalId(f["taskId"]) ?? ""}#comments`;
   post("/comments/:id", (actor, f, id) => talk.editTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
     done: (comment) => `/tasks/${comment.taskId}#comment-${comment.id}`,
     back: (_id, f) => onTask(f),
     message: "Comment saved.",
+    undo: (comment) => ({ label: "Comment edited", action: `/comments/${comment.id}`, fields: { body: comment.previous.body, taskId: comment.taskId } }),
   });
   post("/comments/:id/remove", (actor, _f, id) => talk.removeTaskComment(deps.projects, actor, id as Id), {
     done: (comment) => `/tasks/${comment.taskId}#comments`,
@@ -252,6 +256,7 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, _id, f) => toWork(f),
     back: (_id, f) => toWork(f),
     message: "Filter saved.",
+    undo: (filter, _id, f) => ({ label: `Filter saved: ${filter.name}`, action: `/work/filters/${filter.id}/remove`, fields: { query: f["query"] ?? "" } }),
   });
   post("/work/filters/:id", (actor, f, id) => work.changeSavedFilter(deps.projects, actor, id as Id, { ...(f["pinned"] ? { pinned: f["pinned"] === "1" } : {}), ...(f["shared"] ? { shared: f["shared"] === "1" } : {}) }), {
     done: (_, _id, f) => toWork(f),
@@ -283,7 +288,12 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     },
     message: "Added.",
   });
-  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), { done: () => "/labels", back: () => "/labels", message: "Label made." });
+  post("/labels", (actor, f) => projects.addLabel(deps.projects, actor, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
+    done: () => "/labels",
+    back: () => "/labels",
+    message: "Label made.",
+    undo: (label) => ({ label: `Label made: ${label.name}`, action: `/labels/${label.id}/remove`, fields: {} }),
+  });
   post("/labels/:id", (actor, f, id) => projects.editLabelDetails(deps.projects, actor, id as Id, { name: f["name"] ?? "", colour: f["colour"] ?? null }), {
     done: () => "/labels",
     back: () => "/labels",
