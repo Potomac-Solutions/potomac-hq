@@ -182,6 +182,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "user.notice-email-off": "turned off emailed notices",
   "task.repeat-stopped": "stopped a task repeating",
   "task.repeated": "made the next of a repeating task",
+  "task.repeat-taken-back": "took back the next one a repeat made",
   "task.file-removed": "removed a file from a task",
   "file.removed": "removed a file",
   "comment.added": "commented on a task",

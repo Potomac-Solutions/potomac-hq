@@ -90,13 +90,18 @@ still accepted in the portal, where the typed-name signature happens.
 
 - **Notes survive a dropped signal.** Built here first, then dropped for
   decision 0014's own "unsent text is kept", which does the same (and asks
-  before leaving a typed form) when the two met before staging.
+  before leaving a typed form) when the two met before staging. What only
+  this one did came back into 0014's: 14 days, and keeping the text through
+  a send that doesn't arrive.
 - **Booked calls in the calendar feed**, at their times (UTC `DTSTART`),
   for their host, from two weeks back to three months ahead, each with a
   link to Get ready.
 - **Undo** after moving a task or ticking a to-do: also built here first,
   then dropped for decision 0014's Undo bar, which covers these and much
-  more (one-time tokens, Ctrl+Z, Recent changes). Its migration went with it.
+  more (one-time tokens, Ctrl+Z, Recent changes). Its migration went with
+  it. What only this one did came back into 0014's: Undo after finishing a
+  repeating task (or to-do), which now also takes back the next one it
+  made if nothing has happened to it.
 - **Saved replies** (`contact.edit`): written once on Saved replies, under
   Clients, and offered beside a message to a client, with `{first name}`,
   `{client}`, `{project}` and `{me}` filled in. Migration 0077.

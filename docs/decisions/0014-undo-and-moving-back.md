@@ -163,8 +163,11 @@ cursor said so, and only the column under the card lit up while dragging.
 - Text typed in a long box (a comment, a description, a note) and not sent
   is kept on that device while it's typed. If the page is closed, reloaded
   or crashes first, the text comes back next time with "Brought back text
-  you hadn't sent", and Discard. It's cleared when the form is sent, after
-  a week, and from every box when you sign out.
+  you hadn't sent", and Discard. It's cleared once the page after sending
+  says nothing went wrong (a refused or dropped send keeps it), after two
+  weeks, and from every box when you sign out. (Two weeks, and keeping it
+  through a failed send, came from decision 0016's version when the two
+  met before staging.)
 - Ctrl+Enter (⌘Enter) sends the form you're typing in.
 - A card dropped on the pipeline or the board moves to its column at once
   while the server makes the move; the page that comes back has the final
