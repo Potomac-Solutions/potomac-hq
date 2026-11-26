@@ -1832,7 +1832,8 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     // An address under the portal that is no page: back to the portal with a word, not HQ's own "not found".
-    if (req.method === "GET" && path.startsWith("/portal/")) {
+    // Only for an address a person might have typed or followed; a probe (dots, escapes) gets the plain 404.
+    if (req.method === "GET" && /^\/portal\/[a-z0-9/-]+$/.test(path)) {
       res.writeHead(303, { location: notices.sign(withMessage("/portal", "problem", "There’s no page at that address. This is your portal’s first page.")) });
       res.end();
       return;
