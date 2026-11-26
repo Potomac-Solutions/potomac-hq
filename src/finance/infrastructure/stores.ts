@@ -232,12 +232,12 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   // Refunds count as money going back out: a negative amount on the day it was given back.
   const allPayments = db.prepare(
     `select * from (
-       select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, coalesce(p.name, '') as project_name, c.name as client_name, y.created_at as at
+       select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, coalesce(p.name, '') as project_name, c.name as client_name, y.created_at as at, 0 as kind, y.rowid as seq
          from payment y join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
        union all
-       select r.id, y.invoice_id, -r.amount_minor, y.currency, y.method, r.refunded_on, ('Refund' || case when r.reference = '' then '' else ' ' || r.reference end), r.recorded_by, i.number, coalesce(p.name, ''), c.name, r.created_at
+       select r.id, y.invoice_id, -r.amount_minor, y.currency, y.method, r.refunded_on, ('Refund' || case when r.reference = '' then '' else ' ' || r.reference end), r.recorded_by, i.number, coalesce(p.name, ''), c.name, r.created_at, 1, r.rowid
          from payment_refund r join payment y on y.id = r.payment_id join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
-     ) order by at, id`,
+     ) order by at, kind, seq`,
   );
   const rcols = "id, payment_id, amount_minor, refunded_on, reason, reference, through, recorded_by";
   const insertRefund = db.prepare(`insert into payment_refund (${rcols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
