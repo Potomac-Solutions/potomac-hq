@@ -2,6 +2,7 @@
 // the portal (and can change it); their logo and photos go to their newest
 // open project's files. Anyone who may see the client reads it on the
 // client's page in HQ.
+export { ACCESS_KINDS, FIELD_LABELS } from "../domain/intake.ts";
 import { ACCESS_LABELS, FIELD_LABELS, readIntake, type IntakeAnswers, type IntakeError } from "../domain/intake.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { friendlyDay, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";

@@ -1,8 +1,6 @@
 // The new-client intake form (2026-11-26).
 import { Hono } from "hono";
-import { submitIntake, type IntakeDeps } from "../application/intake.ts";
-import { ACCESS_KINDS } from "../domain/intake.ts";
-import { FIELD_LABELS } from "../domain/intake.ts";
+import { ACCESS_KINDS, FIELD_LABELS, submitIntake, type IntakeDeps } from "../application/intake.ts";
 import { formPosts, type Id } from "../../shared/index.ts";
 
 type Session = { readonly organizationId: Id; readonly clientUserId: Id; readonly name: string };
