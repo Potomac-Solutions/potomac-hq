@@ -57,6 +57,10 @@ test("offered only with a plan; set up through the platform; plan bills are char
   assert.ok(oneOff.ok);
   finance.sendInvoiceNow(t.services.finance, mikey, oneOff.value.id);
   finance.runRecurringInvoices(createServices(t.db, { today: () => day(0) }).finance);
+  // Before the morning run: the plan bill isn't "waiting on you", and says it's paid automatically. The one-off is theirs to pay.
+  const before = textOf(await bob.page("/portal"));
+  assert.match(before, /1 thing is waiting on you Pay invoice INV-\d{4}: \$200\.00/);
+  assert.match(before, /\$49\.00 owed[^$]*Paid automatically from PayPal \(bob@feed\.example\), usually the morning it’s sent\. Nothing to do\./);
   assert.deepEqual(await run(0), { paid: 1, declined: 0, unclear: 0 });
   assert.deepEqual(charges.map((one) => one.cents), [4900]);
   assert.deepEqual(await run(0), { paid: 0, declined: 0, unclear: 0 }, "not twice");
@@ -79,13 +83,20 @@ test("declined is tried again after 3 and 7 days, then a to-do; an unclear answe
   next = { outcome: "declined", reason: "INSTRUMENT_DECLINED" };
   charges.length = 0;
   assert.equal((await run(0)).declined, 1);
+  // The client is told, with the day of the next try; staff see the same.
+  const told = textOf(await stacy.page("/portal"));
+  assert.match(told, /1 thing is waiting on you Pay invoice INV-\d{4}: \$30\.00 ?We couldn’t take this from PayPal \(bob@feed\.example\) on \w{3}, \w{3} \d+\. We’ll try again \w{3}, \w{3} \d+\. Or pay it by card now/);
+  assert.match(textOf(await admin.page(`/clients/${won.client.id}`)), /INV-\d{4}, \$30\.00: declined; HQ tries again \w{3}, \w{3} \d+\. The client is told in their portal\./);
   assert.equal((await run(2)).declined, 0, "waits");
   assert.equal((await run(3)).declined, 1);
   assert.equal((await run(7)).declined, 1);
   assert.equal((await run(20)).declined, 0, "out of tries");
   assert.equal(charges.length, 3);
   assert.match(String(t.db.prepare("select title from task order by rowid desc limit 1").get()?.["title"]), /Autopay declined three times for INV-\d{4}/);
-  assert.match(textOf(await admin.page(`/clients/${won.client.id}`)), /Declined \(INSTRUMENT_DECLINED\)/);
+  const staff = textOf(await admin.page(`/clients/${won.client.id}`));
+  assert.match(staff, /Declined \(PayPal said: INSTRUMENT_DECLINED\)/);
+  assert.match(staff, /declined three times\. HQ won’t try again; the client is asked to pay it in their portal/);
+  assert.match(textOf(await stacy.page("/portal")), /We couldn’t take this from PayPal \(bob@feed\.example\) after three tries, so it’s yours to pay/);
 
   // A new plan bill whose charge has no clear answer: a to-do, and no retry.
   t.db.prepare("update invoice set status = 'void' where recurring_id is not null and organization_id = ?").run(won.client.id);
@@ -93,6 +104,9 @@ test("declined is tried again after 3 and 7 days, then a to-do; an unclear answe
   next = { outcome: "unknown", reason: "paypal-http-503" };
   charges.length = 0;
   assert.equal((await run(31)).unclear, 1);
+  const unclear = textOf(await stacy.page("/portal"));
+  assert.match(unclear, /Nothing is waiting on you/);
+  assert.match(unclear, /We’re checking with PayPal whether this went through\. Nothing to do for now\./);
   assert.equal((await run(40)).unclear, 0);
   assert.equal(charges.length, 1);
   assert.match(String(t.db.prepare("select title from task order by rowid desc limit 1").get()?.["title"]), /Check whether autopay took \$30\.00/);

@@ -30,7 +30,10 @@ test("not asked while a project is open; asked once it's finished; a 5 goes on t
   const { won, person } = await finished("Elk Diner");
   assert.doesNotMatch(textOf(await person.page("/portal")), /Rate a finished project/);
   unwrap(projects.setProjectStatus(t.services.projects, mikey, won.project.id, "completed"));
-  assert.match(textOf(await person.page("/portal")), /Rate a finished project[\s\S]*“Elk Diner website” is finished\. How did it go\?/);
+  const asked = textOf(await person.page("/portal"));
+  assert.match(asked, /Rate a finished project[\s\S]*“Elk Diner website” is finished\. How did it go\?/);
+  assert.match(asked, /Anything to add first\?[\s\S]*1 of 5, poor[\s\S]*Tapping a number sends it\./, "the note comes before the numbers, which send it");
+  assert.doesNotMatch(asked, /Write a review/, "one question at a time: the review comes after the rating");
   const given = await person.post(`/portal/projects/${won.project.id}/feedback`, { score: "5", note: "So easy." });
   assert.equal(where(given), "/portal/review");
   assert.match(said(given, "done"), /Would you say a few words in a review\?/);
@@ -45,6 +48,7 @@ test("a 2 stays private and makes a to-do for whoever ran it", async () => {
   const given = await person.post(`/portal/projects/${won.project.id}/feedback`, { score: "2", note: "Took longer than we were told." });
   assert.equal(where(given), "/portal");
   assert.equal(said(given, "done"), "Thank you for telling us. Someone will be in touch to hear more.");
+  assert.doesNotMatch(textOf(await person.page("/portal")), /Write a review/, "not asked for a public review after a low rating");
   const todo = t.db.prepare("select title, description, assignee_id, organization_id from task where title like 'Call Moats Hardware%'").get();
   assert.equal(todo?.["assignee_id"], mikey);
   assert.equal(todo?.["organization_id"], won.client.id);

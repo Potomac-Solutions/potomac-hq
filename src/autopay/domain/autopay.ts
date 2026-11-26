@@ -20,5 +20,12 @@ export function nextTry(tries: readonly Try[], today: string): NextTry {
   return today >= due ? { now: true } : { now: false, why: "wait" };
 }
 
+/** The day of the next automatic try after a decline, or null when there won't be one. */
+export function nextTryOn(tries: readonly Try[]): string | null {
+  if (tries.length === 0 || tries.length >= MAX_TRIES || tries.some((one) => one.outcome !== "declined")) return null;
+  const first = [...tries].sort((a, b) => a.triedOn.localeCompare(b.triedOn))[0] as Try;
+  return Temporal.PlainDate.from(first.triedOn).add({ days: RETRY_AFTER_DAYS[tries.length - 1] as number }).toString();
+}
+
 /** True after the last try is declined: time for a person to step in. */
 export const lastTryDeclined = (tries: readonly Try[]) => tries.length >= MAX_TRIES && tries.every((one) => one.outcome === "declined");

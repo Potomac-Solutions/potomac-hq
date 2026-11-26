@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lastTryDeclined, nextTry } from "./autopay.ts";
+import { lastTryDeclined, nextTry, nextTryOn } from "./autopay.ts";
 
 test("tried the day it's sent, then 3 and 7 days after the first try", () => {
   assert.deepEqual(nextTry([], "2026-12-01"), { now: true });
@@ -14,6 +14,8 @@ test("tried the day it's sent, then 3 and 7 days after the first try", () => {
   assert.deepEqual(nextTry(thrice, "2026-12-20"), { now: false, why: "out-of-tries" });
   assert.equal(lastTryDeclined(thrice), true);
   assert.equal(lastTryDeclined(twice), false);
+  assert.deepEqual([nextTryOn([]), nextTryOn(once), nextTryOn(twice), nextTryOn(thrice)], [null, "2026-12-04", "2026-12-08", null]);
+  assert.equal(nextTryOn([{ triedOn: "2026-12-01", outcome: "unknown" }]), null);
 });
 
 test("never again after a try with no clear answer, or once paid", () => {

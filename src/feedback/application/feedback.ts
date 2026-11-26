@@ -12,6 +12,8 @@ export type FeedbackStore = {
   insert(feedback: Feedback): void;
   /** The client's finished projects with no feedback yet, newest first. */
   waiting(organizationId: Id): { readonly id: Id; readonly name: string; readonly ownerId: Id }[];
+  /** The client's most recent score, or null. */
+  latestScore(organizationId: Id): number | null;
   projectOf(projectId: Id): { readonly id: Id; readonly name: string; readonly organizationId: Id; readonly ownerId: Id; readonly status: string } | null;
 };
 
@@ -29,6 +31,9 @@ export type FeedbackDeps = ActivityDeps & {
 };
 
 type Session = { readonly organizationId: Id; readonly clientUserId: Id; readonly name: string };
+
+/** True when the client's latest rating was low: not the moment to ask for a public review. */
+export const lastRatingLow = (deps: FeedbackDeps, session: Session): boolean => (deps.feedback.latestScore(session.organizationId) ?? 5) <= LOW_SCORE;
 
 export const feedbackWaiting = (deps: FeedbackDeps, session: Session) => deps.feedback.waiting(session.organizationId).map((one) => ({ id: one.id, name: one.name }));
 

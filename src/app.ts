@@ -25,7 +25,7 @@ import { autopayPages, autopayRoutes } from "./autopay/api/autopay-routes.ts";
 import { clientAutopay, portalAutopay, type ClientAutopay, type PortalAutopay, type SavedPay } from "./autopay/index.ts";
 import { savedPayFrom } from "./autopay/adapters.ts";
 import { portalTexting, type PortalTexting } from "./texting/index.ts";
-import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
+import { feedbackWaiting, lastRatingLow, projectFeedback, type FeedbackView } from "./feedback/index.ts";
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
@@ -403,6 +403,8 @@ export type PageContext = {
   /** Text message reminders, for the portal (2026-11-26). */
   readonly texts: { portal(): PortalTexting };
   readonly feedback: {
+    /** True when the signed-in client's latest rating was 3 or under. */
+    unhappy(): boolean;
     /** The signed-in client's finished projects still to rate. */
     waiting(): readonly { readonly id: string; readonly name: string }[];
     forProject(projectId: string): FeedbackView | null;
@@ -905,13 +907,14 @@ export async function createApp(config: AppConfig): Promise<App> {
         texts: { portal: () => (client ? portalTexting(services.texting, client) : { available: false, on: false, phone: "" }) },
         feedback: {
           waiting: () => (client ? feedbackWaiting(services.feedback, client) : []),
+          unhappy: () => (client ? lastRatingLow(services.feedback, client) : false),
           forProject: (projectId) => {
             const parsed = parseId(projectId);
             return parsed.ok ? projectFeedback(services.feedback, actor, parsed.value) : null;
           },
         },
         autopay: {
-          portal: () => (client ? portalAutopay(services.autopay, client) : { offered: false, on: false, label: "", platform: "", since: "" }),
+          portal: () => (client ? portalAutopay(services.autopay, client) : { offered: false, on: false, label: "", platform: "", since: "", bills: [] }),
           forClient: (clientId) => {
             const parsed = parseId(clientId);
             return parsed.ok ? clientAutopay(services.autopay, actor, parsed.value) : null;

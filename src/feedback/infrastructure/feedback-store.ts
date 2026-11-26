@@ -12,7 +12,9 @@ export function sqliteFeedbackStore(db: Database): FeedbackStore {
       where p.organization_id = ? and p.status = 'completed' and f.project_id is null order by p.updated_at desc limit 3`,
   );
   const project = db.prepare("select id, name, organization_id, owner_id, status from project where id = ?");
+  const latest = db.prepare("select f.score from project_feedback f join project p on p.id = f.project_id where p.organization_id = ? order by f.created_at desc limit 1");
   return {
+    latestScore: (organizationId) => ((latest.get(organizationId) as Row | undefined)?.["score"] as number | undefined) ?? null,
     get: (projectId) => {
       const r = get.get(projectId) as Row | undefined;
       return r ? { projectId: r["project_id"] as Id, clientUserId: r["client_user_id"] as Id, score: r["score"] as number, note: r["note"] as string, todoId: (r["todo_id"] as Id | null) ?? null, createdAt: r["created_at"] as string } : null;
