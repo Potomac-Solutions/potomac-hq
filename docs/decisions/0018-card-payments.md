@@ -60,9 +60,18 @@ not chosen a gateway and does not want that choice built in.
    stand-in for the platform's page and moves no money. The portal, the
    invoice page and System status all say so.
 
+8. **HQ uses PayPal** (Mikey, 2026-11-26: "we will use PayPal on hq"). The
+   setting is still the only place that says so. Two things follow from how
+   PayPal works. It takes the money only when HQ asks, after the client
+   approves, so HQ asks on the client's return and on PayPal's webhook, and
+   **never asks for an invoice that is no longer open or no longer owes what
+   it did** (voided, written off, or paid by check meanwhile): the approval
+   lapses at PayPal and nothing is charged. And a client who backs out at
+   PayPal comes back to "You left before paying, so nothing was charged."
+
 ## Not decided here
 
-- Which platform. That is the point.
+- Which platform the kit's other apps use. That is the point.
 - Saved cards and subscriptions. The platforms differ too much to sit behind
   one name; HQ makes its own recurring invoices, each paid like any other.
 - Fees: passing the platform's fee on, or a discount for a check.

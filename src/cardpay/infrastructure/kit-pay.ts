@@ -27,11 +27,11 @@ export function cardPayConfigFrom(env: Record<string, string | undefined>, publi
 
 export type CardPayKit = { readonly pay: KitPay; readonly platform: string; readonly test: TestProvider | null };
 
-export function createCardPayKit(store: KitStore, config: CardPayConfig, options: { readonly fetch?: typeof fetch } = {}): CardPayKit | null {
+export function createCardPayKit(store: KitStore, config: CardPayConfig, options: { readonly fetch?: typeof fetch; readonly wanted?: (payId: string) => boolean } = {}): CardPayKit | null {
   const test = config.platform === "test" ? testProvider({ page: "/pay/test" }) : null;
   const provider = test ?? createProviders(config.settings, options.fetch ? { fetch: options.fetch } : {}).get(config.platform);
   if (!provider) return null;
-  return { pay: createPay({ provider, store, collection: "card-payments" }), platform: config.platform, test };
+  return { pay: createPay({ provider, store, collection: "card-payments", ...(options.wanted ? { wanted: options.wanted } : {}) }), platform: config.platform, test };
 }
 
 /** Whether a kit payment has been put on its invoice: kept beside the kit's own documents. */

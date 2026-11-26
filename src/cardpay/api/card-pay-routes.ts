@@ -23,6 +23,7 @@ const START_PROBLEMS: Readonly<Record<string, string>> = {
 function after(outcome: Outcome): string {
   if (outcome === "paid") return withMessage(HOME, "done", "Paid. Thank you.");
   if (outcome === "paid-needs-a-look") return withMessage(HOME, "problem", "We received a payment, but couldn’t put it on this invoice. Potomac Solutions will be in touch to sort it out.");
+  if (outcome === "closed") return withMessage(HOME, "problem", "That invoice is no longer open, and nothing was charged. If that’s a surprise, get in touch with Potomac Solutions.");
   if (outcome === "not-paid") return withMessage(HOME, "problem", "We haven’t received that payment. If you just paid, give it a minute and look again; otherwise you can try again.");
   return HOME;
 }
@@ -63,6 +64,12 @@ export function cardPayPages(deps: RouteDeps): Hono {
   app.get("/portal/invoices/:id/paid", async (c) => {
     const id = parseId(c.req.param("id"));
     return c.redirect(deps.sign(id.ok ? after(await settleCardPayment(deps.cardPay, id.value)) : HOME), 303);
+  });
+  // Where the platform sends a client who backed out. Asked all the same: "cancel" pressed after paying is still paid.
+  app.get("/portal/invoices/:id/not-paid", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const outcome = id.ok ? await settleCardPayment(deps.cardPay, id.value) : "nothing";
+    return c.redirect(deps.sign(outcome === "not-paid" || outcome === "nothing" ? withMessage(HOME, "problem", "You left before paying, so nothing was charged. Pay by card again whenever you’re ready, or pay another way.") : after(outcome)), 303);
   });
   // A platform that pays in a frame: the kit's page around it, with only that platform's addresses let in.
   app.get("/portal/invoices/:id/pay/frame", (c) => {

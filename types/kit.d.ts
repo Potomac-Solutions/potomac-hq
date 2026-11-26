@@ -111,7 +111,7 @@ declare module "@potomac-solutions/kit/pay" {
     heard(request: { headers: Record<string, string | string[] | undefined>; body: string; url: string }): Promise<Settled | { ok?: undefined; error?: undefined; ignore: true }>;
     refund(input: { id: string; cents?: number }): Promise<{ ok: true; ref: string; cents: number } | { ok?: undefined; error: string }>;
   };
-  export function createPay(options: { provider: PayProvider; store: KitStore; collection?: string; now?: () => number }): KitPay;
+  export function createPay(options: { provider: PayProvider; store: KitStore; collection?: string; now?: () => number; wanted?: (id: string) => boolean }): KitPay;
   export function testProvider(options?: { page?: string }): TestProvider;
 }
 

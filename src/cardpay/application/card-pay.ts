@@ -51,6 +51,18 @@ const invoiceOf = (payId: string): Id | null => {
 };
 const owedOn = (invoice: Invoice & { readonly paidMinor: number }): number => Math.max(0, invoice.total.minor - invoice.paidMinor);
 
+/**
+ * Whether a started payment should still be taken: its invoice is still sent
+ * and owes what it did when the payment started. PayPal takes the money only
+ * when HQ asks, so a voided invoice, or one paid by check meanwhile, is never
+ * charged. A platform that has already taken it is flagged instead.
+ */
+export function stillWanted(invoice: (id: Id) => (Invoice & { readonly paidMinor: number }) | null, payId: string): boolean {
+  const id = invoiceOf(payId);
+  const found = id ? invoice(id) : null;
+  return found !== null && found.status === "sent" && payIdOf(found) === payId;
+}
+
 function mine(deps: CardPayDeps, session: { readonly organizationId: Id } | null, invoiceId: Id) {
   const invoice = session ? deps.invoice(invoiceId) : null;
   return invoice && session && invoice.organizationId === session.organizationId ? invoice : null;
@@ -70,7 +82,7 @@ export async function startCardPayment(deps: CardPayDeps, session: { readonly or
     currency: invoice.total.currency.toLowerCase(),
     description: `Potomac Solutions invoice ${invoiceLabel(invoice.number)}`,
     back: `${deps.publicUrl}/portal/invoices/${invoice.id}/paid`,
-    cancel: `${deps.publicUrl}/portal#invoices`,
+    cancel: `${deps.publicUrl}/portal/invoices/${invoice.id}/not-paid`,
   });
   // Paid at the platform already (a second tab, a slow webhook): go and record it.
   if (!started.ok && started.error === "paid") return ok({ next: `/portal/invoices/${invoice.id}/paid` });
@@ -111,7 +123,7 @@ export function payStep(deps: CardPayDeps, session: { readonly organizationId: I
   };
 }
 
-export type Outcome = "paid" | "not-paid" | "paid-needs-a-look" | "nothing";
+export type Outcome = "paid" | "not-paid" | "paid-needs-a-look" | "closed" | "nothing";
 
 /** Put a payment the platform confirmed on its invoice, once. */
 function finish(deps: CardPayDeps, settled: Settled): Outcome {
@@ -157,7 +169,9 @@ export async function settleCardPayment(deps: CardPayDeps, invoiceId: Id, told?:
   const invoice = deps.invoice(invoiceId);
   if (!invoice || !deps.pay) return "nothing";
   if (invoice.status === "paid") return "paid";
-  return finish(deps, await deps.pay.settle({ id: payIdOf(invoice), ...(told === undefined ? {} : { told }) }));
+  const outcome = finish(deps, await deps.pay.settle({ id: payIdOf(invoice), ...(told === undefined ? {} : { told }) }));
+  // No longer open (voided or written off), and the platform took nothing.
+  return invoice.status !== "sent" && (outcome === "not-paid" || outcome === "nothing") ? "closed" : outcome;
 }
 
 /** The platform's webhook. 'refuse' is a request that wasn't the platform's. */

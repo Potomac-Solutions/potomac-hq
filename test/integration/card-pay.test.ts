@@ -183,7 +183,7 @@ test("with Stripe set up: a Checkout Session for what is owed, and the signed we
     await s.stacy.post(`/portal/invoices/${id}/pay`, {});
     const asked = new URLSearchParams(sent[0]?.body);
     assert.equal(sent[0]?.url, "https://api.stripe.com/v1/checkout/sessions");
-    assert.deepEqual([asked.get("line_items[0][price_data][unit_amount]"), asked.get("success_url"), asked.get("cancel_url")], ["25000", `https://hq.example/portal/invoices/${id}/paid`, "https://hq.example/portal#invoices"]);
+    assert.deepEqual([asked.get("line_items[0][price_data][unit_amount]"), asked.get("success_url"), asked.get("cancel_url")], ["25000", `https://hq.example/portal/invoices/${id}/paid`, `https://hq.example/portal/invoices/${id}/not-paid`]);
     assert.match(asked.get("line_items[0][price_data][product_data][name]") ?? "", /^Potomac Solutions invoice INV-\d{4}$/);
     const step = await s.stacy.get(`/portal/invoices/${id}/pay`);
     assert.equal(step.headers.get("refresh"), "0;url=https://checkout.stripe.com/c/pay/cs_test_1");
@@ -244,5 +244,108 @@ test("with Helcim set up: its frame on a page of HQ's, only Helcim's addresses l
     assert.deepEqual(h.t.db.prepare("select reference, amount_minor from payment where invoice_id = ?").all(id).map((row) => [row["reference"], row["amount_minor"]]), [["Helcim 20163175", 9000]]);
   } finally {
     await h.t.stop();
+  }
+});
+
+test("with PayPal set up, as HQ is: approve and come back, back out, the webhook, and the money taken once", async () => {
+  // PayPal's API as its documentation gives it: an order to approve, then captured by HQ.
+  const orders = new Map<string, { status: string; value: string; back: string; cancel: string; captures: number }>();
+  const calls: string[] = [];
+  const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+  const paypalFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    calls.push(`${method} ${url.replace("https://api-m.sandbox.paypal.com", "")}`);
+    if (url.endsWith("/v1/oauth2/token")) return answer(200, { access_token: "tok", expires_in: 3600 });
+    if (url.endsWith("/v1/notifications/verify-webhook-signature")) return answer(200, { verification_status: JSON.parse(String(init?.body)).transmission_sig === "good" ? "SUCCESS" : "FAILURE" });
+    if (method === "POST" && url.endsWith("/v2/checkout/orders")) {
+      const body = JSON.parse(String(init?.body));
+      const id = `PP${orders.size + 1}`;
+      const context = body.payment_source.paypal.experience_context;
+      orders.set(id, { status: "PAYER_ACTION_REQUIRED", value: body.purchase_units[0].amount.value, back: context.return_url, cancel: context.cancel_url, captures: 0 });
+      return answer(201, { id, status: "PAYER_ACTION_REQUIRED", links: [{ rel: "payer-action", href: `https://www.sandbox.paypal.com/checkoutnow?token=${id}` }] });
+    }
+    const found = /\/v2\/checkout\/orders\/([^/]+)(\/capture)?$/.exec(url);
+    const order = found ? orders.get(found[1] as string) : undefined;
+    if (!found || !order) return answer(404, {});
+    const done = { id: found[1], status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: `CAP-${found[1]}`, status: "COMPLETED", amount: { value: order.value, currency_code: "USD" } }] } }] };
+    if (found[2]) {
+      if (order.status !== "APPROVED" && order.status !== "COMPLETED") return answer(422, { name: "UNPROCESSABLE_ENTITY" });
+      order.status = "COMPLETED";
+      order.captures += 1;
+      return answer(201, done);
+    }
+    return answer(200, order.status === "COMPLETED" ? done : { id: found[1], status: order.status, purchase_units: [{}] });
+  }) as typeof fetch;
+  const p = await world({ publicUrl: "https://hq.example", cardPay: { platform: "paypal", settings: { paypal: { client: "id", secret: "sec", webhookId: "WH1", sandbox: true } } }, cardPayFetch: paypalFetch });
+  const hook = (body: unknown, signature = "good") => fetch(`${p.t.origin}/pay/webhook/paypal`, { method: "POST", headers: { "content-type": "application/json", "paypal-transmission-sig": signature, "paypal-transmission-id": "t1", "paypal-transmission-time": "now", "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.paypal.com/cert" }, body: JSON.stringify(body) });
+  try {
+    const id = await p.bill("80");
+    assert.match(textOf(await p.stacy.page("/portal")), /“Pay by card” takes you to PayPal’s secure page to pay/);
+    await p.stacy.post(`/portal/invoices/${id}/pay`, {});
+    const order = orders.get("PP1");
+    assert.deepEqual([order?.value, order?.back, order?.cancel], ["80.00", `https://hq.example/portal/invoices/${id}/paid`, `https://hq.example/portal/invoices/${id}/not-paid`]);
+    assert.equal((await p.stacy.get(`/portal/invoices/${id}/pay`)).headers.get("refresh"), "0;url=https://www.sandbox.paypal.com/checkoutnow?token=PP1");
+
+    // Backed out at PayPal: PayPal adds its own token to the address; HQ says nothing was charged.
+    const left = await p.stacy.get(`/portal/invoices/${id}/not-paid?token=PP1`);
+    assert.match(said(left, p.t, "problem"), /You left before paying, so nothing was charged/);
+    assert.equal(new URL(locationOf(left), p.t.origin).searchParams.has("token"), false, "PayPal's token isn't carried into the portal's address");
+    assert.equal(order?.captures, 0);
+
+    // Tried again: the same order, not a second. A forged webhook is refused; a real one before approval takes nothing.
+    await p.stacy.post(`/portal/invoices/${id}/pay`, {});
+    assert.equal(orders.size, 1);
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP1" } }, "forged")).status, 400);
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP1" } })).status, 200);
+    assert.equal(order?.captures, 0);
+    assert.equal(p.t.services.finance.invoices.get(id)?.status, "sent");
+
+    // Approved at PayPal, and back, with PayPal's token and PayerID on the address.
+    if (order) order.status = "APPROVED";
+    const back = await p.stacy.get(`/portal/invoices/${id}/paid?token=PP1&PayerID=PAYER123`);
+    assert.equal(said(back, p.t, "done"), "Paid. Thank you.");
+    assert.deepEqual([p.t.services.finance.invoices.get(id)?.status, order?.captures], ["paid", 1]);
+    // Then PayPal's webhooks arrive, and the client reloads and presses "cancel" in an old tab: still one payment, one capture.
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP1" } })).status, 200);
+    assert.equal((await hook({ event_type: "PAYMENT.CAPTURE.COMPLETED", resource: { id: "CAP-PP1", links: [{ rel: "up", href: "https://api-m.sandbox.paypal.com/v2/checkout/orders/PP1" }] } })).status, 200);
+    assert.equal(said(await p.stacy.get(`/portal/invoices/${id}/paid?token=PP1&PayerID=PAYER123`), p.t, "done"), "Paid. Thank you.");
+    assert.equal(said(await p.stacy.get(`/portal/invoices/${id}/not-paid?token=PP1`), p.t, "done"), "Paid. Thank you.");
+    assert.deepEqual(p.t.db.prepare("select reference, amount_minor from payment where invoice_id = ?").all(id).map((row) => [row["reference"], row["amount_minor"]]), [["PayPal CAP-PP1", 8000]]);
+    assert.equal(order?.captures, 1);
+    assert.match(textOf(await p.admin.page(`/invoices/${id}`)), /What changed here[\s\S]*A client paid an invoice by card/);
+
+    // The client closes the tab at PayPal after approving: the webhook alone takes and records it.
+    const second = await p.bill("15", "Stock photo");
+    await p.stacy.post(`/portal/invoices/${second}/pay`, {});
+    const other = orders.get("PP2");
+    if (other) other.status = "APPROVED";
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP2" } })).status, 200);
+    assert.deepEqual([p.t.services.finance.invoices.get(second)?.status, other?.captures], ["paid", 1]);
+
+    // Voided while the client was at PayPal: approved there, but HQ never takes the money, by webhook or on return.
+    const third = await p.bill("60", "Menu update");
+    await p.stacy.post(`/portal/invoices/${third}/pay`, {});
+    await p.admin.post(`/invoices/${third}/void`, {});
+    const voided = orders.get("PP3");
+    if (voided) voided.status = "APPROVED";
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP3" } })).status, 200);
+    assert.match(said(await p.stacy.get(`/portal/invoices/${third}/paid?token=PP3&PayerID=PAYER123`), p.t, "problem"), /That invoice is no longer open, and nothing was charged/);
+    assert.equal(voided?.captures, 0);
+    assert.equal(events(p.t.db).some((one) => one.action === "payment.card-unmatched"), false);
+
+    // Paid by check while the client was at PayPal: the card is not charged on top.
+    const fourth = await p.bill("45", "Hosting");
+    await p.stacy.post(`/portal/invoices/${fourth}/pay`, {});
+    await p.admin.post(`/invoices/${fourth}/payments`, { amount: "45", method: "check", on: Temporal.Now.plainDateISO("America/New_York").toString(), reference: "2001" });
+    const checked = orders.get("PP4");
+    if (checked) checked.status = "APPROVED";
+    assert.equal((await hook({ event_type: "CHECKOUT.ORDER.APPROVED", resource: { id: "PP4" } })).status, 200);
+    assert.equal(said(await p.stacy.get(`/portal/invoices/${fourth}/paid?token=PP4&PayerID=PAYER123`), p.t, "done"), "Paid. Thank you.");
+    assert.equal(checked?.captures, 0);
+    assert.equal(p.t.db.prepare("select count(*) as n from payment where invoice_id = ?").get(fourth)?.["n"], 1);
+    assert.equal(calls.filter((one) => one.endsWith("/v1/oauth2/token")).length, 1, "one token for all of it");
+  } finally {
+    await p.t.stop();
   }
 });

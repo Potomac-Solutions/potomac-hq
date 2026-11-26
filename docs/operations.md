@@ -428,6 +428,18 @@ name, such as `https://hq.potomac.solutions/pay/webhook/stripe`.
 `HQ_PUBLIC_URL` must be the https address: the platform sends clients back
 to it.
 
+**PayPal, which HQ uses.** In developer.paypal.com, under Apps &
+Credentials, make an app (Sandbox first, then Live): its Client ID and
+Secret are `HQ_PAY_PAYPAL_CLIENT` and `HQ_PAY_PAYPAL_SECRET`. On the app,
+add a webhook to `HQ_PUBLIC_URL/pay/webhook/paypal` for "Checkout order
+approved" and "Payment capture completed"; its Webhook ID is
+`HQ_PAY_PAYPAL_WEBHOOK_ID`. Keep `HQ_PAY_PAYPAL_SANDBOX=1` until a sandbox
+payment has gone through, then swap in the Live app's three values and
+remove it. Set the webhook: without it, a client who approves at PayPal and
+closes the tab before coming back is never charged and the invoice stays
+owed. PayPal charges only when HQ asks, so a voided invoice is never
+charged.
+
 **Before the first real invoice.** No platform has taken a real payment
 through this yet. On staging, with the platform's sandbox or test keys: send
 an invoice to a test client, pay it from the portal with the platform's test
