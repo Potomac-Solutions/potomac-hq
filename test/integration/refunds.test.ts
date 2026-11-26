@@ -37,7 +37,7 @@ test("a check payment refunded in part, by hand: owed again by that much, and th
   assert.match(page, /Give the money back yourself first/, "a check can't be refunded through the platform");
 
   assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "150", on: today() }), "problem"), "That’s more than is left of this payment to give back.");
-  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "25", on: today(), reason: "Moved to a cheaper plan", reference: "check 1077" }), "done"), "Refund recorded. The invoice is owed again by what was given back.");
+  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "25", on: today(), reason: "Moved to a cheaper plan", reference: "check 1077" }), "done"), "Refund recorded. The invoice is owed again by what was given back, and the client sees it to pay in their portal.");
   const invoice = t.services.finance.invoices.get(id);
   assert.deepEqual([invoice?.status, invoice?.paidMinor], ["sent", 7500]);
   const after = textOf(await admin.page(`/invoices/${id}`));
@@ -53,8 +53,17 @@ test("refunded and no longer owed: written off with the reason; a reason is need
   const id = await bill("60", "Logo touch-up");
   await admin.post(`/invoices/${id}/payments`, { amount: "60", method: "cash", on: today() });
   const [payment] = paymentsOf(id);
-  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "60", on: today(), noLongerOwed: "on" }), "problem"), "Say why they no longer owe it: it goes on the invoice.");
-  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "60", on: today(), reason: "Work cancelled", noLongerOwed: "on" }), "done"), "Refund recorded, and the rest written off.");
+  // The form asks, and "no, it's theirs to keep" is the answer already picked: a refund isn't billed again by default.
+  const form = await admin.page(`/invoices/${id}`);
+  assert.match(form, /name="owed" value="no" checked/);
+  assert.match(textOf(form), /Do they owe it again\? No, it’s theirs to keep: a refund\.[\s\S]*Yes: the payment didn’t stand \(a bounced check, a dispute\)/);
+  const other = await bill("40", "Hosting, a month");
+  await admin.post(`/invoices/${other}/payments`, { amount: "40", method: "check", on: today() });
+  assert.match(said(await admin.post(`/payments/${paymentsOf(other)[0]?.id}/refund`, { invoice: other, amount: "40", on: today(), reason: "Check bounced", owed: "again" }), "done"), /owed again by what was given back/);
+  assert.equal(t.services.finance.invoices.get(other)?.status, "sent");
+  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "60", on: today(), owed: "no" }), "problem"), "Say why it’s being given back: it goes on the invoice.");
+  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "60", on: today(), noLongerOwed: "on" }), "problem"), "Say why it’s being given back: it goes on the invoice.");
+  assert.equal(said(await admin.post(`/payments/${payment?.id}/refund`, { invoice: id, amount: "60", on: today(), reason: "Work cancelled", noLongerOwed: "on" }), "done"), "Refund recorded. They don’t owe it again: the invoice is closed, written off for what was given back.");
   const invoice = t.services.finance.invoices.get(id);
   assert.deepEqual([invoice?.status, invoice?.paidMinor, invoice?.writtenOffNote], ["void", 0, "Work cancelled"]);
   assert.doesNotMatch(textOf(await admin.page(`/invoices/${id}`)), /Refund the \$60\.00/, "nothing left to give back");

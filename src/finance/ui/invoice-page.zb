@@ -132,9 +132,13 @@
             </fieldset>
             <p zb-else class="hq-small hq-muted">Give the money back yourself first (cash, a check, or on the payment platform’s site). This records it.</p>
             <text-field label="Given back on" name="on" type="date" value={view.today} required={true}></text-field>
-            <text-field label="Why" name="reason" description="For the books, and the invoice if they no longer owe it."></text-field>
+            <text-field label="Why" name="reason" required={true} description="For the books, and it goes on the invoice."></text-field>
             <text-field label="Reference" name="reference" description="A check number, or the platform’s refund reference. Filled in for you when HQ refunds it."></text-field>
-            <label class="hq-check"><input type="checkbox" name="noLongerOwed"> They no longer owe what’s given back: write it off</label>
+            <fieldset class="hq-radios">
+              <legend>Do they owe it again?</legend>
+              <label><input type="radio" name="owed" value="no" checked> No, it’s theirs to keep: a refund. The invoice is closed for that amount (it reads “Written off”).</label>
+              <label><input type="radio" name="owed" value="again"> Yes: the payment didn’t stand (a bounced check, a dispute). The invoice is owed again, and they see it to pay.</label>
+            </fieldset>
             <div><button class="hq-button secondary" type="submit">Refund</button></div>
           </form>
         </details>
