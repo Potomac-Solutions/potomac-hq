@@ -584,8 +584,9 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 ## For clients, and for the business (decision 0019)
 
 - **Refunds**: on a paid invoice, *Refund the … payment*: through the card
-  platform, or record one you gave back yourself. Tick *no longer owed* to
-  write off the rest.
+  platform, or record one you gave back yourself. It asks whether they owe
+  it again: *No* (a refund, already picked) or *Yes* (a bounced check, a
+  dispute).
 - **Deposits** go out the moment a client accepts a proposal (with card pay
   on), and they can pay it straight away.
 - **Requests from the client** on a client's page: what they asked for in
@@ -595,7 +596,8 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 - **How the client rated it** on a finished project. A 3 or under puts a
   to-do on your list to call them.
 - **Late fees** on the Money page: off until you set an amount and how many
-  days late. At 14 days late HQ puts *Call … about INV-…* on your list.
+  days late; invoices already past that day when you set it aren't charged.
+  At 14 days late HQ puts *Call … about INV-…* on your list.
 - **Profit by client** under Money: who paid what, and what they cost.
 - **Tax pack** on the Money page: one zip for the accountant, a year at a
   time.
