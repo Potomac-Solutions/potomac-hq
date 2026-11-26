@@ -83,7 +83,7 @@ test("search finds HQ's own pages, only those the person may open (decision 0015
   const hours = await admin.page("/search?q=where+do+I+set+my+hours");
   assert.match(textOf(hours), /Pages Hours for calls The hours people can book you/);
   assert.match(hours, /href="\/calls\/hours"/);
-  assert.match(textOf(await admin.page("/search?q=invoices")), /Pages Money Invoices, payments and expenses/);
+  assert.match(textOf(await admin.page("/search?q=invoices")), /Pages Invoices Every invoice by where it stands: owed, overdue, drafts Money Invoices, payments and expenses/);
   assert.doesNotMatch(textOf(await member.page("/search?q=invoices")), /Pages Money/, "a member may not open Money");
   assert.doesNotMatch(textOf(await member.page("/search?q=audit")), /Audit history/);
 });
