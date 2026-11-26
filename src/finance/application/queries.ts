@@ -259,6 +259,9 @@ export type InvoiceRowView = {
   readonly owed: string;
   readonly issuedOn: string;
   readonly dueOn: string;
+  /** The same two days as people read them: "Mon, Nov 23". */
+  readonly issued: string;
+  readonly due: string;
   readonly overdue: boolean;
 };
 
@@ -266,7 +269,8 @@ function invoiceRowView(invoice: InvoiceRow, today = "9999-12-31"): InvoiceRowVi
   return {
     id: invoice.id,
     label: invoiceLabel(invoice.number),
-    kindLabel: INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind,
+    // "Something else" is the form's word for the choice; on a made invoice it reads as what it is.
+    kindLabel: invoice.kind === "other" ? "A one-off charge" : (INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind),
     status: invoice.status,
     statusLabel: invoice.writtenOffOn ? "Written off" : (INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status),
     total: formatMoney(invoice.total),
@@ -274,6 +278,8 @@ function invoiceRowView(invoice: InvoiceRow, today = "9999-12-31"): InvoiceRowVi
     owed: formatMoney(usd(invoice.total.minor - invoice.paidMinor)),
     issuedOn: invoice.issuedOn ?? "",
     dueOn: invoice.dueOn ?? "",
+    issued: friendlyDay(invoice.issuedOn ?? "", today === "9999-12-31" ? (invoice.issuedOn ?? "") : today),
+    due: friendlyDay(invoice.dueOn ?? "", today === "9999-12-31" ? (invoice.dueOn ?? "") : today),
     overdue: invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < today,
   };
 }
@@ -362,7 +368,7 @@ export function clientInvoices(deps: FinanceDeps, actorId: Id | null, organizati
   const balance = prepaidBalance(blocks, blocks.length > 0 ? deps.billing.minutesSince(organizationId, [...blocks].map((one) => one.boughtOn).sort()[0] as string) : 0);
   const clientName = deps.clients.get(organizationId)?.name ?? "";
   return ok({
-    items: invoices.map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName })),
+    items: invoices.map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName, forWhat: invoice.projectName || invoice.lines[0]?.description || "No project" })),
     canCreate: may(deps, actorId, "invoice.edit"),
     // Without a project, an invoice is for the full amount of something, or another charge.
     kinds: options(INVOICE_KIND_LABELS).filter((one) => one.value === "other" || one.value === "full"),
@@ -382,7 +388,7 @@ export function clientInvoices(deps: FinanceDeps, actorId: Id | null, organizati
             left: balance.leftMinutes < 0 ? `${readableHours(-balance.leftMinutes)} over` : readableHours(balance.leftMinutes),
             low: balance.low,
             over: balance.leftMinutes < 0,
-            blocks: blocks.map((one) => ({ id: one.id, hours: readableHours(one.minutes), boughtOn: one.boughtOn, note: one.note, invoiceId: one.invoiceId ?? "" })),
+            blocks: blocks.map((one) => ({ id: one.id, hours: readableHours(one.minutes), boughtOn: friendlyDay(one.boughtOn, today), note: one.note, invoiceId: one.invoiceId ?? "" })),
           },
     plans: deps.recurring.listForClientAlone(organizationId).map((one) => recurringLine(one, "", clientName, today)),
     everyOptions: options(EVERY_LABELS),
@@ -420,7 +426,7 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
     client: { id: invoice.organizationId, name: invoice.clientName },
     clientName: invoice.clientName,
     lines: invoice.lines.map((line, index) => ({ key: String(index), description: line.description, amount: formatMoney(line.amount) })),
-    payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: payment.receivedOn, amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),
+    payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: friendlyDay(payment.receivedOn, today), amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),
     owedPlain: plain(invoice.total.minor - invoice.paidMinor),
     can: {
       addLine: edit && invoice.status === "draft",
@@ -433,7 +439,7 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
     },
     promise: invoice.promisedOn ? { on: invoice.promisedOn, when: friendlyDay(invoice.promisedOn, today), note: invoice.promiseNote, due: invoice.status === "sent" && invoice.promisedOn <= today } : null,
     payLink: invoice.payLink ?? "",
-    writtenOff: invoice.writtenOffOn ? { on: invoice.writtenOffOn, note: invoice.writtenOffNote } : null,
+    writtenOff: invoice.writtenOffOn ? { on: friendlyDay(invoice.writtenOffOn, today), note: invoice.writtenOffNote } : null,
     methods: options(METHOD_LABELS),
     today,
   });

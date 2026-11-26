@@ -59,7 +59,7 @@
               <td><a href="/clients/{inv.organizationId}#invoices">{inv.clientName}</a></td>
               <td>{inv.forWhat}<span zb-if={!inv.projectName} class="hq-muted"> (no project)</span></td>
               <td>{inv.statusLabel} <status-badge zb-if={inv.overdue} variant="danger">Overdue</status-badge></td>
-              <td>{inv.dueOn}</td>
+              <td>{inv.due}</td>
               <td class="hq-number">{inv.total}</td>
               <td class="hq-number">{inv.status === 'sent' ? inv.owed : ''}</td>
             </tr>

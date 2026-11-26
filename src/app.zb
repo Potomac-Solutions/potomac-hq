@@ -240,6 +240,9 @@
     .hq-side.open .hq-nav { display: grid; }
     .hq-top { position: static; padding: 0.6rem 1rem; flex-wrap: wrap; }
     .hq-who, .hq-account user-avatar { display: none; }
+    /* With a call open or about to start, the row has one more thing than a phone is wide: it wraps, and a long name is cut short. */
+    .hq-account { flex-wrap: wrap; row-gap: 0.4rem; margin-left: 0; max-width: 100%; }
+    .hq-on-call, .hq-ready { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>

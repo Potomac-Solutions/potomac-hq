@@ -155,6 +155,9 @@ test("receipts go out once, to whoever gets the bills, when invoice emails are o
 
 test("how to pay in Potomac's words, and a yearly download of what the client paid", async () => {
   assert.equal(problemOf(await admin.post("/money/pay-instructions", { instructions: "Card 4242 4242 4242 4242" })), "That looks like a card or account number. Every client sees this text, so leave it out: say how to ask for transfer details instead.");
+  assert.match(problemOf(await admin.post("/money/pay-instructions", { instructions: "Wire to account 123456789012 at First Bank." })), /looks like a card or account number/, "a bank account is shorter than a card");
+  assert.match(problemOf(await admin.post("/money/pay-instructions", { instructions: "Routing: 051 000 017" })), /looks like a card or account number/);
+  assert.equal(doneOf(await admin.post("/money/pay-instructions", { instructions: "Call (240) 321-9997 about your account. PO Box 12, Gormania WV 26720." })), "Saved. Clients see it in their portal.", "a phone number and a PO box pass");
   assert.equal(doneOf(await admin.post("/money/pay-instructions", { instructions: "Checks to Potomac Solutions LLC.\nAsk us for bank transfer details." })), "Saved. Clients see it in their portal.");
   const portal = textOf(await stacy.page("/portal"));
   assert.match(portal, /Checks to Potomac Solutions LLC\./);

@@ -154,8 +154,8 @@
               <td><a href="/invoices/{invoice.id}">{invoice.label}</a></td>
               <td>{invoice.kindLabel}</td>
               <td>{invoice.statusLabel} <status-badge zb-if={invoice.overdue} variant="danger">Overdue</status-badge></td>
-              <td>{invoice.issuedOn}</td>
-              <td>{invoice.dueOn}</td>
+              <td>{invoice.issued}</td>
+              <td>{invoice.due}</td>
               <td class="hq-number">{invoice.total}</td>
               <td class="hq-number">{invoice.status === "void" ? "" : invoice.owed}</td>
             </tr>

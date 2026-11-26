@@ -258,6 +258,8 @@ export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: 
   if (clean.length > 2000) return err("too-long");
   // Shown to every client: never a card or account number.
   if (/(?:\d[ -]?){13,19}/.test(clean)) return err("number-in-instructions");
+  // A bank account or routing number is shorter than a card's: caught by the word beside it, so a phone number or a PO box still passes.
+  if (/\b(?:account|acct|routing|aba|iban|swift)\b[^\n]{0,40}?(?:\d[ -]?){6,}/i.test(clean)) return err("number-in-instructions");
   return deps.transact(() => {
     deps.billing.setPayInstructions(clean, actorId, deps.clock());
     recordActivity(deps, { actorId, action: "finance.pay-instructions-set", recordType: "setting", recordId: "finance-setting" as Id, context: { length: clean.length } });

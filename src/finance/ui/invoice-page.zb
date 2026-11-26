@@ -36,8 +36,8 @@
         <dt>Status</dt><dd><strong>{i.statusLabel}</strong> <status-badge zb-if={i.overdue} variant="danger">Overdue</status-badge></dd>
         <dt>Billed to</dt><dd>{view.clientName}</dd>
         <dt>For</dt><dd>{i.kindLabel}</dd>
-        <dt>Issued</dt><dd>{i.issuedOn || "Not sent yet"}</dd>
-        <dt>Due</dt><dd>{i.dueOn || "Not set"}</dd>
+        <dt>Issued</dt><dd>{i.issued || "Not sent yet"}</dd>
+        <dt>Due</dt><dd>{i.due || "Not set"}</dd>
         <dt>Total</dt><dd>{i.total}</dd>
         <dt>Received</dt><dd>{i.paid}</dd>
         <dt>Owed</dt><dd><strong>{view.writtenOff ? "Nothing: written off" : i.status === "void" ? "Nothing: void" : i.owed}</strong></dd>
@@ -64,12 +64,12 @@
         <h3>When they said they’d pay</h3>
         <p class="hq-small hq-muted">From a call or a message. Today reminds you that day if it’s still owed. Leave the day empty to clear it.</p>
         <text-field label="Promised for" name="on" type="date" value={view.promise ? view.promise.on : ''}></text-field>
-        <text-field label="What they said (optional)" name="note" maxlength={300} value={view.promise ? view.promise.note : ''}></text-field>
+        <text-field label="What they said" name="note" maxlength={300} value={view.promise ? view.promise.note : ''}></text-field>
         <div><button class="hq-button secondary" type="submit">Save the promise</button></div>
       </form>
       <form zb-if={view.can.payLink} method="post" action="/invoices/{i.id}/pay-link" class="hq-form" data-spaced>
         <h3>Card payment link</h3>
-        <p zb-if={cardPay.on} class="hq-small hq-muted">Card payments are on{cardPay.test ? ' in test mode' : ' through ' + cardPay.label}: the client already sees “Pay by card” on this invoice, and HQ records the payment by itself. A link pasted here is only used if card payments are turned off.</p>
+        <p zb-if={cardPay.on} class="hq-small hq-muted">Card payments are on{cardPay.test ? ' in test mode' : ' through ' + cardPay.label}: {i.draft ? 'once this invoice is sent, the client sees' : 'the client already sees'} “Pay by card” on it, and HQ records the payment by itself. A link pasted here is only used if card payments are turned off.</p>
         <p zb-else class="hq-small hq-muted">Make a payment link for this amount in your payment service, then paste it here. The client sees “Pay by card” in their portal. Leave it empty to remove it.</p>
         <text-field label="Link" name="link" type="url" maxlength={500} value={view.payLink} placeholder="https://"></text-field>
         <div><button class="hq-button secondary" type="submit">Save the link</button></div>

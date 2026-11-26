@@ -24,7 +24,7 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p>A {view.invite.length} call with Potomac Solutions, {view.invite.days}. Times are Eastern.</p>
+    <p>A call with Potomac Solutions, {view.invite.length} long, {view.invite.days}. Times are Eastern.</p>
     <p zb-if={view.invite.note}>“{view.invite.note}”</p>
     <div zb-if={view.invite.status === 'confirmed'} class="hq-panel"><p><strong>It’s booked.</strong> You were emailed the time; it’s also under your calls in <a href="/portal#calls">your portal</a>.</p></div>
     <div zb-else-if={view.invite.status === 'cancelled'} class="hq-panel"><p>Potomac Solutions withdrew this invite. Nothing more to do.</p></div>
