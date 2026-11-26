@@ -333,6 +333,26 @@ function followInvoice(deps: FinanceDeps, actorId: Id | null, changed: Invoice):
   recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
 }
 
+/**
+ * The deposit of a proposal the client just accepted, sent at once so they can
+ * pay it by card there and then (2026-11-26). Only a deposit drafted from the
+ * proposal: anything else waits for a person. No actor: the client's
+ * acceptance is what sends it. Answers the deposit invoice, sent, or null.
+ */
+export function sendDepositOnAcceptance(deps: FinanceDeps, projectId: Id): Invoice | null {
+  return deps.transact(() => {
+    const deposit = deps.invoices.listForProject(projectId).find((one) => one.kind === "deposit" && one.status !== "void" && one.status !== "paid");
+    if (!deposit) return null;
+    if (deposit.status === "sent") return deposit;
+    const sent = sendInvoice(deposit, deps.today());
+    if (!sent.ok) return null;
+    deps.invoices.update(sent.value, deps.clock());
+    recordActivity(deps, { actorId: null, action: "invoice.sent-on-acceptance", recordType: "invoice", recordId: deposit.id, context: { projectId, number: deposit.number, minor: sent.value.total.minor } });
+    followInvoice(deps, null, sent.value);
+    return sent.value;
+  });
+}
+
 /** Sends a draft: it gets today's date and can no longer be edited. The project becomes "invoiced". */
 export function sendInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<Invoice, Refused | "not-a-draft"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");

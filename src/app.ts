@@ -22,11 +22,11 @@ import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { cardPayPages, cardPayRoutes } from "./cardpay/api/card-pay-routes.ts";
 import { refundRoutes } from "./cardpay/api/refund-routes.ts";
-import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
+import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, startCardPayment, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
 import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { recordCardPayment, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { recordCardPayment, sendDepositOnAcceptance, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -1527,6 +1527,14 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
       approvals,
+      // Accepted a proposal (2026-11-26): with card payments on, its deposit goes out at once and can be paid right away.
+      afterAccept: async (session, projectId, payNow) => {
+        if (!cardPayDeps.pay) return null;
+        const deposit = sendDepositOnAcceptance(financeDeps, projectId);
+        if (!deposit || !payNow) return null;
+        const started = await startCardPayment(cardPayDeps, session, deposit.id);
+        return started.ok ? started.value.next : withMessage("/portal#invoices", "problem", "The card payment page couldn’t be opened. Nothing was charged. Your deposit invoice is below: pay it by card in a minute, or another way.");
+      },
       ...(inviteMail
         ? { signInLink: { mail: async (to, token) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-sign-in", { name: to.name, link: `${publicUrl}/portal/accept?token=${token}` })), allowPerEmail: sqliteRateLimit(db, { name: "portal-link-email", max: 3, windowMs: 60 * 60_000 }) } }
         : {}),
