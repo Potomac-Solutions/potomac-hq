@@ -21,10 +21,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -351,6 +351,26 @@
           </zb-each>
         </ul>
       </div>
+    </section>
+    <section zb-if={asks.can && asks.items.length > 0} class="hq-panel" id="requests" aria-labelledby="client-requests">
+      <h2 id="client-requests">Requests from the client</h2>
+      <p class="hq-muted">Sent from their portal. Each is a task; they see its status.</p>
+      <ul class="hq-list">
+        <zb-each items={asks.items} as="one" key={one.id}>
+          <li>
+            <p><a zb-if={one.taskHref} href={one.taskHref}>{one.title}</a><span zb-else>{one.title}</span> · {one.standingLabel} · sent {one.sent}<span zb-if={one.project}> · {one.project}</span></p>
+            <p zb-if={one.note} class="hq-muted">Not going ahead: “{one.note}”</p>
+            <details zb-if={one.open && asks.canDecline}>
+              <summary>Not going ahead with “{one.title}”</summary>
+              <form method="post" action="/requests/{one.id}/decline" class="hq-form" data-spaced>
+                <input type="hidden" name="client" value={view.client.id}>
+                <text-field label="Why, for the client" name="note" required={true} description="They read this in their portal. If it’s extra work, say a change to the price comes first."></text-field>
+                <div><button class="hq-button secondary" type="submit">Tell the client</button></div>
+              </form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
     </section>
     <section zb-if={social} class="hq-panel" id="social" aria-labelledby="client-social">
       <h2 id="client-social">Social media</h2>

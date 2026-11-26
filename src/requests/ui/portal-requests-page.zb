@@ -1,0 +1,55 @@
+<!--
+  Asking Potomac Solutions for something (2026-11-26), and seeing where each
+  ask stands. Each one becomes a task in HQ; its status shows here.
+-->
+<script>
+  'use route /portal/requests'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  import '../../shared/ui/zubra/select-field.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    return { title: 'Ask for something', view: context.requests.portal(), done: context.notice.done, problem: context.notice.problem }
+  }
+  const variant = (standing) => ({ done: 'success', 'not-going-ahead': 'neutral', working: 'primary', waiting: 'warning' })[standing] || 'neutral'
+</script>
+<style>
+  .portal-pre { white-space: pre-line; }
+</style>
+<hq-portal-requests view={{ items: [], projects: [] }} done="" problem="">
+  <div class="hq-page">
+    <p><a href="/portal">Back to your portal</a></p>
+    <h1>Ask for something</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <form method="post" action="/portal/requests" class="hq-panel hq-form" id="ask" aria-labelledby="ask-heading">
+      <h2 id="ask-heading">What would you like?</h2>
+      <p class="hq-muted">A change to your website, something new, a fix. Potomac Solutions gets it as a task, and you can follow it below. Something that adds to the price is agreed with you first.</p>
+      <text-field label="In a few words" name="title" required={true} description="Like: Change our Saturday hours to 8 to 2"></text-field>
+      <div class="hq-field">
+        <label for="req-details">More detail (optional)</label>
+        <textarea id="req-details" name="details" rows="4" maxlength="2000"></textarea>
+      </div>
+      <select-field zb-if={view.projects.length > 1} label="Which project is it about?" name="projectId" options={view.projects}></select-field>
+      <div><button class="hq-button portal-big" type="submit">Send</button></div>
+    </form>
+    <section class="hq-panel" id="sent" aria-labelledby="sent-heading">
+      <h2 id="sent-heading">What you’ve asked for</h2>
+      <p zb-if={view.items.length === 0} class="hq-muted">Nothing yet.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={view.items} as="one" key={one.id}>
+          <li>
+            <p><strong>{one.title}</strong> <status-badge variant={variant(one.standing)}>{one.standingLabel}</status-badge></p>
+            <p zb-if={one.details} class="portal-pre">{one.details}</p>
+            <p class="hq-muted hq-small">Sent {one.sent}<span zb-if={one.project}> · {one.project}</span></p>
+            <p zb-if={one.note}>Potomac Solutions: “{one.note}”</p>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-portal-requests>

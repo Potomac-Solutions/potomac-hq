@@ -16,6 +16,8 @@ import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistor
 import { findRoutes, navRoutes, type FindMove } from "./dashboard/api/nav-routes.ts";
 import { pushRoutes } from "./push/api/push-routes.ts";
 import { replyRoutes } from "./replies/api/reply-routes.ts";
+import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-routes.ts";
+import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
@@ -376,6 +378,13 @@ export type PageContext = {
     fromClients(): ReturnType<typeof clientActivity>;
     waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
+  };
+  /** Client requests (2026-11-26). */
+  readonly requests: {
+    /** The signed-in client's requests and the projects they may ask about. */
+    portal(): { readonly items: readonly RequestView[]; readonly projects: readonly { readonly value: string; readonly label: string }[] };
+    /** A client's requests on their page in HQ. */
+    forClient(clientId: string): { readonly can: boolean; readonly canDecline: boolean; readonly items: readonly RequestView[] };
   };
   /** Paying an invoice by card (decision 0018). */
   readonly cardPay: {
@@ -856,6 +865,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           fromClients: () => clientActivity(portalDeps, actor),
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
+        },
+        requests: {
+          portal: () => (client ? portalRequests(services.requests, client) : { items: [], projects: [] }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientRequests(services.requests, actor, parsed.value) : { can: false, canDecline: false, items: [] };
+          },
         },
         cardPay: {
           ready: () => cardPayReady(cardPayDeps),
@@ -1450,6 +1466,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
+  forms.route("/", staffRequestRoutes({ requests: services.requests, actorOf, sign: signNotice }));
   forms.route("/", cardPayRoutes({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const bookerOf = (cookieHeader: string): PortalBooker | null => {
     const session = clientOf(cookieHeader);
