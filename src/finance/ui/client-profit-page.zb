@@ -46,7 +46,7 @@
             </tr>
           </zb-each>
         </tbody>
-        <tfoot><tr><th scope="row">All clients</th><td></td><td class="hq-number">{view.totals.received}</td><td class="hq-number">{view.totals.costs}</td><td class="hq-number">{view.totals.net}</td><td class="hq-number">{view.totals.hours}</td><td class="hq-number">{view.totals.perHour}</td></tr></tfoot>
+        <tfoot><tr><th scope="row">All clients</th><td class="hq-number">{view.totals.invoiced}</td><td class="hq-number">{view.totals.received}</td><td class="hq-number">{view.totals.costs}</td><td class="hq-number">{view.totals.net}</td><td class="hq-number">{view.totals.hours}</td><td class="hq-number">{view.totals.perHour}</td></tr></tfoot>
       </table>
       <p class="hq-small hq-muted">“Per hour” is what’s left for each hour logged. A low one can still be worth it: a new client, a referral, a case study. Time not logged doesn’t count.</p>
     </section>

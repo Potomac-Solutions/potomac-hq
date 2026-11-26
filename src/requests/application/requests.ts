@@ -23,6 +23,8 @@ export type RequestsDeps = ActivityDeps & {
   readonly today: () => string;
   /** The client's open projects they may ask about: id and name. */
   readonly projectsOf: (organizationId: Id) => readonly { readonly id: Id; readonly name: string }[];
+  /** Any project's name, open or finished. */
+  readonly projectName: (projectId: Id) => string | null;
   /** Who looks after this client: the project's owner, or the client's. */
   readonly ownerFor: (organizationId: Id, projectId: Id | null) => Id | null;
   readonly makeTask: (input: { readonly projectId: Id | null; readonly organizationId: Id; readonly title: string; readonly description: string; readonly assigneeId: Id | null }) => Result<{ readonly id: Id }, string>;
@@ -61,7 +63,7 @@ function view(deps: RequestsDeps, request: ClientRequest, projects: readonly { r
     id: request.id,
     title: request.title,
     details: request.details,
-    project: projects.find((one) => one.id === request.projectId)?.name ?? (request.projectId ? "A finished project" : ""),
+    project: projects.find((one) => one.id === request.projectId)?.name ?? (request.projectId ? (deps.projectName(request.projectId) ?? "A finished project") : ""),
     sent: friendlyDay(request.createdAt.slice(0, 10), deps.today()),
     standing: where,
     standingLabel: STANDING_LABELS[where],

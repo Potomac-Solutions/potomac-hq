@@ -51,6 +51,7 @@ export function sqliteRequestLookups(db: Database) {
   const status = db.prepare("select status from task where id = ?");
   const name = db.prepare("select name from client_organization where id = ?");
   return {
+    projectName: (projectId: Id) => ((db.prepare("select name from project where id = ?").get(projectId) as Row | undefined)?.["name"] as string | undefined) ?? null,
     projectsOf: (organizationId: Id) => (projects.all(organizationId) as Row[]).map((r) => ({ id: r["id"] as Id, name: r["name"] as string })),
     ownerFor: (organizationId: Id, projectId: Id | null): Id | null =>
       ((projectId ? (projectOwner.get(projectId) as Row | undefined)?.["owner_id"] : null) ??

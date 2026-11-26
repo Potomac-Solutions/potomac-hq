@@ -44,7 +44,7 @@ test("each client's year: paid, less expenses and renewal costs, per hour worked
   assert.match(page, /Profit by client, \d{4}/);
   // Towing: $400 kept for 2 hours = $200 an hour. Bakery: $1,200 - $100 = $1,100 for 20 hours = $55 an hour.
   assert.match(page, /Better Days Towing \$500\.00 \$400\.00 \$0\.00 \$400\.00 2 h \$200\.00[\s\S]*Mt\. Storm Bakery \$1,200\.00 \$1,200\.00 \$100\.00 \$1,100\.00 20 h \$55\.00/);
-  assert.match(page, /All clients\s+\$1,600\.00 \$100\.00 \$1,500\.00 22 h \$68\.18/);
+  assert.match(page, /All clients\s+\$1,700\.00 \$1,600\.00 \$100\.00 \$1,500\.00 22 h \$68\.18/);
   const sam = await signIn(t, "sam@example.com", "Sam Teter", ["member"]);
   assert.equal((await sam.get("/money/clients")).status, 403);
 });

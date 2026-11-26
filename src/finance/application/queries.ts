@@ -968,8 +968,8 @@ export function profitPerClient(deps: FinanceDeps, actorId: Id | null, wanted?: 
   for (const org of [...tallies.keys()]) if (deps.clients.get(org as Id)?.demo) tallies.delete(org);
   const rows = profitByClient(tallies);
   const money = (minor: number) => formatMoney(usd(minor));
-  const hours = (minutes: number) => (minutes === 0 ? "" : `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} h`);
-  const sum = rows.reduce((s, r) => ({ received: s.received + r.profit.received, costs: s.costs + r.profit.expenses + r.profit.renewalCost, net: s.net + r.profit.net, minutes: s.minutes + r.profit.minutes }), { received: 0, costs: 0, net: 0, minutes: 0 });
+  const hours = (minutes: number) => (minutes === 0 ? "None logged" : `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} h`);
+  const sum = rows.reduce((s, r) => ({ invoiced: s.invoiced + r.profit.invoiced, received: s.received + r.profit.received, costs: s.costs + r.profit.expenses + r.profit.renewalCost, net: s.net + r.profit.net, minutes: s.minutes + r.profit.minutes }), { invoiced: 0, received: 0, costs: 0, net: 0, minutes: 0 });
   return ok({
     year,
     years: Array.from({ length: Math.min(10, thisYear - 2025) }, (_, n) => thisYear - n),
@@ -982,9 +982,9 @@ export function profitPerClient(deps: FinanceDeps, actorId: Id | null, wanted?: 
       costs: money(profit.expenses + profit.renewalCost),
       net: money(profit.net),
       hours: hours(profit.minutes),
-      perHour: profit.perHour === null ? "" : money(profit.perHour),
+      perHour: profit.perHour === null ? "Not known" : money(profit.perHour),
       negative: profit.net < 0,
     })),
-    totals: { received: money(sum.received), costs: money(sum.costs), net: money(sum.net), hours: hours(sum.minutes), perHour: sum.minutes > 0 ? money(Math.round((sum.net * 60) / sum.minutes)) : "" },
+    totals: { invoiced: money(sum.invoiced), received: money(sum.received), costs: money(sum.costs), net: money(sum.net), hours: hours(sum.minutes), perHour: sum.minutes > 0 ? money(Math.round((sum.net * 60) / sum.minutes)) : "Not known" },
   });
 }
