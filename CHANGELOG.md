@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-26
+
 - A user-experience pass on the eleven extras, 2026-11-26
   (`docs/reviews/2026-11-26-ux-extras.md`). Fixed: the intake form losing
   everything typed when it was refused; a refund billing the client again
