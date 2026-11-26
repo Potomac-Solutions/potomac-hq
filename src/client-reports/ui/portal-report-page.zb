@@ -1,12 +1,11 @@
 <!-- A monthly report in the client's portal, as it was sent. -->
 <script>
   'use route /portal/reports/:id'
-  import { notFound } from '@zubra/router'
   export async function load({ context, params }) {
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.clientReports.portalOne(params.id)
-    if (!view) return notFound()
+    if (!view) return context.portal.missing()
     return { title: 'Your month: ' + view.monthText, view }
   }
 </script>

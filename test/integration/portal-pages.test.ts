@@ -93,8 +93,8 @@ test("the client follows a project, asks for changes to a deliverable, then appr
   assert.doesNotMatch(page, /Billable hours/, "no hours line until some are logged");
   assert.match(textOf(page), /Home page design Waiting for your decision Open design\.pdf/);
   // The timeline reads first: what's waiting on them links to where it's done.
-  assert.match(textOf(page), /Waiting on you Look over “Home page design” and approve it or ask for changes/);
-  assert.match(page, /<a href="#deliverables">Look over/);
+  assert.match(textOf(page), /Waiting on you Look at “Home page design”: approve it, or say what should change/);
+  assert.match(page, /<a href="#deliverables">Look at/);
   assert.match(textOf(page), /What we’re doing next Design signed off/);
 
   const blank = await ann.submit(`/portal/deliverables/${deliverableId}/decision`, { decision: "changes-requested", note: " ", projectId });
@@ -161,6 +161,38 @@ test("a call is asked for in the portal and answered from the client's page", as
   assert.match(answered.html, /Answer sent to the client’s portal\./);
   assert.match(textOf(await ann.page("/portal")), /You asked for: Thursday afternoon Confirmed for Thursday Nov 19, 2:00 PM \. “Talk then\.”/);
   assert.doesNotMatch(await admin.page("/"), /Call Ann Baker back/, "nothing is waiting any more");
+});
+
+// The client's side of the user-experience pass (2026-11-26).
+test("signing in goes on to the page the client was headed for, and a page that isn't there is the portal's own", async () => {
+  const query = (res: Response, name: string) => new URL("http://x" + (res.headers.get("location") ?? "")).searchParams.get(name) ?? "";
+  // Signed out, a project's address shows the sign-in form, which remembers it through a wrong try.
+  const visitor = httpClient(t.origin);
+  const form = await (await visitor.get(`/portal/projects/${projectId}`)).text();
+  assert.match(form, new RegExp(`name="next"[^>]*value="/portal/projects/${projectId}"`));
+  const wrong = await visitor.post("/portal/sign-in", { email: "ann@bakery.example", password: "not-her-password", next: `/portal/projects/${projectId}` });
+  assert.equal(query(wrong, "next"), `/portal/projects/${projectId}`);
+  const right = await visitor.post("/portal/sign-in", { email: "ann@bakery.example", password: PASSWORD, next: `/portal/projects/${projectId}` });
+  assert.equal(right.headers.get("location"), `/portal/projects/${projectId}`);
+  // Only the portal's own pages are a destination.
+  for (const next of ["https://evil.example/portal", "//evil.example", "/clients", "/portal/sign-out", "/portal/../clients"]) {
+    assert.equal((await httpClient(t.origin).post("/portal/sign-in", { email: "ann@bakery.example", password: PASSWORD, next })).headers.get("location"), "/portal", next);
+  }
+
+  // A project that isn't hers, and an address that is no page: the portal's frame and a way back, not HQ's.
+  const other = await ann.get("/portal/projects/00000000-0000-4000-8000-000000000000");
+  assert.equal(other.status, 404);
+  const missing = textOf(await other.text());
+  assert.match(missing, /There’s nothing at this address .* Back to your portal/);
+  assert.doesNotMatch(missing, /dashboard|Potomac HQ/);
+  const unknown = await ann.get("/portal/no-such-page");
+  assert.equal(unknown.status, 303);
+  assert.match(query(unknown, "problem"), /There’s no page at that address/);
+
+  // A message from the first page lands with the project's messages, where she can see it.
+  const sentFromHome = await ann.submit("/portal/messages", { projectId, body: "Do you do menus too?" });
+  assert.match(textOf(sentFromHome.html), /Message sent to Potomac Solutions\. It’s here with the project’s other messages\./);
+  assert.match(textOf(sentFromHome.html), /Do you do menus too\?/);
 });
 
 test("with email set up, the link is emailed and not shown", async () => {

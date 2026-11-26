@@ -5,14 +5,13 @@
 -->
 <script>
   'use route /portal/landing-page'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.freePages.mine()
-    if (!view) return notFound()
+    if (!view) return context.portal.missing()
     return { title: 'Your free landing page', view, done: context.notice.done, problem: context.notice.problem }
   }
 </script>

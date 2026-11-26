@@ -5,7 +5,6 @@
 -->
 <script>
   'use route /portal/invites/:id'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/parts/availability-grid.zb'
   import '../../shared/ui/parts/fill-from.zb'
@@ -13,7 +12,7 @@
     const stop = context.portal.guard()
     if (stop) return stop
     const view = await context.booking.guestInvite(params.id)
-    if (!view || !view.ok) return notFound()
+    if (!view || !view.ok) return context.portal.missing()
     return { title: 'Pick times: ' + view.value.invite.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
 </script>

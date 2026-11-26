@@ -5,7 +5,6 @@
 -->
 <script>
   'use route /portal/social'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
   import '../../shared/ui/zubra/status-badge.zb'
@@ -14,7 +13,7 @@
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.social.mine(url.searchParams.get('month') ?? '')
-    if (!view) return notFound()
+    if (!view) return context.portal.missing()
     return { title: 'Your social media', view, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
