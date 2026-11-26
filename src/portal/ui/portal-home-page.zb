@@ -22,10 +22,16 @@
     const referrals = context.referralCredit.mine()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', rate: context.feedback.waiting(), intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<style>
+  .portal-rate fieldset { border: 0; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; }
+  .portal-rate legend { font-weight: 600; margin-bottom: 0.5rem; }
+  .portal-rate-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .portal-rate-buttons .hq-button { min-width: 3rem; justify-content: center; }
+</style>
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" rate={[]} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -128,6 +134,26 @@
       </ol>
     </section>
 
+    <section zb-if={rate.length > 0} class="hq-panel" id="feedback" aria-labelledby="portal-feedback">
+      <h2 id="portal-feedback">Rate a finished project</h2>
+      <zb-each items={rate} as="one" key={one.id}>
+        <form method="post" action="/portal/projects/{one.id}/feedback" class="portal-rate">
+          <fieldset>
+            <legend>“{one.name}” is finished. How did it go?</legend>
+            <div class="portal-rate-buttons">
+              <button class="hq-button secondary" type="submit" name="score" value="1">1<span class="sr-only"> of 5, poor</span></button>
+              <button class="hq-button secondary" type="submit" name="score" value="2">2<span class="sr-only"> of 5, not great</span></button>
+              <button class="hq-button secondary" type="submit" name="score" value="3">3<span class="sr-only"> of 5, okay</span></button>
+              <button class="hq-button secondary" type="submit" name="score" value="4">4<span class="sr-only"> of 5, good</span></button>
+              <button class="hq-button secondary" type="submit" name="score" value="5">5<span class="sr-only"> of 5, great</span></button>
+            </div>
+            <p class="hq-small hq-muted" aria-hidden="true">1 is poor, 5 is great.</p>
+            <label class="hq-small" for={'rate-note-' + one.id}>Anything to add? (optional, only we see it)</label>
+            <textarea id={'rate-note-' + one.id} name="note" rows="2" maxlength="1000"></textarea>
+          </fieldset>
+        </form>
+      </zb-each>
+    </section>
     <section class="hq-panel" id="intake" aria-labelledby="portal-intake">
       <h2 id="portal-intake">About your business</h2>
       <p zb-if={intakeSent}>You told us about your business {intakeSent}. <a href="/portal/intake">See or change it</a>.</p>

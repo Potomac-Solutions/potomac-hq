@@ -18,6 +18,8 @@ import { pushRoutes } from "./push/api/push-routes.ts";
 import { replyRoutes } from "./replies/api/reply-routes.ts";
 import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-routes.ts";
 import { intakeRoutes } from "./intake/api/intake-routes.ts";
+import { feedbackRoutes } from "./feedback/api/feedback-routes.ts";
+import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
@@ -380,6 +382,12 @@ export type PageContext = {
     fromClients(): ReturnType<typeof clientActivity>;
     waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
+  };
+  /** "How did we do?" (2026-11-26). */
+  readonly feedback: {
+    /** The signed-in client's finished projects still to rate. */
+    waiting(): readonly { readonly id: string; readonly name: string }[];
+    forProject(projectId: string): FeedbackView | null;
   };
   /** The new-client intake (2026-11-26). */
   readonly intake: {
@@ -872,6 +880,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           fromClients: () => clientActivity(portalDeps, actor),
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
+        },
+        feedback: {
+          waiting: () => (client ? feedbackWaiting(services.feedback, client) : []),
+          forProject: (projectId) => {
+            const parsed = parseId(projectId);
+            return parsed.ok ? projectFeedback(services.feedback, actor, parsed.value) : null;
+          },
         },
         intake: {
           portal: () => (client ? portalIntake(services.intake, client) : { answers: null, sent: "", filesGoTo: "", access: [] }),
@@ -1480,6 +1495,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  forms.route("/", feedbackRoutes({ feedback: services.feedback, clientOf, sign: signNotice }));
   forms.route("/", intakeRoutes({ intake: services.intake, clientOf, sign: signNotice }));
   forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
   forms.route("/", staffRequestRoutes({ requests: services.requests, actorOf, sign: signNotice }));

@@ -17,7 +17,7 @@ import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
 import type { ReportsDeps } from "./client-reports/index.ts";
 import type { AutomationsDeps } from "./automations/index.ts";
-import type { ShowcaseDeps } from "./showcase/index.ts";
+import { mayWriteReview, type ShowcaseDeps } from "./showcase/index.ts";
 import type { ReferralCreditDeps } from "./referral-credit/index.ts";
 import type { DemosDeps } from "./demos/index.ts";
 import { sqliteDemoLinkStore, sqliteDemoStore } from "./demos/adapters.ts";
@@ -74,6 +74,8 @@ import type { RepliesDeps } from "./replies/index.ts";
 import { sqliteReplyStore } from "./replies/adapters.ts";
 import type { RequestsDeps } from "./requests/index.ts";
 import type { IntakeDeps } from "./intake/index.ts";
+import type { FeedbackDeps } from "./feedback/index.ts";
+import { sqliteFeedbackStore } from "./feedback/adapters.ts";
 import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
 import { sqliteRequestLookups, sqliteRequestStore as sqliteClientRequestStore } from "./requests/adapters.ts";
 import { isQuiet } from "./notices/index.ts";
@@ -202,6 +204,8 @@ export type Services = {
   readonly requests: RequestsDeps;
   /** The new-client intake (2026-11-26). */
   readonly intake: IntakeDeps;
+  /** "How did we do?" (2026-11-26). */
+  readonly feedback: FeedbackDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -919,6 +923,19 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ...sqliteIntakeLookups(db),
     saveUpload: (session, projectId, upload) => sendPortalFile(portal, session, projectId, upload),
   };
+  const feedback: FeedbackDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    feedback: sqliteFeedbackStore(db),
+    clientName: sqliteRequestLookups(db).clientName,
+    clientUserName: sqliteIntakeLookups(db).clientUserName,
+    makeTodo: (input) => taskFromClient(projects, input),
+    mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
+  };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
     users,
@@ -965,5 +982,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

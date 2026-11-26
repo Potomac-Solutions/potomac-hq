@@ -20,11 +20,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: context.replies(view.value.clientId), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, feedback: context.feedback.forProject(params.id), notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: context.replies(view.value.clientId), done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project ai-models={[]} view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} done="" problem="">
+<hq-project feedback={null} ai-models={[]} view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -44,6 +44,12 @@
     </nav>
     <div class="hq-split facts-first">
     <div class="hq-rail">
+    <section zb-if={feedback} class="hq-panel" id="feedback" aria-labelledby="project-feedback">
+      <h2 id="project-feedback">How the client rated it</h2>
+      <p><strong>{feedback.score} of 5, {feedback.words.toLowerCase()}</strong>, from {feedback.by || 'the client'}, {feedback.when}.</p>
+      <p zb-if={feedback.note}>“{feedback.note}”</p>
+      <p zb-if={feedback.low} class="hq-muted">A to-do to call them went to whoever ran the project.</p>
+    </section>
     <section class="hq-panel" aria-labelledby="project-details">
       <h2 id="project-details">Details</h2>
       <dl class="hq-facts">
