@@ -1,13 +1,12 @@
 <!-- Writing a review in the portal (decision 0013, section 6). One a client. -->
 <script>
   'use route /portal/review'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/parts/review-form.zb'
   export async function load({ context }) {
     const stop = context.portal.guard()
     if (stop) return stop
-    if (!context.showcase.mayWrite()) return notFound()
+    if (!context.showcase.mayWrite()) return context.portal.missing()
     return { title: 'Write a review', problem: context.notice.problem }
   }
 </script>

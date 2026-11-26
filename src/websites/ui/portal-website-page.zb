@@ -5,7 +5,6 @@
 -->
 <script>
   'use route /portal/website'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import './site-editor.zb'
   import './site-status.zb'
@@ -14,7 +13,7 @@
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.websites.mine(Number(url.searchParams.get('wider') ?? 0))
-    if (!view) return notFound()
+    if (!view) return context.portal.missing()
     return { title: view.name, view, done: context.notice.done, problem: context.notice.problem }
   }
 </script>

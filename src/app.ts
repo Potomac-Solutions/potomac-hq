@@ -87,7 +87,7 @@ import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/view
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
-import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
+import { clientPortalRoutes, portalDownloads, portalNext, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
@@ -104,7 +104,7 @@ import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
-import { err, parseId, readUndo, recordActivity, stashUndo, type Id, type Result } from "./shared/index.ts";
+import { err, parseId, readUndo, recordActivity, stashUndo, withMessage, type Id, type Result } from "./shared/index.ts";
 import { loadAssets, MANIFEST, themeLinks } from "./shared/ui/assets.ts";
 import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
@@ -387,6 +387,10 @@ export type PageContext = {
     readonly signUpOpen: boolean;
     /** Whether HQ can email a sign-in link: email is set up. The portal's sign-in page offers it only then. */
     readonly canEmailLink: boolean;
+    /** A path the portal's sign-in may go on to, or "" (see portalNext). */
+    next(path: string): string;
+    /** In a portal page's place when it isn't there or isn't this client's: the portal's own "nothing here", not HQ's. */
+    missing(): Answer;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
@@ -825,7 +829,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           session: client ? { name: client.name } : null,
           contact,
           notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
-          guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in" }, { status: 401 })),
+          // The sign-in form in the page's place, told which page it was so signing in goes on to it.
+          guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in", next: portalNext(new URL(request.url).pathname), signUp: signUpOpen(), emailLink: inviteMail !== null }, { status: 401 })),
           // Each of these is given the session and nothing else to decide whose records to read.
           home: () => portalHome(portalDeps, client as NonNullable<typeof client>),
           project: (id) => {
@@ -839,6 +844,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           approval: (token) => approvalView(portalDeps, approvals, token),
           signUpOpen: signUpOpen(),
           canEmailLink: inviteMail !== null,
+          next: portalNext,
+          missing: () => show("portal/ui/portal-missing", { title: "Not found" }, { status: 404 }),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
             const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
@@ -1824,6 +1831,12 @@ export async function createApp(config: AppConfig): Promise<App> {
     res.setHeader("cache-control", "no-store");
     if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
+    // An address under the portal that is no page: back to the portal with a word, not HQ's own "not found".
+    if (req.method === "GET" && path.startsWith("/portal/")) {
+      res.writeHead(303, { location: notices.sign(withMessage("/portal", "problem", "There’s no page at that address. This is your portal’s first page.")) });
+      res.end();
+      return;
+    }
     await router.notFound(req, res);
   }
 

@@ -9,7 +9,7 @@
 </script>
 <hq-error status={500}>
   <empty-state heading={missing ? "There is no page at this address" : "Something went wrong"}>
-    <span zb-if={missing}>Check the address, or go back to the dashboard.</span>
+    <span zb-if={missing}>Check the address, or the link you were sent.</span>
     <span zb-else>The error has been logged. Try again in a moment.</span>
     <action-button slot="actions" href="/">Back to Home</action-button>
   </empty-state>

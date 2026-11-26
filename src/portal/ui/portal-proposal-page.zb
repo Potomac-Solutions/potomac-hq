@@ -4,14 +4,13 @@
 -->
 <script>
   'use route /portal/proposals/:id'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context, params }) {
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.portal.proposal(params.id)
-    if (!view.ok) return notFound()
+    if (!view.ok) return context.portal.missing()
     return { title: view.value.document.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
   const doc = view.document

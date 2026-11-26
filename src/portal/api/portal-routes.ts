@@ -159,6 +159,16 @@ const SIGN_UP_MESSAGES: Readonly<Record<string, string>> = {
 };
 
 /** What a client posts from inside the portal, and the portal's sign-in. */
+/**
+ * Where signing in goes on to: a page of the portal itself, by its path
+ * alone. Anything else (another site, HQ's own pages, the sign-in pages) is
+ * no destination, and the portal's first page is used.
+ */
+export function portalNext(path: string): string {
+  if (!/^\/portal\/[a-z-]+(\/[0-9a-f-]{36})?$/.test(path)) return "";
+  return /^\/portal\/(sign-in|sign-up|sign-out|accept|approve)\b/.test(path) ? "" : path;
+}
+
 export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Bindings: { incoming: unknown } }> {
   const app = new Hono<{ Bindings: { incoming: unknown } }>();
   const to = (c: { redirect(to: string, status: 303): Response }, location: string, key: "done" | "problem", message: string) => c.redirect(deps.sign(withMessage(location, key, message)), 303);
@@ -169,9 +179,11 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     const { fields } = await readForm(c);
     const result = await client.signInClient(deps.portal, { email: fields["email"] ?? "", password: fields["password"] ?? "", client: deps.addressOf(c.env.incoming) });
     if (!result.ok) deps.refusedSignIn(fields["email"] ?? "", deps.addressOf(c.env.incoming));
-    if (!result.ok) return to(c, "/portal/sign-in", "problem", result.error === "locked" ? "Too many wrong tries. Wait fifteen minutes, then try again." : "That email and password don’t match.");
+    // The page they were on their way to, kept through a wrong try and gone to once they're in.
+    const next = portalNext(fields["next"] ?? "");
+    if (!result.ok) return to(c, next ? `/portal/sign-in?next=${encodeURIComponent(next)}` : "/portal/sign-in", "problem", result.error === "locked" ? "Too many wrong tries. Wait fifteen minutes, then try again." : "That email and password don’t match.");
     c.header("set-cookie", result.value.cookie);
-    return c.redirect("/portal", 303);
+    return c.redirect(next || "/portal", 303);
   });
 
   // Approving from an email's link, without signing in (quality of life, 2026-11-25).
@@ -267,7 +279,8 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
         const project = parseId(f["projectId"] ?? "");
         return project.ok ? client.sendMessage(deps.portal, s, project.value, f["body"] ?? "") : { ok: false as const, error: "not-found" };
       }),
-    { done: () => "/portal#message", back: () => "/portal#message", message: "Message sent to Potomac Solutions." },
+    // On to the project's messages, where what they sent now is, with any answer to come.
+    { done: (update) => `/portal/projects/${update.projectId}#updates`, back: () => "/portal#message", message: "Message sent to Potomac Solutions. It’s here with the project’s other messages." },
   );
   post("/portal/projects/:id/files", (session, _f, id, files) => signedIn(session, (s) => client.sendFile(deps.portal, s, id as Id, files["file"] ?? null)), {
     done: (_, id) => `/portal/projects/${id}#files`,
