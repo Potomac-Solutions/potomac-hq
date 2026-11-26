@@ -81,7 +81,7 @@
           <label><input type="radio" name="kind" value="percent" checked={lateFee.kind === 'percent'}> A percent of what’s still owed</label>
           <label><input type="radio" name="kind" value="flat" checked={lateFee.kind === 'flat'}> A flat amount</label>
         </fieldset>
-        <text-field label="How much" name="amount" value={lateFee.amount} inputmode="decimal" description="A percent like 1.5, or dollars like 25."></text-field>
+        <text-field label="How much" name="amount" value={lateFee.amount} inputmode="decimal" description="A percent like 1.5, or dollars like 25. Leave it empty for None."></text-field>
         <text-field label="After this many days late" name="afterDays" value={String(lateFee.afterDays)} inputmode="numeric"></text-field>
         <div><button class="hq-button secondary" type="submit">Save</button></div>
       </form>

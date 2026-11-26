@@ -55,7 +55,7 @@ export function autopayPages(deps: {
   app.get("/portal/autopay/go", (c) => {
     const session = deps.clientOf(c.req.header("cookie") ?? "");
     const url = session ? autopayApproveUrl(deps.autopay, session) : null;
-    if (!url || !/^https:\/\//.test(url)) return c.redirect("/portal#autopay", 303);
+    if (!url || !/^https:\/\//.test(url)) return c.redirect(back("/portal#autopay", "problem", "That didn’t start. Press the button again."), 303);
     const safe = url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const where = deps.autopay.saved?.platform === "paypal" ? "PayPal" : "the payment service";
     const body = `<main id="main" class="hq-narrow"><h1>Taking you to ${where}</h1><p>Approve automatic payment there, and you’ll come straight back here.</p><p><a class="hq-button" href="${safe}">Continue to ${where}</a></p></main>`;
