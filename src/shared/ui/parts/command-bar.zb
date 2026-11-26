@@ -14,6 +14,7 @@
   let open = false
   let q = ''
   let items = []
+  let hits = 0
   let active = ''
   let listening = false
   let canTalk = false
@@ -26,6 +27,7 @@
     open = true
     q = ''
     items = []
+    hits = 0
     active = ''
     // The box is drawn on the next frame or so; focus it once it's there.
     let tries = 0
@@ -59,6 +61,7 @@
     const mine = ++asked
     if (!text.trim()) {
       items = []
+      hits = 0
       active = ''
       return
     }
@@ -68,10 +71,20 @@
       if (mine !== asked) return
       const moves = (body.moves || []).map((one, index) => ({ kind: 'Move', label: one.label, href: '#move-' + index, move: one }))
       const keys = /^(keys?|keyboard|shortcuts?)/i.test(text.trim()) ? [{ kind: 'Action', label: 'Keyboard shortcuts', href: '#keys' }] : []
-      items = [...moves, ...keys, ...(body.items || [])]
-      active = items[0] ? items[0].href : ''
+      // Kept from decision 0014's palette: quick add what's typed, and search for it.
+      const typed = text.trim()
+      const extras = [
+        ...(document.getElementById('hq-quick-text') ? [{ kind: 'Action', label: 'Quick add “' + typed + '”', href: '#add' }] : []),
+        ...(typed.length > 1 ? [{ kind: 'Search', label: 'Search everything for “' + typed + '”', href: '/search?q=' + encodeURIComponent(typed) }] : []),
+      ]
+      const found = [...moves, ...keys, ...(body.items || [])]
+      hits = found.length
+      items = [...found, ...extras]
+      // Enter opens the first real match; with none, it still asks the assistant.
+      active = hits > 0 ? items[0].href : ''
     } catch {
       items = []
+      hits = 0
     }
   }
   // A move is a form post, like the deal's own Move button.
@@ -92,6 +105,15 @@
   function go() {
     const picked = items.find((one) => one.href === active)
     if (picked && picked.move) return post(picked.move)
+    if (picked && picked.href === '#add') {
+      const box = document.getElementById('hq-quick-text')
+      hide()
+      if (box) {
+        box.value = q
+        setTimeout(() => box.focus(), 0)
+      }
+      return
+    }
     if (picked && picked.href === '#keys') {
       hide()
       document.dispatchEvent(new CustomEvent('hq-keys'))
@@ -170,14 +192,14 @@
       </div>
       <ul class="cmd-list" id="cmd-list" role="listbox" aria-label="Matches">
         <zb-each items={items} as="item" key={item.href}>
-          <li role="presentation"><a id={'cmd-item-' + items.indexOf(item)} role="option" aria-selected={item.href === active ? 'true' : 'false'} class:active={item.href === active} href={item.href} onclick={(event) => { if (item.move || item.href === '#keys') { event.preventDefault(); active = item.href; go() } }}><span class="cmd-kind">{item.kind}</span><span>{item.label}</span><span zb-if={item.detail} class="cmd-detail">{item.detail}</span></a></li>
+          <li role="presentation"><a id={'cmd-item-' + items.indexOf(item)} role="option" aria-selected={item.href === active ? 'true' : 'false'} class:active={item.href === active} href={item.href} onclick={(event) => { if (item.move || item.href === '#keys' || item.href === '#add') { event.preventDefault(); active = item.href; go() } }}><span class="cmd-kind">{item.kind}</span><span>{item.label}</span><span zb-if={item.detail} class="cmd-detail">{item.detail}</span></a></li>
         </zb-each>
       </ul>
       <p class="cmd-foot">
-        <span zb-if={q.trim() && items.length === 0 && ask}>Nothing matches. Press Enter to <button type="button" onclick={go}>ask the assistant</button>.</span>
-        <span zb-if={q.trim() && items.length === 0 && !ask}>Nothing matches “{q}”.</span>
+        <span zb-if={q.trim() && hits === 0 && ask}>Nothing matches. Press Enter to <button type="button" onclick={go}>ask the assistant</button>.</span>
+        <span zb-if={q.trim() && hits === 0 && !ask}>Nothing matches “{q}”.</span>
         <span zb-if={!q.trim()}>↑ ↓ to pick, Enter to open, Esc to close, ? for every shortcut.</span>
-        <span zb-if={q.trim() && items.length > 0}>Enter opens it.<span zb-if={ask}> Or <button type="button" onclick={() => { active = ''; go() }}>ask the assistant</button> instead.</span></span>
+        <span zb-if={q.trim() && hits > 0}>Enter opens it.<span zb-if={ask}> Or <button type="button" onclick={() => { active = ''; go() }}>ask the assistant</button> instead.</span></span>
       </p>
       <form id="cmd-ask" method="post" action="/assistant" hidden>
         <input type="hidden" name="message" value={q}>

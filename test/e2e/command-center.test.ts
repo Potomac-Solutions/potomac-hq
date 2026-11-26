@@ -92,6 +92,16 @@ test("the command bar, the drawer on any page, pins and the phone's tab bar", as
   await page.keyboard.press("/");
   const bar = page.getByRole("dialog", { name: "Go to a page or record" });
   await bar.waitFor();
+  // Kept from decision 0014's palette: quick add and search what's typed, with Enter still asking the assistant when nothing matches.
+  await page.getByLabel("Go to a page or record, or ask the assistant").fill("qqzzx nothing");
+  await bar.getByRole("option", { name: /Search everything for “qqzzx nothing”/ }).waitFor();
+  await bar.getByRole("option", { name: /Quick add “qqzzx nothing”/ }).click();
+  assert.equal(await page.locator("#hq-quick-text").inputValue(), "qqzzx nothing");
+  await page.locator("#hq-quick-text").fill("");
+  await page.keyboard.press("Escape");
+  await page.locator("main").focus();
+  await page.keyboard.press("/");
+  await bar.waitFor();
   await page.getByLabel("Go to a page or record, or ask the assistant").fill("booking hours");
   await bar.getByRole("option", { name: /Calendar hours/ }).waitFor();
   await assertAccessible(page, "the command bar");
