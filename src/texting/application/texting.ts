@@ -4,7 +4,9 @@
 // a text provider is set up.
 import { showPhone, usPhone } from "../domain/texts.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { TextSender } from "../../shared/adapters.ts";
+
+/** Sends one text; shaped like the Twilio sender in shared infrastructure. */
+export type TextSender = (to: string, body: string) => Promise<{ readonly ok: true } | { readonly ok: false; readonly stopped: boolean; readonly reason: string }>;
 
 export type TextConsent = { readonly clientUserId: Id; readonly organizationId: Id; readonly phone: string; readonly agreedAt: string; readonly stoppedAt: string | null };
 export type TextPurpose = "call-reminder" | "invoice-reminder";

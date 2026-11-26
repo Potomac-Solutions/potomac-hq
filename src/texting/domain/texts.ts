@@ -1,6 +1,6 @@
 // What a text says, and reading a US mobile number (2026-11-26). Short, with
 // who it's from, and how to stop.
-import { err, ok, type Result } from "../../shared/index.ts";
+import { err, ok, type Result } from "../../shared/domain/result.ts";
 
 export const STOP_LINE = "Reply STOP to stop texts.";
 
