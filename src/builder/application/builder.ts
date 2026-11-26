@@ -12,7 +12,7 @@ import { checkAsk, checkBuildInput, FIRST_ASK, LOST_AFTER_MS, monthStart, type B
 import { applyChange, fileAt, filesFromJson, filesToJson, totalChars, type FileError, type SiteFiles } from "../domain/files.ts";
 import { costMicros, dollars, DEFAULT_MODEL, fitsUnderCap, MAX_OUTPUT_TOKENS, MODELS, modelById, parseCap, worstCaseMicros, centsToMicros, type CapError } from "../domain/pricing.ts";
 import { readAnswer, SAVE_TOOL_SCHEMA, SYSTEM_PROMPT, userMessage, type ClientFacts } from "../domain/prompt.ts";
-import { zipFiles } from "../domain/zip.ts";
+import { zipFiles } from "../../shared/index.ts";
 import { checkImage, imagePath, MAX_IMAGES, type BuildImage, type ImageError } from "../domain/image.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";

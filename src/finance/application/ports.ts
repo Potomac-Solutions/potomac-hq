@@ -2,7 +2,7 @@ import type { PrepaidBlock } from "../domain/prepaid.ts";
 import type { ChangeRequest } from "../domain/change-request.ts";
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
-import type { Invoice, Payment } from "../domain/invoice.ts";
+import type { Invoice, Payment, Refund } from "../domain/invoice.ts";
 import type { RecurringInvoice } from "../domain/recurring.ts";
 import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
@@ -68,6 +68,10 @@ export type InvoiceStore = {
   /** Every invoice, oldest first. */
   list(): InvoiceRow[];
   insertPayment(payment: Payment, at: string): void;
+  payment(id: Id): Payment | null;
+  insertRefund(refund: Refund, at: string): void;
+  /** The refunds on an invoice's payments, oldest first. */
+  refunds(invoiceId: Id): Refund[];
   /** An invoice's payments, oldest first. */
   payments(invoiceId: Id): Payment[];
   /** Every payment with its invoice's number and names, oldest first. */

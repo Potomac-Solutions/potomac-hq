@@ -2,7 +2,7 @@ import type { BillingStore, ChangeRequestStore, ExpenseRow, ExpenseStore, Financ
 import type { ChangeRequest, ChangeStatus } from "../domain/change-request.ts";
 import type { PaymentStatus, ProjectFinance } from "../domain/budget.ts";
 import type { Expense, ExpenseCategory } from "../domain/expense.ts";
-import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, PaymentMethod } from "../domain/invoice.ts";
+import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, PaymentMethod, Refund } from "../domain/invoice.ts";
 import type { Every, RecurringInvoice } from "../domain/recurring.ts";
 import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
@@ -219,7 +219,8 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   const update = db.prepare("update invoice set status = ?, lines = ?, total_minor = ?, issued_on = ?, due_on = ?, note = ?, promised_on = ?, promise_note = ?, pay_link = ?, written_off_on = ?, written_off_note = ?, updated_at = ? where id = ?");
   const extras = "promised_on, promise_note, pay_link, written_off_on, written_off_note";
   const joined = `select ${`${cols}, ${extras}`.split(", ").map((c) => `i.${c}`).join(", ")}, coalesce(p.name, '') as project_name, c.name as client_name,
-            (select coalesce(sum(amount_minor), 0) from payment y where y.invoice_id = i.id) as paid_minor
+            (select coalesce(sum(amount_minor), 0) from payment y where y.invoice_id = i.id)
+              - (select coalesce(sum(r.amount_minor), 0) from payment_refund r join payment y on y.id = r.payment_id where y.invoice_id = i.id) as paid_minor
        from invoice i left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id`;
   const get = db.prepare(`${joined} where i.id = ?`);
   const listForProject = db.prepare(`${joined} where i.project_id = ? order by i.number desc`);
@@ -228,11 +229,30 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   const pcols = "id, invoice_id, amount_minor, currency, method, received_on, reference, recorded_by";
   const insertPayment = db.prepare(`insert into payment (${pcols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const payments = db.prepare(`select ${pcols} from payment where invoice_id = ? order by rowid`);
+  // Refunds count as money going back out: a negative amount on the day it was given back.
   const allPayments = db.prepare(
-    `select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, coalesce(p.name, '') as project_name, c.name as client_name
-       from payment y join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
-      order by y.rowid`,
+    `select * from (
+       select ${pcols.split(", ").map((c) => `y.${c}`).join(", ")}, i.number as number, coalesce(p.name, '') as project_name, c.name as client_name, y.created_at as at, 0 as kind, y.rowid as seq
+         from payment y join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
+       union all
+       select r.id, y.invoice_id, -r.amount_minor, y.currency, y.method, r.refunded_on, ('Refund' || case when r.reference = '' then '' else ' ' || r.reference end), r.recorded_by, i.number, coalesce(p.name, ''), c.name, r.created_at, 1, r.rowid
+         from payment_refund r join payment y on y.id = r.payment_id join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id
+     ) order by at, kind, seq`,
   );
+  const rcols = "id, payment_id, amount_minor, refunded_on, reason, reference, through, recorded_by";
+  const insertRefund = db.prepare(`insert into payment_refund (${rcols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const refundsFor = db.prepare(`select r.${rcols.split(", ").join(", r.")} from payment_refund r join payment y on y.id = r.payment_id where y.invoice_id = ? order by r.rowid`);
+  const paymentById = db.prepare(`select ${pcols} from payment where id = ?`);
+  const toRefund = (r: Row): Refund => ({
+    id: text(r, "id") as Id,
+    paymentId: text(r, "payment_id") as Id,
+    amount: { minor: r["amount_minor"] as number, currency: "USD" },
+    refundedOn: text(r, "refunded_on"),
+    reason: text(r, "reason"),
+    reference: text(r, "reference"),
+    through: text(r, "through") as Refund["through"],
+    recordedBy: text(r, "recorded_by") as Id,
+  });
   const row = (r: Row): InvoiceRow => ({ ...toInvoice(r), projectName: text(r, "project_name"), clientName: text(r, "client_name"), paidMinor: r["paid_minor"] as number });
   return {
     nextNumber() {
@@ -259,6 +279,16 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
     },
     insertPayment(p, at) {
       insertPayment.run(p.id, p.invoiceId, p.amount.minor, p.amount.currency, p.method, p.receivedOn, p.reference, p.recordedBy, at);
+    },
+    payment(id) {
+      const found = paymentById.get(id) as Row | undefined;
+      return found ? toPayment(found) : null;
+    },
+    insertRefund(r, at) {
+      insertRefund.run(r.id, r.paymentId, r.amount.minor, r.refundedOn, r.reason, r.reference, r.through, r.recordedBy, at);
+    },
+    refunds(invoiceId) {
+      return (refundsFor.all(invoiceId) as Row[]).map(toRefund);
     },
     payments(invoiceId) {
       return (payments.all(invoiceId) as Row[]).map(toPayment);
@@ -446,5 +476,31 @@ export function sqliteBillingStore(db: Database): BillingStore {
         projectName: text(r, "project_name"),
         forWhat: text(r, "project_name") || ((JSON.parse(text(r, "lines")) as InvoiceLine[])[0]?.description ?? ""),
       })),
+  };
+}
+
+/** Late fees and calls about late invoices (migration 0086). */
+export function sqliteLateFeeStore(db: Database): import("../application/late-invoices.ts").LateFeeStore {
+  const setting = db.prepare("select kind, amount, after_days from late_fee_setting where id = 1");
+  const set = db.prepare(
+    `insert into late_fee_setting (id, kind, amount, after_days, updated_by, updated_at) values (1, ?, ?, ?, ?, ?)
+     on conflict (id) do update set kind = excluded.kind, amount = excluded.amount, after_days = excluded.after_days, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+  );
+  const charged = db.prepare("select 1 from invoice_late_fee where invoice_id = ?");
+  const isFee = db.prepare("select 1 from invoice_late_fee where fee_invoice_id = ?");
+  const record = db.prepare("insert into invoice_late_fee (invoice_id, fee_invoice_id, charged_on) values (?, ?, ?)");
+  const called = db.prepare("select 1 from invoice_late_call where invoice_id = ?");
+  const recordCall = db.prepare("insert into invoice_late_call (invoice_id, todo_id, made_at) values (?, ?, ?) on conflict do nothing");
+  return {
+    setting: () => {
+      const row = setting.get() as Row | undefined;
+      return row ? { kind: row["kind"] as "off" | "percent" | "flat", amount: row["amount"] as number, afterDays: row["after_days"] as number } : { kind: "off", amount: 0, afterDays: 30 };
+    },
+    set: (s, by, at) => void set.run(s.kind, s.amount, s.afterDays, by, at),
+    charged: (id) => charged.get(id) !== undefined,
+    isFee: (id) => isFee.get(id) !== undefined,
+    record: (id, fee, on) => void record.run(id, fee, on),
+    called: (id) => called.get(id) !== undefined,
+    recordCall: (id, todo, at) => void recordCall.run(id, todo, at),
   };
 }

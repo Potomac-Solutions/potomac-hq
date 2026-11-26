@@ -237,6 +237,10 @@ h3 { font-size: 0.9375rem; font-weight: 650; margin: 0 0 0.5rem; }
 .hq-field { display: grid; gap: 0.35rem; min-width: 0; }
 .hq-field label { font-weight: 600; font-size: 0.9rem; }
 .hq-field select, .hq-field textarea, .hq-field input { width: 100%; min-height: 2.25rem; padding: 0.4rem 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
+.hq-pre-line { white-space: pre-line; }
+.hq-radios { border: 0; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+.hq-radios legend { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem; }
+.hq-radios label { display: flex; gap: 0.5rem; align-items: flex-start; }
 .hq-check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
 .hq-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--primary); }
 .hq-button { display: inline-flex; align-items: center; justify-content: center; height: 2.25rem; padding: 0 0.9rem; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--primary-foreground); background: var(--primary); border: 1px solid transparent; border-radius: calc(var(--radius) - 2px); cursor: pointer; text-decoration: none; }

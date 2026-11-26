@@ -27,7 +27,8 @@ import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { approveQuietPosts } from "../src/social/index.ts";
-import { runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
+import { callReminderText, invoiceReminderText, textClient, textClientPerson } from "../src/texting/index.ts";
+import { runLateInvoices, runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
@@ -37,6 +38,8 @@ import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { sendWeeklyEmails } from "../src/dashboard/index.ts";
 import { queueAlerts, sendAlerts } from "../src/push/index.ts";
 import { cardPayConfigFrom } from "../src/cardpay/adapters.ts";
+import { runAutopay } from "../src/autopay/index.ts";
+import { savedPayFrom } from "../src/autopay/adapters.ts";
 import { vapidFrom, webPushSender } from "../src/push/adapters.ts";
 import { approvalTokens } from "../src/portal/adapters.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
@@ -56,7 +59,7 @@ import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
 import { claudeModel } from "../src/ai/adapters.ts";
-import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
+import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, textConfigFrom, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -78,6 +81,8 @@ const publicUrl = (process.env["HQ_PUBLIC_URL"] ?? `http://localhost:${port}`).r
 
 // Errors go to stderr as JSON, and to the alert address when one is set.
 const email = emailConfigFrom(process.env);
+// Text reminders (2026-11-26): off unless Twilio is set up. They go out with the email reminders.
+const texts = textConfigFrom(process.env);
 const alertTo = alertAddressFrom(process.env);
 if (alertTo && !email) {
   console.error("HQ_ALERT_EMAIL needs email set up: set HQ_BREVO_API_KEY and HQ_EMAIL_FROM.");
@@ -142,6 +147,7 @@ else console.log(cardPay ? (cardPay.platform === "test" ? "Card payments are in 
 const vapid = vapidFrom(process.env);
 const app = await createApp({
   db,
+  texts,
   backups: backupConfigFrom(process.env) !== null,
   cardPay: typeof cardPay === "string" ? null : cardPay,
   vapidPublicKey: vapid?.publicKey ?? null,
@@ -206,6 +212,20 @@ const runRecurring = async () => {
 void runRecurring().catch((error: unknown) => log("Recurring invoices: the run failed", error));
 const stopRecurring = scheduleDaily(runRecurring, { zone: BUSINESS_TIME_ZONE, hour: 6, minute: 13, clock: systemClock, log, name: "recurring invoices" });
 
+// Autopay (2026-11-26): plan invoices of clients who saved a payment method
+// are charged at 10:17, after that morning's invoices are made. Only when the
+// card platform can save methods (PayPal). Not run at start-up on purpose.
+const savedPay = savedPayFrom(typeof cardPay === "string" ? null : cardPay);
+const stopAutopayRun = savedPay
+  ? scheduleDaily(
+      async () => {
+        const result = await runAutopay(createServices(db, { savedPay, publicUrl }).autopay);
+        if (result.paid + result.declined + result.unclear > 0) console.log(`Autopay: paid ${result.paid}, declined ${result.declined}, unclear ${result.unclear}.`);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 10, minute: 17, clock: systemClock, log, name: "autopay" },
+    )
+  : null;
+
 // Retention: every night at 04:07 business time (docs/retention-policy.md).
 const stopRetention = scheduleDaily(
   async () => {
@@ -241,13 +261,25 @@ if (email) {
   console.log("Notices are off: email is not set up.");
 }
 
+// Late invoices (2026-11-26): a late fee if one is set, and a to-do to call at two weeks late. Every morning at 08:52, email or not.
+const stopLateInvoices = scheduleDaily(
+  async () => {
+    const result = runLateInvoices(createServices(db).invoiceReminders);
+    if (result.fees + result.calls > 0) console.log(`Late invoices: ${result.fees} late fees charged, ${result.calls} calls asked for.`);
+  },
+  { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 52, clock: systemClock, log, name: "late invoices" },
+);
+
 // Invoice reminders to clients, when turned on: every morning at 09:07.
 const stopInvoiceReminders = email
   ? scheduleDaily(
       async () => {
         const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
         const options = { publicUrl, phone: contact.phone, address: contact.address };
-        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, options);
+        const texting = createServices(db, { texts }).texting;
+        const text = async (organizationId: Parameters<typeof textClient>[1], reminder: { label: string; owed: string; due: string; overdue: boolean }) => textClient(texting, organizationId, "invoice-reminder", invoiceReminderText({ ...reminder, portalUrl: `${publicUrl}/portal` }));
+        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, options, texts ? text : undefined);
+        if (result.texted > 0) console.log(`Invoice reminders: texted ${result.texted}.`);
         if (result.sent + result.failed + result.skipped > 0) console.log(`Invoice reminders: sent ${result.sent}, failed ${result.failed}, no one to send to ${result.skipped}.`);
         // Monthly statements (decision 0017): in the first week of a month, once a client.
         const statements = await sendStatements(createServices(db).invoiceReminders, mail, options);
@@ -464,7 +496,8 @@ if (email) {
   const timer = setInterval(() => {
     if (busy) return;
     busy = true;
-    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone })
+    const texting = createServices(db, { texts }).texting;
+    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone }, texts ? (clientUserId, when) => textClientPerson(texting, clientUserId, "call-reminder", callReminderText({ when, phone: contact.phone })) : undefined)
       .then((sent) => {
         if (sent.failed > 0) log(`Booking reminders: ${sent.failed} could not be emailed`);
       })
@@ -540,6 +573,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(automationTimer);
     clearInterval(creditTimer);
     stopInvoiceReminders?.();
+    stopLateInvoices();
+    stopAutopayRun?.();
     if (receiptTimer) clearInterval(receiptTimer);
     stopMorning?.();
     stopNotices?.();

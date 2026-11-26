@@ -340,7 +340,7 @@ test("invoices: numbered in order, sent, paid by what is received, and the proje
 
   const detail = unwrap(finance.invoiceDetail(deps, mikey, deposit.id));
   assert.deepEqual(detail.payments.map((p) => [p.amount, p.methodLabel, p.reference]), [["$400.00", "Check", "Check 1041"], ["$437.50", "Cash", ""]]);
-  assert.deepEqual(detail.can, { addLine: false, send: false, void: false, pay: false, promise: false, payLink: false, writeOff: false });
+  assert.deepEqual(detail.can, { refund: true, addLine: false, send: false, void: false, pay: false, promise: false, payLink: false, writeOff: false });
 
   const invoices = unwrap(finance.exportFinance(deps, mikey, "invoices")).csv.split("\r\n");
   assert.equal(invoices[1], "INV-0001,Mt. Storm Bakery,Bakery ordering app,Deposit,paid,2026-11-16,2026-11-10,837.5,837.5,0");

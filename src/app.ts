@@ -16,16 +16,29 @@ import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistor
 import { findRoutes, navRoutes, type FindMove } from "./dashboard/api/nav-routes.ts";
 import { pushRoutes } from "./push/api/push-routes.ts";
 import { replyRoutes } from "./replies/api/reply-routes.ts";
+import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-routes.ts";
+import { intakeRoutes } from "./intake/api/intake-routes.ts";
+import { feedbackRoutes } from "./feedback/api/feedback-routes.ts";
+import { handoffDownloads } from "./handoff/api/handoff-routes.ts";
+import { textingRoutes } from "./texting/api/texting-routes.ts";
+import { autopayPages, autopayRoutes } from "./autopay/api/autopay-routes.ts";
+import { clientAutopay, portalAutopay, type ClientAutopay, type PortalAutopay, type SavedPay } from "./autopay/index.ts";
+import { savedPayFrom } from "./autopay/adapters.ts";
+import { portalTexting, type PortalTexting } from "./texting/index.ts";
+import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
+import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
+import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { cardPayPages, cardPayRoutes } from "./cardpay/api/card-pay-routes.ts";
-import { cardPayReady, hearCardPayment, payStep, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
+import { refundRoutes } from "./cardpay/api/refund-routes.ts";
+import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, startCardPayment, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
 import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { recordCardPayment, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { recordCardPayment, sendDepositOnAcceptance, lateFeeView, profitPerClient, taxPackYears, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -105,7 +118,7 @@ import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
 import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
-import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
+import { sqliteUndoStash, type Database, type EmailConfig, type TextSender } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { err, parseId, readUndo, recordActivity, stashUndo, withMessage, type Id, type Result } from "./shared/index.ts";
 import { loadAssets, MANIFEST, themeLinks } from "./shared/ui/assets.ts";
@@ -152,10 +165,14 @@ export type AppConfig = {
   readonly cardPay?: CardPayConfig | null;
   /** How the payment platform is reached. For tests. */
   readonly cardPayFetch?: typeof fetch;
+  /** Saved payment methods for autopay; by default from the card pay settings (PayPal only). Tests give their own. */
+  readonly savedPay?: SavedPay | null;
   /** Zips a free landing page's code from GitHub, to hand over. Without it, there is no download. */
   readonly siteArchive?: SiteArchive | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
+  /** Sends text reminders (2026-11-26); the portal offers texts only when set. */
+  readonly texts?: TextSender | null;
   /** The site builder's link to Claude (decision 0010). Without it, Claude can't be asked. */
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
@@ -341,9 +358,15 @@ export type PageContext = {
   readonly money: {
     /** Whether clients are emailed about invoices coming due and overdue, and whether this person may change it. */
     reminders(): { readonly on: boolean; readonly canEdit: boolean; readonly email: boolean };
+    /** The late fee, if one is set (2026-11-26). */
+    lateFee(): ReturnType<typeof lateFeeView>;
     invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
     recurring(): ReturnType<typeof recurringOverview>;
     profit(year: string | null): ReturnType<typeof profitAndLoss>;
+    /** Each client's year, per hour worked (2026-11-26). */
+    byClient(year: string | null): ReturnType<typeof profitPerClient>;
+    /** Years a tax pack can be downloaded for, newest first; empty for someone who can't export. */
+    taxYears(): readonly number[];
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
     changes(id: string): ReturnType<typeof projectChanges>;
@@ -376,9 +399,33 @@ export type PageContext = {
     waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
   };
+  /** "How did we do?" (2026-11-26). */
+  /** Text message reminders, for the portal (2026-11-26). */
+  readonly texts: { portal(): PortalTexting };
+  readonly feedback: {
+    /** The signed-in client's finished projects still to rate. */
+    waiting(): readonly { readonly id: string; readonly name: string }[];
+    forProject(projectId: string): FeedbackView | null;
+  };
+  /** Automatic payment of plan bills (2026-11-26). */
+  readonly autopay: { portal(): PortalAutopay; forClient(clientId: string): ClientAutopay | null };
+  /** The new-client intake (2026-11-26). */
+  readonly intake: {
+    portal(): IntakeForm;
+    forClient(clientId: string): IntakeSummary | null;
+  };
+  /** Client requests (2026-11-26). */
+  readonly requests: {
+    /** The signed-in client's requests and the projects they may ask about. */
+    portal(): { readonly items: readonly RequestView[]; readonly projects: readonly { readonly value: string; readonly label: string }[] };
+    /** A client's requests on their page in HQ. */
+    forClient(clientId: string): { readonly can: boolean; readonly canDecline: boolean; readonly items: readonly RequestView[] };
+  };
   /** Paying an invoice by card (decision 0018). */
   readonly cardPay: {
     ready(): CardPayReady;
+    /** Whether a payment came through the platform and can be refunded there. */
+    byPlatform(paymentId: string): boolean;
     /** The started payment for one of the signed-in client's invoices, or null. */
     step(invoiceId: string): PayStep | null;
   };
@@ -628,7 +675,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files|portal\/intake)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
@@ -650,7 +697,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const savedPay = config.savedPay !== undefined ? config.savedPay : savedPayFrom(config.cardPay, config.cardPayFetch ? { fetch: config.cardPayFetch } : {});
+  const services = createServices(db, { savedPay, texts: config.texts ?? null, emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   // Card payments (decision 0018): the kit's pay, on the platform the settings name.
   const cardStore = sqliteKitStore(db);
@@ -854,8 +902,41 @@ export async function createApp(config: AppConfig): Promise<App> {
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
         },
+        texts: { portal: () => (client ? portalTexting(services.texting, client) : { available: false, on: false, phone: "" }) },
+        feedback: {
+          waiting: () => (client ? feedbackWaiting(services.feedback, client) : []),
+          forProject: (projectId) => {
+            const parsed = parseId(projectId);
+            return parsed.ok ? projectFeedback(services.feedback, actor, parsed.value) : null;
+          },
+        },
+        autopay: {
+          portal: () => (client ? portalAutopay(services.autopay, client) : { offered: false, on: false, label: "", platform: "", since: "" }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientAutopay(services.autopay, actor, parsed.value) : null;
+          },
+        },
+        intake: {
+          portal: () => (client ? portalIntake(services.intake, client) : { answers: null, sent: "", filesGoTo: "", access: [] }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientIntake(services.intake, actor, parsed.value) : null;
+          },
+        },
+        requests: {
+          portal: () => (client ? portalRequests(services.requests, client) : { items: [], projects: [] }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientRequests(services.requests, actor, parsed.value) : { can: false, canDecline: false, items: [] };
+          },
+        },
         cardPay: {
           ready: () => cardPayReady(cardPayDeps),
+          byPlatform: (paymentId) => {
+            const parsed = parseId(paymentId);
+            return parsed.ok && refundableByPlatform(cardPayDeps, parsed.value);
+          },
           step: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? payStep(cardPayDeps, client, parsed.value) : null;
@@ -1028,9 +1109,12 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         money: {
           reminders: () => ({ on: services.invoiceReminders.reminders.on(), canEdit: actor !== null && authorize(sessionDeps, actor, "finance.edit").ok, email: Boolean(config.email) }),
+          lateFee: () => lateFeeView(services.invoiceReminders, actor),
           invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
           recurring: () => recurringOverview(financeDeps, actor),
           profit: (year) => profitAndLoss(financeDeps, actor, year),
+          byClient: (year) => profitPerClient(financeDeps, actor, year),
+          taxYears: () => (actor !== null && authorize(sessionDeps, actor, "finance.export").ok ? taxPackYears(financeDeps) : []),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
           changes: (id) => withId(id, (projectId) => projectChanges(financeDeps, actor, projectId)),
@@ -1441,7 +1525,14 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: signNotice, feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
+  forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  forms.route("/", feedbackRoutes({ feedback: services.feedback, clientOf, sign: signNotice }));
+  forms.route("/", autopayRoutes({ autopay: services.autopay, clientOf, actorOf, sign: signNotice }));
+  forms.route("/", textingRoutes({ texting: services.texting, clientOf, sign: signNotice }));
+  forms.route("/", intakeRoutes({ intake: services.intake, clientOf, sign: signNotice }));
+  forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
+  forms.route("/", staffRequestRoutes({ requests: services.requests, actorOf, sign: signNotice }));
   forms.route("/", cardPayRoutes({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const bookerOf = (cookieHeader: string): PortalBooker | null => {
     const session = clientOf(cookieHeader);
@@ -1519,6 +1610,14 @@ export async function createApp(config: AppConfig): Promise<App> {
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
       approvals,
+      // Accepted a proposal (2026-11-26): with card payments on, its deposit goes out at once and can be paid right away.
+      afterAccept: async (session, projectId, payNow) => {
+        if (!cardPayDeps.pay) return null;
+        const deposit = sendDepositOnAcceptance(financeDeps, projectId);
+        if (!deposit || !payNow) return null;
+        const started = await startCardPayment(cardPayDeps, session, deposit.id);
+        return started.ok ? started.value.next : withMessage("/portal#invoices", "problem", "The card payment page couldn’t be opened. Nothing was charged. Your deposit invoice is below: pay it by card in a minute, or another way.");
+      },
       ...(inviteMail
         ? { signInLink: { mail: async (to, token) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-sign-in", { name: to.name, link: `${publicUrl}/portal/accept?token=${token}` })), allowPerEmail: sqliteRateLimit(db, { name: "portal-link-email", max: 3, windowMs: 60 * 60_000 }) } }
         : {}),
@@ -1785,6 +1884,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
+  downloads.route("/", handoffDownloads({ handoff: services.handoff, actorOf }));
+  downloads.route("/", autopayPages({ autopay: services.autopay, clientOf, sign: signNotice, page: renderPage }));
   downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -1884,7 +1985,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     // The step before the payment platform: the page has a link, and this sends most browsers
     // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
     const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;

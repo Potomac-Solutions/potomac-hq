@@ -11,7 +11,7 @@
 // more than one, stops the save until it is removed or the text is fixed.
 import { PRIORITY_LABELS } from "../domain/labels.ts";
 import { handleOf, matchHandle, parseQuickAdd, QUICK_ADD_MAX, type QuickPart } from "../domain/quick-add.ts";
-import { newTask, type TaskError } from "../domain/task.ts";
+import { newTask, type Task, type TaskError } from "../domain/task.ts";
 import { repeatText, type Repeat } from "../domain/repeat.ts";
 import { authorize } from "../../identity/index.ts";
 import { dueText, err, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
@@ -203,4 +203,26 @@ export function quickAdd(deps: ProjectsDeps, actorId: Id | null, input: QuickAdd
     }
     return ok({ id: task.id, title: task.title, href: `/tasks/${task.id}` });
   });
+}
+
+/**
+ * A task made from a client's request in the portal (2026-11-26): on their
+ * project when they chose one, else a to-do about the client. No person made
+ * it, so no permission is asked; the client's own session was checked before.
+ */
+export function taskFromClient(deps: ProjectsDeps, input: { readonly projectId: Id | null; readonly organizationId: Id; readonly title: string; readonly description: string; readonly assigneeId: Id | null }): Result<Task, TaskError | "project-closed"> {
+  const project = input.projectId ? deps.projects.get(input.projectId) : null;
+  if (input.projectId && project?.status !== "active") return err("project-closed");
+  const assignee = input.assigneeId && deps.users.get(input.assigneeId)?.status === "active" ? input.assigneeId : null;
+  const made = newTask(deps.newId(), input.projectId, { title: input.title, description: input.description, assigneeId: assignee, priority: "normal" });
+  if (!made.ok) return made;
+  deps.tasks.insert(made.value, deps.clock(), { organizationId: input.projectId ? null : input.organizationId, createdBy: null });
+  recordActivity(deps, {
+    actorId: null,
+    action: input.projectId ? "task.added-from-request" : "todo.added-from-request",
+    recordType: input.projectId ? "task" : "todo",
+    recordId: made.value.id,
+    context: { ...(input.projectId ? { projectId: input.projectId } : { clientId: input.organizationId }), title: made.value.title, assigneeId: assignee },
+  });
+  return ok(made.value);
 }

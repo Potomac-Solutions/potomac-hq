@@ -1,0 +1,84 @@
+<!--
+  Tell us about your business (2026-11-26): what Potomac needs to build the
+  site, asked once. It can be changed later. Never passwords.
+-->
+<script>
+  'use route /portal/intake'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    return { title: 'About your business', form: context.intake.portal(), done: context.notice.done, problem: context.notice.problem }
+  }
+  const a = form.answers || {}
+</script>
+<hq-portal-intake form={{ answers: null, sent: '', filesGoTo: '', access: [] }} done="" problem="">
+  <div class="hq-page">
+    <p><a href="/portal">Back to your portal</a></p>
+    <h1>About your business</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p zb-if={form.sent}>You sent this {form.sent}. Change anything and save again.</p>
+    <p zb-else>Everything we need to build your site, in one place. Only the name is needed now; fill in what you can, and come back for the rest.</p>
+    <form method="post" action="/portal/intake" enctype="multipart/form-data" class="hq-form">
+      <section class="hq-panel" aria-labelledby="in-basics">
+        <h2 id="in-basics">The basics</h2>
+        <text-field label="Business name, as it should appear" name="businessName" value={a.businessName || ''} required={true}></text-field>
+        <text-field label="A line about you" name="tagline" value={a.tagline || ''} description="Like: Family-run towing for Garrett County since 1998"></text-field>
+        <text-field label="Phone customers call" name="phone" type="tel" value={a.phone || ''}></text-field>
+        <text-field label="Email customers write to" name="email" type="email" value={a.email || ''}></text-field>
+        <text-field label="Address" name="address" value={a.address || ''} description="Leave it out if customers shouldn’t see it."></text-field>
+        <div class="hq-field">
+          <label for="in-hours">Hours</label>
+          <textarea id="in-hours" name="hours" rows="3" maxlength="600">{a.hours || ''}</textarea>
+        </div>
+        <div class="hq-field">
+          <label for="in-about">About the business</label>
+          <textarea id="in-about" name="about" rows="5" maxlength="2000">{a.about || ''}</textarea>
+          <p class="hq-small hq-muted">Who you serve, what you’re known for, how you started. In your own words; we’ll tidy it.</p>
+        </div>
+      </section>
+      <section class="hq-panel" aria-labelledby="in-look">
+        <h2 id="in-look">How it should look</h2>
+        <text-field label="Colors" name="colors" value={a.colors || ''} description="Your logo’s, or ones you like. Names are fine: “dark green and cream”."></text-field>
+        <div class="hq-field">
+          <label for="in-likes">Sites or looks you like</label>
+          <textarea id="in-likes" name="likes" rows="3" maxlength="1000">{a.likes || ''}</textarea>
+        </div>
+        <div class="hq-field">
+          <label for="in-avoid">Anything to avoid</label>
+          <textarea id="in-avoid" name="avoid" rows="2" maxlength="1000">{a.avoid || ''}</textarea>
+        </div>
+        <div zb-if={form.filesGoTo} class="hq-field">
+          <label for="in-logo">Your logo</label>
+          <input id="in-logo" type="file" name="logo">
+          <label for="in-photo1">Photos (up to three here; more from your project page)</label>
+          <input id="in-photo1" type="file" name="photo1" aria-label="Photo 1">
+          <input type="file" name="photo2" aria-label="Photo 2">
+          <input type="file" name="photo3" aria-label="Photo 3">
+          <p class="hq-small hq-muted">They go with “{form.filesGoTo}”. Up to 25 MB for all of them together.</p>
+        </div>
+        <p zb-else class="hq-small hq-muted">You can send your logo and photos once your project starts.</p>
+      </section>
+      <section class="hq-panel" aria-labelledby="in-access">
+        <h2 id="in-access">Accounts we’ll need</h2>
+        <p><strong>Never send passwords here.</strong> Tick what you have, and we’ll ask you to add us as a user on each, so you stay in charge of it.</p>
+        <fieldset class="hq-radios">
+          <legend>You have</legend>
+          <zb-each items={form.access} as="one" key={one.value}>
+            <label><input type="checkbox" name={'access-' + one.value} checked={one.checked}> {one.label}</label>
+          </zb-each>
+        </fieldset>
+        <div class="hq-field">
+          <label for="in-access-note">About those accounts</label>
+          <textarea id="in-access-note" name="accessNote" rows="2" maxlength="600">{a.accessNote || ''}</textarea>
+          <p class="hq-small hq-muted">Like: “The domain is with GoDaddy under my husband’s email.”</p>
+        </div>
+      </section>
+      <div><button class="hq-button portal-big" type="submit">{form.sent ? 'Save changes' : 'Send it'}</button></div>
+    </form>
+  </div>
+</hq-portal-intake>

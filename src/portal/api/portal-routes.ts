@@ -9,7 +9,7 @@ import type { ClientSession } from "../application/client-side.ts";
 import * as staff from "../application/staff-side.ts";
 import type { InvoiceDocument } from "../../finance/index.ts";
 import type { ProposalDocument } from "../../proposals/index.ts";
-import { formPosts, parseId, readForm, withMessage, type Id } from "../../shared/index.ts";
+import { formPosts, ok, parseId, readForm, withMessage, type Id } from "../../shared/index.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
@@ -137,6 +137,12 @@ export type ClientPortalRoutesDeps = {
   /** Links in clients' emails that approve one deliverable. */
   readonly approvals?: client.ApprovalTokens;
   /** Emailing a client a sign-in link they asked for. Left out when email isn't set up. */
+  /**
+   * After a client accepts a proposal: sends its deposit when card payments are
+   * on, and, if they asked to pay now, starts the payment. Answers where to
+   * go next, or null for the proposal page.
+   */
+  readonly afterAccept?: (session: ClientSession, projectId: Id, payNow: boolean) => Promise<string | null>;
   readonly signInLink?: { readonly mail: (to: { readonly email: string; readonly name: string }, token: string) => Promise<boolean>; readonly allowPerEmail: (key: string) => boolean };
   /** Signing up to book. Null when it isn't open: booking for new people is off, or email isn't set up. */
   readonly signUp?: {
@@ -261,11 +267,19 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     back: (_, f) => (parseId(f["projectId"] ?? "").ok ? `/portal/projects/${f["projectId"]}#changes` : "/portal"),
     message: "Thank you. Your answer is recorded.",
   });
-  post("/portal/proposals/:id/answer", (session, f, id) => signedIn(session, (s) => client.answerProposal(deps.portal, s, id as Id, { decision: f["decision"] ?? "", typedName: f["typedName"] ?? "" })), {
-    done: (_, id) => `/portal/proposals/${id}`,
-    back: (id) => `/portal/proposals/${id}`,
-    message: "Thank you. Your answer is recorded.",
-  });
+  post(
+    "/portal/proposals/:id/answer",
+    async (session, f, id): Promise<{ ok: true; value: { readonly next: string | null } } | { ok: false; error: string }> => {
+      const answered = signedIn(session, (s) => client.answerProposal(deps.portal, s, id as Id, { decision: f["decision"] ?? "", typedName: f["typedName"] ?? "" }));
+      if (!answered.ok || !session || answered.value.projectId === null || f["decision"] !== "accepted" || !deps.afterAccept) return answered.ok ? ok({ next: null }) : answered;
+      return ok({ next: await deps.afterAccept(session, answered.value.projectId, f["payNow"] === "1") });
+    },
+    {
+      done: (value, id) => value.next ?? `/portal/proposals/${id}`,
+      back: (id) => `/portal/proposals/${id}`,
+      message: (value) => (value.next ? "Thank you. Your answer is recorded. Now the deposit:" : "Thank you. Your answer is recorded."),
+    },
+  );
   post("/portal/notices", (session, f) => signedIn(session, (s) => client.setNotices(deps.portal, s, f["on"] === "1")), {
     done: () => "/portal#notices",
     back: () => "/portal#notices",

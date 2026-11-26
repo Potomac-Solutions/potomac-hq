@@ -17,11 +17,11 @@
     const view = context.money.invoice(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
     const reminders = context.money.invoiceReminders(params.id)
-    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, credit: context.referralCredit.forInvoice(params.id), history: context.history('invoice', params.id), cardPay: context.cardPay.ready(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, credit: context.referralCredit.forInvoice(params.id), history: context.history('invoice', params.id), cardPay: context.cardPay.ready(), byPlatform: Object.fromEntries(view.value.payments.map((p) => [p.id, context.cardPay.byPlatform(p.id)])), done: context.notice.done, problem: context.notice.problem }
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: null, client: {}, promise: null, payLink: '', writtenOff: null, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} card-pay={{ on: false, test: false, label: '' }} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: null, client: {}, promise: null, payLink: '', writtenOff: null, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} card-pay={{ on: false, test: false, label: '' }} by-platform={{}} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={view.project ? [{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }] : [{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}#invoices` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
@@ -110,9 +110,35 @@
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">How</th><th scope="col">Reference</th><th scope="col" class="hq-number">Amount</th></tr></thead>
         <tbody>
-          <zb-each items={view.payments} as="payment" key={payment.id}><tr><td>{payment.on}</td><td>{payment.methodLabel}</td><td>{payment.reference}</td><td class="hq-number">{payment.amount}</td></tr></zb-each>
+          <zb-each items={view.payments} as="payment" key={payment.id}><tr><td>{payment.on}</td><td>{payment.methodLabel}</td><td>{payment.reference}<span zb-if={payment.refunded} class="hq-muted"> · {payment.refunded}</span></td><td class="hq-number">{payment.amount}</td></tr></zb-each>
         </tbody>
       </table>
+      <div zb-if={view.refunds.length > 0}>
+        <h3>Given back</h3>
+        <ul class="hq-list">
+          <zb-each items={view.refunds} as="one" key={one.id}><li>{one.on}: {one.amount}, {one.how.toLowerCase()}{one.reference ? ' (' + one.reference + ')' : ''}{one.reason ? '. ' + one.reason : ''}</li></zb-each>
+        </ul>
+      </div>
+      <zb-each items={view.can.refund ? view.payments.filter((p) => p.refundable) : []} as="payment" key={payment.id}>
+        <details data-spaced>
+          <summary>Refund the {payment.amount} {payment.methodLabel.toLowerCase()} payment of {payment.on}</summary>
+          <form method="post" action="/payments/{payment.id}/refund" class="hq-form" data-spaced>
+            <input type="hidden" name="invoice" value={i.id}>
+            <text-field label="Amount to give back, in dollars" name="amount" inputmode="decimal" value={payment.refundablePlain} required={true}></text-field>
+            <fieldset zb-if={byPlatform[payment.id]} class="hq-radios">
+              <legend>How</legend>
+              <label><input type="radio" name="how" value="platform" checked> Refund it through {cardPay.label}: HQ asks them, and the client gets it back</label>
+              <label><input type="radio" name="how" value="by-hand"> I already gave it back another way: only record it</label>
+            </fieldset>
+            <p zb-else class="hq-small hq-muted">Give the money back yourself first (cash, a check, or on the payment platform’s site). This records it.</p>
+            <text-field label="Given back on" name="on" type="date" value={view.today} required={true}></text-field>
+            <text-field label="Why" name="reason" description="For the books, and the invoice if they no longer owe it."></text-field>
+            <text-field label="Reference" name="reference" description="A check number, or the platform’s refund reference. Filled in for you when HQ refunds it."></text-field>
+            <label class="hq-check"><input type="checkbox" name="noLongerOwed"> They no longer owe what’s given back: write it off</label>
+            <div><button class="hq-button secondary" type="submit">Refund</button></div>
+          </form>
+        </details>
+      </zb-each>
       <form zb-if={view.can.pay} method="post" action="/invoices/{i.id}/payments" class="hq-form" data-spaced>
         <h3>Record a payment</h3>
         <text-field label="Amount received, in dollars" name="amount" inputmode="decimal" value={view.owedPlain} required={true}></text-field>

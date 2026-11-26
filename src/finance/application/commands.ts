@@ -3,7 +3,7 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
-import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, refundPayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput, type Refund, type RefundError, type RefundInput } from "../domain/invoice.ts";
 import { newBlock, type BlockError, type BlockInput, type PrepaidBlock } from "../domain/prepaid.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
@@ -333,6 +333,26 @@ function followInvoice(deps: FinanceDeps, actorId: Id | null, changed: Invoice):
   recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
 }
 
+/**
+ * The deposit of a proposal the client just accepted, sent at once so they can
+ * pay it by card there and then (2026-11-26). Only a deposit drafted from the
+ * proposal: anything else waits for a person. No actor: the client's
+ * acceptance is what sends it. Answers the deposit invoice, sent, or null.
+ */
+export function sendDepositOnAcceptance(deps: FinanceDeps, projectId: Id): Invoice | null {
+  return deps.transact(() => {
+    const deposit = deps.invoices.listForProject(projectId).find((one) => one.kind === "deposit" && one.status !== "void" && one.status !== "paid");
+    if (!deposit) return null;
+    if (deposit.status === "sent") return deposit;
+    const sent = sendInvoice(deposit, deps.today());
+    if (!sent.ok) return null;
+    deps.invoices.update(sent.value, deps.clock());
+    recordActivity(deps, { actorId: null, action: "invoice.sent-on-acceptance", recordType: "invoice", recordId: deposit.id, context: { projectId, number: deposit.number, minor: sent.value.total.minor } });
+    followInvoice(deps, null, sent.value);
+    return sent.value;
+  });
+}
+
 /** Sends a draft: it gets today's date and can no longer be edited. The project becomes "invoiced". */
 export function sendInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId: Id): Result<Invoice, Refused | "not-a-draft"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
@@ -441,6 +461,58 @@ export function recordCardPayment(deps: FinanceDeps, invoiceId: Id, input: { rea
     });
     followInvoice(deps, null, received.value.invoice);
     return ok(received.value);
+  });
+}
+
+/**
+ * Money given back on a payment (2026-11-26). `through: "platform"` when the
+ * payment platform was asked first (cardpay does that, then calls this);
+ * "by-hand" when it was given back some other way and HQ only records it.
+ * `noLongerOwed` writes off what the refund leaves owing, with the reason.
+ */
+export type RefundRequest = RefundInput & { readonly noLongerOwed?: boolean };
+
+/** Everything a refund is checked for, without writing: a card refund asks this before the platform. */
+export function planRefund(deps: FinanceDeps, actorId: Id | null, paymentId: Id, input: RefundRequest): Result<{ payment: Payment; invoice: Invoice; minor: number; refundable: number }, Refused | RefundError | "write-off-note-missing"> {
+  if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
+  const payment = deps.invoices.payment(paymentId);
+  const invoice = payment ? deps.invoices.get(payment.invoiceId) : null;
+  if (!payment || !invoice) return err("not-found");
+  const already = deps.invoices.refunds(invoice.id).filter((one) => one.paymentId === paymentId).reduce((sum, one) => sum + one.amount.minor, 0);
+  const planned = refundPayment(invoice, payment, already, { id: paymentId, recordedBy: actorId as Id }, input, "by-hand", deps.today());
+  if (!planned.ok) return planned;
+  if (input.noLongerOwed && !(input.reason ?? "").trim()) return err("write-off-note-missing");
+  return ok({ payment, invoice, minor: planned.value.refund.amount.minor, refundable: payment.amount.minor - already });
+}
+
+export function recordRefund(deps: FinanceDeps, actorId: Id | null, paymentId: Id, input: RefundRequest, through: Refund["through"] = "by-hand"): Result<{ invoice: Invoice; refund: Refund }, Refused | RefundError | WriteOffError> {
+  if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
+  return deps.transact(() => {
+    const payment = deps.invoices.payment(paymentId);
+    const invoice = payment ? deps.invoices.get(payment.invoiceId) : null;
+    if (!payment || !invoice) return err("not-found");
+    const already = deps.invoices.refunds(invoice.id).filter((one) => one.paymentId === paymentId).reduce((sum, one) => sum + one.amount.minor, 0);
+    const today = deps.today();
+    const made = refundPayment(invoice, payment, already, { id: deps.newId(), recordedBy: actorId as Id }, input, through, today);
+    if (!made.ok) return made;
+    let after = made.value.invoice;
+    if (input.noLongerOwed && after.status === "sent") {
+      const off = writeOff(after, { note: input.reason ?? "" }, today);
+      if (!off.ok) return off;
+      after = off.value;
+    }
+    const at = deps.clock();
+    deps.invoices.insertRefund(made.value.refund, at);
+    if (after !== invoice) deps.invoices.update(after, at);
+    recordActivity(deps, {
+      actorId,
+      action: "payment.refunded",
+      recordType: "invoice",
+      recordId: invoice.id,
+      context: { number: invoice.number, minor: made.value.refund.amount.minor, through, paymentId, noLongerOwed: Boolean(input.noLongerOwed && after.status === "void") },
+    });
+    if (after.status !== invoice.status) followInvoice(deps, actorId, after);
+    return ok({ invoice: after, refund: made.value.refund });
   });
 }
 

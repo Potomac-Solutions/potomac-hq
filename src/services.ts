@@ -6,8 +6,8 @@ import { sqliteCallGuideStore, sqliteCallScreenStore, sqliteClientFacts, sqliteC
 import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteLateFeeStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type LateDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
@@ -17,7 +17,7 @@ import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
 import type { ReportsDeps } from "./client-reports/index.ts";
 import type { AutomationsDeps } from "./automations/index.ts";
-import type { ShowcaseDeps } from "./showcase/index.ts";
+import { mayWriteReview, type ShowcaseDeps } from "./showcase/index.ts";
 import type { ReferralCreditDeps } from "./referral-credit/index.ts";
 import type { DemosDeps } from "./demos/index.ts";
 import { sqliteDemoLinkStore, sqliteDemoStore } from "./demos/adapters.ts";
@@ -31,7 +31,7 @@ import { sqliteLeadStore } from "./leads/adapters.ts";
 import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import { setUpSite, type SitePublisher, type WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import { builderSpentThisMonth, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
+import { builderSpentThisMonth, versionZip, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
 import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore, sqlitePublishStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -62,7 +62,7 @@ import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore, sqliteRepeatTaker } from "./projects/adapters.ts";
-import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
+import { moveTaskStatus, repeatAfterDone, taskFromClient, type ProjectsDeps } from "./projects/index.ts";
 import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
 import { sqliteAssistantStore } from "./assistant/adapters.ts";
@@ -72,15 +72,27 @@ import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/
 import type { PushDeps } from "./push/index.ts";
 import type { RepliesDeps } from "./replies/index.ts";
 import { sqliteReplyStore } from "./replies/adapters.ts";
+import type { RequestsDeps } from "./requests/index.ts";
+import type { IntakeDeps } from "./intake/index.ts";
+import type { FeedbackDeps } from "./feedback/index.ts";
+import type { HandoffDeps } from "./handoff/index.ts";
+import type { TextingDeps } from "./texting/index.ts";
+import type { AutopayDeps, SavedPay } from "./autopay/index.ts";
+import { sqliteAutopayStore } from "./autopay/adapters.ts";
+import { sqliteTextingStore } from "./texting/adapters.ts";
+import { sqliteHandoffFacts, sqliteLatestBuild } from "./handoff/adapters.ts";
+import { sqliteFeedbackStore } from "./feedback/adapters.ts";
+import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
+import { sqliteRequestLookups, sqliteRequestStore as sqliteClientRequestStore } from "./requests/adapters.ts";
 import { isQuiet } from "./notices/index.ts";
 import { followUpsDue } from "./crm/index.ts";
-import { staffWaiting } from "./portal/index.ts";
+import { sendFile as sendPortalFile, staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
 import { quickAdd, quickAddPreview } from "./projects/index.ts";
 import { createClient, createOpportunity, setOpportunityFollowUp } from "./crm/index.ts";
 import { editProjectDetails } from "./projects/index.ts";
 import { createBookingLink, nextCalls } from "./booking/index.ts";
-import { runningTimer, stopTimer } from "./finance/index.ts";
+import { recordCardPayment, runningTimer, stopTimer } from "./finance/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -88,7 +100,7 @@ import { getReady, logTouch, moveOpportunity, recapFor } from "./crm/index.ts";
 import { addNote } from "./notes/index.ts";
 import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
-import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
+import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database, type TextSender } from "./shared/adapters.ts";
 import { formatMoney, type Clock, type Id } from "./shared/index.ts";
 
 /** What a module's refusal means, in words the assistant passes on (decision 0015). */
@@ -131,7 +143,7 @@ export type Services = {
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
   readonly booking: BookingDeps;
-  readonly invoiceReminders: RemindersDeps;
+  readonly invoiceReminders: LateDeps;
   readonly renewals: RenewalsDeps;
   /** Social media plans and posts (decision 0010). */
   readonly social: SocialDeps;
@@ -194,6 +206,18 @@ export type Services = {
   readonly push: PushDeps;
   /** Saved replies (quality of life, 2026-11-25). */
   readonly replies: RepliesDeps;
+  /** Client requests from the portal (2026-11-26). */
+  readonly requests: RequestsDeps;
+  /** The new-client intake (2026-11-26). */
+  readonly intake: IntakeDeps;
+  /** "How did we do?" (2026-11-26). */
+  readonly feedback: FeedbackDeps;
+  /** The handoff pack (2026-11-26). */
+  readonly handoff: HandoffDeps;
+  /** Text message reminders (2026-11-26). */
+  readonly texting: TextingDeps;
+  /** Automatic payment of plan invoices (2026-11-26). */
+  readonly autopay: AutopayDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -209,6 +233,10 @@ export type ServiceOptions = {
   /** Reads and commits to client sites' repositories. Without it, sites can't be set up or published. */
   readonly sitePublisher?: SitePublisher | null;
   readonly clock?: Clock;
+  /** Sends text messages (2026-11-26). Without it, the portal doesn't offer texts. */
+  readonly texts?: TextSender | null;
+  /** Saves a client's payment method and charges it for plan bills (2026-11-26). */
+  readonly savedPay?: SavedPay | null;
   /** Potomac's own website address, for its preview link. */
   readonly siteUrl?: string;
   readonly today?: () => string;
@@ -396,7 +424,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
     return clientEmails(organizationId);
   };
-  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails };
+  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db), makeTodo: (input) => taskFromClient(projects, input) };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
@@ -889,6 +917,71 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
 
   const replies: RepliesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, replies: sqliteReplyStore(db) };
+  const requests: RequestsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    requests: sqliteClientRequestStore(db),
+    ...sqliteRequestLookups(db),
+    makeTask: (input) => taskFromClient(projects, input),
+  };
+  const intake: IntakeDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    intakes: sqliteIntakeStore(db),
+    ...sqliteIntakeLookups(db),
+    saveUpload: (session, projectId, upload) => sendPortalFile(portal, session, projectId, upload),
+  };
+  const feedback: FeedbackDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    feedback: sqliteFeedbackStore(db),
+    clientName: sqliteRequestLookups(db).clientName,
+    clientUserName: sqliteIntakeLookups(db).clientUserName,
+    makeTodo: (input) => taskFromClient(projects, input),
+    mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
+  };
+  const texting: TextingDeps = { transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, texts: sqliteTextingStore(db), sender: options.texts ?? null };
+  const autopay: AutopayDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    publicUrl: (options.publicUrl ?? "").replace(/\/$/, ""),
+    autopay: sqliteAutopayStore(db),
+    saved: options.savedPay ?? null,
+    record: (invoiceId, input) => recordCardPayment(finance, invoiceId, input),
+    makeTodo: (input) => taskFromClient(projects, input),
+  };
+  const latestBuild = sqliteLatestBuild(db);
+  const handoff: HandoffDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    facts: sqliteHandoffFacts(db),
+    fileBytes: (fileId) => projects.blobs.get(fileId),
+    builtSite: (actorId, organizationId) => {
+      const latest = latestBuild(organizationId);
+      const zipped = latest ? versionZip(builder, actorId, latest.buildId, latest.number) : null;
+      return zipped?.ok ? zipped.value : null;
+    },
+  };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
     users,
@@ -935,5 +1028,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
