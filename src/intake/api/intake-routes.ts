@@ -12,7 +12,7 @@ function messageFor(code: string): string {
     {
       "not-found": "That isn’t here.",
       "business-name-missing": "Put your business’s name first.",
-      "looks-like-a-password": "That looks like a password. Please don’t send passwords here: say which accounts we’ll need, and we’ll ask you to add us as a user.",
+      "looks-like-a-password": "One answer looked like a password, so it was cleared and nothing is saved yet. The rest of what you typed is still here. Please don’t send passwords: say which accounts we’ll need, and we’ll ask you to add us as a user.",
       "invalid-email": "That email address doesn’t look right.",
     }[code] ?? "That didn’t work. Nothing was changed."
   );

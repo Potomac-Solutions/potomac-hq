@@ -918,7 +918,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         intake: {
-          portal: () => (client ? portalIntake(services.intake, client) : { answers: null, sent: "", filesGoTo: "", access: [] }),
+          portal: () => (client ? portalIntake(services.intake, client) : { answers: null, unsaved: false, sent: "", filesGoTo: "", access: [] }),
           forClient: (clientId) => {
             const parsed = parseId(clientId);
             return parsed.ok ? clientIntake(services.intake, actor, parsed.value) : null;
