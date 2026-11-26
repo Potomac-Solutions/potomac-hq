@@ -128,6 +128,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
     and links the one merged away; saved replies fill in the client and
     contact; Enter in the command bar never moves a deal; a batch on All
     work and an assistant card can be undone like any change.
+  - **The same pass as a client**: signing in goes on to the page they
+    were headed for; a portal page that isn't there is the portal's own,
+    with a way back; a message from the first page lands with the
+    project's messages.
 
 ## [0.17.0] - 2026-11-25
 
