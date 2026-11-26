@@ -1,6 +1,6 @@
-// A .zip of a version, for a client who hosts their own site (decision 0010,
-// section 6). Files are stored, not compressed: a site is a few hundred
-// kilobytes of text, and storing needs no library. Any unzip tool opens it.
+// A .zip of some files: a site version a client hosts themselves (decision
+// 0010, section 6), a tax pack, a handoff pack. Files are stored, not
+// compressed: storing needs no library, and any unzip tool opens it.
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);

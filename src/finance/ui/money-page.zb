@@ -14,10 +14,10 @@
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
     const recurring = context.money.recurring()
-    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), lateFee: context.money.lateFee(), lateWords: context.money.lateFee().words.toLowerCase(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), lateFee: context.money.lateFee(), taxYears: context.money.taxYears(), lateWords: context.money.lateFee().words.toLowerCase(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} late-fee={{ words: 'Off', kind: 'off', amount: '', afterDays: 30, canEdit: false }} late-words="off" pay={null} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} late-fee={{ words: 'Off', kind: 'off', amount: '', afterDays: 30, canEdit: false }} late-words="off" tax-years={[]} pay={null} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -61,6 +61,14 @@
         <input type="hidden" name="on" value={reminders.on ? '0' : '1'}>
         <button class="hq-button secondary" type="submit">{reminders.on ? 'Turn reminders off' : 'Turn reminders on'}</button>
       </form>
+    </section>
+    <section zb-if={taxYears.length > 0} class="hq-panel" id="tax-pack" aria-labelledby="money-tax-pack">
+      <h2 id="money-tax-pack">Year-end tax pack</h2>
+      <p>One zip for whoever does your taxes: money in and refunds, by client; expenses by category with their receipts; what was owed at the year’s end; what was written off. Cash basis.</p>
+      <ul class="hq-list">
+        <zb-each items={taxYears} as="year" key={year}><li><a href="/exports/tax-pack-{year}.zip" download>Taxes for {year}</a></li></zb-each>
+      </ul>
+      <p class="hq-small hq-muted">Card processing fees aren’t in HQ: download those from PayPal’s yearly statement. It’s a summary to hand over, not tax advice.</p>
     </section>
     <section class="hq-panel" id="late-fees" aria-labelledby="money-late-fees">
       <h2 id="money-late-fees">Late fees: {lateWords}</h2>

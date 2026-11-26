@@ -4,7 +4,7 @@ import { applyChange, checkPath, checkSite, fileAt, filesFromJson, filesToJson, 
 import { costMicros, dollars, fitsUnderCap, modelById, parseCap, worstCaseMicros, MAX_OUTPUT_TOKENS } from "./pricing.ts";
 import { readAnswer, userMessage, HISTORY_TURNS } from "./prompt.ts";
 import { EMPTY_STREAM, splitEvents, streamOutcome, streamStep } from "./stream.ts";
-import { crc32, zipFiles } from "./zip.ts";
+import { crc32, zipFiles } from "../../shared/domain/zip.ts";
 import { checkAsk, checkBuildInput } from "./build.ts";
 
 test("paths stay inside the build and are kinds of file a static site uses", () => {
