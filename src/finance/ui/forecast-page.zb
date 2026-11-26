@@ -1,0 +1,62 @@
+<!--
+  Money → Cash forecast: the next 13 weeks, week by week. What's coming in
+  (invoices by their due day, renewals to bill, recurring invoices) against
+  what's going out (renewal costs), and the running total. `finance.view`.
+-->
+<script>
+  'use route /money/forecast'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.money.forecast()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Cash forecast', view: view.value }
+  }
+</script>
+<style>
+  .forecast-items { list-style: none; margin: 0.25rem 0 0; padding: 0; }
+  .forecast-items li { display: flex; justify-content: space-between; gap: 1rem; }
+</style>
+<hq-forecast view={{ weeks: [], totals: {}, drafts: '' }}>
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Money', href: '/money' }, { label: 'Cash forecast', href: '' }]}></breadcrumb-trail>
+    <h1>Cash forecast</h1>
+    <section class="hq-panel" aria-labelledby="forecast-totals">
+      <h2 id="forecast-totals">The next 13 weeks</h2>
+      <dl class="hq-facts">
+        <dt>Coming in</dt><dd>{view.totals.coming}</dd>
+        <dt>Of that, already overdue</dt><dd>{view.totals.overdue}</dd>
+        <dt>Going out</dt><dd>{view.totals.going}</dd>
+        <dt>Net</dt><dd><strong>{view.totals.net}</strong></dd>
+      </dl>
+      <p class="hq-muted hq-small">Coming in: invoices sent and owed, by the day they’re due (overdue ones this week); renewals not billed yet, by the day the client pays; recurring invoices as HQ will make them. Going out: what renewals cost Potomac, the day they renew. Expenses aren’t planned in HQ, so plan for them yourself. Drafts not sent, {view.drafts}, aren’t counted.</p>
+    </section>
+    <section class="hq-panel" aria-labelledby="forecast-weeks">
+      <h2 id="forecast-weeks">Week by week</h2>
+      <table tabindex="0" class="hq-table hq-stack">
+        <thead><tr><th scope="col">Week</th><th scope="col" class="hq-number">In</th><th scope="col" class="hq-number">Out</th><th scope="col" class="hq-number">Net</th><th scope="col" class="hq-number">Running</th><th scope="col">What</th></tr></thead>
+        <tbody>
+          <zb-each items={view.weeks} as="week" key={week.start}>
+            <tr>
+              <th scope="row">{week.label}</th>
+              <td class="hq-number">{week.coming}</td>
+              <td class="hq-number">{week.going}</td>
+              <td class="hq-number">{week.net} <status-badge zb-if={week.negative} variant="warning">Out</status-badge></td>
+              <td class="hq-number">{week.running}</td>
+              <td>
+                <span zb-if={week.items.length === 0} class="hq-muted">Nothing</span>
+                <ul zb-else class="forecast-items hq-small">
+                  <zb-each items={week.items} as="item" key={item.key}>
+                    <li><a href={item.href}>{item.label}</a> <span>{item.kind === 'cost' ? '−' : ''}{item.amount}</span></li>
+                  </zb-each>
+                </ul>
+              </td>
+            </tr>
+          </zb-each>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</hq-forecast>

@@ -255,7 +255,25 @@ still to write, what's with the client, and what's due to go up.
   answer in their portal, "Renew it" or "Let it lapse"; their answer shows
   on the client's page and on Today.
 - **Money → Invoices** lists every invoice, filtered by where it stands, and
-  who owes what.
+  who owes what. **Money → Cash forecast** shows the next 13 weeks of money
+  in and out.
+- **Following up an invoice.** On an invoice, "When they said they'd pay"
+  puts it on Today that day; a card payment link you made in your payment
+  service shows the client "Pay by card"; "Write it off" is for money that
+  won't come.
+- **Who gets the bills.** On the client's page, under Contacts, choose a
+  contact (a spouse, a bookkeeper) to get invoices, reminders, receipts and
+  statements.
+- **Prepaid hours and plans.** On the client's page, "Plans and prepaid
+  hours" records hours a client bought (time on their projects draws them
+  down; Today warns when low) and bills hosting or upkeep on a schedule with
+  no project.
+- **Renewals.** Tick several on a client's page to bill them together;
+  "Change what the client is billed" tells them in the portal first.
+  Renewals → the next 12 months shows what renewals earn.
+- **How clients pay.** On the Money page, write how clients pay. With invoice
+  emails on, clients also get a receipt for each payment and a statement in
+  the first week of each month.
 - **A free landing page on their own domain.** Under the client's free
   landing page, choose "Their own domain" instead of a name on
   potomac.solutions. Give when the domain renews, what it costs and what

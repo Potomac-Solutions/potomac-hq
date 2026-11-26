@@ -35,7 +35,18 @@ export type Invoice = {
   readonly dueOn: string | null;
   readonly note: string;
   readonly createdBy: Id;
+  /** The day the client promised to pay, and what they said. Null and "" when none. */
+  readonly promisedOn: string | null;
+  readonly promiseNote: string;
+  /** A card payment link Potomac made itself with its payment service, shown in the portal. */
+  readonly payLink: string | null;
+  /** Written off: voided as money that won't come, kept apart from a mistake. */
+  readonly writtenOffOn: string | null;
+  readonly writtenOffNote: string;
 };
+
+/** What Potomac adds to a sent invoice after the fact: a promise, a payment link, a write-off. */
+export const NO_EXTRAS = { promisedOn: null, promiseNote: "", payLink: null, writtenOffOn: null, writtenOffNote: "" } as const;
 
 export type Payment = {
   readonly id: Id;
@@ -70,7 +81,7 @@ export function newInvoice(ids: { readonly id: Id; readonly organizationId: Id; 
   if (!dueOn.ok) return dueOn;
   const note = optionalText(input.note, 1000);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, kind: input.kind as InvoiceKind, status: "draft", lines: [line.value], total: line.value.amount, issuedOn: null, dueOn: dueOn.value, note: note.value ?? "" });
+  return ok({ ...ids, kind: input.kind as InvoiceKind, status: "draft", lines: [line.value], total: line.value.amount, issuedOn: null, dueOn: dueOn.value, note: note.value ?? "", ...NO_EXTRAS });
 }
 
 function invoiceLine(input: { readonly description: string; readonly amount: string }): Result<InvoiceLine, "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive"> {
@@ -112,6 +123,52 @@ export function addCreditLine(invoice: Invoice, input: { readonly description: s
 export function sendInvoice(invoice: Invoice, today: string): Result<Invoice, "not-a-draft"> {
   if (invoice.status !== "draft") return err("not-a-draft");
   return ok({ ...invoice, status: "sent", issuedOn: today });
+}
+
+export type PromiseError = "not-sent" | "invalid-date" | "promise-note-too-long";
+
+/** The client said when they'll pay. An empty day clears it. Only on a sent invoice. */
+export function promisePayment(invoice: Invoice, input: { readonly on: string; readonly note?: string | null }): Result<Invoice, PromiseError> {
+  if (invoice.status !== "sent") return err("not-sent");
+  const text = input.on.trim();
+  if (text === "") return ok({ ...invoice, promisedOn: null, promiseNote: "" });
+  const on = calendarDate(text);
+  if (!on.ok) return err("invalid-date");
+  const note = optionalText(input.note, 300);
+  if (!note.ok) return err("promise-note-too-long");
+  return ok({ ...invoice, promisedOn: on.value, promiseNote: note.value ?? "" });
+}
+
+export type PayLinkError = "already-paid" | "link-not-https" | "link-too-long";
+
+/** A card payment link from Potomac's payment service: https only. Empty clears it. */
+export function setPayLink(invoice: Invoice, link: string): Result<Invoice, PayLinkError> {
+  if (invoice.status === "paid" || invoice.status === "void") return err("already-paid");
+  const text = link.trim();
+  if (text === "") return ok({ ...invoice, payLink: null });
+  if (text.length > 500) return err("link-too-long");
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return err("link-not-https");
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return err("link-not-https");
+  return ok({ ...invoice, payLink: url.toString() });
+}
+
+export type WriteOffError = "not-sent" | "write-off-note-missing" | "write-off-note-too-long";
+
+/**
+ * Money that won't come: a sent invoice is voided and marked written off,
+ * with why, so the books show what happened and a mistake stays a mistake.
+ * Payments already received stay received.
+ */
+export function writeOff(invoice: Invoice, input: { readonly note: string }, today: string): Result<Invoice, WriteOffError> {
+  if (invoice.status !== "sent") return err("not-sent");
+  const note = requiredText(input.note, 300);
+  if (!note.ok) return err(note.error === "missing" ? "write-off-note-missing" : "write-off-note-too-long");
+  return ok({ ...invoice, status: "void", writtenOffOn: today, writtenOffNote: note.value, promisedOn: null, promiseNote: "" });
 }
 
 /** A mistake is voided, never deleted, so the numbers have no gaps. A paid invoice stays paid. */

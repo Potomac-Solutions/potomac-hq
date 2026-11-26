@@ -4,6 +4,8 @@
 // sent, so none goes twice.
 import { invoiceLabel } from "../domain/invoice.ts";
 import { REMINDER_LABELS, reminderDue, reminderEmail } from "../domain/reminders.ts";
+import { receiptEmail, statementEmail } from "../domain/client-mail.ts";
+import { METHOD_LABELS } from "../domain/labels.ts";
 import { authorize } from "../../identity/index.ts";
 import { err, formatMoney, friendlyDay, ok, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { FinanceDeps, Refused } from "./commands.ts";
@@ -92,6 +94,7 @@ export async function sendInvoiceReminders(deps: RemindersDeps, mail: ReminderMa
         portalUrl: person.portal ? `${options.publicUrl}/portal` : null,
         phone: options.phone,
         address: options.address,
+        instructions: deps.billing.payInstructions(),
       });
       try {
         if (await mail({ to: person.email, ...message })) sent++;
@@ -102,4 +105,107 @@ export async function sendInvoiceReminders(deps: RemindersDeps, mail: ReminderMa
     }
   }
   return { sent, failed, skipped };
+}
+
+/** Receipts look back this far, so turning emails on doesn't send old ones. */
+const RECEIPT_LOOKBACK_DAYS = 3;
+
+/**
+ * Emails a receipt for each payment recorded in the last few days that has
+ * none yet, to whoever gets the client's bills. Only when invoice emails are
+ * on. Recorded first, so a receipt is never sent twice.
+ */
+export async function sendReceipts(deps: RemindersDeps, mail: ReminderMail, options: ReminderOptions): Promise<{ readonly sent: number; readonly failed: number }> {
+  if (!deps.reminders.on()) return { sent: 0, failed: 0 };
+  const since = Temporal.Instant.from(deps.clock()).subtract({ hours: 24 * RECEIPT_LOOKBACK_DAYS }).toString();
+  const today = deps.today();
+  let sent = 0;
+  let failed = 0;
+  for (const { payment, invoiceId } of deps.billing.paymentsWithoutReceipt(since)) {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) continue;
+    const to = deps.clientEmails(invoice.organizationId);
+    deps.transact(() => {
+      deps.billing.markReceipt(payment.id, deps.clock(), to.map((one) => one.email).join(", "));
+      recordActivity(deps, { actorId: null, action: "payment.receipt-sent", recordType: "invoice", recordId: invoice.id, context: { paymentId: payment.id, number: invoice.number, to: to.length } });
+    });
+    const owed = invoice.total.minor - invoice.paidMinor;
+    for (const person of to) {
+      const message = receiptEmail({
+        name: person.name,
+        businessName: invoice.clientName,
+        label: invoiceLabel(invoice.number),
+        amount: formatMoney(payment.amount),
+        on: friendlyDay(payment.receivedOn, today),
+        method: METHOD_LABELS[payment.method] ?? payment.method,
+        stillOwed: owed > 0 && invoice.status !== "paid" ? formatMoney({ minor: owed, currency: invoice.total.currency }) : "",
+        portalUrl: person.portal ? `${options.publicUrl}/portal#invoices` : null,
+        phone: options.phone,
+      });
+      try {
+        if (await mail({ to: person.email, ...message })) sent++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+  }
+  return { sent, failed };
+}
+
+/** Statements go out in the first week of a month, once a client each month. */
+const STATEMENT_DAYS = 7;
+
+/**
+ * At the start of a month, one email to each client who still owes money,
+ * listing every open invoice, instead of one email per invoice. Only when
+ * invoice emails are on; demo clients are left out.
+ */
+export async function sendStatements(deps: RemindersDeps, mail: ReminderMail, options: ReminderOptions): Promise<{ readonly sent: number; readonly failed: number }> {
+  if (!deps.reminders.on()) return { sent: 0, failed: 0 };
+  const today = Temporal.PlainDate.from(deps.today());
+  if (today.day > STATEMENT_DAYS) return { sent: 0, failed: 0 };
+  const month = today.toString().slice(0, 7);
+  const monthLabel = today.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const open = deps.invoices.list().filter((one) => one.status === "sent" && one.total.minor - one.paidMinor > 0);
+  const byClient = new Map<Id, typeof open>();
+  for (const one of open) byClient.set(one.organizationId, [...(byClient.get(one.organizationId) ?? []), one]);
+  let sent = 0;
+  let failed = 0;
+  for (const [organizationId, invoices] of byClient) {
+    if (deps.clients.get(organizationId)?.demo || deps.billing.statementSent(organizationId, month)) continue;
+    const to = deps.clientEmails(organizationId);
+    if (to.length === 0) continue;
+    deps.transact(() => {
+      deps.billing.markStatement(organizationId, month, deps.clock(), to.map((one) => one.email).join(", "));
+      recordActivity(deps, { actorId: null, action: "client.statement-sent", recordType: "client", recordId: organizationId, context: { month, invoices: invoices.length } });
+    });
+    const total = invoices.reduce((sum, one) => sum + one.total.minor - one.paidMinor, 0);
+    for (const person of to) {
+      const message = statementEmail({
+        name: person.name,
+        businessName: invoices[0]?.clientName ?? "",
+        month: monthLabel,
+        invoices: invoices.map((one) => ({
+          label: invoiceLabel(one.number),
+          forWhat: one.projectName || one.lines[0]?.description || "",
+          owed: formatMoney({ minor: one.total.minor - one.paidMinor, currency: one.total.currency }),
+          due: one.dueOn ? friendlyDay(one.dueOn, today.toString()) : "",
+          overdue: one.dueOn !== null && one.dueOn < today.toString(),
+        })),
+        total: formatMoney({ minor: total, currency: "USD" }),
+        instructions: deps.billing.payInstructions(),
+        address: options.address,
+        portalUrl: person.portal ? `${options.publicUrl}/portal#invoices` : null,
+        phone: options.phone,
+      });
+      try {
+        if (await mail({ to: person.email, ...message })) sent++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+  }
+  return { sent, failed };
 }

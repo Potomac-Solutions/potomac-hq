@@ -64,3 +64,50 @@ Asked for by Mikey after a look at what admins, managers and clients see.
   what's owed, what's overdue, drafts not sent, and who owes what.
 - **The portal names a no-project invoice by its first line** ("Domain name,
   one year"), not a vague "for your business".
+
+## Third part, the same day: billing extras
+
+Mikey asked for every idea offered after the second part ("Do all of these").
+Sales tax was left out: it needs the accountant's answer first. Migration 0081
+adds what they need.
+
+- **Promise to pay** (`invoice.promised_on`, `promise_note`): from a call,
+  on a sent invoice. Today says "<client> promised to pay INV-0004" that day,
+  overdue after it, until it's paid.
+- **Card payment link** (`invoice.pay_link`): one Potomac makes in its own
+  payment service and pastes in; https only, no sign-in in it. The portal
+  shows "Pay by card" on that invoice. HQ connects to no payment service.
+- **Write-off** (`written_off_on`, `written_off_note`): a sent invoice is
+  voided with a reason and reads "Written off", so a mistake stays a
+  mistake. Payments already received stay.
+- **Draft and send in one step** for a one-off charge.
+- **Billing contact** (`client_organization.billing_contact_id`): one of the
+  client's contacts with an email. Reminders, receipts and statements go to
+  them; otherwise the usual people.
+- **The client's money line**: owed now, overdue, paid this year, the next
+  renewal and prepaid hours left, at the top of the client's page.
+- **Prepaid hours** (`prepaid_block`): blocks bought, in quarter hours, with
+  an optional invoice. Time logged on the client's projects from the first
+  block on draws them down. Low is a fifth left or two hours; Today warns.
+- **Recurring invoices with no project** (`recurring_invoice` rebuilt with
+  `organization_id`, `project_id` optional): hosting, upkeep, a plan.
+- **Renewals billed together**: ticked renewals of one client, one invoice,
+  a line each, due a week before the first renews.
+- **A renewal's price change** (`price_was_minor`, `price_changed_on`): the
+  portal says "New price from your next bill" for about four months.
+- **Renewals → the next 12 months**: each time each renewal comes up, what it
+  costs and is billed, what renewals earn, and any billed at a loss.
+- **Receipts** (`payment_receipt`), every five minutes, for payments
+  recorded in the last three days, and **monthly statements**
+  (`client_statement`) in a month's first week, to clients who owe. Both
+  only with invoice emails on; each once.
+- **How to pay** (`finance_setting.pay_instructions`), set on the Money page,
+  in the portal, reminders, receipts and statements. A card or account
+  number is refused: every client sees it.
+- **A yearly payments download** in the portal, a CSV of what the client
+  paid, for their taxes or bookkeeper.
+- **The free page and its own domain together** in the portal.
+- **Money → Cash forecast**: 13 weeks from this Monday. In: sent invoices by
+  due day (overdue ones this week), renewals not billed by pay-by day,
+  recurring invoices as HQ will make them. Out: renewal costs on the day.
+  Expenses aren't planned in HQ, and drafts aren't counted.

@@ -3,7 +3,8 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
-import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { newBlock, type BlockError, type BlockInput, type PrepaidBlock } from "../domain/prepaid.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
@@ -11,7 +12,7 @@ import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
-import type { ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { BillingStore, ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
   Pick<CrmDeps, "opportunities" | "clients"> & {
@@ -20,6 +21,9 @@ export type FinanceDeps = ProjectsDeps &
     readonly finance: FinanceStore;
     readonly invoices: InvoiceStore;
     readonly recurring: RecurringStore;
+    readonly billing: BillingStore;
+    /** Renewals' money in and out between two days, for the cash forecast. Absent: none counted. */
+    readonly cashflow?: (from: string, to: string) => readonly { readonly on: string; readonly label: string; readonly organizationId: string; readonly inMinor: number; readonly outMinor: number }[];
     readonly phaseEstimates: PhaseEstimates;
     readonly changes: ChangeRequestStore;
   };
@@ -199,15 +203,65 @@ export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: 
  * An invoice on a client with no project: a domain, a one-off charge. Its kind
  * is "full" or "other"; a deposit or a balance needs a project. `invoice.edit`.
  */
-export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
+export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput, options: { readonly send?: boolean } = {}): Result<Invoice, Refused | InvoiceError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
     if (!deps.clients.get(organizationId)) return err("not-found");
-    const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
-    if (!invoice.ok) return invoice;
-    deps.invoices.insert(invoice.value, deps.clock());
-    recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
-    return ok(invoice.value);
+    return clientInvoiceInside(deps, actorId, organizationId, input, options.send === true);
+  });
+}
+
+/** Makes (and, if asked, sends) an invoice on a client alone, inside a transaction already open. */
+function clientInvoiceInside(deps: FinanceDeps, actorId: Id, organizationId: Id, input: InvoiceInput, send: boolean): Result<Invoice, InvoiceError> {
+  const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+  if (!invoice.ok) return invoice;
+  deps.invoices.insert(invoice.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
+  if (!send) return ok(invoice.value);
+  // Drafted and sent in one step, for a small charge like a domain.
+  const sent = sendInvoice(invoice.value, deps.today());
+  if (!sent.ok) return ok(invoice.value);
+  deps.invoices.update(sent.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: sent.value.id, context: { organizationId, number: sent.value.number, minor: sent.value.total.minor } });
+  return ok(sent.value);
+}
+
+/**
+ * A client buys a block of prepaid hours. With a price, HQ makes its invoice
+ * on the client too, a draft or sent. `invoice.edit`.
+ */
+export function addPrepaidHours(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: BlockInput & { readonly price?: string | null; readonly send?: boolean }): Result<PrepaidBlock, Refused | BlockError | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact((): Result<PrepaidBlock, Refused | BlockError | InvoiceError> => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const checked = newBlock({ id: deps.newId(), organizationId, createdBy: actorId, invoiceId: null }, input);
+    if (!checked.ok) return checked;
+    const price = (input.price ?? "").trim();
+    let invoiceId: Id | null = null;
+    if (price !== "") {
+      const hours = checked.value.minutes / 60;
+      const made = clientInvoiceInside(deps, actorId, organizationId, { kind: "full", description: `${hours} prepaid hours`, amount: price }, input.send === true);
+      if (!made.ok) return made;
+      invoiceId = made.value.id;
+    }
+    const block = { ...checked.value, invoiceId };
+    deps.billing.insertBlock(block, deps.clock());
+    recordActivity(deps, { actorId, action: "prepaid-hours.added", recordType: "client", recordId: organizationId, context: { minutes: block.minutes, boughtOn: block.boughtOn, invoiceId } });
+    return ok(block);
+  });
+}
+
+/** How clients pay, in Potomac's words, for the portal. `invoice.edit`. */
+export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: string): Result<{ readonly text: string }, "forbidden" | "too-long" | "number-in-instructions"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  const clean = text.trim().replace(/\r\n/g, "\n");
+  if (clean.length > 2000) return err("too-long");
+  // Shown to every client: never a card or account number.
+  if (/(?:\d[ -]?){13,19}/.test(clean)) return err("number-in-instructions");
+  return deps.transact(() => {
+    deps.billing.setPayInstructions(clean, actorId, deps.clock());
+    recordActivity(deps, { actorId, action: "finance.pay-instructions-set", recordType: "setting", recordId: "finance-setting" as Id, context: { length: clean.length } });
+    return ok({ text: clean });
   });
 }
 
@@ -306,6 +360,32 @@ export function voidInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId:
   });
 }
 
+/** One change to a sent invoice by Potomac, checked and logged. */
+function changeInvoice<E extends string>(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, action: string, change: (invoice: Invoice) => Result<Invoice, E>, context: (changed: Invoice) => Record<string, unknown>): Result<Invoice, Refused | E> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const changed = change(invoice);
+    if (!changed.ok) return changed;
+    deps.invoices.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action, recordType: "invoice", recordId: invoiceId, context: { organizationId: invoice.organizationId, projectId: invoice.projectId, number: invoice.number, ...context(changed.value) } });
+    return ok(changed.value);
+  });
+}
+
+/** The client said when they'll pay: Today asks on that day if it's still owed. An empty day clears it. */
+export const promiseInvoicePayment = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly on: string; readonly note?: string | null }): Result<Invoice, Refused | PromiseError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.promised", (invoice) => promisePayment(invoice, input), (changed) => ({ promisedOn: changed.promisedOn }));
+
+/** A card payment link Potomac made itself; the portal shows "Pay by card". Empty clears it. */
+export const setInvoicePayLink = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, link: string): Result<Invoice, Refused | PayLinkError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.pay-link-set", (invoice) => setPayLink(invoice, link), (changed) => ({ hasLink: changed.payLink !== null }));
+
+/** Money that won't come: voided and marked written off, with why. */
+export const writeOffInvoice = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly note: string }): Result<Invoice, Refused | WriteOffError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.written-off", (invoice) => writeOff(invoice, input, deps.today()), (changed) => ({ owedMinor: Math.max(0, changed.total.minor - (deps.invoices.get(changed.id)?.paidMinor ?? 0)) }));
+
 /** Records money received against a sent invoice. When it is paid in full, the project's payment status follows. */
 export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: PaymentInput): Result<{ invoice: Invoice; payment: Payment }, Refused | PaymentError> {
   if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
@@ -335,11 +415,25 @@ export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: 
 export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(projectId)) return err("not-found");
-    const made = newRecurring({ id: deps.newId(), projectId, createdBy: actorId }, input);
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId: project.organizationId, projectId, createdBy: actorId }, input);
     if (!made.ok) return made;
     deps.recurring.insert(made.value, deps.clock());
     recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { projectId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
+    return ok(made.value);
+  });
+}
+
+/** A recurring invoice on a client with no project: hosting, upkeep, a plan. `invoice.edit`. */
+export function addClientRecurringInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId, projectId: null, createdBy: actorId }, input);
+    if (!made.ok) return made;
+    deps.recurring.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { organizationId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
     return ok(made.value);
   });
 }
@@ -374,11 +468,12 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
     for (let n = 0; n < 12; n++) {
       const done = deps.transact(() => {
         const recurring = deps.recurring.get(first.id);
-        const project = recurring ? deps.projects.get(recurring.projectId) : null;
-        if (!recurring || !project || !isDue(recurring, today)) return null;
+        if (!recurring || !isDue(recurring, today)) return null;
+        // One on a project needs it still there; one on the client alone needs the client.
+        if (recurring.projectId !== null ? !deps.projects.get(recurring.projectId) : !deps.clients.get(recurring.organizationId)) return null;
         const dueOn = recurring.autoSend ? Temporal.PlainDate.from(today).add({ days: recurring.dueDays }).toString() : null;
         const invoice = newInvoice(
-          { id: deps.newId(), organizationId: project.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
+          { id: deps.newId(), organizationId: recurring.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
           { kind: "other", description: periodLine(recurring, recurring.nextOn), amount: (recurring.amount.minor / 100).toFixed(2), dueOn, note: "Made by HQ from a recurring invoice." },
         );
         if (!invoice.ok) throw new Error(`Could not make a recurring invoice: ${invoice.error}`);

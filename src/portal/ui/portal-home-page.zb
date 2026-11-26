@@ -25,7 +25,7 @@
     return { title: 'Your portal', landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [] }} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -88,6 +88,7 @@
     <section zb-if={landing && (landing.exists || !website)} class="hq-panel" id="landing-page" aria-labelledby="portal-landing">
       <h2 id="portal-landing">Your free landing page</h2>
       <p zb-if={landing.exists}>{landing.statusLabel}<span zb-if={landing.address}>: <a href={landing.address} rel="noopener noreferrer">{landing.address}</a></span>. {landing.used}.</p>
+      <p zb-if={landing.domainText}>{landing.domainText} <a href="#renewals">What’s coming up</a></p>
       <p zb-else>A one-page website for your business, free for good.</p>
       <a class="hq-button portal-big" href="/portal/landing-page">{landing.exists ? 'Open your landing page' : 'Ask for your free page'}</a>
     </section>
@@ -164,6 +165,7 @@
             <div>
               <p><strong>{one.name}</strong> · {one.kindLabel}</p>
               <p>Renews <time datetime={one.renewsOn}>{one.renews}</time>. {one.price}.</p>
+              <p zb-if={one.priceNote}><strong>{one.priceNote}</strong></p>
               <p class={one.state === 'late' ? '' : 'hq-muted'}>{one.say}</p>
             </div>
             <a zb-if={one.owing} class="hq-button portal-big" href="#invoices">How to pay</a>
@@ -188,16 +190,23 @@
               <p zb-if={invoice.paid} class="hq-muted">{invoice.statusLabel}. {invoice.total}</p>
               <p zb-else>{invoice.owed} owed<span zb-if={invoice.owed !== invoice.total}> of {invoice.total}</span><span zb-if={invoice.due}>. {invoice.due}</span></p>
             </div>
-            <a class="hq-button secondary portal-big" href="/portal/invoices/{invoice.id}/pdf" aria-label="Download invoice {invoice.label} as a PDF">Download</a>
+            <div class="hq-form-row">
+              <a zb-if={invoice.payLink} class="hq-button portal-big" href={invoice.payLink} rel="noopener noreferrer" target="_blank">Pay by card<span class="sr-only">: {invoice.label}</span></a>
+              <a class="hq-button secondary portal-big" href="/portal/invoices/{invoice.id}/pdf" aria-label="Download invoice {invoice.label} as a PDF">Download</a>
+            </div>
           </li>
         </zb-each>
       </ul>
       <div zb-if={view.owedTotal} class="portal-pay" data-spaced>
         <h3>How to pay</h3>
-        <p>By check made out to <strong>Potomac Solutions</strong>, or in cash. Write the invoice number on the check.</p>
-        <p zb-if={contact.address}>Mail it to: <strong>{contact.address}</strong></p>
-        <p class="hq-muted">Paying by card here is not available yet.</p>
+        <p zb-if={view.payInstructions} class="hq-prose">{view.payInstructions}</p>
+        <div zb-else>
+          <p>By check made out to <strong>Potomac Solutions</strong>, or in cash. Write the invoice number on the check.</p>
+          <p zb-if={contact.address}>Mail it to: <strong>{contact.address}</strong></p>
+        </div>
+        <p class="hq-muted hq-small">Where an invoice has “Pay by card”, that button takes you to pay it by card.</p>
       </div>
+      <p zb-if={view.paymentYears.length > 0} class="hq-small" data-spaced>For your taxes or bookkeeper, what you paid us in <zb-each items={view.paymentYears} as="year" key={year}><a href="/portal/payments.csv?year={year}" download>{year}</a> </zb-each>(a spreadsheet file).</p>
     </section>
 
     <section class="hq-panel" id="calls" aria-labelledby="portal-calls">

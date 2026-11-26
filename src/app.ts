@@ -22,7 +22,7 @@ import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { clientInvoices, financeOverview, invoicesOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -36,7 +36,7 @@ import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
 import { bookingStaffDownloads, bookingStaffRoutes } from "./booking/api/staff-routes.ts";
-import { allRenewals, clientRenewals, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
+import { allRenewals, clientRenewals, renewalYear, portalRenewals, renewalsComingUp, type ClientRenewalsView } from "./renewals/index.ts";
 import { renewalPortalRoutes, renewalRoutes } from "./renewals/api/renewal-routes.ts";
 import { clientSocial, clientSocialSummary, portalSocial, portalSocialWaiting, socialOverview, socialToDo } from "./social/index.ts";
 import { socialPortalRoutes, socialStaffRoutes } from "./social/api/social-routes.ts";
@@ -342,6 +342,10 @@ export type PageContext = {
     changes(id: string): ReturnType<typeof projectChanges>;
     overBudget(): ReturnType<typeof projectsOverBudget>;
     invoice(id: string): ReturnType<typeof invoiceDetail>;
+    /** How clients pay, in Potomac's words; null when this person may not see invoices. */
+    payInstructions(): ReturnType<typeof payInstructionsView>;
+    /** Money → Cash forecast: the next 13 weeks of money in and out. */
+    forecast(): ReturnType<typeof cashForecast>;
     /** Money → Invoices: every invoice, filtered by where it stands. */
     invoices(show: string | null): ReturnType<typeof invoicesOverview>;
     /** A client's invoices, on a project or not; null when this person may not see invoices. */
@@ -496,6 +500,8 @@ export type PageContext = {
   readonly publicSite: { view(): ReturnType<typeof publicSiteView> };
   readonly renewals: {
     all(): ReturnType<typeof allRenewals>;
+    /** The next 12 months of renewals, month by month, with what each earns. */
+    year(): ReturnType<typeof renewalYear>;
     /** A client's, or null when this person may not see them. */
     forClient(id: string): ClientRenewalsView | null;
     comingUp(): ReturnType<typeof renewalsComingUp>;
@@ -995,6 +1001,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           overBudget: () => projectsOverBudget(financeDeps, actor),
           invoice: (id) => withId(id, (invoiceId) => invoiceDetail(financeDeps, actor, invoiceId)),
           invoices: (show) => invoicesOverview(financeDeps, actor, show),
+          forecast: () => cashForecast(financeDeps, actor),
+          payInstructions: () => payInstructionsView(financeDeps, actor),
           forClient: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? clientInvoices(financeDeps, actor, parsed.value) : null;
@@ -1130,6 +1138,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         publicSite: { view: () => publicSiteView(services.publicSite, actor) },
         renewals: {
           all: () => allRenewals(services.renewals, actor),
+          year: () => renewalYear(services.renewals, actor),
           forClient: (id) => {
             const parsed = parseId(id);
             const view = parsed.ok ? clientRenewals(services.renewals, actor, parsed.value) : null;
@@ -1820,7 +1829,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
     // An address under the portal that is no page: back to the portal with a word, not HQ's own "not found".
     // Only for an address a person might have typed or followed; a probe (dots, escapes) gets the plain 404.

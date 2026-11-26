@@ -73,8 +73,10 @@ export const PLACES: readonly Place[] = [
 
   { key: "money", label: "Money", hub: "money", href: "/money", gate: "perm:finance.view", words: ["invoices", "payments", "billing", "expenses", "recurring", "deposit"], what: "Invoices, payments and expenses" },
   { key: "invoices", label: "Invoices", hub: "money", href: "/money/invoices", also: ["/invoices"], gate: "perm:invoice.view", words: ["invoices", "bills", "owed", "overdue", "drafts", "who owes", "unpaid"], what: "Every invoice by where it stands: owed, overdue, drafts" },
+  { key: "forecast", label: "Cash forecast", hub: "money", href: "/money/forecast", gate: "perm:finance.view", words: ["forecast", "cash flow", "13 weeks", "coming in", "going out", "runway"], what: "Money coming in and going out, the next 13 weeks" },
   { key: "profit", label: "Profit and loss", hub: "money", href: "/money/profit", hidden: true, gate: "perm:finance.view", words: ["p&l", "profit", "loss", "taxes", "income"], what: "Profit and loss by month" },
   { key: "renewals", label: "Renewals", hub: "sites", href: "/renewals", words: ["domains", "hosting", "renew", "expiring"], what: "Domains and plans coming up for renewal" },
+  { key: "renewals-year", label: "Renewals, the next 12 months", hub: "sites", href: "/renewals/year", hidden: true, gate: "perm:client.view", words: ["renewals by month", "yearly", "12 months", "renewal costs", "margin"], what: "Renewals month by month: what each costs and what it's billed" },
   { key: "reports", label: "Reports", hub: "money", href: "/reports", gate: "perm:report.view", words: ["budget", "health", "estimate vs actual", "analytics"], what: "Pipeline, project health and budget reports" },
   { key: "lead-sources", label: "Lead sources", hub: "money", href: "/reports/lead-sources", hidden: true, gate: "perm:report.view", words: ["where leads come from", "utm", "sources", "marketing"], what: "Where leads came from" },
 

@@ -1,6 +1,6 @@
 // Renewals' forms: add one to a client, mark one renewed, retire one.
 import { Hono } from "hono";
-import { addRenewal, answerRenewal, billRenewal, markRenewed, retireRenewal, type RenewalClient, type RenewalsDeps } from "../application/renewals.ts";
+import { addRenewal, answerRenewal, billRenewal, billRenewalsTogether, changeRenewalPrice, markRenewed, retireRenewal, type RenewalClient, type RenewalsDeps } from "../application/renewals.ts";
 import { formPosts, type Id } from "../../shared/index.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {
@@ -19,6 +19,9 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-choice": "Choose renew it, or let it lapse.",
   "already-paid": "That’s paid already, thank you. We’ll renew it.",
   "too-late": "It has already come up for renewal. Call or message us about it.",
+  "same-price": "That’s the price already.",
+  "choose-two": "Tick at least two renewals to bill together.",
+  "mixed-clients": "Those renewals belong to different clients.",
   "project-missing": "That project isn’t this client’s. Choose one of theirs, or bill the client with no project.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
@@ -34,6 +37,13 @@ export function renewalRoutes(deps: { readonly renewals: RenewalsDeps; readonly 
   );
   post("/renewals/:id/renewed", (actor, _f, id) => markRenewed(deps.renewals, actor, id as Id), { done: (_v, _id, f) => back(f, "/renewals"), back: (_id, f) => back(f, "/renewals"), message: "Marked renewed. Its next date moved on." });
   post("/renewals/:id/bill", (actor, f, id) => billRenewal(deps.renewals, actor, id as Id, { projectId: f["projectId"] ?? "" }), { done: (_v, _id, f) => back(f, "/renewals"), back: (_id, f) => back(f, "/renewals"), message: "Billed. The invoice is in the client’s portal, due a week before it renews." });
+  post("/renewals/:id/price", (actor, f, id) => changeRenewalPrice(deps.renewals, actor, id as Id, f["price"] ?? ""), { done: (_v, _id, f) => back(f, "/renewals"), back: (_id, f) => back(f, "/renewals"), message: "Price changed. The client sees the new price in their portal before the next bill." });
+  // Several renewals on one invoice: the checked ones, named bill-<id>.
+  post(
+    "/clients/:id/renewals/bill-together",
+    (actor, f, id) => billRenewalsTogether(deps.renewals, actor, id as Id, Object.keys(f).filter((key) => key.startsWith("bill-") && f[key] === "on").map((key) => key.slice(5) as Id), { projectId: f["projectId"] ?? "" }),
+    { done: (_v, id) => `/clients/${id}#renewals`, back: (id) => `/clients/${id}#renewals`, message: (billed) => `Billed ${billed.length} together on one invoice, in the client’s portal.` },
+  );
   post("/renewals/:id/retire", (actor, _f, id) => retireRenewal(deps.renewals, actor, id as Id), { done: (_v, _id, f) => back(f, "/renewals"), back: (_id, f) => back(f, "/renewals"), message: "Removed from renewals." });
   return app;
 }

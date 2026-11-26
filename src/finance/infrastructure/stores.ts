@@ -1,4 +1,4 @@
-import type { ChangeRequestStore, ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, ReminderStore, TimeRow, TimeStore } from "../application/ports.ts";
+import type { BillingStore, ChangeRequestStore, ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, RecurringStore, ReminderStore, TimeRow, TimeStore } from "../application/ports.ts";
 import type { ChangeRequest, ChangeStatus } from "../domain/change-request.ts";
 import type { PaymentStatus, ProjectFinance } from "../domain/budget.ts";
 import type { Expense, ExpenseCategory } from "../domain/expense.ts";
@@ -6,6 +6,7 @@ import type { Invoice, InvoiceKind, InvoiceLine, InvoiceStatus, Payment, Payment
 import type { Every, RecurringInvoice } from "../domain/recurring.ts";
 import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
+import type { PrepaidBlock } from "../domain/prepaid.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Currency, Id } from "../../shared/index.ts";
 
@@ -194,6 +195,11 @@ const toInvoice = (r: Row): Invoice => ({
   dueOn: maybe(r, "due_on"),
   note: text(r, "note"),
   createdBy: text(r, "created_by") as Id,
+  promisedOn: maybe(r, "promised_on"),
+  promiseNote: text(r, "promise_note"),
+  payLink: maybe(r, "pay_link"),
+  writtenOffOn: maybe(r, "written_off_on"),
+  writtenOffNote: text(r, "written_off_note"),
 });
 
 const toPayment = (r: Row): Payment => ({
@@ -210,8 +216,9 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   const cols = "id, organization_id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by";
   const next = db.prepare("select coalesce(max(number), 0) + 1 as next from invoice");
   const insert = db.prepare(`insert into invoice (${cols}, created_at, updated_at) values (${Array(15).fill("?").join(", ")})`);
-  const update = db.prepare("update invoice set status = ?, lines = ?, total_minor = ?, issued_on = ?, due_on = ?, note = ?, updated_at = ? where id = ?");
-  const joined = `select ${cols.split(", ").map((c) => `i.${c}`).join(", ")}, coalesce(p.name, '') as project_name, c.name as client_name,
+  const update = db.prepare("update invoice set status = ?, lines = ?, total_minor = ?, issued_on = ?, due_on = ?, note = ?, promised_on = ?, promise_note = ?, pay_link = ?, written_off_on = ?, written_off_note = ?, updated_at = ? where id = ?");
+  const extras = "promised_on, promise_note, pay_link, written_off_on, written_off_note";
+  const joined = `select ${`${cols}, ${extras}`.split(", ").map((c) => `i.${c}`).join(", ")}, coalesce(p.name, '') as project_name, c.name as client_name,
             (select coalesce(sum(amount_minor), 0) from payment y where y.invoice_id = i.id) as paid_minor
        from invoice i left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id`;
   const get = db.prepare(`${joined} where i.id = ?`);
@@ -235,7 +242,7 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
       insert.run(i.id, i.organizationId, i.projectId, i.number, i.kind, i.status, JSON.stringify(i.lines), i.total.minor, i.total.currency, i.issuedOn, i.dueOn, i.note, i.createdBy, at, at);
     },
     update(i, at) {
-      update.run(i.status, JSON.stringify(i.lines), i.total.minor, i.issuedOn, i.dueOn, i.note, at, i.id);
+      update.run(i.status, JSON.stringify(i.lines), i.total.minor, i.issuedOn, i.dueOn, i.note, i.promisedOn, i.promiseNote, i.payLink, i.writtenOffOn, i.writtenOffNote, at, i.id);
     },
     get(id) {
       const r = get.get(id) as Row | undefined;
@@ -262,12 +269,13 @@ export function sqliteInvoiceStore(db: Database): InvoiceStore {
   };
 }
 
-const RECURRING_COLUMNS = "id, project_id, description, amount_minor, every, anchor_day, next_on, ends_on, auto_send, due_days, active, created_by";
+const RECURRING_COLUMNS = "id, organization_id, project_id, description, amount_minor, every, anchor_day, next_on, ends_on, auto_send, due_days, active, created_by";
 
 function toRecurring(row: Record<string, unknown>): RecurringInvoice {
   return {
     id: row["id"] as Id,
-    projectId: row["project_id"] as Id,
+    organizationId: row["organization_id"] as Id,
+    projectId: (row["project_id"] as Id | null) ?? null,
     description: String(row["description"]),
     amount: { minor: Number(row["amount_minor"]), currency: "USD" },
     every: row["every"] as Every,
@@ -282,16 +290,17 @@ function toRecurring(row: Record<string, unknown>): RecurringInvoice {
 }
 
 export function sqliteRecurringStore(db: Database): RecurringStore {
-  const insert = db.prepare(`insert into recurring_invoice (${RECURRING_COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`insert into recurring_invoice (${RECURRING_COLUMNS}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update recurring_invoice set description = ?, amount_minor = ?, every = ?, anchor_day = ?, next_on = ?, ends_on = ?, auto_send = ?, due_days = ?, active = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where id = ?`);
   const forProject = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where project_id = ? order by active desc, next_on`);
   const active = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where active = 1 order by next_on`);
+  const forClient = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where organization_id = ? and project_id is null order by active desc, next_on`);
   const due = db.prepare(`select ${RECURRING_COLUMNS} from recurring_invoice where active = 1 and next_on <= ? and (ends_on is null or next_on <= ends_on) order by next_on`);
   const mark = db.prepare("update invoice set recurring_id = ? where id = ?");
   return {
     insert(r, at) {
-      insert.run(r.id, r.projectId, r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, r.createdBy, at, at);
+      insert.run(r.id, r.organizationId, r.projectId, r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, r.createdBy, at, at);
     },
     update(r, at) {
       update.run(r.description, r.amount.minor, r.every, r.anchorDay, r.nextOn, r.endsOn, r.autoSend ? 1 : 0, r.dueDays, r.active ? 1 : 0, at, r.id);
@@ -302,6 +311,7 @@ export function sqliteRecurringStore(db: Database): RecurringStore {
     },
     listForProject: (projectId) => forProject.all(projectId).map(toRecurring),
     listActive: () => active.all().map(toRecurring),
+    listForClientAlone: (organizationId) => forClient.all(organizationId).map(toRecurring),
     due: (today) => due.all(today).map(toRecurring),
     markInvoice(invoiceId, recurringId) {
       mark.run(recurringId, invoiceId);
@@ -375,5 +385,66 @@ export function sqliteChangeRequestStore(db: Database): ChangeRequestStore {
       return row ? toChange(row) : null;
     },
     listFor: (projectId) => listFor.all(projectId).map(toChange),
+  };
+}
+
+export function sqliteBillingStore(db: Database): BillingStore {
+  const instructions = db.prepare("select pay_instructions from finance_setting where id = 1");
+  const setInstructions = db.prepare(
+    "insert into finance_setting (id, reminders_on, pay_instructions, updated_by, updated_at) values (1, 0, ?, ?, ?) on conflict (id) do update set pay_instructions = excluded.pay_instructions, updated_by = excluded.updated_by, updated_at = excluded.updated_at",
+  );
+  const blockCols = "id, organization_id, minutes, bought_on, invoice_id, note, created_by";
+  const insertBlock = db.prepare(`insert into prepaid_block (${blockCols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)`);
+  const blocks = db.prepare(`select ${blockCols} from prepaid_block where organization_id = ? order by bought_on, rowid`);
+  const withBlocks = db.prepare("select distinct organization_id from prepaid_block");
+  const used = db.prepare(
+    `select coalesce(sum(t.minutes), 0) as minutes from time_entry t join project p on p.id = t.project_id
+      where p.organization_id = ? and t.worked_on >= ? and t.removed_at is null and t.minutes is not null`,
+  );
+  const pcols = "y.id, y.invoice_id, y.amount_minor, y.currency, y.method, y.received_on, y.reference, y.recorded_by";
+  const unreceipted = db.prepare(`select ${pcols} from payment y left join payment_receipt r on r.payment_id = y.id where r.payment_id is null and y.created_at >= ? order by y.rowid`);
+  const markReceipt = db.prepare("insert into payment_receipt (payment_id, sent_at, sent_to) values (?, ?, ?) on conflict (payment_id) do nothing");
+  const statement = db.prepare("select 1 from client_statement where organization_id = ? and month = ?");
+  const markStatement = db.prepare("insert into client_statement (organization_id, month, sent_at, sent_to) values (?, ?, ?, ?) on conflict do nothing");
+  const clientPayments = db.prepare(
+    `select ${pcols}, i.number as number, coalesce(p.name, '') as project_name, i.lines as lines
+       from payment y join invoice i on i.id = y.invoice_id left join project p on p.id = i.project_id
+      where i.organization_id = ? and y.received_on >= ? and y.received_on < ? order by y.received_on, y.rowid`,
+  );
+  const toBlock = (r: Row): PrepaidBlock => ({
+    id: text(r, "id") as Id,
+    organizationId: text(r, "organization_id") as Id,
+    minutes: r["minutes"] as number,
+    boughtOn: text(r, "bought_on"),
+    invoiceId: maybe(r, "invoice_id") as Id | null,
+    note: text(r, "note"),
+    createdBy: text(r, "created_by") as Id,
+  });
+  return {
+    payInstructions: () => String((instructions.get() as Row | undefined)?.["pay_instructions"] ?? ""),
+    setPayInstructions(text, by, at) {
+      setInstructions.run(text, by, at);
+    },
+    insertBlock(b, at) {
+      insertBlock.run(b.id, b.organizationId, b.minutes, b.boughtOn, b.invoiceId, b.note, b.createdBy, at);
+    },
+    blocksFor: (organizationId) => (blocks.all(organizationId) as Row[]).map(toBlock),
+    clientsWithBlocks: () => (withBlocks.all() as Row[]).map((r) => text(r, "organization_id") as Id),
+    minutesSince: (organizationId, since) => Number((used.get(organizationId, since) as Row)["minutes"]),
+    paymentsWithoutReceipt: (since) => (unreceipted.all(since) as Row[]).map((r) => ({ payment: toPayment(r), invoiceId: text(r, "invoice_id") as Id })),
+    markReceipt(paymentId, at, sentTo) {
+      markReceipt.run(paymentId, at, sentTo);
+    },
+    statementSent: (organizationId, month) => statement.get(organizationId, month) !== undefined,
+    markStatement(organizationId, month, at, sentTo) {
+      markStatement.run(organizationId, month, at, sentTo);
+    },
+    paymentsForClient: (organizationId, year) =>
+      (clientPayments.all(organizationId, `${year}-01-01`, `${year + 1}-01-01`) as Row[]).map((r) => ({
+        payment: toPayment(r),
+        invoiceNumber: r["number"] as number,
+        projectName: text(r, "project_name"),
+        forWhat: text(r, "project_name") || ((JSON.parse(text(r, "lines")) as InvoiceLine[])[0]?.description ?? ""),
+      })),
   };
 }

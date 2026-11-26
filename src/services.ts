@@ -6,11 +6,11 @@ import { sqliteCallGuideStore, sqliteCallScreenStore, sqliteClientFacts, sqliteC
 import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
-import { addRenewal, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
+import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
@@ -89,7 +89,7 @@ import { addNote } from "./notes/index.ts";
 import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
 import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
-import type { Clock, Id } from "./shared/index.ts";
+import { formatMoney, type Clock, type Id } from "./shared/index.ts";
 
 /** What a module's refusal means, in words the assistant passes on (decision 0015). */
 const ASSISTANT_PROBLEMS: Readonly<Record<string, string>> = {
@@ -331,7 +331,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // Undoing a finished repeat takes its untouched next one back (pre-staging, 2026-11-25).
     removeUntouchedTask: sqliteRepeatTaker(db),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), billing: sqliteBillingStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db), cashflow: (from, to) => renewalCashflow(renewals, from, to) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {
@@ -388,7 +388,15 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     clientName: (id) => crm.clients.get(id)?.name ?? null,
     contactFor: (organizationId) => clientEmails(organizationId)[0] ?? null,
   };
-  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
+  // Bills go to the client's billing contact when one is set (decision 0017), otherwise the usual people.
+  const billingEmails: ClientEmails = (organizationId) => {
+    const id = crm.clients.billingContact(organizationId);
+    const contact = id ? crm.contacts.get(id) : null;
+    const email = contact?.email?.toLowerCase();
+    if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
+    return clientEmails(organizationId);
+  };
+  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
@@ -471,6 +479,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     pages: sqliteFreePageStore(db),
     rounds: sqliteRoundStore(db),
     clientName: (id) => crm.clients.get(id)?.name ?? null,
+    domainRenewalText: (organizationId, domain) => {
+      const found = renewals.renewals.listFor(organizationId).find((one) => one.active && one.name.toLowerCase() === domain);
+      if (!found) return "";
+      const on = Temporal.PlainDate.from(found.renewsOn).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const term = found.termMonths === 12 ? "a year" : found.termMonths === 1 ? "a month" : `every ${found.termMonths} months`;
+      return found.price ? `Your domain renews ${on}, ${formatMoney(found.price)} ${term}.` : `Your domain renews ${on}. We pay for it.`;
+    },
     // A free page on the client's own domain: the domain goes on their renewals, yearly, ready to bill.
     addDomainRenewal: (actorId, organizationId, input) => {
       if (renewals.renewals.listFor(organizationId).some((one) => one.active && one.name.toLowerCase() === input.domain)) return { ok: true, value: "already-there" };
@@ -496,6 +511,22 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       const input = { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn };
       const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
       if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      const sent = sendInvoiceNow(finance, actorId, made.value.id);
+      if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
+      const row = billedOf(sent.value.id);
+      return row ? { ok: true, value: row } : { ok: false, error: "not-found" };
+    },
+    sendTogether(actorId, organizationId, projectId, lines, dueOn) {
+      const [first, ...rest] = lines;
+      if (!first) return { ok: false, error: "not-found" };
+      if (projectId !== null && projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const input = { kind: "other", description: first.description, amount: (first.amount.minor / 100).toFixed(2), dueOn };
+      const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
+      if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      for (const line of rest) {
+        const added = addLineToInvoice(finance, actorId, made.value.id, { description: line.description, amount: (line.amount.minor / 100).toFixed(2) });
+        if (!added.ok) return { ok: false, error: "not-found" };
+      }
       const sent = sendInvoiceNow(finance, actorId, made.value.id);
       if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
       const row = billedOf(sent.value.id);
@@ -606,7 +637,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, finance, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
