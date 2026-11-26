@@ -86,8 +86,9 @@ function applyDecision(deps: FinanceDeps, actorId: Id | null, found: ChangeReque
     }
     if (change.amount.minor > 0) {
       const project = deps.projects.get(change.projectId);
+      if (!project) throw new Error("A change request's project is gone.");
       const invoice = newInvoice(
-        { id: deps.newId(), projectId: change.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? project?.ownerId ?? change.createdBy },
+        { id: deps.newId(), organizationId: project.organizationId, projectId: change.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? project?.ownerId ?? change.createdBy },
         { kind: "other", description: `Change ${change.number}: ${change.title}`.slice(0, 300), amount: (change.amount.minor / 100).toFixed(2), note: `Drafted by HQ when change ${change.number} was approved.` },
       );
       if (!invoice.ok) throw new Error(`Could not draft the change's invoice: ${invoice.error}`);

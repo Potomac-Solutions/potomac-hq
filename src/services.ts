@@ -7,10 +7,10 @@ import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
 import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
-import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
+import { addRenewal, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
@@ -331,7 +331,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     // Undoing a finished repeat takes its untouched next one back (pre-staging, 2026-11-25).
     removeUntouchedTask: sqliteRepeatTaker(db),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {
@@ -471,6 +471,12 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     pages: sqliteFreePageStore(db),
     rounds: sqliteRoundStore(db),
     clientName: (id) => crm.clients.get(id)?.name ?? null,
+    // A free page on the client's own domain: the domain goes on their renewals, yearly, ready to bill.
+    addDomainRenewal: (actorId, organizationId, input) => {
+      if (renewals.renewals.listFor(organizationId).some((one) => one.active && one.name.toLowerCase() === input.domain)) return { ok: true, value: "already-there" };
+      const added = addRenewal(renewals, actorId, organizationId, { kind: "domain", name: input.domain, renewsOn: input.renewsOn, termMonths: "12", cost: input.cost, price: input.price, note: "Added with the client's free landing page." });
+      return added.ok ? { ok: true, value: "added" } : { ok: false, error: added.error };
+    },
     peopleAt: (organizationId) => {
       const contacts = crm.contacts.listFor(organizationId);
       const portalUsers = portal.clientUsers.listFor(organizationId);
@@ -486,8 +492,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const renewalBilling: RenewalBilling = {
     projectsFor: (organizationId) => projectStore.listFor(organizationId).map((project) => ({ id: project.id, name: project.name })),
     send(actorId, organizationId, projectId, line) {
-      if (projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
-      const made = createInvoice(finance, actorId, projectId, { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn });
+      if (projectId !== null && projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const input = { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn };
+      const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
       if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
       const sent = sendInvoiceNow(finance, actorId, made.value.id);
       if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };

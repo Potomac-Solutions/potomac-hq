@@ -21,9 +21,9 @@
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: null, client: {}, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} done="" problem="">
   <div class="hq-page">
-    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
+    <breadcrumb-trail items={view.project ? [{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }] : [{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}#invoices` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>

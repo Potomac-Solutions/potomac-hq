@@ -18,8 +18,8 @@ export function sqliteClientFacts(db: Database): ClientFactsReader {
       where o.organization_id = ?`,
   );
   const overdue = db.prepare(
-    `select i.number, i.due_on, i.total_minor, i.currency from invoice i join project p on p.id = i.project_id
-      where p.organization_id = ? and i.status = 'sent' and i.due_on is not null and i.due_on < ? order by i.due_on`,
+    `select i.number, i.due_on, i.total_minor, i.currency from invoice i
+      where i.organization_id = ? and i.status = 'sent' and i.due_on is not null and i.due_on < ? order by i.due_on`,
   );
   // A project's newest message, when it's from the client.
   const unanswered = db.prepare(
@@ -36,8 +36,8 @@ export function sqliteClientFacts(db: Database): ClientFactsReader {
   const lastCall = db.prepare("select happened_at, note from touch where organization_id = ? and kind = 'call' and note <> '' and (call_id is null or call_id <> ?) order by happened_at desc limit 1");
   const plusDays = (day: string, days: number) => Temporal.PlainDate.from(day).add({ days }).toString();
   const lateInvoices = db.prepare(
-    `select p.organization_id, c.name, i.number, i.due_on, i.total_minor, i.currency from invoice i
-       join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id
+    `select i.organization_id, c.name, i.number, i.due_on, i.total_minor, i.currency from invoice i
+       join client_organization c on c.id = i.organization_id
       where i.status = 'sent' and i.due_on is not null and i.due_on <= ? and c.demo = 0 order by i.due_on`,
   );
   const asked = db.prepare(

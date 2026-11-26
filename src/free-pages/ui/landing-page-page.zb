@@ -25,7 +25,7 @@
   .fp-text { white-space: pre-wrap; }
   .fp-rounds form { margin: 0.4rem 0 0; }
 </style>
-<hq-landing-page view={{ organizationId: '', clientName: '', exists: false, subdomain: '', address: '', status: '', statusLabel: '', repo: '', approved: false, used: '', freeLeft: 0, rounds: [], canManage: false, downloadable: false, statuses: [] }} done="" problem="">
+<hq-landing-page view={{ organizationId: '', clientName: '', exists: false, subdomain: '', where: 'potomac', ownDomain: '', address: '', status: '', statusLabel: '', repo: '', approved: false, used: '', freeLeft: 0, rounds: [], canManage: false, downloadable: false, statuses: [] }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.clientName, href: '/clients/' + view.organizationId }, { label: 'Free landing page', href: '' }]}></breadcrumb-trail>
     <h1>Free landing page <status-badge zb-if={view.exists} variant={view.approved ? 'success' : 'neutral'}>{view.statusLabel}</status-badge></h1>
@@ -33,7 +33,7 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p class="hq-muted">One informational page at a name of the client’s own on potomac.solutions, free for good. Four rounds of changes are free, then the final approval. Anything after that is paid, at $50 an hour or a quote.</p>
+    <p class="hq-muted">One informational page, free for good, at a name of the client’s own on potomac.solutions, or on a domain of their own that they pay for. Four rounds of changes are free, then the final approval. Anything after that is paid, at $50 an hour or a quote.</p>
 
     <section zb-if={view.exists} class="hq-panel" aria-labelledby="fp-where">
       <h2 id="fp-where">{view.address || 'No address yet'}</h2>
@@ -46,7 +46,19 @@
     <section zb-if={view.canManage} class="hq-panel" aria-labelledby="fp-setup">
       <h2 id="fp-setup">{view.exists ? 'Change it' : 'Record a free landing page'}</h2>
       <form method="post" action="/clients/{view.organizationId}/landing-page" class="hq-form">
-        <text-field label="Address" name="subdomain" value={view.subdomain} maxlength={60} description="The name before .potomac.solutions, like moats-hardware. Leave empty until it’s chosen."></text-field>
+        <fieldset class="hq-form">
+          <legend>Where it lives</legend>
+          <label><input type="radio" name="where" value="potomac" checked={view.where === 'potomac'}> A name on potomac.solutions (free)</label>
+          <text-field label="Address on potomac.solutions" name="subdomain" value={view.subdomain} maxlength={60} description="The name before .potomac.solutions, like moats-hardware. Leave empty until it’s chosen."></text-field>
+          <label><input type="radio" name="where" value="own" checked={view.where === 'own'}> Their own domain, which they pay for</label>
+          <text-field label="Their domain" name="ownDomain" value={view.ownDomain} maxlength={253} placeholder="betterdaystowing.com"></text-field>
+          <p class="hq-small hq-muted">With their own domain, give when it renews and HQ adds it to their Renewals, yearly, ready to bill a week ahead. Leave the date empty if it’s already there.</p>
+          <div class="hq-form-row">
+            <text-field label="Domain renews on" name="renewsOn" type="date"></text-field>
+            <text-field label="Costs Potomac a year" name="cost" inputmode="decimal" placeholder="15.00"></text-field>
+            <text-field label="Billed a year" name="price" inputmode="decimal" placeholder="25.00" description="Its cost plus $10, as the price guide says."></text-field>
+          </div>
+        </fieldset>
         <div class="hq-field">
           <label for="fp-status">Where it stands</label>
           <select id="fp-status" name="status">

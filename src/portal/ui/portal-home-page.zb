@@ -180,7 +180,7 @@
         <zb-each items={view.invoices} as="invoice" key={invoice.id}>
           <li>
             <div>
-              <p><strong>{invoice.label}</strong> · {invoice.projectName}</p>
+              <p><strong>{invoice.label}</strong><span zb-if={invoice.projectName}> · {invoice.projectName}</span></p>
               <p zb-if={invoice.paid} class="hq-muted">{invoice.statusLabel}. {invoice.total}</p>
               <p zb-else>{invoice.owed} owed<span zb-if={invoice.owed !== invoice.total}> of {invoice.total}</span><span zb-if={invoice.due}>. {invoice.due}</span></p>
             </div>

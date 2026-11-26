@@ -21,10 +21,10 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -337,6 +337,31 @@
       <p zb-else class="hq-muted">No plan. For a client on social media marketing: their networks, and how many posts each month.</p>
       <p><a class="hq-button secondary" href="/clients/{view.client.id}/social">{social.plan ? 'Open the calendar' : social.canEdit ? 'Set up a plan' : 'Open'}</a></p>
     </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" id="invoices" aria-labelledby="client-invoices">
+      <h2 id="client-invoices">Invoices</h2>
+      <p zb-if={invoices.value.items.length === 0} class="hq-muted">None yet. Project invoices show here too.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={invoices.value.items} as="inv" key={inv.id}>
+          <li><a href="/invoices/{inv.id}">{inv.label}</a> · {inv.projectName || 'No project'} · {inv.total} · {inv.statusLabel} <status-badge zb-if={inv.overdue} variant="danger">Overdue</status-badge></li>
+        </zb-each>
+      </ul>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Bill a one-off charge, with no project</summary>
+        <p class="hq-small hq-muted">For a domain, a small fix or anything that isn’t a project. It starts as a draft: check it, then send it. A domain that renews belongs under Renewals, which bills it a week ahead.</p>
+        <form method="post" action="/clients/{view.client.id}/invoices" class="hq-form">
+          <div class="hq-field">
+            <label for="client-invoice-kind">What it is</label>
+            <select id="client-invoice-kind" name="kind">
+              <zb-each items={invoices.value.kinds} as="kind" key={kind.value}><option value={kind.value} selected={kind.value === 'other'}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="Description" name="description" required={true} maxlength={300} placeholder="Domain name betterdaystowing.com, one year"></text-field>
+          <text-field label="Amount, in dollars" name="amount" required={true} inputmode="decimal" placeholder="25.00"></text-field>
+          <text-field label="Due on (optional)" name="dueOn" type="date"></text-field>
+          <div><button class="hq-button" type="submit">Draft the invoice</button></div>
+        </form>
+      </details>
+    </section>
     <section zb-if={renewals} class="hq-panel" id="renewals" aria-labelledby="client-renewals">
       <h2 id="client-renewals">Renewals</h2>
       <p zb-if={renewals.items.length === 0} class="hq-muted">Domains, hosting, certificates and licenses this client depends on. Each shows on the dashboard 30 days before it renews.</p>
@@ -347,17 +372,17 @@
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
             <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
-            <form zb-if={one.canBill && renewals.projects.length > 0} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
+            <form zb-if={one.canBill} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
               <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
               <div class="hq-field">
                 <label for="bill-project-{one.id}">Invoice it on</label>
-                <select id="bill-project-{one.id}" name="projectId" required>
+                <select id="bill-project-{one.id}" name="projectId">
+                  <option value="" selected>The client, no project</option>
                   <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
                 </select>
               </div>
               <button class="hq-button" type="submit">Bill the client {one.price}<span class="sr-only"> for {one.name}</span></button>
             </form>
-            <p zb-if={one.canBill && renewals.projects.length === 0} class="hq-small hq-muted">To bill this, the client needs a project for the invoice to go on. An ongoing one for their plan works.</p>
             <div zb-if={renewals.canEdit} class="hq-form-row">
               <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>

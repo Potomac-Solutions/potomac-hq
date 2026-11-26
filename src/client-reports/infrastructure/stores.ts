@@ -54,7 +54,7 @@ export function sqliteFactsReader(db: Database): FactsReader {
   const changes = db.prepare("select c.title from change_request c join project p on p.id = c.project_id where p.organization_id = ? and c.status = 'approved' and c.decided_at >= ? and c.decided_at < ? order by c.decided_at");
   const milestonesComing = db.prepare("select m.name as what, m.due_on as on_day from milestone m join project p on p.id = m.project_id where p.organization_id = ? and p.status = 'active' and m.done_on is null and m.due_on >= ? and m.due_on <= ?");
   const renewals = db.prepare("select name || ' renews' as what, renews_on as on_day from renewal where organization_id = ? and active = 1 and renews_on >= ? and renews_on <= ?");
-  const invoices = db.prepare("select count(*) as n from invoice i join project p on p.id = i.project_id where p.organization_id = ? and i.status = 'sent'");
+  const invoices = db.prepare("select count(*) as n from invoice i where i.organization_id = ? and i.status = 'sent'");
   const approvals = db.prepare("select count(*) as n from deliverable d join project p on p.id = d.project_id where p.organization_id = ? and d.status = 'shared'");
   const n = (row: Record<string, unknown> | undefined) => Number(row?.["n"] ?? 0);
   return (organizationId, window): MonthFacts => {

@@ -51,7 +51,8 @@ export type PhaseEstimates = {
   forProject(projectId: Id): { readonly phaseId: Id | null; readonly minutes: number }[];
 };
 
-export type InvoiceRow = Invoice & { readonly projectName: string; readonly clientName: string; readonly organizationId: Id; readonly paidMinor: number };
+/** An invoice with its client's and project's names. `projectName` is "" for a charge on the client alone. */
+export type InvoiceRow = Invoice & { readonly projectName: string; readonly clientName: string; readonly paidMinor: number };
 
 export type InvoiceStore = {
   /** The number the next invoice takes: one more than the highest so far. */
@@ -61,6 +62,8 @@ export type InvoiceStore = {
   get(id: Id): InvoiceRow | null;
   /** A project's invoices, newest first. */
   listForProject(projectId: Id): InvoiceRow[];
+  /** Every invoice to a client, on a project or not, newest first. */
+  listForClient(organizationId: Id): InvoiceRow[];
   /** Every invoice, oldest first. */
   list(): InvoiceRow[];
   insertPayment(payment: Payment, at: string): void;
