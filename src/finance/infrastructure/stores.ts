@@ -478,3 +478,29 @@ export function sqliteBillingStore(db: Database): BillingStore {
       })),
   };
 }
+
+/** Late fees and calls about late invoices (migration 0086). */
+export function sqliteLateFeeStore(db: Database): import("../application/late-invoices.ts").LateFeeStore {
+  const setting = db.prepare("select kind, amount, after_days from late_fee_setting where id = 1");
+  const set = db.prepare(
+    `insert into late_fee_setting (id, kind, amount, after_days, updated_by, updated_at) values (1, ?, ?, ?, ?, ?)
+     on conflict (id) do update set kind = excluded.kind, amount = excluded.amount, after_days = excluded.after_days, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+  );
+  const charged = db.prepare("select 1 from invoice_late_fee where invoice_id = ?");
+  const isFee = db.prepare("select 1 from invoice_late_fee where fee_invoice_id = ?");
+  const record = db.prepare("insert into invoice_late_fee (invoice_id, fee_invoice_id, charged_on) values (?, ?, ?)");
+  const called = db.prepare("select 1 from invoice_late_call where invoice_id = ?");
+  const recordCall = db.prepare("insert into invoice_late_call (invoice_id, todo_id, made_at) values (?, ?, ?) on conflict do nothing");
+  return {
+    setting: () => {
+      const row = setting.get() as Row | undefined;
+      return row ? { kind: row["kind"] as "off" | "percent" | "flat", amount: row["amount"] as number, afterDays: row["after_days"] as number } : { kind: "off", amount: 0, afterDays: 30 };
+    },
+    set: (s, by, at) => void set.run(s.kind, s.amount, s.afterDays, by, at),
+    charged: (id) => charged.get(id) !== undefined,
+    isFee: (id) => isFee.get(id) !== undefined,
+    record: (id, fee, on) => void record.run(id, fee, on),
+    called: (id) => called.get(id) !== undefined,
+    recordCall: (id, todo, at) => void recordCall.run(id, todo, at),
+  };
+}

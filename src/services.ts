@@ -6,8 +6,8 @@ import { sqliteCallGuideStore, sqliteCallScreenStore, sqliteClientFacts, sqliteC
 import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteLateFeeStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type LateDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
@@ -137,7 +137,7 @@ export type Services = {
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
   readonly booking: BookingDeps;
-  readonly invoiceReminders: RemindersDeps;
+  readonly invoiceReminders: LateDeps;
   readonly renewals: RenewalsDeps;
   /** Social media plans and posts (decision 0010). */
   readonly social: SocialDeps;
@@ -408,7 +408,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
     return clientEmails(organizationId);
   };
-  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails };
+  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db), makeTodo: (input) => taskFromClient(projects, input) };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),

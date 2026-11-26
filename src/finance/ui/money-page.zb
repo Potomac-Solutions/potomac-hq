@@ -7,16 +7,17 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
     const recurring = context.money.recurring()
-    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), lateFee: context.money.lateFee(), lateWords: context.money.lateFee().words.toLowerCase(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} pay={null} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} late-fee={{ words: 'Off', kind: 'off', amount: '', afterDays: 30, canEdit: false }} late-words="off" pay={null} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -59,6 +60,22 @@
       <form zb-if={reminders.canEdit} method="post" action="/money/reminders">
         <input type="hidden" name="on" value={reminders.on ? '0' : '1'}>
         <button class="hq-button secondary" type="submit">{reminders.on ? 'Turn reminders off' : 'Turn reminders on'}</button>
+      </form>
+    </section>
+    <section class="hq-panel" id="late-fees" aria-labelledby="money-late-fees">
+      <h2 id="money-late-fees">Late fees: {lateWords}</h2>
+      <p>When set, an invoice that reaches the day gets one late fee, as its own invoice in the client’s portal, due two weeks later. Never on a late fee, never twice. At two weeks late, whoever made the invoice also gets a to-do to call the client, fee or not.</p>
+      <p class="hq-muted">Only charge a late fee your agreement with the client mentions, and check what your state allows.</p>
+      <form zb-if={lateFee.canEdit} method="post" action="/money/late-fee" class="hq-form" data-spaced>
+        <fieldset class="hq-radios">
+          <legend>Late fee</legend>
+          <label><input type="radio" name="kind" value="off" checked={lateFee.kind === 'off'}> None</label>
+          <label><input type="radio" name="kind" value="percent" checked={lateFee.kind === 'percent'}> A percent of what’s still owed</label>
+          <label><input type="radio" name="kind" value="flat" checked={lateFee.kind === 'flat'}> A flat amount</label>
+        </fieldset>
+        <text-field label="How much" name="amount" value={lateFee.amount} inputmode="decimal" description="A percent like 1.5, or dollars like 25."></text-field>
+        <text-field label="After this many days late" name="afterDays" value={String(lateFee.afterDays)} inputmode="numeric"></text-field>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
       </form>
     </section>
     <section class="hq-panel" aria-labelledby="money-projects">

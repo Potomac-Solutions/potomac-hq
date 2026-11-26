@@ -27,7 +27,7 @@ import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { approveQuietPosts } from "../src/social/index.ts";
-import { runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
+import { runLateInvoices, runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
 import { sendNotices, type Mail } from "../src/portal/index.ts";
@@ -240,6 +240,15 @@ if (email) {
 } else {
   console.log("Notices are off: email is not set up.");
 }
+
+// Late invoices (2026-11-26): a late fee if one is set, and a to-do to call at two weeks late. Every morning at 08:52, email or not.
+const stopLateInvoices = scheduleDaily(
+  async () => {
+    const result = runLateInvoices(createServices(db).invoiceReminders);
+    if (result.fees + result.calls > 0) console.log(`Late invoices: ${result.fees} late fees charged, ${result.calls} calls asked for.`);
+  },
+  { zone: BUSINESS_TIME_ZONE, hour: 8, minute: 52, clock: systemClock, log, name: "late invoices" },
+);
 
 // Invoice reminders to clients, when turned on: every morning at 09:07.
 const stopInvoiceReminders = email
@@ -540,6 +549,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(automationTimer);
     clearInterval(creditTimer);
     stopInvoiceReminders?.();
+    stopLateInvoices();
     if (receiptTimer) clearInterval(receiptTimer);
     stopMorning?.();
     stopNotices?.();

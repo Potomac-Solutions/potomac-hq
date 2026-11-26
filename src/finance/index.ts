@@ -10,5 +10,6 @@ export * from "./application/commands.ts";
 export * from "./application/queries.ts";
 export * from "./application/reminders.ts";
 export * from "./application/change-requests.ts";
+export * from "./application/late-invoices.ts";
 export { CHANGE_STATUS_LABELS, type ChangeRequest, type ChangeStatus } from "./domain/change-request.ts";
 export type { ChangeRequestStore } from "./application/ports.ts";

@@ -4,12 +4,13 @@ import * as finance from "../application/commands.ts";
 import { exportFinance, invoiceDocument, type InvoiceDocument } from "../application/queries.ts";
 import * as reminders from "../application/reminders.ts";
 import * as changes from "../application/change-requests.ts";
+import { setLateFee, type LateDeps } from "../application/late-invoices.ts";
 import { formPosts, parseId, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type FinanceRoutesDeps = {
   readonly finance: finance.FinanceDeps;
-  readonly reminders?: reminders.RemindersDeps;
+  readonly reminders?: LateDeps;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
 };
@@ -91,6 +92,11 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
   });
   if (deps.reminders) {
     const remindersDeps = deps.reminders;
+    post("/money/late-fee", (actor, f) => setLateFee(remindersDeps, actor, { kind: f["kind"] ?? "", amount: f["amount"] ?? null, afterDays: f["afterDays"] ?? null }), {
+      done: () => "/money#late-fees",
+      back: () => "/money#late-fees",
+      message: (setting) => (setting.kind === "off" ? "Late fees are off." : "Saved. HQ charges it each morning on invoices that reach the day."),
+    });
     post("/money/reminders", (actor, f) => reminders.setInvoiceReminders(remindersDeps, actor, f["on"] === "1"), {
       done: (made) => "/money#reminders",
       back: () => "/money#reminders",

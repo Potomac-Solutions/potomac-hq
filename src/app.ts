@@ -32,7 +32,7 @@ import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, startCard
 import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { recordCardPayment, sendDepositOnAcceptance, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { recordCardPayment, sendDepositOnAcceptance, lateFeeView, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -348,6 +348,8 @@ export type PageContext = {
   readonly money: {
     /** Whether clients are emailed about invoices coming due and overdue, and whether this person may change it. */
     reminders(): { readonly on: boolean; readonly canEdit: boolean; readonly email: boolean };
+    /** The late fee, if one is set (2026-11-26). */
+    lateFee(): ReturnType<typeof lateFeeView>;
     invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
     recurring(): ReturnType<typeof recurringOverview>;
     profit(year: string | null): ReturnType<typeof profitAndLoss>;
@@ -1080,6 +1082,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         money: {
           reminders: () => ({ on: services.invoiceReminders.reminders.on(), canEdit: actor !== null && authorize(sessionDeps, actor, "finance.edit").ok, email: Boolean(config.email) }),
+          lateFee: () => lateFeeView(services.invoiceReminders, actor),
           invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
           recurring: () => recurringOverview(financeDeps, actor),
           profit: (year) => profitAndLoss(financeDeps, actor, year),
