@@ -529,6 +529,7 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
   straight from the email when work is shared with them.
 - **Saved replies** under Clients: write it once, then *Use a saved reply*
   beside a message to a client.
+- Changed several tasks at once by mistake? **Undo** puts each one back.
 - Adding a client that's already here? HQ asks first. A duplicate can be
   merged from *Is this a duplicate?* on its page (managers and admins).
 - Booked calls show in your calendar feed at their times.

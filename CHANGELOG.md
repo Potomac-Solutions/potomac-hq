@@ -123,6 +123,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
     arrive.
   - **Keyboard**: the command bar keeps focus inside, closes on Escape and
     puts focus back.
+  - **A user-experience pass** (`docs/reviews/2026-11-25-ux-pass.md`): the
+    Undo bar clears the phone's tab bar; merging moves notes, asks first
+    and links the one merged away; saved replies fill in the client and
+    contact; Enter in the command bar never moves a deal; a batch on All
+    work and an assistant card can be undone like any change.
 
 ## [0.17.0] - 2026-11-25
 
