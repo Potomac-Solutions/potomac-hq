@@ -9,6 +9,8 @@ export type RenewalStore = {
   listActive(): Renewal[];
   /** A client's active ones, soonest first. */
   listFor(organizationId: Id): Renewal[];
+  /** Records the client's answer for a term. */
+  answer(id: Id, answer: NonNullable<Renewal["answer"]>, at: string): void;
 };
 
 /** A client's name, from the CRM. */

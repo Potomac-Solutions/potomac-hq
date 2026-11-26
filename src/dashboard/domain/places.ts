@@ -71,7 +71,8 @@ export const PLACES: readonly Place[] = [
   { key: "landing-pages", label: "Landing pages", hub: "sites", href: "/landing-pages", words: ["free page", "free landing page", "rounds"], what: "Free landing pages and their rounds of changes" },
   { key: "automations", label: "Automations", hub: "sites", href: "/automations", words: ["n8n", "workflows", "zaps"], what: "n8n automations run for clients" },
 
-  { key: "money", label: "Money", hub: "money", href: "/money", also: ["/invoices"], gate: "perm:finance.view", words: ["invoices", "payments", "billing", "expenses", "recurring", "deposit"], what: "Invoices, payments and expenses" },
+  { key: "money", label: "Money", hub: "money", href: "/money", gate: "perm:finance.view", words: ["invoices", "payments", "billing", "expenses", "recurring", "deposit"], what: "Invoices, payments and expenses" },
+  { key: "invoices", label: "Invoices", hub: "money", href: "/money/invoices", also: ["/invoices"], gate: "perm:invoice.view", words: ["invoices", "bills", "owed", "overdue", "drafts", "who owes", "unpaid"], what: "Every invoice by where it stands: owed, overdue, drafts" },
   { key: "profit", label: "Profit and loss", hub: "money", href: "/money/profit", hidden: true, gate: "perm:finance.view", words: ["p&l", "profit", "loss", "taxes", "income"], what: "Profit and loss by month" },
   { key: "renewals", label: "Renewals", hub: "sites", href: "/renewals", words: ["domains", "hosting", "renew", "expiring"], what: "Domains and plans coming up for renewal" },
   { key: "reports", label: "Reports", hub: "money", href: "/reports", gate: "perm:report.view", words: ["budget", "health", "estimate vs actual", "analytics"], what: "Pipeline, project health and budget reports" },

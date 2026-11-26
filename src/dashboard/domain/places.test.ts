@@ -25,7 +25,7 @@ test("the hub of the page you're on is open, with its page current; others are f
   const hubs = navHubs(PLACES, "/invoices/1");
   const money = hubs.find((hub) => hub.key === "money");
   assert.equal(money?.open, true);
-  assert.equal(money?.links.find((link) => link.current)?.href, "/money");
+  assert.equal(money?.links.find((link) => link.current)?.href, "/money/invoices");
   assert.equal(hubs.filter((hub) => hub.open).length, 1);
 });
 
@@ -61,7 +61,9 @@ test("pages are found by the words people use", () => {
   assert.equal(matchPlaces(PLACES, "where do I set my hours")[0]?.key, "hours");
   assert.equal(matchPlaces(PLACES, "booking links")[0]?.key, "calls");
   assert.equal(matchPlaces(PLACES, "dark mode")[0]?.key, "settings");
-  assert.equal(matchPlaces(PLACES, "Invoices")[0]?.key, "money");
+  // The Invoices page is the one for them; Money still comes up.
+  assert.equal(matchPlaces(PLACES, "Invoices")[0]?.key, "invoices");
+  assert.ok(matchPlaces(PLACES, "Invoices").some((place) => place.key === "money"));
   assert.equal(matchPlaces(PLACES, "n8n")[0]?.key, "automations");
   assert.equal(matchPlaces(PLACES, "newsletter")[0]?.key, "newsletter");
   assert.deepEqual(matchPlaces(PLACES, "where is the"), []);

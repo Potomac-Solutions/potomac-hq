@@ -250,6 +250,12 @@ still to write, what's with the client, and what's due to go up.
   ahead. Press "Renewed" when it is done, and its date moves on. "Bill the
   client" sends its invoice, due a week before it renews, on the client
   alone (the default) or on one of their projects.
+- **Billing renewals in time.** Today says "Bill <renewal>" from 30 days
+  before it renews, with the button on the client's page. The client can
+  answer in their portal, "Renew it" or "Let it lapse"; their answer shows
+  on the client's page and on Today.
+- **Money → Invoices** lists every invoice, filtered by where it stands, and
+  who owes what.
 - **A free landing page on their own domain.** Under the client's free
   landing page, choose "Their own domain" instead of a name on
   potomac.solutions. Give when the domain renews, what it costs and what
