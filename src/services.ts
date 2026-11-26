@@ -73,10 +73,12 @@ import type { PushDeps } from "./push/index.ts";
 import type { RepliesDeps } from "./replies/index.ts";
 import { sqliteReplyStore } from "./replies/adapters.ts";
 import type { RequestsDeps } from "./requests/index.ts";
+import type { IntakeDeps } from "./intake/index.ts";
+import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
 import { sqliteRequestLookups, sqliteRequestStore as sqliteClientRequestStore } from "./requests/adapters.ts";
 import { isQuiet } from "./notices/index.ts";
 import { followUpsDue } from "./crm/index.ts";
-import { staffWaiting } from "./portal/index.ts";
+import { sendFile as sendPortalFile, staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
 import { quickAdd, quickAddPreview } from "./projects/index.ts";
 import { createClient, createOpportunity, setOpportunityFollowUp } from "./crm/index.ts";
@@ -198,6 +200,8 @@ export type Services = {
   readonly replies: RepliesDeps;
   /** Client requests from the portal (2026-11-26). */
   readonly requests: RequestsDeps;
+  /** The new-client intake (2026-11-26). */
+  readonly intake: IntakeDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -904,6 +908,17 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ...sqliteRequestLookups(db),
     makeTask: (input) => taskFromClient(projects, input),
   };
+  const intake: IntakeDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    intakes: sqliteIntakeStore(db),
+    ...sqliteIntakeLookups(db),
+    saveUpload: (session, projectId, upload) => sendPortalFile(portal, session, projectId, upload),
+  };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
     users,
@@ -950,5 +965,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

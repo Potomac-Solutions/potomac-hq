@@ -17,6 +17,8 @@ import { findRoutes, navRoutes, type FindMove } from "./dashboard/api/nav-routes
 import { pushRoutes } from "./push/api/push-routes.ts";
 import { replyRoutes } from "./replies/api/reply-routes.ts";
 import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-routes.ts";
+import { intakeRoutes } from "./intake/api/intake-routes.ts";
+import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
@@ -379,6 +381,11 @@ export type PageContext = {
     waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
   };
+  /** The new-client intake (2026-11-26). */
+  readonly intake: {
+    portal(): IntakeForm;
+    forClient(clientId: string): IntakeSummary | null;
+  };
   /** Client requests (2026-11-26). */
   readonly requests: {
     /** The signed-in client's requests and the projects they may ask about. */
@@ -640,7 +647,7 @@ function withId<T>(text: string, read: (id: Id) => Result<T, "forbidden" | "not-
 const MAX_FORM_BYTES = 16 * 1024;
 // Forms that carry a file. Only these addresses accept one, and each has its
 // own size limit: the file, plus room for the form's other fields.
-const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files)$/;
+const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files|portal\/intake)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
@@ -865,6 +872,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           fromClients: () => clientActivity(portalDeps, actor),
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
+        },
+        intake: {
+          portal: () => (client ? portalIntake(services.intake, client) : { answers: null, sent: "", filesGoTo: "", access: [] }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientIntake(services.intake, actor, parsed.value) : null;
+          },
         },
         requests: {
           portal: () => (client ? portalRequests(services.requests, client) : { items: [], projects: [] }),
@@ -1466,6 +1480,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  forms.route("/", intakeRoutes({ intake: services.intake, clientOf, sign: signNotice }));
   forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
   forms.route("/", staffRequestRoutes({ requests: services.requests, actorOf, sign: signNotice }));
   forms.route("/", cardPayRoutes({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));

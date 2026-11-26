@@ -22,10 +22,10 @@
     const referrals = context.referralCredit.mine()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -128,6 +128,14 @@
       </ol>
     </section>
 
+    <section class="hq-panel" id="intake" aria-labelledby="portal-intake">
+      <h2 id="portal-intake">About your business</h2>
+      <p zb-if={intakeSent}>You told us about your business {intakeSent}. <a href="/portal/intake">See or change it</a>.</p>
+      <div zb-else>
+        <p>Your name, hours, colors, logo and the accounts we’ll need, in one place, so we don’t have to ask over a week of emails.</p>
+        <p><a class="hq-button portal-big" href="/portal/intake">Tell us about your business</a></p>
+      </div>
+    </section>
     <section class="hq-panel" id="ask" aria-labelledby="portal-ask">
       <h2 id="portal-ask">Need something changed?</h2>
       <p>Ask for a change, a fix or something new, and follow it until it’s done.<span zb-if={openAsks > 0}> You have {openAsks} open.</span></p>

@@ -228,6 +228,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "payment.recorded": "recorded a payment",
   "payment.paid-by-card": "A client paid an invoice by card",
   "payment.refunded": "gave money back on an invoice",
+  "intake.received": "A client told us about their business",
+  "intake.changed": "A client changed what they told us about their business",
   "request.received": "A client asked for something in their portal",
   "request.declined": "said a client's request isn't going ahead",
   "task.added-from-request": "A client's request became a task",
