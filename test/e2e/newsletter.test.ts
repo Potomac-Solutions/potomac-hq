@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -40,7 +40,7 @@ test("sign up and confirm on a phone, then write and send an issue", async () =>
   const page = await (await browser.newContext()).newPage();
   const problems = watch(page);
   await setUpAdmin(t, page);
-  await page.getByRole("link", { name: "Newsletter" }).click();
+  await sidebar(page, "Newsletter");
   await page.getByRole("heading", { name: "Notes from the river" }).waitFor();
   assert.match(await text(page), /rita@example\.com\s*Rita\s*Lakes and outdoors/);
   await page.getByLabel("Subject").fill("Winter on the river");
@@ -56,7 +56,7 @@ test("sign up and confirm on a phone, then write and send an issue", async () =>
   await page.getByRole("button", { name: "Send to 1 reader" }).click();
   await page.getByText("Sending to 1 reader.").waitFor();
   await assertAccessible(page, "newsletter issue, going out");
-  await page.getByRole("link", { name: "Newsletter" }).first().click();
+  await sidebar(page, "Newsletter");
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await page.reload();

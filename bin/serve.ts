@@ -130,6 +130,7 @@ console.log(aiModel ? "AI drafts: Claude is available. Features are turned on in
 
 const app = await createApp({
   db,
+  backups: backupConfigFrom(process.env) !== null,
   ai: aiModel,
   claude: claudeConfig ? claudeApi(claudeConfig) : null,
   builderOwner,

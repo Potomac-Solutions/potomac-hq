@@ -14,6 +14,8 @@ export const EXPIRED_SIGN_IN_DAYS = 30;
 export const UNUSED_INVITE_DAYS = 30;
 /** Days a refused attempt is kept. */
 export const REFUSED_ATTEMPT_DAYS = 90;
+/** How long the assistant keeps a conversation and its settled cards (decision 0015). */
+export const ASSISTANT_DAYS = 90;
 /** Days an AI receipt draft nobody used keeps its picture (decision 0012; Mikey, 2026-11-25). */
 export const UNUSED_RECEIPT_DAYS = 30;
 
@@ -38,7 +40,13 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   // An AI receipt draft nobody used or discarded: discarded by HQ, and its picture let go.
   const receipts = deps.db.prepare("update ai_draft set status = 'discarded', decided_at = ?, attachment = null, attachment_name = null where feature = 'receipt' and status = 'waiting' and created_at < ?");
   const receiptCutoff = now.subtract({ hours: 24 * UNUSED_RECEIPT_DAYS }).toString();
+  // The assistant's conversations and its settled cards: 90 days (decision 0015).
+  const chats = deps.db.prepare("delete from assistant_message where at < ?");
+  const cards = deps.db.prepare("delete from assistant_action where created_at < ? and status <> 'waiting'");
+  const chatCutoff = now.subtract({ hours: 24 * ASSISTANT_DAYS }).toString();
   return deps.transact(() => {
+    chats.run(chatCutoff);
+    cards.run(chatCutoff);
     const result = {
       sessions: Number(expired.run("staff-sessions", "portal:staff-sessions", signInCutoff).changes),
       links: Number(expired.run("staff-tokens", "portal:staff-tokens", signInCutoff).changes),

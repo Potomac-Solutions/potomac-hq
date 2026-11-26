@@ -129,7 +129,7 @@ test("every page has a title, and no component is rendered inside itself", async
   assert.match(signedOut, /<title>Sign in<\/title>/);
   const b = await setUpOwner();
   const pages: [string, RegExp][] = [
-    ["/", /<title>Dashboard<\/title>/],
+    ["/", /<title>Home<\/title>/],
     ["/nothing-here", /<title>Page not found<\/title>/],
   ];
   for (const [path, title] of pages) {

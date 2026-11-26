@@ -73,8 +73,10 @@ test("prospect to project, through the pages", async () => {
   await page.waitForURL((url) => url.pathname === "/");
   await page.getByRole("heading", { name: "Follow-ups due" }).waitFor();
 
-  // Clients, from the shell's navigation.
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Clients" }).click();
+  // Clients, from the shell's navigation: open the Clients hub, then its page.
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await nav.locator("summary", { hasText: "Clients" }).click();
+  await nav.getByRole("link", { name: "Clients", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/clients");
   assert.match(await text(page), /No clients yet/);
   await assertAccessible(page, "the clients page");
@@ -117,7 +119,7 @@ test("prospect to project, through the pages", async () => {
   await page.getByRole("button", { name: "Save follow-up" }).click();
   await page.waitForURL((url) => url.searchParams.has("done"));
   assert.match(await text(page, "section[aria-labelledby=opportunity-details]"), /Due/);
-  await page.getByRole("link", { name: "Dashboard" }).click();
+  await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/");
   assert.match(await text(page, "section[aria-labelledby=follow-ups-due]"), /Bakery website · Mt\. Storm Bakery/);
   await assertAccessible(page, "the dashboard with a follow-up due");

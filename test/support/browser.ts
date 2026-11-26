@@ -36,3 +36,15 @@ export async function setUpAdmin(t: TestApp, page: Page, name = "Mikey Nichols",
   await page.getByRole("button", { name: "Make my account" }).click();
   await page.waitForURL((url) => url.pathname === "/");
 }
+
+/**
+ * Opens a page from the sidebar (decision 0015): the hub it's in is opened
+ * first when it's folded, as a person would.
+ */
+export async function sidebar(page: Page, name: string): Promise<void> {
+  const nav = page.getByRole("navigation", { name: "Main" });
+  const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  const link = nav.locator("a").filter({ hasText: exact }).first();
+  if (!(await link.isVisible())) await link.locator("xpath=ancestor::details[1]/summary").click();
+  await link.click();
+}

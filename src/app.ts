@@ -11,11 +11,12 @@ import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
 import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, recentActivity, search } from "./dashboard/index.ts";
+import { auditHistory, navHubs, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
+import { sqliteSetupCounts } from "./dashboard/adapters.ts";
 import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
@@ -90,6 +91,8 @@ import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./
 import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
+import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
+import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
@@ -150,6 +153,8 @@ export type AppConfig = {
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set (decision 0012). Without it, AI is off. */
   readonly ai?: AiModel | null;
+  /** Whether nightly backups are configured (HQ_BACKUP_*), for Get HQ ready. */
+  readonly backups?: boolean;
 };
 
 /** What a page sees of AI (decision 0012). Each part is null when there's nothing, or this person may not see it. */
@@ -514,12 +519,18 @@ export type PageContext = {
   };
   readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
   readonly search: (q: string) => ReturnType<typeof search>;
+  /** The sidebar's hubs for this person and address (decision 0015). `search` is the address's `?…`, for pinned filters. */
+  nav(path: string, search: string): readonly NavHub[];
+  /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
+  setup(): Setup | null;
   readonly knowledge: {
     list(query: Record<string, string>): ReturnType<typeof listArticles>;
     article(slug: string): ReturnType<typeof articleDetail>;
     revision(slug: string, number: string): ReturnType<typeof articleRevision>;
   };
   readonly ai: AiPageContext;
+  /** The assistant on Home (decision 0015): the conversation, its cards, and whether it's on. */
+  assistant(): ChatView;
   readonly settings: {
     readonly theme: Theme;
     readonly themes: readonly { value: string; label: string }[];
@@ -674,6 +685,9 @@ export async function createApp(config: AppConfig): Promise<App> {
     },
     marketing: () => marketingQueue(aiDeps, actor),
   });
+
+  const setupCounts = sqliteSetupCounts(db);
+  const placesFor = services.placesFor;
 
   const handleStaff = staffRoutes({
     refused: (draft) => recordRefusal(refusedDeps, draft),
@@ -1087,13 +1101,37 @@ export async function createApp(config: AppConfig): Promise<App> {
           list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
           twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
         },
-        search: (q) => search(services.search, actor, q),
+        search: (q) => search(services.search, actor, q, placesFor(actor)),
+        setup: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
+          const counts = setupCounts();
+          return setupChecklist({
+            ...counts,
+            backupsConfigured: config.backups === true,
+            now: services.session.clock(),
+            emailReady: Boolean(config.email),
+            contact,
+            twoFactorOn: twoFactorDeps.twoFactor.get(actor)?.confirmed === true,
+            aiKeySet: Boolean(config.ai),
+            aiFeaturesOn: aiDeps.ai.settings().features.length,
+          });
+        },
+        nav: (path, query) => {
+          const pinned = actor ? pinnedFilters(projectsDeps, actor) : [];
+          // All work with a filter in the address: a pinned filter's link, or no link at all.
+          const filtered = path === "/work" && query !== "";
+          const atPin = filtered ? (pinned.find((pin) => pin.href === "/work" + query)?.href ?? "#none") : null;
+          const hubs = navHubs(placesFor(actor), path, { extra: { work: pinned.map((pin) => ({ label: pin.name, href: pin.href, current: false })) }, currentHref: atPin });
+          const drafts = actor ? aiContext(actor).draftCount() : 0;
+          return drafts === 0 ? hubs : hubs.map((hub) => ({ ...hub, links: hub.links.map((link) => (link.href === "/drafts" ? { ...link, label: `AI drafts (${drafts})` } : link)) }));
+        },
         knowledge: {
           list: (query) => listArticles(services.knowledge, actor, query),
           article: (slug) => articleDetail(services.knowledge, actor, slug),
           revision: (slug, number) => articleRevision(services.knowledge, actor, slug, /^\d{1,6}$/.test(number) ? Number(number) : Number.NaN),
         },
         ai: aiContext(actor),
+        assistant: () => chatView(services.assistant, actor),
         settings: { theme: actor ? users.themeOf(actor) : "system", themes, morningEmail: { on: actor ? users.morningEmailOf(actor) : false, emailSetUp: Boolean(config.email), address: user?.email ?? "" }, twoFactor: { ...twoFactorView(setupActor), required: enrolling }, remindTwoFactor: shouldTurnOnTwoFactor(twoFactorDeps, actor) },
       };
     },
@@ -1361,6 +1399,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const recapMail = email ? async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message })) : null;
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: signNotice }));
   forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: signNotice }));
+  forms.route("/", assistantRoutes({ assistant: services.assistant, actorOf, sign: signNotice }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: signNotice }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
