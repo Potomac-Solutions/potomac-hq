@@ -25,7 +25,12 @@ const input = (f: FormFields) => ({ name: f["name"] ?? "", url: f["url"] ?? "", 
 export function demoRoutes(deps: { readonly demos: DemosDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string; readonly publicUrl: string; readonly mail: ((message: { readonly to: string; readonly subject: string; readonly body: string }) => Promise<boolean>) | null }): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/demos" });
-  post("/demos", (actor, f) => addDemo(deps.demos, actor, input(f)), { done: () => "/demos", back: () => "/demos#add", message: "Added." });
+  post("/demos", (actor, f) => addDemo(deps.demos, actor, input(f)), {
+    done: () => "/demos",
+    back: () => "/demos#add",
+    message: "Added.",
+    undo: (demo) => ({ label: `Demo added: ${demo.name}`, action: `/demos/${demo.id}/remove`, fields: {} }),
+  });
   post("/demos/:id", (actor, f, id) => editDemo(deps.demos, actor, id as Id, { ...input(f), active: f["active"] === "1" }), { done: () => "/demos", back: () => "/demos", message: "Saved." });
   post("/demos/:id/remove", (actor, _f, id) => removeDemo(deps.demos, actor, id as Id), { done: () => "/demos", back: () => "/demos", message: "Removed." });
   post(

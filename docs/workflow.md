@@ -44,7 +44,10 @@ then each portal step runs by hand and Potomac enters the result into HQ
 `new` → `consult-booked` → `consulted` → `quoted` → `won` or `lost`
 
 A free landing page skips `quoted`. An opportunity can move to `lost` from any
-stage.
+stage. A person can move one back to any earlier stage, put it back where it
+was (Undo), or reopen a won or lost one at an open stage; a won deal that is
+already a project stays won (decision 0014). Automatic moves, from booking,
+proposals and import, only ever go forward one stage.
 
 ## The steps
 

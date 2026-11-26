@@ -1,41 +1,178 @@
 <!--
-  Tasks in columns by status. A card is dragged to another column to move it.
+  Tasks in columns by status. A card is dragged by its grip to another column
+  to move it; while it's dragged the other columns are outlined as places to
+  drop it. Undo puts it back (decision 0014).
   The same move works without a mouse, and with JavaScript off, through the
   small form on each card. `board` is what `context.projects.board` returns.
 -->
 <script>
   import '../../shared/ui/zubra/status-badge.zb'
   import './label-chips.zb'
+  // Three ways to move a card (decision 0014): drag it with a mouse, drag its
+  // grip with a finger, or focus it and press Space, the arrow keys and Space
+  // again. Each one sets the card's own menu and sends its form.
   let over = ''
-  let dragged = ''
+  let dragging = ''
+  let from = ''
+  let held = ''
+  let touching = ''
+  let said = ''
+  let touch = null
+  const statusAt = (index) => board.columns[index]
+  const indexOf = (status) => board.columns.findIndex((column) => column.status === status)
 
-  function start(event, id) {
-    dragged = id
+  // The card goes to its new column at once, sliding there, while the server
+  // makes the move; the page that comes back has the final word.
+  function slide(card, list) {
+    if (!card || !list) return
+    const first = card.getBoundingClientRect()
+    list.prepend(card)
+    const last = card.getBoundingClientRect()
+    card.setAttribute('aria-busy', 'true')
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    card.animate([{ transform: 'translate(' + (first.left - last.left) + 'px, ' + (first.top - last.top) + 'px)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
+  }
+  function moveTo(id, status) {
+    const allowed = from !== '' && status && status !== from
+    end()
+    if (!allowed || !/^[0-9a-f-]{36}$/.test(id)) return false
+    const form = document.getElementById('move-' + id)
+    const select = form ? form.querySelector('select') : null
+    if (!select || select.dataset.now === status) return false
+    select.value = status
+    slide(form.closest('li'), document.querySelector('section.board-column[data-status="' + status + '"] .board-cards'))
+    form.requestSubmit()
+    return true
+  }
+  function end() {
+    dragging = ''
+    from = ''
+    over = ''
+    held = ''
+    touching = ''
+  }
+
+  // ── With a mouse ──
+  function start(event, id, status) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', id)
+    from = status
+    // Let the browser take its picture of the card before it fades.
+    requestAnimationFrame(() => { if (from) dragging = id })
+  }
+  function enter(event, status) {
+    if (!from || status === from) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    over = status
+  }
+  function leave(event, status) {
+    if (event.currentTarget.contains(event.relatedTarget)) return
+    if (over === status) over = ''
   }
   function drop(event, status) {
     event.preventDefault()
-    over = ''
-    const id = event.dataTransfer.getData('text/plain') || dragged
-    dragged = ''
-    if (!/^[0-9a-f-]{36}$/.test(id)) return
-    const form = event.currentTarget.getRootNode().querySelector('#move-' + id)
-    const select = form ? form.querySelector('select') : null
-    if (!select || select.dataset.now === status) return
-    select.value = status
-    form.requestSubmit()
+    moveTo(event.dataTransfer.getData('text/plain'), status)
+  }
+
+  // ── With the keyboard ──
+  function key(event, card, column) {
+    if (event.target !== event.currentTarget || !board.canMove) return
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault()
+      if (held !== card.id) {
+        held = card.id
+        dragging = card.id
+        from = column.status
+        over = ''
+        said = 'Picked up ' + card.title + ', in ' + column.label + '. Left and right arrows choose a column, Space drops it, Escape puts it back.'
+        return
+      }
+      const target = board.columns.find((one) => one.status === over)
+      if (!target) {
+        said = card.title + ' put back in ' + column.label + '.'
+        return end()
+      }
+      said = card.title + ' moved to ' + target.label + '.'
+      return void moveTo(card.id, target.status)
+    }
+    if (held !== card.id) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      said = card.title + ' put back in ' + column.label + '.'
+      return end()
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      const step = event.key === 'ArrowLeft' ? -1 : 1
+      let index = indexOf(over || from) + step
+      if (statusAt(index) && statusAt(index).status === from) index += step
+      const target = statusAt(index)
+      if (!target) return
+      over = target.status
+      said = 'Over ' + target.label + '.'
+    }
+  }
+
+  // ── With a finger, by the grip ──
+  function touchStart(event, id, status) {
+    if (event.pointerType === 'mouse' || !board.canMove) return
+    event.preventDefault()
+    const grip = event.currentTarget
+    try { grip.setPointerCapture(event.pointerId) } catch {}
+    touch = { card: grip.closest('li'), x: event.clientX, y: event.clientY, scroll: scrollY, id }
+    from = status
+    dragging = id
+    touching = id
+  }
+  function touchMove(event) {
+    if (!touch) return
+    const dx = event.clientX - touch.x
+    const dy = event.clientY - touch.y + (scrollY - touch.scroll)
+    touch.card.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) rotate(1.5deg)'
+    if (event.clientY < 70) scrollBy(0, -14)
+    else if (event.clientY > innerHeight - 70) scrollBy(0, 14)
+    const lane = [...touch.card.closest('.board').querySelectorAll('section.board-column')].find((section) => {
+      const box = section.getBoundingClientRect()
+      return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
+    })
+    over = lane && lane.dataset.status !== from ? lane.dataset.status : ''
+  }
+  function touchEnd(cancelled) {
+    if (!touch) return
+    touch.card.style.transform = ''
+    const id = touch.id
+    touch = null
+    if (cancelled || !over || !moveTo(id, over)) end()
   }
 </script>
 <style>
   :host { display: block; }
   .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); gap: 1rem; align-items: start; }
-  .board-column { display: grid; gap: 0.75rem; align-content: start; min-height: 8rem; padding: 0.75rem; background: var(--muted); border: 2px solid transparent; border-radius: var(--radius); }
-  .board-over { border-color: var(--ring); }
+  .board-column { display: grid; gap: 0.75rem; align-content: start; min-height: 8rem; padding: 0.75rem; background: var(--muted); border: 2px solid transparent; border-radius: var(--radius); transition: border-color 120ms, background-color 120ms; }
+  /* While a card is dragged, every other column is outlined as a place to drop it, and the one under it lights up. */
+  .board.board-dragging .board-column { border-style: dashed; border-color: color-mix(in srgb, var(--ring) 45%, transparent); }
+  .board.board-dragging .board-home { border-color: transparent; }
+  .board-column.board-over { border-style: solid; border-color: var(--ring); background: color-mix(in srgb, var(--ring) 12%, var(--muted)); }
+  .board-drop-hint { display: grid; place-items: center; min-height: 4rem; padding: 0.75rem; color: var(--muted-foreground); font-size: 0.85rem; font-weight: 600; border: 2px dashed color-mix(in srgb, var(--ring) 55%, transparent); border-radius: var(--radius); }
+  .board-over .board-drop-hint { color: var(--foreground); border-color: var(--ring); background: var(--card); }
   .board-column h2 { display: flex; justify-content: space-between; margin: 0; font-size: 1rem; }
   .board-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-  .board-card { display: grid; gap: 0.35rem; padding: 0.75rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); }
-  .board-card[draggable=true] { cursor: grab; }
+  .board-card { position: relative; display: grid; gap: 0.35rem; padding: 0.75rem; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); transition: transform 120ms, box-shadow 120ms, border-color 120ms, opacity 120ms; }
+  /* A card that can be dragged has a grip, lifts on hover and grabs. */
+  .board-card[draggable=true] { cursor: grab; padding-left: 1.5rem; }
+  .board-card[draggable=true]:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--ring) 60%, var(--border)); box-shadow: 0 8px 20px rgb(0 0 0 / 0.12); }
+  .board-card[draggable=true]:active { cursor: grabbing; }
+  .board-grip { width: 0.75rem; height: 1.15rem; color: var(--muted-foreground); opacity: 0.55; }
+  .board-card:hover .board-grip { opacity: 1; color: var(--ring); }
+  .board-card.board-card-dragging { opacity: 0.4; transform: none; box-shadow: none; border-style: dashed; border-color: var(--ring); }
+  /* Picked up with the keyboard or a finger: it stays solid and lifts. */
+  .board-card.board-card-held { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent), 0 12px 28px rgb(0 0 0 / 0.18); }
+  .board-card.board-card-lifted { z-index: 30; transition: none; opacity: 0.95; border-color: var(--ring); box-shadow: 0 18px 40px rgb(0 0 0 / 0.25); }
+  .board-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .board-card[aria-busy=true] { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent); }
+  .board-grip-handle { position: absolute; inset: 0 auto 0 0; width: 1.5rem; display: flex; justify-content: center; padding-top: 0.8rem; touch-action: none; cursor: grab; }
+  @media (prefers-reduced-motion: reduce) { .board-card, .board-column { transition: none; } .board-card[draggable=true]:hover { transform: none; } }
   .board-card p { margin: 0; }
   .board-meta { color: var(--muted-foreground); font-size: 0.85rem; }
   .board-move { display: flex; gap: 0.4rem; margin: 0.35rem 0 0; }
@@ -44,15 +181,19 @@
   .board-empty { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
 </style>
 <task-board board={{ columns: [], statuses: [], canMove: false, returnTo: "", project: null }}>
-  <div class="board">
+  <p zb-if={board.canMove} id="board-how" class="sr-only">Drag a card by its grip to another column. With the keyboard, press Space, then the arrow keys, then Space again.</p>
+  <p class="sr-only" aria-live="assertive">{said}</p>
+  <div class="board" class:board-dragging={dragging !== ''}>
     <zb-each items={board.columns} as="column" key={column.status}>
-      <section class="board-column" class:board-over={over === column.status} aria-labelledby="column-{column.status}" ondragover={(event) => { event.preventDefault(); over = column.status }} ondragleave={() => (over = '')} ondrop={(event) => drop(event, column.status)}>
+      <section class="board-column" data-status={column.status} class:board-over={over === column.status} class:board-home={dragging !== '' && from === column.status} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
         <h2 id="column-{column.status}"><span>{column.label}</span> <status-badge>{column.cards.length}</status-badge></h2>
-        <p zb-if={column.cards.length === 0} class="board-empty">Nothing here.</p>
+        <div zb-if={dragging !== '' && from !== column.status} class="board-drop-hint" aria-hidden="true">Drop to move here</div>
+        <p zb-if={column.cards.length === 0 && dragging === ''} class="board-empty">Nothing here.</p>
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
-            <li class="board-card" draggable={board.canMove ? "true" : "false"} ondragstart={(event) => start(event, card.id)}>
-              <p><a href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
+            <li class="board-card" data-vt="card-{card.id}" class:board-card-dragging={dragging === card.id && held === '' && touching === ''} class:board-card-held={held === card.id} class:board-card-lifted={touching === card.id} draggable={board.canMove ? "true" : "false"} tabindex={board.canMove ? "0" : null} aria-roledescription={board.canMove ? "movable card" : null} aria-describedby={board.canMove ? "board-how" : null} aria-label="{card.title}, {column.label}" ondragstart={(event) => start(event, card.id, card.status)} ondragend={() => end()} onkeydown={(event) => key(event, card, column)} onblur={(event) => { if (held === card.id && !event.currentTarget.contains(event.relatedTarget)) end() }}>
+              <span zb-if={board.canMove} class="board-grip-handle" aria-hidden="true" onpointerdown={(event) => touchStart(event, card.id, card.status)} onpointermove={touchMove} onpointerup={() => touchEnd(false)} onpointercancel={() => touchEnd(true)}><svg class="board-grip" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg></span>
+              <p><a draggable="false" href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
               <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={card.subtasks || card.waiting > 0} class="board-meta"><span zb-if={card.subtasks}>Subtasks {card.subtasks}</span><span zb-if={card.subtasks && card.waiting > 0}> · </span><span zb-if={card.waiting > 0}>Waiting on {card.waiting}</span></p>
               <p zb-if={card.repeats} class="board-meta">Repeats</p>

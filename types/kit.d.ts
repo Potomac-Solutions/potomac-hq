@@ -78,9 +78,11 @@ declare module "@potomac-solutions/kit/staff/pages" {
 declare module "@potomac-solutions/kit/notice" {
   export type Notices = {
     sign(location: string): string;
-    read(url: URL): { problem: string; done: string };
+    /** Each of `keys` ('' unless signed). The first two are always problem and done. */
+    read(url: URL): { problem: string; done: string } & Record<string, string>;
   };
-  export function createNotices(options: { secret: string | Uint8Array }): Notices;
+  /** `keys` are the query names signed and read, problem and done by default; `max` cuts each one (200). */
+  export function createNotices(options: { secret: string | Uint8Array; keys?: readonly string[]; param?: string; max?: number }): Notices;
 }
 
 declare module "@potomac-solutions/kit/notify" {

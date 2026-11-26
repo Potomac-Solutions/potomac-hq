@@ -72,7 +72,7 @@ export function applyBaseline(deps: Pick<ProjectsDeps, "baselines" | "activityLo
 
 const activeUser = (deps: ProjectsDeps, id: Id): boolean => deps.users.get(id)?.status === "active";
 
-export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, projectId: Id, edit: ProjectEdit): Result<Project, Refused | ProjectEditError> {
+export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, projectId: Id, edit: ProjectEdit): Result<Project & { readonly previous: Project }, Refused | ProjectEditError> {
   if (!allowed(deps, actorId, "project.edit")) return err("forbidden");
   return deps.transact(() => {
     const project = deps.projects.get(projectId);
@@ -87,11 +87,11 @@ export function editProjectDetails(deps: ProjectsDeps, actorId: Id | null, proje
       recordId: projectId,
       context: { name: edited.value.name, health: edited.value.health, startOn: edited.value.startOn, targetOn: edited.value.targetOn },
     });
-    return ok(edited.value);
+    return ok({ ...edited.value, previous: project });
   });
 }
 
-export function setProjectStatus(deps: ProjectsDeps, actorId: Id | null, projectId: Id, to: string): Result<Project, Refused | "invalid-status" | "unchanged" | "final" | "ongoing-never-completes"> {
+export function setProjectStatus(deps: ProjectsDeps, actorId: Id | null, projectId: Id, to: string): Result<Project & { readonly from: Project["status"]; readonly undoable: boolean }, Refused | "invalid-status" | "unchanged" | "final" | "ongoing-never-completes"> {
   if (!allowed(deps, actorId, "project.set-status")) return err("forbidden");
   return deps.transact(() => {
     const project = deps.projects.get(projectId);
@@ -100,7 +100,7 @@ export function setProjectStatus(deps: ProjectsDeps, actorId: Id | null, project
     if (!changed.ok) return changed;
     deps.projects.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "project.status-changed", recordType: "project", recordId: projectId, context: { from: project.status, to: changed.value.status } });
-    return ok(changed.value);
+    return ok({ ...changed.value, from: project.status, undoable: changeProjectStatus(changed.value, project.status).ok });
   });
 }
 
@@ -215,7 +215,7 @@ export function addTask(deps: ProjectsDeps, actorId: Id | null, projectId: Id, i
   });
 }
 
-export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, input: TaskInput): Result<Task, TaskChangeError> {
+export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, input: TaskInput): Result<Task & { readonly previous: Task }, TaskChangeError> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);
@@ -233,12 +233,25 @@ export function updateTask(deps: ProjectsDeps, actorId: Id | null, taskId: Id, i
       recordId: taskId,
       context: { projectId: task.projectId, title: edited.value.title, assigneeId: edited.value.assigneeId, assigneeWas: task.assigneeId, priority: edited.value.priority, dueOn: edited.value.dueOn },
     });
-    return ok(edited.value);
+    return ok({ ...edited.value, previous: task });
   });
 }
 
 /** Moves a task. Being blocked by another task never stops it; `waitingOn` names the unfinished ones, so the screen can warn. */
-export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: Id, to: string): Result<Task & { readonly waitingOn: readonly string[]; /** The next one, when finishing a repeating task made it. */ readonly next: Task | null; /** Its due date in words. */ readonly nextDue: string }, Refused | "invalid-status" | "unchanged"> {
+export function moveTaskStatus(
+  deps: ProjectsDeps,
+  actorId: Id | null,
+  taskId: Id,
+  to: string,
+): Result<
+  Task & {
+    readonly waitingOn: readonly string[];
+    /** The next one, when finishing a repeating task made it. */ readonly next: Task | null;
+    /** Its due date in words. */ readonly nextDue: string;
+    /** The status it had, for undo. */ readonly from: Task["status"];
+  },
+  Refused | "invalid-status" | "unchanged"
+> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);
@@ -251,7 +264,7 @@ export function moveTaskStatus(deps: ProjectsDeps, actorId: Id | null, taskId: I
     deps.onTaskMoved?.(actorId, moved.value, task.status);
     const waitingOn = deps.taskLinks.waitingOn(taskId).filter((row) => row.status !== "done").map((row) => row.title);
     const next = moved.value.status === "done" ? repeatAfterDone(deps, actorId, taskId) : null;
-    return ok({ ...moved.value, waitingOn, next, nextDue: next?.dueOn ? friendlyDay(next.dueOn, deps.today()) : "" });
+    return ok({ ...moved.value, waitingOn, next, nextDue: next?.dueOn ? friendlyDay(next.dueOn, deps.today()) : "", from: task.status });
   });
 }
 
