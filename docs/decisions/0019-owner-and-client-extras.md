@@ -19,8 +19,9 @@ for a change, tell us about their business, or say how a project went.
 1. **Refunds.** A payment on an invoice can be given back in part or in
    full: through the payment platform when it came by card, or recorded by
    hand when the money went back another way. A paid invoice goes back to
-   sent, unless the person says it's no longer owed, which writes it off
-   with the reason. Money reports, the payments export and the weekly email
+   sent only when the person says the payment didn't stand (a bounced
+   check, a dispute); otherwise, and by default, what was given back is no
+   longer owed and is written off with the reason. Money reports, the payments export and the weekly email
    count refunds. Uses `payment.record`. Table `payment_refund`.
 
 2. **Deposit at acceptance.** When a client accepts a proposal in the
@@ -44,7 +45,8 @@ for a change, tell us about their business, or say how a project went.
 
 6. **Late fees and a call.** Off until set on the Money page: a flat amount
    or a percent, after so many days late, once per invoice, as its own sent
-   invoice due in 14 days. Fourteen days late, a to-do to call the client,
+   invoice due in 14 days. A fee never reaches back: an invoice already past
+   its day when the fee was set (or changed) is left alone. Fourteen days late, a to-do to call the client,
    once. Daily at 08:52. Tables `late_fee_setting`, `invoice_late_fee`,
    `invoice_late_call`.
 
@@ -81,6 +83,9 @@ for a change, tell us about their business, or say how a project went.
     is the same charge at PayPal; a try with no clear answer is never
     repeated by itself, it becomes a to-do to check PayPal. Stopping, from
     the portal or the client page, removes the saved account at PayPal.
+    The client's portal says where each plan bill stands: to be paid
+    automatically (so not "waiting on you"), declined with the day of the
+    next try, or theirs to pay after three tries.
     Only plan invoices, never one-off ones. Only on PayPal for now: the
     other platforms of decision 0018 would each need their own saved-method
     calls. Tables `autopay`, `autopay_charge`.

@@ -73,7 +73,7 @@ import type { PushDeps } from "./push/index.ts";
 import type { RepliesDeps } from "./replies/index.ts";
 import { sqliteReplyStore } from "./replies/adapters.ts";
 import type { RequestsDeps } from "./requests/index.ts";
-import type { IntakeDeps } from "./intake/index.ts";
+import type { IntakeAnswers, IntakeDeps } from "./intake/index.ts";
 import type { FeedbackDeps } from "./feedback/index.ts";
 import type { HandoffDeps } from "./handoff/index.ts";
 import type { TextingDeps } from "./texting/index.ts";
@@ -424,7 +424,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
     return clientEmails(organizationId);
   };
-  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db), makeTodo: (input) => taskFromClient(projects, input) };
+  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db, BUSINESS_TIME_ZONE), makeTodo: (input) => taskFromClient(projects, input) };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
@@ -936,6 +936,10 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     newId,
     today,
     intakes: sqliteIntakeStore(db),
+    drafts: {
+      get: (clientUserId) => ((sqliteKitStore(db).get("intake-drafts", clientUserId) as { answers?: IntakeAnswers | null } | null)?.answers ?? null),
+      put: (clientUserId, answers) => void sqliteKitStore(db).write("intake-drafts", clientUserId, { answers }),
+    },
     ...sqliteIntakeLookups(db),
     saveUpload: (session, projectId, upload) => sendPortalFile(portal, session, projectId, upload),
   };

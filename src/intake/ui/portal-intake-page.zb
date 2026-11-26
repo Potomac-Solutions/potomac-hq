@@ -13,7 +13,7 @@
   }
   const a = form.answers || {}
 </script>
-<hq-portal-intake form={{ answers: null, sent: '', filesGoTo: '', access: [] }} done="" problem="">
+<hq-portal-intake form={{ answers: null, unsaved: false, sent: '', filesGoTo: '', access: [] }} done="" problem="">
   <div class="hq-page">
     <p><a href="/portal">Back to your portal</a></p>
     <h1>About your business</h1>
@@ -21,7 +21,8 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p zb-if={form.sent}>You sent this {form.sent}. Change anything and save again.</p>
+    <p zb-if={form.unsaved}><strong>Not saved yet.</strong> What you typed is below: fix what’s marked above, then send it.</p>
+    <p zb-else-if={form.sent}>You sent this {form.sent}. Change anything and save again.</p>
     <p zb-else>Everything we need to build your site, in one place. Only the name is needed now; fill in what you can, and come back for the rest.</p>
     <form method="post" action="/portal/intake" enctype="multipart/form-data" class="hq-form">
       <section class="hq-panel" aria-labelledby="in-basics">

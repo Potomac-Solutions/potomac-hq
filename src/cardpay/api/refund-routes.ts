@@ -16,13 +16,13 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "looks-like-a-card-number": "That looks like a card number. HQ never keeps one.",
   "date-in-future": "That day hasn’t happened yet.",
   "invalid-date": "Enter the day it was given back.",
-  "write-off-note-missing": "Say why they no longer owe it: it goes on the invoice.",
+  "write-off-note-missing": "Say why it’s being given back: it goes on the invoice.",
   "refund-not-through-platform": "This payment didn’t come through the payment platform, so HQ can’t refund it there. Give the money back yourself, then record it here.",
   "refund-failed": "The payment platform didn’t make the refund. Nothing was recorded. Try again, or refund it on the platform’s own site and record it here.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Nothing was changed.";
 
-const request = (form: FormFields): RefundRequest => ({ amount: form["amount"] ?? "", on: form["on"] ?? "", reason: form["reason"] ?? null, reference: form["reference"] ?? null, noLongerOwed: form["noLongerOwed"] === "on" });
+const request = (form: FormFields): RefundRequest => ({ amount: form["amount"] ?? "", on: form["on"] ?? "", reason: form["reason"] ?? null, reference: form["reference"] ?? null, noLongerOwed: form["owed"] ? form["owed"] !== "again" : form["noLongerOwed"] === "on" });
 const backTo = (form: FormFields): string => (/^[0-9a-f-]{36}$/.test(form["invoice"] ?? "") ? `/invoices/${form["invoice"]}#invoice-payments` : "/money/invoices");
 
 export function refundRoutes(deps: { readonly cardPay: CardPayDeps; readonly finance: Parameters<typeof recordRefund>[0]; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
@@ -46,9 +46,9 @@ export function refundRoutes(deps: { readonly cardPay: CardPayDeps; readonly fin
         value.refund.through === "platform"
           ? `Refunded through ${PLATFORM_LABELS[deps.cardPay.platform] ?? "the payment platform"}. The client gets the money back from them.`
           : value.invoice.status === "void"
-            ? "Refund recorded, and the rest written off."
+            ? "Refund recorded. They don’t owe it again: the invoice is closed, written off for what was given back."
             : value.invoice.status === "sent"
-              ? "Refund recorded. The invoice is owed again by what was given back."
+              ? "Refund recorded. The invoice is owed again by what was given back, and the client sees it to pay in their portal."
               : "Refund recorded.",
     },
   );

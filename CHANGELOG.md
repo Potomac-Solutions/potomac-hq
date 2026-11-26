@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- A user-experience pass on the eleven extras, 2026-11-26
+  (`docs/reviews/2026-11-26-ux-extras.md`). Fixed: the intake form losing
+  everything typed when it was refused; a refund billing the client again
+  unless a box was ticked (it now asks, and "no" is picked); late fees
+  reaching back to invoices already late when the fee was set; a client on
+  automatic payment being told to pay a plan bill, and told nothing when the
+  charge was declined; a rating's note lost when the number was tapped
+  first; a public review asked for straight after a low rating. The
+  portal's first page puts proposals, invoices and automatic payment
+  together, above the settings panels.
+
 - **Eleven extras for clients and for running the business** (decision
   0019). Refunds, in part or in full, through the platform or by hand.
   The deposit sent the moment a proposal is accepted, with a box to pay it

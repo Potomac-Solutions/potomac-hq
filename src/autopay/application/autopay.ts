@@ -3,7 +3,7 @@
 // account, only the platform's token. Each plan invoice is charged the day
 // it is sent, retried twice if declined, and a person is asked to step in
 // when it keeps failing or an answer was lost.
-import { lastTryDeclined, nextTry, type Try } from "../domain/autopay.ts";
+import { lastTryDeclined, nextTry, nextTryOn, type Try } from "../domain/autopay.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, formatMoney, friendlyDay, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 
@@ -52,15 +52,50 @@ export type AutopayDeps = ActivityDeps & {
 
 type Session = { readonly organizationId: Id; readonly clientUserId: Id };
 const PLATFORM = { paypal: "PayPal", test: "the test platform" } as Readonly<Record<string, string>>;
+const platformName = (platform: string) => PLATFORM[platform] ?? "the payment service";
 
-export type PortalAutopay = { readonly offered: boolean; readonly on: boolean; readonly label: string; readonly platform: string; readonly since: string };
+/** Where one plan bill stands with autopay, in words for the client. */
+export type AutopayBill = { readonly invoiceId: Id; readonly state: "coming" | "retry" | "failed" | "checking"; readonly words: string };
+export type PortalAutopay = { readonly offered: boolean; readonly on: boolean; readonly label: string; readonly platform: string; readonly since: string; readonly bills: readonly AutopayBill[] };
+
+type Standing = { readonly invoice: PlanInvoice; readonly state: AutopayBill["state"]; readonly lastOn: string | null; readonly nextOn: string | null };
+
+/** Each open plan bill of a client with autopay on: not tried yet, to be tried again, out of tries, or unclear. */
+function standings(deps: AutopayDeps, organizationId: Id): readonly Standing[] {
+  return deps.autopay
+    .due()
+    .filter((invoice) => invoice.organizationId === organizationId)
+    .map((invoice) => {
+      const tries = deps.autopay.tries(invoice.id);
+      const lastOn = tries.at(-1)?.triedOn ?? null;
+      const nextOn = nextTryOn(tries);
+      const state = tries.length === 0 ? "coming" : tries.some((one) => one.outcome !== "declined") ? "checking" : nextOn ? "retry" : "failed";
+      return { invoice, state, lastOn, nextOn };
+    });
+}
 
 export function portalAutopay(deps: AutopayDeps, session: Session): PortalAutopay {
   const found = deps.autopay.get(session.organizationId);
   const on = found !== null && found.token !== null && found.stoppedAt === null;
   const platform = PLATFORM[deps.saved?.platform ?? found?.platform ?? ""] ?? "";
   // Offered when the platform can save methods and there's a plan to pay; shown while on regardless.
-  return { offered: on || (deps.saved !== null && deps.autopay.hasPlan(session.organizationId)), on, label: on ? found.label : "", platform, since: on && found.setUpAt ? friendlyDay(found.setUpAt.slice(0, 10), deps.today()) : "" };
+  const today = deps.today();
+  const from = on ? found.label || platform : "";
+  const bills = !on
+    ? []
+    : standings(deps, session.organizationId).map(({ invoice, state, lastOn, nextOn }): AutopayBill => ({
+        invoiceId: invoice.id,
+        state,
+        words:
+          state === "coming"
+            ? `Paid automatically from ${from}, usually the morning it’s sent. Nothing to do.`
+            : state === "checking"
+              ? `We’re checking with ${platform || "the payment service"} whether this went through. Nothing to do for now.`
+              : state === "retry"
+                ? `We couldn’t take this from ${from} on ${friendlyDay(lastOn as string, today)}. We’ll try again ${friendlyDay(nextOn as string, today)}. Or pay it by card now, or switch accounts under “Pay my plan automatically”.`
+                : `We couldn’t take this from ${from} after three tries, so it’s yours to pay: by card here, or as below. Check that account, or switch to another under “Pay my plan automatically”.`,
+      }));
+  return { offered: on || (deps.saved !== null && deps.autopay.hasPlan(session.organizationId)), on, label: on ? found.label : "", platform, since: on && found.setUpAt ? friendlyDay(found.setUpAt.slice(0, 10), today) : "", bills };
 }
 
 export type AutopayError = "unavailable" | "no-plan" | "platform-failed" | "not-started";
@@ -114,7 +149,7 @@ export async function stopAutopay(deps: AutopayDeps, who: { readonly session: Se
   return ok({ stopped: true });
 }
 
-export type ClientAutopay = { readonly on: boolean; readonly label: string; readonly since: string; readonly recent: readonly { readonly label: string; readonly when: string; readonly outcome: string }[]; readonly canStop: boolean };
+export type ClientAutopay = { readonly on: boolean; readonly label: string; readonly since: string; /** Open plan bills and what happens to each next. */ readonly open: readonly string[]; readonly recent: readonly { readonly label: string; readonly when: string; readonly outcome: string }[]; readonly canStop: boolean };
 
 const OUTCOMES: Readonly<Record<string, string>> = { paid: "Paid", declined: "Declined", unknown: "No clear answer: check the platform", trying: "No clear answer: check the platform" };
 
@@ -129,7 +164,17 @@ export function clientAutopay(deps: AutopayDeps, actorId: Id | null, organizatio
     on,
     label: on ? found.label : "",
     since: on && found.setUpAt ? friendlyDay(found.setUpAt.slice(0, 10), deps.today()) : "",
-    recent: recent.map((one) => ({ label: `INV-${String(one.number).padStart(4, "0")}`, when: friendlyDay(one.triedOn, deps.today()), outcome: OUTCOMES[one.outcome] + (one.outcome === "declined" && one.reason ? ` (${one.reason})` : "") })),
+    open: !on
+      ? []
+      : standings(deps, organizationId).map(({ invoice, state, nextOn }) => {
+          const label = `INV-${String(invoice.number).padStart(4, "0")}`;
+          const owed = formatMoney({ minor: invoice.owedMinor, currency: invoice.currency });
+          if (state === "coming") return `${label}, ${owed}: charged at the next morning run.`;
+          if (state === "retry") return `${label}, ${owed}: declined; HQ tries again ${friendlyDay(nextOn as string, deps.today())}. The client is told in their portal.`;
+          if (state === "failed") return `${label}, ${owed}: declined three times. HQ won’t try again; the client is asked to pay it in their portal, and there’s a to-do to follow up.`;
+          return `${label}, ${owed}: no clear answer. HQ won’t try again: look it up in ${platformName(found.platform)} and record the payment if it went through.`;
+        }),
+    recent: recent.map((one) => ({ label: `INV-${String(one.number).padStart(4, "0")}`, when: friendlyDay(one.triedOn, deps.today()), outcome: OUTCOMES[one.outcome] + (one.outcome === "declined" && one.reason ? ` (${platformName(found?.platform ?? "")} said: ${one.reason})` : "") })),
     canStop: on && authorize(deps, actorId, "client.set-status").ok,
   };
 }

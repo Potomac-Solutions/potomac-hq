@@ -356,6 +356,10 @@
       <h2 id="client-autopay">Automatic payment</h2>
       <p zb-if={autopay.on}>On: plan bills are charged to {autopay.label} the day they’re sent. Set up by the client {autopay.since}.</p>
       <p zb-else class="hq-muted">Off.</p>
+      <ul zb-if={autopay.open.length > 0} class="hq-list">
+        <zb-each items={autopay.open} as="line" key={line}><li>{line}</li></zb-each>
+      </ul>
+      <h3 zb-if={autopay.recent.length > 0}>Tries so far</h3>
       <ul zb-if={autopay.recent.length > 0} class="hq-list">
         <zb-each items={autopay.recent} as="one" key={one.label + one.when}>
           <li>{one.label}, {one.when}: {one.outcome}</li>

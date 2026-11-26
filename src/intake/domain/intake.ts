@@ -13,6 +13,9 @@ export const ACCESS_LABELS: Readonly<Record<AccessKind, string>> = {
   email: "Business email",
 };
 
+/** The same, as Potomac reads them on the client's page. */
+export const STAFF_ACCESS_LABELS: Readonly<Record<AccessKind, string>> = { ...ACCESS_LABELS, domain: "Where the domain is registered", hosting: "Their current website or hosting" };
+
 export type IntakeAnswers = {
   readonly businessName: string;
   readonly tagline: string;
@@ -56,10 +59,32 @@ export const FIELD_LABELS: Readonly<Record<Exclude<keyof IntakeAnswers, "access"
   accessNote: "About those accounts",
 };
 
+/** The same, as Potomac reads them on the client's page. */
+export const STAFF_FIELD_LABELS: typeof FIELD_LABELS = { ...FIELD_LABELS, businessName: "Business name", tagline: "Their line about themselves", likes: "Sites or looks they like" };
+
 export type IntakeError = "business-name-missing" | "too-long" | "looks-like-a-password" | "invalid-email";
 
 /** Text that reads like a login: "password: ...", "pw=...", "pass - ...". */
 const PASSWORD = /\b(pass(word|code)?|pwd|pw)\s*[:=\-]\s*\S/i;
+
+/**
+ * What was typed, kept so a refused form isn't typed again: cut to length,
+ * and any answer that reads like a password emptied (it is never kept).
+ * `cleared` names those answers.
+ */
+export function draftOf(input: Readonly<Record<string, string | readonly string[] | undefined>>): { readonly answers: IntakeAnswers; readonly cleared: readonly string[] } {
+  const answers: Record<string, unknown> = {};
+  const cleared: string[] = [];
+  for (const name of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
+    const value = String(input[name] ?? "").trim().replace(/\r\n/g, "\n").slice(0, LIMITS[name]);
+    if (PASSWORD.test(value)) cleared.push(FIELD_LABELS[name]);
+    answers[name] = PASSWORD.test(value) ? "" : value;
+  }
+  const picked = input["access"];
+  const list = (Array.isArray(picked) ? picked : picked ? [picked] : []) as string[];
+  answers["access"] = ACCESS_KINDS.filter((kind) => list.includes(kind));
+  return { answers: answers as IntakeAnswers, cleared };
+}
 
 export function readIntake(input: Readonly<Record<string, string | readonly string[] | undefined>>): Result<IntakeAnswers, IntakeError | `too-long:${string}`> {
   const text = (name: keyof typeof LIMITS) => String(input[name] ?? "").trim().replace(/\r\n/g, "\n");

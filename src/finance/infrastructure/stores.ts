@@ -480,8 +480,8 @@ export function sqliteBillingStore(db: Database): BillingStore {
 }
 
 /** Late fees and calls about late invoices (migration 0086). */
-export function sqliteLateFeeStore(db: Database): import("../application/late-invoices.ts").LateFeeStore {
-  const setting = db.prepare("select kind, amount, after_days from late_fee_setting where id = 1");
+export function sqliteLateFeeStore(db: Database, zone: string): import("../application/late-invoices.ts").LateFeeStore {
+  const setting = db.prepare("select kind, amount, after_days, updated_at from late_fee_setting where id = 1");
   const set = db.prepare(
     `insert into late_fee_setting (id, kind, amount, after_days, updated_by, updated_at) values (1, ?, ?, ?, ?, ?)
      on conflict (id) do update set kind = excluded.kind, amount = excluded.amount, after_days = excluded.after_days, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
@@ -494,7 +494,7 @@ export function sqliteLateFeeStore(db: Database): import("../application/late-in
   return {
     setting: () => {
       const row = setting.get() as Row | undefined;
-      return row ? { kind: row["kind"] as "off" | "percent" | "flat", amount: row["amount"] as number, afterDays: row["after_days"] as number } : { kind: "off", amount: 0, afterDays: 30 };
+      return row ? { kind: row["kind"] as "off" | "percent" | "flat", amount: row["amount"] as number, afterDays: row["after_days"] as number, since: Temporal.Instant.from(row["updated_at"] as string).toZonedDateTimeISO(zone).toPlainDate().toString() } : { kind: "off", amount: 0, afterDays: 30 };
     },
     set: (s, by, at) => void set.run(s.kind, s.amount, s.afterDays, by, at),
     charged: (id) => charged.get(id) !== undefined,

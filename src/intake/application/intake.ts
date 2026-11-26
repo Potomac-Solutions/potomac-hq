@@ -3,7 +3,7 @@
 // open project's files. Anyone who may see the client reads it on the
 // client's page in HQ.
 export { ACCESS_KINDS, FIELD_LABELS } from "../domain/intake.ts";
-import { ACCESS_LABELS, FIELD_LABELS, readIntake, type IntakeAnswers, type IntakeError } from "../domain/intake.ts";
+import { ACCESS_LABELS, draftOf, FIELD_LABELS, readIntake, STAFF_ACCESS_LABELS, STAFF_FIELD_LABELS, type IntakeAnswers, type IntakeError } from "../domain/intake.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { friendlyDay, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 
@@ -18,6 +18,8 @@ export type IntakeDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
   readonly transact: Transact;
   readonly intakes: IntakeStore;
+  /** What a person typed on a form that was refused, until they send it properly. Never a password. */
+  readonly drafts: { get(clientUserId: Id): IntakeAnswers | null; put(clientUserId: Id, answers: IntakeAnswers | null): void };
   readonly today: () => string;
   /** The client's newest open project, where their files go, or null. */
   readonly newestProject: (organizationId: Id) => { readonly id: Id; readonly name: string } | null;
@@ -33,7 +35,12 @@ export type SubmitResult = { readonly first: boolean; readonly filesSaved: numbe
 
 export async function submitIntake(deps: IntakeDeps, session: Session, input: Readonly<Record<string, string | readonly string[] | undefined>>, uploads: readonly Upload[]): Promise<Result<SubmitResult, IntakeError | `too-long:${string}`>> {
   const read = readIntake(input);
-  if (!read.ok) return read;
+  if (!read.ok) {
+    // Refused: keep what they typed (less anything like a password), so the form comes back filled in.
+    deps.drafts.put(session.clientUserId, draftOf(input).answers);
+    return read;
+  }
+  deps.drafts.put(session.clientUserId, null);
   const first = deps.transact(() => {
     const before = deps.intakes.get(session.organizationId);
     const at = deps.clock();
@@ -55,15 +62,18 @@ export async function submitIntake(deps: IntakeDeps, session: Session, input: Re
   return ok({ first, filesSaved, filesRefused });
 }
 
-export type IntakeForm = { readonly answers: IntakeAnswers | null; readonly sent: string; readonly filesGoTo: string; readonly access: readonly { readonly value: string; readonly label: string; readonly checked: boolean }[] };
+export type IntakeForm = { readonly answers: IntakeAnswers | null; /** True when the answers shown are typed but not saved yet. */ readonly unsaved: boolean; readonly sent: string; readonly filesGoTo: string; readonly access: readonly { readonly value: string; readonly label: string; readonly checked: boolean }[] };
 
 export function portalIntake(deps: IntakeDeps, session: Session): IntakeForm {
   const record = deps.intakes.get(session.organizationId);
+  const draft = deps.drafts.get(session.clientUserId);
+  const shown = draft ?? record?.answers ?? null;
   return {
-    answers: record?.answers ?? null,
+    answers: shown,
+    unsaved: draft !== null,
     sent: record ? friendlyDay(record.updatedAt.slice(0, 10), deps.today()) : "",
     filesGoTo: deps.newestProject(session.organizationId)?.name ?? "",
-    access: Object.entries(ACCESS_LABELS).map(([value, label]) => ({ value, label, checked: record?.answers.access.includes(value as never) ?? false })),
+    access: Object.entries(ACCESS_LABELS).map(([value, label]) => ({ value, label, checked: shown?.access.includes(value as never) ?? false })),
   };
 }
 
@@ -75,7 +85,7 @@ export function clientIntake(deps: IntakeDeps, actorId: Id | null, organizationI
   const record = deps.intakes.get(organizationId);
   if (!record) return null;
   const a = record.answers;
-  const rows = (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[]).filter((key) => key !== "accessNote" && a[key]).map((key) => ({ label: FIELD_LABELS[key], value: a[key] }));
-  return { sent: friendlyDay(record.updatedAt.slice(0, 10), deps.today()), by: deps.clientUserName(record.sentBy), rows, access: a.access.map((kind) => ACCESS_LABELS[kind]), accessNote: a.accessNote };
+  const rows = (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[]).filter((key) => key !== "accessNote" && a[key]).map((key) => ({ label: STAFF_FIELD_LABELS[key], value: a[key] }));
+  return { sent: friendlyDay(record.updatedAt.slice(0, 10), deps.today()), by: deps.clientUserName(record.sentBy), rows, access: a.access.map((kind) => STAFF_ACCESS_LABELS[kind]), accessNote: a.accessNote };
 }
 

@@ -9,6 +9,8 @@ test("a late fee: off by default, after the days set, once, never on a fee, a pe
   assert.equal(lateFeeDue({ kind: "off", amount: 0, afterDays: 30 }, late, "2026-11-26"), null);
   assert.equal(lateFeeDue(percent, late, "2026-10-30"), null, "29 days late");
   assert.equal(lateFeeDue(percent, late, "2026-10-31"), 750, "30 days: 1.5% of $500");
+  assert.equal(lateFeeDue({ ...percent, since: "2026-11-01" }, late, "2026-11-26"), null, "already past its day when the fee was set: left alone");
+  assert.equal(lateFeeDue({ ...percent, since: "2026-10-31" }, late, "2026-11-26"), 750, "reached its day the day the fee was set");
   assert.equal(lateFeeDue(percent, { ...late, owedMinor: 20000 }, "2026-11-26"), 300, "of what's still owed");
   assert.equal(lateFeeDue({ kind: "flat", amount: 2500, afterDays: 15 }, late, "2026-11-26"), 2500);
   assert.equal(lateFeeDue(percent, { ...late, charged: true }, "2026-11-26"), null);

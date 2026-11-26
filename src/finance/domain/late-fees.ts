@@ -3,7 +3,8 @@
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 import { parseAmount } from "../../shared/domain/money.ts";
 
-export type LateFeeSetting = { readonly kind: "off" | "percent" | "flat"; readonly amount: number; readonly afterDays: number };
+/** `since` is the day the fee was last set: invoices already past their day then are left alone. */
+export type LateFeeSetting = { readonly kind: "off" | "percent" | "flat"; readonly amount: number; readonly afterDays: number; readonly since?: string };
 export const LATE_FEES_OFF: LateFeeSetting = { kind: "off", amount: 0, afterDays: 30 };
 
 /** Days late before someone is asked to call. The two-week reminder email asks the client to call too. */
@@ -19,6 +20,8 @@ export function daysLate(dueOn: string, today: string): number {
 export function lateFeeDue(setting: LateFeeSetting, invoice: LateFeeInvoice, today: string): number | null {
   if (setting.kind === "off" || invoice.status !== "sent" || invoice.dueOn === null || invoice.owedMinor <= 0 || invoice.isFee || invoice.charged) return null;
   if (daysLate(invoice.dueOn, today) < setting.afterDays) return null;
+  // Turning fees on (or changing them) never reaches back: only invoices that get to the day afterwards are charged.
+  if (setting.since && Temporal.PlainDate.from(invoice.dueOn).add({ days: setting.afterDays }).toString() < setting.since) return null;
   const fee = setting.kind === "flat" ? setting.amount : Math.round((invoice.owedMinor * setting.amount) / 10_000);
   return fee >= 1 ? fee : null;
 }
