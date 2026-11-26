@@ -53,6 +53,11 @@
       active = items[0] ? items[0].href : ''
       return
     }
+    // Until the server answers, the sidebar's pages that fit, so Enter never opens a stale pick.
+    const typedNow = text.trim().toLowerCase()
+    items = pages().filter((one) => one.label.toLowerCase().includes(typedNow))
+    hits = items.length
+    active = items[0] ? items[0].href : ''
     try {
       const response = await fetch('/find.json?q=' + encodeURIComponent(text), { credentials: 'same-origin', headers: { accept: 'application/json' } })
       const body = response.ok ? await response.json() : { items: [], moves: [] }
