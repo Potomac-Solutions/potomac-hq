@@ -1,0 +1,54 @@
+<!--
+  Profit by client (2026-11-26): for each client this year, what they paid,
+  what they cost (expenses on their projects, their renewals), and what each
+  hour worked for them earned. Cash basis, like profit and loss.
+-->
+<script>
+  'use route /money/clients'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.money.byClient(url.searchParams.get('year'))
+    if (!view.ok) return context.forbidden()
+    return { title: 'Profit by client, ' + view.value.year, view: view.value }
+  }
+</script>
+<style>
+  .profit-years { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .profit-years a[aria-current] { font-weight: 700; text-decoration: none; }
+  .profit-negative { color: var(--destructive); }
+  .hq-table tfoot td, .hq-table tfoot th { font-weight: 700; border-top: 2px solid var(--border); }
+</style>
+<hq-client-profit view={{ rows: [], totals: {}, years: [], upTo: '' }}>
+  <div class="hq-page">
+    <h1>Profit by client, {view.year}</h1>
+    <p class="hq-muted">What each client paid up to {view.upTo}, less what they cost: expenses on their projects, and what their renewals cost us this year. Then that, for each hour worked for them. Best per hour first. <a href="/money">Back to Money</a></p>
+    <nav zb-if={view.years.length > 1} aria-label="Years">
+      <ul class="profit-years">
+        <zb-each items={view.years} as="year" key={year}><li><a href="/money/clients?year={year}" aria-current={year === view.year ? 'page' : null}>{year}</a></li></zb-each>
+      </ul>
+    </nav>
+    <section class="hq-panel" aria-labelledby="cp-table">
+      <h2 id="cp-table" class="sr-only">Each client</h2>
+      <p zb-if={view.rows.length === 0} class="hq-muted">Nothing paid, spent or worked for a client this year yet.</p>
+      <table zb-else tabindex="0" class="hq-table">
+        <thead><tr><th scope="col">Client</th><th scope="col" class="hq-number">Invoiced</th><th scope="col" class="hq-number">Paid</th><th scope="col" class="hq-number">Costs</th><th scope="col" class="hq-number">Left</th><th scope="col" class="hq-number">Hours</th><th scope="col" class="hq-number">Per hour</th></tr></thead>
+        <tbody>
+          <zb-each items={view.rows} as="row" key={row.clientId}>
+            <tr>
+              <th scope="row"><a href="/clients/{row.clientId}">{row.name}</a></th>
+              <td class="hq-number">{row.invoiced}</td>
+              <td class="hq-number">{row.received}</td>
+              <td class="hq-number">{row.costs}</td>
+              <td class="hq-number" class:profit-negative={row.negative}>{row.net}</td>
+              <td class="hq-number">{row.hours}</td>
+              <td class="hq-number" class:profit-negative={row.negative}>{row.perHour}</td>
+            </tr>
+          </zb-each>
+        </tbody>
+        <tfoot><tr><th scope="row">All clients</th><td></td><td class="hq-number">{view.totals.received}</td><td class="hq-number">{view.totals.costs}</td><td class="hq-number">{view.totals.net}</td><td class="hq-number">{view.totals.hours}</td><td class="hq-number">{view.totals.perHour}</td></tr></tfoot>
+      </table>
+      <p class="hq-small hq-muted">“Per hour” is what’s left for each hour logged. A low one can still be worth it: a new client, a referral, a case study. Time not logged doesn’t count.</p>
+    </section>
+  </div>
+</hq-client-profit>

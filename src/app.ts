@@ -32,7 +32,7 @@ import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, startCard
 import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { recordCardPayment, sendDepositOnAcceptance, lateFeeView, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { recordCardPayment, sendDepositOnAcceptance, lateFeeView, profitPerClient, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
@@ -353,6 +353,8 @@ export type PageContext = {
     invoiceReminders(id: string): ReturnType<typeof invoiceReminders>;
     recurring(): ReturnType<typeof recurringOverview>;
     profit(year: string | null): ReturnType<typeof profitAndLoss>;
+    /** Each client's year, per hour worked (2026-11-26). */
+    byClient(year: string | null): ReturnType<typeof profitPerClient>;
     overview(): ReturnType<typeof financeOverview>;
     project(id: string): ReturnType<typeof projectMoney>;
     changes(id: string): ReturnType<typeof projectChanges>;
@@ -1086,6 +1088,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           invoiceReminders: (id) => withId(id, (invoiceId) => invoiceReminders(services.invoiceReminders, actor, invoiceId)),
           recurring: () => recurringOverview(financeDeps, actor),
           profit: (year) => profitAndLoss(financeDeps, actor, year),
+          byClient: (year) => profitPerClient(financeDeps, actor, year),
           overview: () => financeOverview(financeDeps, actor),
           project: (id) => withId(id, (projectId) => projectMoney(financeDeps, actor, projectId)),
           changes: (id) => withId(id, (projectId) => projectChanges(financeDeps, actor, projectId)),

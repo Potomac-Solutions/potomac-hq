@@ -7,7 +7,7 @@ import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LAB
 import { weekOf } from "../domain/time.ts";
 import { EVERY_LABELS, monthlyMinor, nextAfter, type RecurringInvoice } from "../domain/recurring.ts";
 import { prepaidBalance } from "../domain/prepaid.ts";
-import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
+import { profitByClient, profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
 import { milestoneProgress, type Project } from "../../projects/index.ts";
 import { err, formatHours, formatMoney, friendlyDay, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
@@ -903,5 +903,88 @@ export function cashForecast(deps: FinanceDeps, actorId: Id | null): Result<Fore
     weeks,
     totals: { coming: formatMoney(usd(coming)), going: formatMoney(usd(going)), net: coming - going < 0 ? `−${formatMoney(usd(going - coming))}` : formatMoney(usd(coming - going)), overdue: formatMoney(usd(overdue)) },
     drafts: formatMoney(usd(drafts)),
+  });
+}
+
+export type ClientProfitView = {
+  readonly year: number;
+  readonly years: readonly number[];
+  readonly upTo: string;
+  readonly rows: readonly {
+    readonly clientId: string;
+    readonly name: string;
+    readonly invoiced: string;
+    readonly received: string;
+    readonly costs: string;
+    readonly net: string;
+    readonly hours: string;
+    readonly perHour: string;
+    readonly negative: boolean;
+  }[];
+  readonly totals: { readonly received: string; readonly costs: string; readonly net: string; readonly hours: string; readonly perHour: string };
+};
+
+/**
+ * Each client's year (2026-11-26): what they paid, less expenses on their
+ * projects and what their renewals cost, against the hours worked for them.
+ * Cash basis, like the profit page. Demo clients are left out.
+ */
+export function profitPerClient(deps: FinanceDeps, actorId: Id | null, wanted?: string | null): Result<ClientProfitView, "forbidden"> {
+  if (!may(deps, actorId, "finance.view")) return err("forbidden");
+  const today = deps.today();
+  const thisYear = Number(today.slice(0, 4));
+  const year = /^\d{4}$/.test(wanted ?? "") && Number(wanted) >= thisYear - 9 && Number(wanted) <= thisYear ? Number(wanted) : thisYear;
+  const from = `${year}-01-01`;
+  const to = year === thisYear ? today : `${year}-12-31`;
+  const inYear = (on: string | null) => on !== null && on >= from && on <= to;
+  const orgOfProject = new Map(deps.projects.list().map((project) => [project.id as string, project.organizationId as string]));
+  const invoices = deps.invoices.list();
+  const orgOfInvoice = new Map(invoices.map((one) => [one.id as string, one.organizationId as string]));
+  const tallies = new Map<string, { invoiced: number; received: number; expenses: number; renewalCost: number; minutes: number }>();
+  const tally = (org: string | undefined) => {
+    if (!org) return null;
+    let found = tallies.get(org);
+    if (!found) tallies.set(org, (found = { invoiced: 0, received: 0, expenses: 0, renewalCost: 0, minutes: 0 }));
+    return found;
+  };
+  for (const one of invoices) if ((one.status === "sent" || one.status === "paid") && inYear(one.issuedOn)) tally(one.organizationId)!.invoiced += one.total.minor;
+  for (const one of deps.invoices.allPayments()) if (inYear(one.receivedOn)) {
+    const t = tally(orgOfInvoice.get(one.invoiceId));
+    if (t) t.received += one.amount.minor;
+  }
+  for (const one of deps.expenses.list({ from, to })) {
+    const t = tally(orgOfProject.get(one.projectId));
+    if (t) t.expenses += one.amount.minor;
+  }
+  for (const one of deps.time.list({ from, to }, null)) {
+    const t = tally(orgOfProject.get(one.projectId));
+    if (t && one.minutes !== null) t.minutes += one.minutes;
+  }
+  // A renewal is paid on its day: the whole year's count, as that money goes out this year either way.
+  for (const one of deps.cashflow?.(from, `${year}-12-31`) ?? []) {
+    const t = tally(one.organizationId);
+    if (t) t.renewalCost += one.outMinor;
+  }
+  for (const org of [...tallies.keys()]) if (deps.clients.get(org as Id)?.demo) tallies.delete(org);
+  const rows = profitByClient(tallies);
+  const money = (minor: number) => formatMoney(usd(minor));
+  const hours = (minutes: number) => (minutes === 0 ? "" : `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} h`);
+  const sum = rows.reduce((s, r) => ({ received: s.received + r.profit.received, costs: s.costs + r.profit.expenses + r.profit.renewalCost, net: s.net + r.profit.net, minutes: s.minutes + r.profit.minutes }), { received: 0, costs: 0, net: 0, minutes: 0 });
+  return ok({
+    year,
+    years: Array.from({ length: Math.min(10, thisYear - 2025) }, (_, n) => thisYear - n),
+    upTo: friendlyDay(to, today),
+    rows: rows.map(({ key, profit }) => ({
+      clientId: key,
+      name: deps.clients.get(key as Id)?.name ?? "A removed client",
+      invoiced: money(profit.invoiced),
+      received: money(profit.received),
+      costs: money(profit.expenses + profit.renewalCost),
+      net: money(profit.net),
+      hours: hours(profit.minutes),
+      perHour: profit.perHour === null ? "" : money(profit.perHour),
+      negative: profit.net < 0,
+    })),
+    totals: { received: money(sum.received), costs: money(sum.costs), net: money(sum.net), hours: hours(sum.minutes), perHour: sum.minutes > 0 ? money(Math.round((sum.net * 60) / sum.minutes)) : "" },
   });
 }
