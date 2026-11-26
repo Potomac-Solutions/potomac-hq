@@ -6,8 +6,10 @@
   0014's palette, folded in), and "keys" offers the keyboard shortcuts.
   When nothing fits, Enter asks the assistant
   instead, from the page you're on. Without scripts the top bar's search
-  box does the finding. Only the shell imports this. `here` is the page's
-  address, sent with a question; `ask` says whether the assistant is on.
+  box does the finding. With nothing typed it lists every page in this
+  person's sidebar, as decision 0014's palette did. Only the shell imports
+  this. `here` is the page's address, sent with a question; `ask` says
+  whether the assistant is on; `groups` are the sidebar's hubs.
 -->
 <script>
   import { onMount, onUnmount } from '@zubra/runtime'
@@ -20,12 +22,23 @@
   let canTalk = false
   let asked = 0
 
+  // Nothing typed: every page in the sidebar, by hub (decision 0014's palette did this).
+  function pages() {
+    const seen = new Set()
+    const all = []
+    for (const hub of groups) for (const link of hub.links) {
+      if (seen.has(link.href)) continue
+      seen.add(link.href)
+      all.push({ kind: hub.label, label: link.label, href: link.href })
+    }
+    return all.slice(0, 40)
+  }
   function show() {
     open = true
     q = ''
-    items = []
+    items = pages()
     hits = 0
-    active = ''
+    active = items[0] ? items[0].href : ''
     setTimeout(() => document.getElementById('cmd-q')?.focus(), 0)
   }
   function hide() {
@@ -35,9 +48,9 @@
     q = text
     const mine = ++asked
     if (!text.trim()) {
-      items = []
+      items = pages()
       hits = 0
-      active = ''
+      active = items[0] ? items[0].href : ''
       return
     }
     try {
@@ -155,7 +168,7 @@
   .cmd-foot button { padding: 0; font: inherit; color: var(--primary); background: none; border: 0; cursor: pointer; text-decoration: underline; }
   @media (max-width: 60rem) { .cmd-open .cmd-hint { display: none; } }
 </style>
-<command-bar here="/" ask={false}>
+<command-bar here="/" ask={false} groups={[]}>
   <button type="button" class="cmd-open" onclick={show} aria-haspopup="dialog" aria-keyshortcuts="/ Control+K Meta+K">Go to… <kbd class="cmd-hint">/</kbd></button>
   <div zb-if={open} class="cmd-backdrop" onclick={(event) => { if (event.target === event.currentTarget) hide() }}>
     <div class="cmd" role="dialog" aria-modal="true" aria-label="Go to a page or record">
