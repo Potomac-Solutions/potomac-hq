@@ -52,7 +52,7 @@ export function crmRoutes(deps: CrmRoutesDeps): Hono {
       const answer = run(deps.actorOf(c.req.header("cookie") ?? ""), form, id);
       const to = answer.ok
         ? withUndo(`${places.done(answer.value, id)}?done=${encodeURIComponent(places.message)}`, places.undo?.(answer.value, id))
-        : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(answer.error.startsWith("duplicate|") ? `${answer.error.slice("duplicate|".length)} ${answer.error.includes(" or ") ? "are" : "is"} already in HQ, and looks like the same business. Open it from the list below, or tick “It’s a different business” and add it again.` : messageFor(answer.error))}`;
+        : `${answer.error === "not-found" ? "/clients" : places.back(id)}?problem=${encodeURIComponent(answer.error.startsWith("duplicate|") ? `${answer.error.slice("duplicate|".length)} ${answer.error.includes(" or ") ? "are" : "is"} already in HQ, and looks like the same business. Open it from the list, or tick “It’s a different business” by the Add button and add it again.` : messageFor(answer.error))}`;
       return c.redirect(deps.sign(to), 303);
     });
 

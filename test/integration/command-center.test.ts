@@ -97,7 +97,8 @@ test("a change waits on a card, and happens as the person on one tap", async () 
   assert.equal(t.db.prepare("select count(*) as n from task where title = 'Call Stacy about the map'").get()?.["n"], 1);
   const after = textOf(await admin.page("/"));
   assert.match(after, /Done Add a to-do: “Call Stacy about the map”/);
-  assert.match(after, /Done: Add a to-do/);
+  assert.match(after, /Done Add a to-do/);
+  assert.doesNotMatch(after, /Done: Add a to-do/, "the card says it; no bubble says it again");
   assert.match(query(await admin.post(`/assistant/actions/${id}/do`, {}), "problem"), /already done or cancelled/, "once");
   const did = actions(t.db);
   assert.ok(did.includes("todo.added"), "the to-do's own event, as Mikey");
@@ -114,7 +115,7 @@ test("lookups run straight away and go back to the model; answers link only to H
   const second = conversed.at(-1) as ConverseRequest;
   const results = second.messages.at(-1)?.content.filter((block) => block.type === "tool_result") ?? [];
   assert.equal(results.length, 2);
-  assert.match(JSON.stringify(results), /Calendar hours/);
+  assert.match(JSON.stringify(results), /Hours for calls/);
   const html = await admin.page("/");
   assert.match(html, /<a href="\/calls\/hours">Calendar hours<\/a>/);
   assert.doesNotMatch(html, /href="https:\/\/evil\.example"/);
@@ -151,9 +152,11 @@ test("cancel, a failed call, usage on the shared budget, and New chat", async ()
   await admin.post("/assistant", { message: "add Elk Diner as a client" });
   await admin.post(`/assistant/actions/${actionId("waiting")}/cancel`, {});
   assert.match(textOf(await admin.page("/")), /Cancelled Add a client: Elk Diner/);
+  assert.doesNotMatch(textOf(await admin.page("/")), /Cancelled: Add a client/, "nor a cancelled one");
   assert.equal(t.db.prepare("select count(*) as n from client_organization where name = 'Elk Diner'").get()?.["n"], 0);
 
   assert.match(query(await admin.post("/assistant", { message: "anything" }), "problem"), /Claude didn’t answer/, "nothing queued: the stand-in fails");
+  assert.match(textOf(await admin.page("/")), /You: anything Assistant: That one didn’t get an answer, and nothing was changed/, "the conversation says so too");
   const usage = t.db.prepare("select count(*) as n, sum(ok) as worked from ai_usage where feature = 'assistant'").get();
   assert.ok(Number(usage?.["n"]) >= 6);
   assert.equal(Number(usage?.["n"]) - Number(usage?.["worked"]), 1, "the failed call is logged and costed too");
@@ -163,7 +166,8 @@ test("cancel, a failed call, usage on the shared budget, and New chat", async ()
   await admin.post("/assistant/new", {});
   const fresh = textOf(await admin.page("/"));
   assert.doesNotMatch(fresh, /Wolf Armor|Elk Diner/);
-  assert.match(fresh, /Do the first one/, "ideas to start with");
+  assert.match(fresh, /Add a to-do to call Stacy Friday/, "ideas to start with");
+  assert.doesNotMatch(fresh, /Do the first one/, "not offered when nothing is waiting");
   assert.equal(t.db.prepare("select status from assistant_action order by created_at desc, rowid desc limit 1").get()?.["status"], "cancelled", "a card left waiting is cancelled");
 });
 
@@ -230,12 +234,12 @@ test("pins: the page you're on, to the top of your sidebar, and back off", async
   assert.equal(new URL("http://x" + (pinned.headers.get("location") ?? "")).pathname, "/calls/hours");
   const html = await admin.page("/money");
   assert.match(html, /<summary>(<\?zb[^>]*>)*Pinned/);
-  assert.match(html, /<a href="\/calls\/hours">Calendar hours<\/a>/);
+  assert.match(html, /<a href="\/calls\/hours">Hours for calls<\/a>/);
   assert.match(textOf(await admin.page("/calls/hours")), /★ Pinned/);
   assert.match(new URL("http://x" + ((await admin.post("/nav/pin", { href: "https://evil.example" })).headers.get("location") ?? "")).searchParams.get("problem") ?? "", /can’t be pinned/);
   assert.match(new URL("http://x" + ((await member.post("/nav/pin", { href: "/activity" })).headers.get("location") ?? "")).searchParams.get("problem") ?? "", /can’t be pinned/, "not a page they may open");
   await admin.post("/nav/pin", { href: "/calls/hours" });
-  assert.doesNotMatch(await admin.page("/money"), /Calendar hours<\/a>/);
+  assert.doesNotMatch(await admin.page("/money"), /Hours for calls<\/a>/);
   assert.deepEqual(actions(t.db).filter((one) => one.startsWith("nav.")), ["nav.pinned", "nav.unpinned"]);
 });
 

@@ -44,6 +44,8 @@ test("duplicates: a name like one already here asks first, and merging moves eve
   assert.match(query(made, "done"), /./);
   const dupe = t.db.prepare("select id from client_organization where name = 'Mountaineer Plumbing'").get()?.["id"] as string;
   unwrap(crm.addContact(t.services.crm, mikey, dupe as Id, { name: "Rita Okafor", email: "rita@example.com" }));
+  await admin.post("/notes", { recordType: "client-organization", recordId: dupe, body: "Prefers a call before 9" });
+  assert.equal(t.db.prepare("select count(*) as n from note where record_id = ?").get(dupe)?.["n"], 1, "a note on the duplicate");
 
   const page = textOf(await admin.page(`/clients/${dupe}`));
   assert.match(page, /Is this a duplicate\? Another client looks the same/);
@@ -54,6 +56,14 @@ test("duplicates: a name like one already here asks first, and merging moves eve
   assert.match(after["name"] ?? "", /\(merged\)/);
   assert.equal(after["status"], "former");
   assert.equal(t.db.prepare("select count(*) as n from contact where organization_id = ?").get(dupe)?.["n"], 0, "nothing left on the duplicate");
+  assert.equal(t.db.prepare("select count(*) as n from note where record_type = 'client-organization' and record_id = ?").get(keep.id)?.["n"], 1, "its note moved too");
+  // The one merged away says where it went, can't be merged again, and no longer counts as a look-alike.
+  const gone = await admin.page(`/clients/${dupe}`);
+  assert.match(textOf(gone), /This client was merged into Mountaineer Plumbing LLC/);
+  assert.match(gone, new RegExp(`<a href="/clients/${keep.id}"[^>]*>Mountaineer Plumbing LLC</a>`));
+  assert.doesNotMatch(textOf(gone), /Is this a duplicate\?/);
+  assert.match(query(await admin.post(`/clients/${dupe}/merge`, { into: keep.id }), "problem"), /already merged/);
+  assert.match(query(await admin.post("/clients", { name: "Mountaineer Plumbing" }), "problem"), /^“Mountaineer Plumbing LLC” is already in HQ/, "only the one kept is named");
   assert.match(query(await admin.post(`/clients/${keep.id}/merge`, { into: keep.id }), "problem"), /different client/);
 });
 

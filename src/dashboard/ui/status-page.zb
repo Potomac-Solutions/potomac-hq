@@ -37,7 +37,7 @@
           <li>
             <strong>{check.label}</strong>
             <p>{check.detail}</p>
-            <span><status-badge variant={check.state === 'ok' ? 'success' : check.state === 'warning' ? 'warning' : 'danger'}>{check.stateText}</status-badge> <a zb-if={check.href} href={check.href}>Fix<span class="sr-only">: {check.label}</span></a></span>
+            <span><status-badge variant={check.state === 'ok' ? 'success' : check.state === 'warning' ? 'warning' : 'danger'}>{check.stateText}</status-badge> <a zb-if={check.href} href={check.href}>{check.state === 'ok' ? 'Open' : 'Fix'}<span class="sr-only">: {check.label}</span></a></span>
           </li>
         </zb-each>
       </ul>

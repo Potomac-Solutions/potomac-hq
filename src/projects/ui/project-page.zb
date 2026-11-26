@@ -20,11 +20,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: context.replies(), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: context.replies(view.value.clientId), done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project ai-models={[]} view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '' }} done="" problem="">
+<hq-project ai-models={[]} view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -310,7 +310,7 @@
           <label for="update-body">Post an update for the client</label>
           <textarea id="update-body" name="body" rows="3" required maxlength="5000"></textarea>
         </div>
-        <reply-picker replies={replies.items} client={p.clientName ?? ''} project={p.name ?? ''} me={replies.me} field-id="update-reply"></reply-picker>
+        <reply-picker replies={replies.items} first-name={replies.firstName} client={view.clientName ?? ''} project={p.name ?? ''} me={replies.me} field-id="update-reply"></reply-picker>
         <div><button class="hq-button" type="submit">Post update</button></div>
       </form>
     </section>

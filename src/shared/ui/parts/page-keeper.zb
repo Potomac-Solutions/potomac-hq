@@ -15,7 +15,8 @@
     Leaving the page sends it straight away. Not under Settings or in the
     client portal.
   - The few things that can't be undone or held (turning off two-step
-    sign-in, removing a passkey, new secrets, turning an account off) ask
+    sign-in, removing a passkey, new secrets, turning an account off,
+    merging two clients) ask
     first, with Cancel as the default.
   - Text typed in a long box and not sent is kept on this device, and put
     back if the page is closed or crashes before it's sent, with Discard.
@@ -43,6 +44,7 @@
     { test: /^\/settings\/two-factor\/recovery-codes$/, say: 'Make new recovery codes? The ones you have now stop working.', yes: 'Make new codes' },
     { test: /^\/people\/[^/]+\/two-factor-reset$/, say: 'Reset their two-step sign-in? They’ll have to set it up again.', yes: 'Reset it' },
     { test: /^\/people\/[^/]+\/status$/, when: (form) => form.elements.on && form.elements.on.value === '0', say: 'Turn this account off? They’re signed out at once.', yes: 'Turn account off' },
+    { test: /^\/clients\/[^/]+\/merge$/, say: 'Merge this client into the other? Everything it has moves over, and the two can’t be split apart again.', yes: 'Merge them' },
     { test: /^\/(webhooks|automations)\/[^/]+\/secret$/, say: 'Make a new secret? The old one stops working right away, so update wherever it’s used.', yes: 'Make a new secret' },
   ]
   const askFor = (form) => ASK.find((one) => one.test.test(actionOf(form)) && (!one.when || one.when(form))) || null
@@ -190,22 +192,28 @@
         localStorage.setItem(draftKey(field), JSON.stringify({ value: field.value, at: Date.now() }))
         keys.push(draftKey(field))
       }
-      sessionStorage.setItem(SENT, JSON.stringify({ keys, at: Date.now() }))
+      sessionStorage.setItem(SENT, JSON.stringify({ keys, at: Date.now(), action: actionOf(form) }))
     } catch {}
   }
-  // Only the page a send that worked brings settles it: every form post that
-  // works lands with the server's signed done= message (shared/api/forms.ts),
-  // within two minutes. A reload, Back, or a fresh visit after a failed send
-  // keeps the text; the next send that works settles it.
+  // Only a send that worked settles it. A post that works comes back with
+  // the server's signed done= message (shared/api/forms.ts), within two
+  // minutes; the few that answer with a page of their own (a new secret, an
+  // invite's link) are known by the next page having come from the form's
+  // own address. One that's refused carries problem=. A reload, Back, a
+  // fresh visit or signing in again after a send that never arrived keeps
+  // the text, and forgets the send.
   function settleSentDrafts() {
     try {
       const sent = JSON.parse(sessionStorage.getItem(SENT) || 'null')
       if (!sent) return
-      const how = performance.getEntriesByType('navigation')[0]?.type
-      const here = new URL(location.href).searchParams
-      if (Date.now() - sent.at > 2 * 60 * 1000) return sessionStorage.removeItem(SENT)
-      if (how === 'reload' || how === 'back_forward' || !here.has('done') || here.has('problem')) return
       sessionStorage.removeItem(SENT)
+      if (Date.now() - sent.at > 2 * 60 * 1000) return
+      const nav = performance.getEntriesByType('navigation')[0]
+      const here = new URL(location.href).searchParams
+      if (!nav || nav.type !== 'navigate' || here.has('problem')) return
+      let from = ''
+      try { from = document.referrer ? new URL(document.referrer).pathname : '' } catch {}
+      if (!here.has('done') && !(sent.action && from === sent.action)) return
       for (const key of sent.keys || []) localStorage.removeItem(key)
     } catch {}
   }
@@ -382,6 +390,8 @@
 </script>
 <style>
   .keeper-bar { position: fixed; z-index: 21; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.6rem 0.55rem 1rem; color: #ffffff; background: #0b2530; border: 1px solid #23414c; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); font-size: 0.9rem; }
+  /* Above the phone's tab bar (decision 0015), and never wider than the screen. */
+  @media (max-width: 60rem) { .keeper-bar { bottom: calc(4.25rem + env(safe-area-inset-bottom)); max-width: calc(100vw - 1rem); } }
   .keeper-bar button { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.9rem; font: inherit; font-weight: 700; color: #0b2530; background: #ffffff; border: 0; border-radius: 999px; cursor: pointer; }
   .keeper-bar button:hover { background: #dff1fd; }
   .keeper-bar button:focus-visible { outline: 2px solid #9fd6fb; outline-offset: 2px; }

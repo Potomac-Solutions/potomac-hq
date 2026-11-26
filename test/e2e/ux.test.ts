@@ -106,7 +106,9 @@ test("the command bar goes anywhere and moves a deal; ? lists the shortcuts; G t
   await box.fill("Palette deal");
   const move = page.getByRole("option", { name: /Move Palette deal to Consult booked/ });
   await move.waitFor();
-  await page.keyboard.press("Enter");
+  // Pages and records come first, so Enter opens something; the move is chosen on purpose.
+  assert.doesNotMatch((await page.getByRole("option").first().textContent()) ?? "", /Move Palette deal/);
+  await move.click();
   await page.getByText("Moved to Consult booked.").waitFor();
   assert.match(page.url(), /\/opportunities\//);
 

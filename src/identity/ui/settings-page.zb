@@ -51,7 +51,7 @@
     </section>
     <section class="hq-panel" aria-labelledby="settings-calendar">
       <h2 id="settings-calendar">Calendar</h2>
-      <p>Your tasks and milestones in Google Calendar, Apple Calendar or Outlook. <a href="/calendar-feed">Set up your calendar feed</a></p>
+      <p>Your tasks, milestones and booked calls in Google Calendar, Apple Calendar or Outlook. <a href="/calendar-feed">Set up your calendar feed</a></p>
     </section>
     <section class="hq-panel" aria-labelledby="settings-password">
       <h2 id="settings-password">Password</h2>

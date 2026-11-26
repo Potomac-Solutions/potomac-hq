@@ -8,7 +8,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin, watch } from "../support/browser.ts";
-import { TEST_PASSWORD_COST, testApp, wonProject, type TestApp } from "../support/harness.ts";
+import { PASSWORD, TEST_PASSWORD_COST, testApp, wonProject, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
 let browser: Browser;
@@ -107,7 +107,7 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   await page.goto(`${t.origin}/clients`);
   await page.getByLabel("Business name").fill("Keyboard Cafe LLC");
   await page.getByRole("button", { name: "Add client" }).click();
-  await page.getByText(/is already in HQ/).waitFor();
+  await page.getByText(/is already in HQ/).first().waitFor();
   const anyway = page.getByLabel(/It’s a different business/);
   await anyway.focus();
   await page.keyboard.press("Space");
@@ -123,5 +123,59 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   await page.keyboard.press("Enter");
   await page.getByLabel("Merge it into").selectOption({ label: "Keyboard Cafe (looks the same)" });
   await assertAccessible(page, "the merge form");
+  // Merging can't be undone, so it asks first; Escape leaves both as they were.
+  await page.getByRole("button", { name: "Merge them" }).click();
+  const ask = page.getByRole("dialog", { name: "This can’t be undone" });
+  await ask.waitFor();
+  await assertAccessible(page, "the merge question");
+  await page.keyboard.press("Escape");
+  await ask.waitFor({ state: "hidden" });
+  assert.equal(t.db.prepare("select count(*) as n from client_organization where name like '%(merged)'").get()?.["n"], 0, "nothing merged yet");
+  await page.getByRole("button", { name: "Merge them" }).click();
+  await ask.getByRole("button", { name: "Merge them" }).click();
+  await page.getByText("Merged. Everything from the duplicate is here now.").waitFor();
+  assert.equal(t.db.prepare("select count(*) as n from client_organization where name like '%(merged)'").get()?.["n"], 1);
+  assert.deepEqual(problems, []);
+});
+
+test("on a phone the Undo bar sits above the tab bar; a saved reply fills in who it's for", async () => {
+  const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const problems: string[] = [];
+  await page.goto(t.origin + "/");
+  await page.getByLabel("Email").fill("mikey@example.com");
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  page.on("pageerror", (error) => problems.push(error.message));
+  const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
+  const { project, client } = await wonProject(t.services, mikey, { client: "Phone Diner", title: "Diner site" });
+  const projects = await import("../../src/projects/index.ts");
+  const crm = await import("../../src/crm/index.ts");
+  const task = projects.addTask(t.services.projects, mikey, project.id, { title: "Shoot the photos" });
+  assert.ok(task.ok && crm.addContact(t.services.crm, mikey, client.id, { name: "Dana Hill", email: "dana@example.com" }).ok);
+  if (!task.ok) return;
+
+  await page.goto(`${t.origin}/tasks/${task.value.id}`);
+  await page.locator("#task-status").selectOption("doing");
+  await page.locator("form[action$='/status'] button[type=submit]").first().click();
+  const undo = page.locator(".hq-undo");
+  await undo.waitFor();
+  await page.waitForTimeout(400);
+  const bar = await undo.boundingBox();
+  const tabs = await page.getByRole("navigation", { name: "Quick" }).boundingBox();
+  assert.ok(bar && tabs);
+  assert.ok(bar.y + bar.height <= tabs.y, "Undo is above the tab bar, not under it");
+  assert.ok(bar.x >= 0 && bar.x + bar.width <= 390, "and inside the screen");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${t.origin}/replies`);
+  await page.locator("#reply-title").fill("Proof ready");
+  await page.locator("#reply-body").fill("Hi {first name}, the proof for {project} at {client} is ready. {me}");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByText("Saved.").waitFor();
+  await assertAccessible(page, "Saved replies");
+  await page.goto(`${t.origin}/projects/${project.id}`);
+  await page.getByLabel("Use a saved reply").selectOption({ label: "Proof ready" });
+  assert.equal(await page.getByLabel("Post an update for the client").inputValue(), "Hi Dana, the proof for Diner site at Phone Diner is ready. Mikey");
   assert.deepEqual(problems, []);
 });
