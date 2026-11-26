@@ -293,7 +293,7 @@
           <label class="sr-only" for="hq-find-q">Search HQ</label>
           <input id="hq-find-q" name="q" type="search" placeholder="Search pages, clients, projects, invoices…" autocomplete="off" maxlength="100">
         </form>
-        <command-bar here={here} ask={askOn}></command-bar>
+        <command-bar here={here} ask={askOn} groups={groups}></command-bar>
         <form zb-if={adding} method="get" action="/add" class="hq-quick">
           <label class="sr-only" for="hq-quick-text">Quick add a task or to-do (shortcut N)</label>
           <input id="hq-quick-text" name="text" placeholder="Quick add… (N)" autocomplete="off" maxlength="300" aria-keyshortcuts="n">

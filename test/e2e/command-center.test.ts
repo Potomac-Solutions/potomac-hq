@@ -92,6 +92,9 @@ test("the command bar, the drawer on any page, pins and the phone's tab bar", as
   await page.keyboard.press("/");
   const bar = page.getByRole("dialog", { name: "Go to a page or record" });
   await bar.waitFor();
+  // Nothing typed lists this person's pages, by hub (decision 0014's palette did too).
+  await bar.getByRole("option", { name: /Clients\s*Clients/ }).waitFor();
+  assert.ok((await bar.getByRole("option").count()) > 10, "every page in the sidebar");
   // Kept from decision 0014's palette: quick add and search what's typed, with Enter still asking the assistant when nothing matches.
   await page.getByLabel("Go to a page or record, or ask the assistant").fill("qqzzx nothing");
   await bar.getByRole("option", { name: /Search everything for “qqzzx nothing”/ }).waitFor();
