@@ -7,7 +7,9 @@ export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-export const ICON_LINK = '<link rel="icon" href="/assets/potomac-mark.webp" type="image/webp"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png"><meta name="theme-color" content="#0b5cad"><meta name="apple-mobile-web-app-title" content="HQ">';
+// Every page's head: the icon, the app manifest, and the script that quiets
+// a cross-page transition the browser gave up (assets/transitions.js).
+export const ICON_LINK = '<script src="/assets/transitions.js"></script><link rel="icon" href="/assets/potomac-mark.webp" type="image/webp"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png"><meta name="theme-color" content="#0b5cad"><meta name="apple-mobile-web-app-title" content="HQ">';
 /** Pages the kit writes have no signed-in person to ask, so they follow the device's light or dark setting. */
 export const HEAD_LINKS = `<link rel="stylesheet" href="/assets/theme.css"><link rel="stylesheet" href="/assets/theme-dark.css" media="(prefers-color-scheme: dark)">${ICON_LINK}`;
 

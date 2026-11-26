@@ -15,6 +15,7 @@ const FILES: Readonly<Record<string, string>> = {
   "icon-512.png": "image/png",
   "apple-touch-icon.png": "image/png",
   "sw.js": "text/javascript; charset=utf-8",
+  "transitions.js": "text/javascript; charset=utf-8",
 };
 
 /** What a phone needs to install HQ to its home screen (quality of life, 2026-11-25). */
