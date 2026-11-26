@@ -272,6 +272,18 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     done: (_, _id, f) => toWork(f),
     back: (_id, f) => toWork(f),
     message: (result) => (result.skipped > 0 ? `Changed ${result.changed}. ${result.skipped} couldn’t be changed.` : result.changed === 1 ? "Changed 1." : `Changed ${result.changed}.`),
+    // A batch can be undone like one change: each goes back to what it had. Labels are only added, so they're taken off by hand.
+    undo: (result, _id, f) => {
+      const ids = Object.keys(result.was);
+      if (ids.length === 0) return null;
+      const what = f["action"] === "status" ? "moved" : f["action"] === "assign" ? "given" : "dated";
+      return { label: `${ids.length === 1 ? "1 task" : `${ids.length} tasks`}: ${what}`, action: "/work/bulk-undo", fields: { kind: f["action"] ?? "", query: f["query"] ?? "", ...Object.fromEntries(ids.map((id) => [`was-${id}`, result.was[id] ?? ""])) } };
+    },
+  });
+  post("/work/bulk-undo", (actor, f) => bulk.bulkPutBack(deps.projects, actor, f["kind"] ?? "", Object.fromEntries(Object.keys(f).filter((key) => key.startsWith("was-")).map((key) => [key.slice(4), f[key] ?? ""]))), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: (result) => (result.skipped > 0 ? `Put ${result.changed} back. ${result.skipped} couldn’t be.` : result.changed === 1 ? "Put 1 back." : `Put ${result.changed} back.`),
   });
   post("/work/filters", (actor, f) => work.saveFilter(deps.projects, actor, { name: f["name"] ?? "", query: f["query"] ?? "", shared: f["shared"] === "1", pinned: f["pinned"] === "1" }), {
     done: (_, _id, f) => toWork(f),

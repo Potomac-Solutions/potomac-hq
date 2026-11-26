@@ -23,7 +23,7 @@ Carried over from the palette, so the palette lost nothing:
 
 | The palette did | Now |
 | --- | --- |
-| Moved a deal it found to its next stage or back one | The command bar does, from `/find.json`'s `moves` |
+| Moved a deal it found to its next stage or back one | The command bar does, from `/find.json`'s `moves`. The move is listed after pages and records, so Enter opens what was typed and never moves a deal (the palette listed it first) |
 | "Quick add “…”" | In the command bar |
 | "Search everything for “…”" | In the command bar |
 | "Keyboard shortcuts" | Type "keys" in the command bar |

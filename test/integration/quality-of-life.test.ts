@@ -77,6 +77,16 @@ test("many at once: tasks moved, given, dated and labelled together; drafts mark
   assert.equal(t.services.projects.tasks.get(b.id)?.assigneeId, sam);
   await admin.post("/work/bulk", { ...picked, action: "due", "value-due": "2026-12-11" });
   assert.equal(t.services.projects.tasks.get(a.id)?.dueOn, "2026-12-11");
+  // A batch can be undone like one change: each goes back to what it had.
+  const done = await admin.submit("/work/bulk", { ...picked, action: "status", "value-status": "done" });
+  assert.match(textOf(done.html), /2 tasks: moved/, "Undo is offered for the batch");
+  const undo = /action="(\/undo\/[0-9a-f]{32})"/.exec(done.html)?.[1] ?? "";
+  assert.match(textOf((await admin.submit(undo, {})).html), /Put 2 back\./);
+  assert.equal(t.services.projects.tasks.get(a.id)?.status, "doing");
+  assert.equal(t.services.projects.tasks.get(b.id)?.status, "doing");
+  const given = await admin.submit("/work/bulk", { ...picked, action: "assign", "value-assign": "nobody" });
+  await admin.submit(/action="(\/undo\/[0-9a-f]{32})"/.exec(given.html)?.[1] ?? "", {});
+  assert.equal(t.services.projects.tasks.get(a.id)?.assigneeId, sam, "who had it comes back");
   assert.match(query(await admin.post("/work/bulk", { action: "status", "value-status": "done" }), "problem"), /Tick at least one/);
   assert.match(query(await admin.post("/work/bulk", { ...picked, action: "status", "value-status": "archived" }), "problem"), /Choose what to do/);
 
