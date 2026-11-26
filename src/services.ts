@@ -424,7 +424,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
     return clientEmails(organizationId);
   };
-  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db), makeTodo: (input) => taskFromClient(projects, input) };
+  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db, BUSINESS_TIME_ZONE), makeTodo: (input) => taskFromClient(projects, input) };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),

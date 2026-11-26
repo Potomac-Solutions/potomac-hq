@@ -72,7 +72,7 @@
     </section>
     <section class="hq-panel" id="late-fees" aria-labelledby="money-late-fees">
       <h2 id="money-late-fees">Late fees: {lateWords}</h2>
-      <p>When set, an invoice that reaches the day gets one late fee, as its own invoice in the client’s portal, due two weeks later. Never on a late fee, never twice. At two weeks late, whoever made the invoice also gets a to-do to call the client, fee or not.</p>
+      <p>When set, an invoice that reaches the day gets one late fee, as its own invoice in the client’s portal, due two weeks later. Never on a late fee, never twice. An invoice already past that day when you save this isn’t charged: only ones that reach it afterwards. At two weeks late, whoever made the invoice also gets a to-do to call the client, fee or not.</p>
       <p class="hq-muted">Only charge a late fee your agreement with the client mentions, and check what your state allows.</p>
       <form zb-if={lateFee.canEdit} method="post" action="/money/late-fee" class="hq-form" data-spaced>
         <fieldset class="hq-radios">
