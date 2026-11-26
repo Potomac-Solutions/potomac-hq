@@ -8,7 +8,7 @@
 // `withNotices` wraps an activity log so each event appended makes its
 // notices in the same transaction. Reminders are fired by a job every minute.
 // A person may also have their notices emailed, when email is set up.
-import { carriedTiming, firesAt, isReminderDue, noticesFromEvent, readReminder, reminderRecipient, reminderText, type Notice, type NoticeKind, type Reminder, type ReminderError, type ReminderInput } from "../domain/notice.ts";
+import { carriedTiming, EMAIL_MODE_LABELS, EMAIL_MODES, emailDecision, firesAt, isReminderDue, NOTICE_KINDS, noticesFromEvent, readPreferences, readReminder, reminderRecipient, reminderText, type Notice, type NoticeKind, type NoticePreferences, type PreferencesError, type Reminder, type ReminderError, type ReminderInput } from "../domain/notice.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, friendlyDay, ok, recordActivity, type ActivityDeps, type ActivityLog, type Clock, type Id, type IdSource, type Result, type Transact } from "../../shared/index.ts";
 
@@ -49,6 +49,9 @@ export type NoticeSettings = {
   /** Whether they have their notices emailed. Off unless they turned it on. */
   emailOf(userId: Id): boolean;
   setEmail(userId: Id, on: boolean, at: string): void;
+  /** When each kind is emailed, and quiet hours. */
+  preferencesOf(userId: Id): NoticePreferences;
+  setPreferences(userId: Id, preferences: NoticePreferences, at: string): void;
 };
 
 /** What notices need to know about a task, from the projects module. */
@@ -111,12 +114,34 @@ const line = (row: NoticeRow, formatWhen: (at: string) => string): NoticeLine =>
   unread: row.readAt === null,
 });
 
-export type NoticesView = { readonly items: readonly NoticeLine[]; readonly unread: number; readonly email: boolean; readonly emailReady: boolean };
+export type NoticesView = {
+  readonly items: readonly NoticeLine[];
+  readonly unread: number;
+  readonly email: boolean;
+  readonly emailReady: boolean;
+  /** How each kind is emailed, and quiet hours, for the settings form. */
+  readonly preferences: {
+    readonly kinds: readonly { readonly kind: string; readonly label: string; readonly options: readonly { readonly value: string; readonly label: string; readonly selected: boolean }[] }[];
+    readonly hours: readonly { readonly value: string; readonly label: string; readonly from: boolean; readonly to: boolean }[];
+    readonly quietText: string;
+  };
+};
+
+const KIND_LABELS: Readonly<Record<NoticeKind, string>> = { assigned: "A task or to-do given to you", mentioned: "A comment that mentions you", reminder: "Your reminders" };
+const hourText = (hour: number): string => `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
+
+function preferencesView(preferences: NoticePreferences): NoticesView["preferences"] {
+  return {
+    kinds: NOTICE_KINDS.map((kind) => ({ kind, label: KIND_LABELS[kind], options: EMAIL_MODES.map((mode) => ({ value: mode, label: EMAIL_MODE_LABELS[mode], selected: preferences.modes[kind] === mode })) })),
+    hours: [{ value: "", label: "No quiet hours", from: preferences.quiet === null, to: preferences.quiet === null }, ...Array.from({ length: 24 }, (_, hour) => ({ value: String(hour), label: hourText(hour), from: preferences.quiet?.from === hour, to: preferences.quiet?.to === hour }))],
+    quietText: preferences.quiet ? `Quiet from ${hourText(preferences.quiet.from)} to ${hourText(preferences.quiet.to)}: emails wait until it ends.` : "No quiet hours.",
+  };
+}
 
 /** Your notices, newest first. */
 export function listNotices(deps: NoticesDeps, actorId: Id | null, formatWhen: (at: string) => string): Result<NoticesView, "forbidden"> {
   if (!allowed(deps, actorId)) return err("forbidden");
-  return ok({ items: deps.notices.forUser(actorId, 100).map((row) => line(row, formatWhen)), unread: deps.notices.unreadCount(actorId), email: deps.settings.emailOf(actorId), emailReady: deps.emailReady });
+  return ok({ items: deps.notices.forUser(actorId, 100).map((row) => line(row, formatWhen)), unread: deps.notices.unreadCount(actorId), email: deps.settings.emailOf(actorId), emailReady: deps.emailReady, preferences: preferencesView(deps.settings.preferencesOf(actorId)) });
 }
 
 /** Your unread notices, for Today. Empty without permission. */
@@ -150,6 +175,18 @@ export function setNoticeEmail(deps: NoticesDeps, actorId: Id | null, on: boolea
     if (on) deps.notices.markAllEmailed(actorId, deps.clock());
     recordActivity(deps, { actorId, action: on ? "user.notice-email-on" : "user.notice-email-off", recordType: "user", recordId: actorId, context: {} });
     return ok(on);
+  });
+}
+
+/** When each kind of notice is emailed, and quiet hours. The bell always shows them all. */
+export function setNoticePreferences(deps: NoticesDeps, actorId: Id | null, input: { readonly modes: Readonly<Record<string, string>>; readonly quietFrom: string; readonly quietTo: string }): Result<NoticePreferences, "forbidden" | PreferencesError> {
+  if (!allowed(deps, actorId)) return err("forbidden");
+  const read = readPreferences(input);
+  if (!read.ok) return err(read.error);
+  return deps.transact(() => {
+    deps.settings.setPreferences(actorId, read.value, deps.clock());
+    recordActivity(deps, { actorId, action: "user.notice-preferences-set", recordType: "user", recordId: actorId, context: { ...read.value.modes, quiet: read.value.quiet ? `${read.value.quiet.from}-${read.value.quiet.to}` : "none" } });
+    return ok(read.value);
   });
 }
 
@@ -230,10 +267,18 @@ export async function emailNotices(deps: NoticesDeps, mail: NoticeMail, options:
   const base = options.publicUrl.replace(/\/$/, "");
   const byUser = new Map<Id, NoticeRow[]>();
   for (const row of deps.notices.toEmail()) byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row]);
+  const hour = Temporal.Instant.from(deps.clock()).toZonedDateTimeISO(deps.zone).hour;
   let sent = 0;
   let failed = 0;
-  for (const [userId, rows] of byUser) {
+  for (const [userId, waiting] of byUser) {
     const user = deps.users.get(userId);
+    // Each person's own settings: some go now, some wait for the digest or quiet hours to end, some are never emailed.
+    const preferences = deps.settings.preferencesOf(userId);
+    const decided = waiting.map((row) => ({ row, decision: emailDecision(preferences, row.kind, hour) }));
+    const skipped = decided.filter((one) => one.decision === "skip").map((one) => one.row.id);
+    if (skipped.length > 0) deps.notices.markEmailed(skipped, deps.clock());
+    const rows = decided.filter((one) => one.decision === "send").map((one) => one.row);
+    if (rows.length === 0) continue;
     deps.notices.markEmailed(rows.map((row) => row.id), deps.clock());
     if (!user || user.status !== "active" || !user.email) continue;
     const lines = rows.flatMap((row) => [KIND_TEXT[row.kind](row), ...(row.detail ? [`  ${row.detail}`] : []), `  ${base}/notices/${row.id}`, ""]);

@@ -39,14 +39,24 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
       if (!where) return { ok: false as const, error: "task-not-in-project" };
       return finance.logTime(deps.finance, actor, where, { on: f["on"] ?? "", hours: f["hours"] ?? "", note: f["note"] ?? null, billable: f["billable"] === "on" });
     },
-    { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Time logged." },
+    {
+      done: (_, _id, f) => back(f, "/time"),
+      back: (_id, f) => back(f, "/time"),
+      message: "Time logged.",
+      undo: (entry, _id, f) => ({ label: "Time logged", action: `/time/${entry.id}/remove`, fields: f["returnTo"] ? { returnTo: f["returnTo"] } : {} }),
+    },
   );
   post("/time/:id/remove", (actor, _f, id) => finance.removeTime(deps.finance, actor, id as Id), { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Entry removed." });
   post("/timer/stop", (actor) => finance.stopTimer(deps.finance, actor), { done: (_, _id, f) => back(f, "/time"), back: (_id, f) => back(f, "/time"), message: "Timer stopped and the time logged." });
   post(
     "/projects/:id/expenses",
     (actor, f, id, files) => finance.addExpense(deps.finance, actor, id as Id, { category: f["category"] ?? "", amount: f["amount"] ?? "", on: f["on"] ?? "", note: f["note"] ?? null, receipt: files["receipt"] ?? null }),
-    { done: (_, id) => `${money(id)}#expenses`, back: (id) => `${money(id)}#expenses`, message: "Expense recorded." },
+    {
+      done: (_, id) => `${money(id)}#expenses`,
+      back: (id) => `${money(id)}#expenses`,
+      message: "Expense recorded.",
+      undo: (expense) => ({ label: "Expense recorded", action: `/expenses/${expense.id}/remove`, fields: {} }),
+    },
   );
   post("/expenses/:id/remove", (actor, _f, id) => finance.removeExpense(deps.finance, actor, id as Id), {
     done: (expense) => `${money(expense.projectId)}#expenses`,
@@ -120,6 +130,12 @@ export function financeRoutes(deps: FinanceRoutesDeps): Hono {
   const recurringHome = (made: { readonly projectId: Id | null; readonly organizationId: Id }) => (made.projectId ? `${money(made.projectId)}#recurring` : `/clients/${made.organizationId}#billing`);
   post("/recurring/:id/pause", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, false), { done: (made) => recurringHome(made), back: () => "/money#recurring", message: "Paused. No invoices until it is started again." });
   post("/recurring/:id/resume", (actor, f, id) => finance.setRecurringActive(deps.finance, actor, id as Id, true), { done: (made) => recurringHome(made), back: () => "/money#recurring", message: "Started again, from its next day. Nothing is billed for the paused time." });
+  // Several drafts at once: each ticked box is invoice-<id>.
+  post("/projects/:id/invoices/send", (actor, f, id) => finance.sendInvoicesNow(deps.finance, actor, id as Id, Object.keys(f).filter((key) => key.startsWith("invoice-") && f[key] === "on").map((key) => key.slice(8)), f["checked"] === "on"), {
+    done: (_, id) => `/projects/${id ?? ""}/money#invoices`,
+    back: (id) => `/projects/${id ?? ""}/money#invoices`,
+    message: (result) => (result.skipped > 0 ? `Marked ${result.sent} sent. ${result.skipped} couldn’t be (only drafts can).` : result.sent === 1 ? "Marked 1 sent." : `Marked ${result.sent} sent.`),
+  });
   post("/invoices/:id/send", (actor, _f, id) => finance.sendInvoiceNow(deps.finance, actor, id as Id), { done: (_, id) => invoice(id), back: (id) => invoice(id), message: "Invoice sent. Download the PDF to give it to the client." });
   post("/invoices/:id/promise", (actor, f, id) => finance.promiseInvoicePayment(deps.finance, actor, id as Id, { on: f["on"] ?? "", note: f["note"] ?? null }), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.promisedOn ? "Saved. Today will remind you that day." : "The promise is cleared.") });
   post("/invoices/:id/pay-link", (actor, f, id) => finance.setInvoicePayLink(deps.finance, actor, id as Id, f["link"] ?? ""), { done: (_, id) => `${invoice(id)}#follow-up`, back: (id) => `${invoice(id)}#follow-up`, message: (changed) => (changed.payLink ? "Saved. The client sees “Pay by card” in their portal." : "The link is removed.") });

@@ -20,3 +20,4 @@ export * from "./application/timeline.ts";
 export * from "./application/calendar.ts";
 export * from "./application/share.ts";
 export * from "./application/task-import.ts";
+export * from "./application/bulk.ts";

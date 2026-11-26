@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -22,7 +22,7 @@ test("make a link, scan it, and see the inquiry it led to", async () => {
   const page = await (await browser.newContext()).newPage();
   const problems = watch(page);
   await setUpAdmin(t, page);
-  await page.getByRole("link", { name: "Referral links" }).click();
+  await sidebar(page, "Referral links");
   await page.getByRole("heading", { name: "No referral links yet" }).waitFor();
   await assertAccessible(page, "referral links, empty");
   await page.getByLabel("What it’s printed on").fill("Business cards, winter 2026");

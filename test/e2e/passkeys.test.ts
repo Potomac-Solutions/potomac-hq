@@ -55,7 +55,7 @@ test("turn it on with a passkey in Settings, then sign in with the password and 
   await page.getByRole("heading", { name: "Confirm it’s you" }).waitFor();
   await assertAccessible(page, "the second step at sign-in, with a passkey");
   await page.getByRole("button", { name: "Continue with a passkey" }).click();
-  await page.getByRole("heading", { name: "Dashboard" }).waitFor();
+  await page.getByRole("heading", { name: "Home", level: 1 }).waitFor();
 
   // Signed in, the passkey also proves it is you: for turning two-factor sign-in off.
   await page.goto(`${local.origin}/settings`);

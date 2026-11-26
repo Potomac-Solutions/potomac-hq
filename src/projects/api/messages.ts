@@ -2,6 +2,9 @@
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",
+  "nothing-picked": "Tick at least one task first.",
+  "too-many": "Change at most 100 at once.",
+  "invalid-action": "Choose what to do with them.",
   "invalid-kind": "Choose what it is from the list.",
   "label-too-long": "Keep the name under 80 characters.",
   "invalid-url": "Enter a web address, like staging.example.com.",

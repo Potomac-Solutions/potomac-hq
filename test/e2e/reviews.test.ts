@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -51,7 +51,7 @@ test("ask, write, publish, and write a case study", async () => {
   await assertAccessible(phone, "after writing a review");
   assert.deepEqual(phoneProblems, []);
 
-  await staff.getByRole("link", { name: "Reviews" }).first().click();
+  await sidebar(staff, "Reviews");
   await staff.getByRole("heading", { name: "1 waiting" }).waitFor();
   await assertAccessible(staff, "reviews, one waiting");
   await staff.getByRole("button", { name: /^Publish/ }).click();

@@ -1,0 +1,45 @@
+<!--
+  Approving from email (quality of life, 2026-11-25): the link in a client's
+  email opens one deliverable, with Approve and Ask for changes, without
+  signing in. The link is that person's alone and works for 14 days.
+-->
+<script>
+  'use route /portal/approve/:token'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, params }) {
+    return { title: 'Look it over', view: context.portal.approval(params.token), token: params.token, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  :host { display: block; max-width: 34rem; }
+  .approve-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .approve-actions form { margin: 0; }
+  .approve-note { width: 100%; min-height: 5rem; padding: 0.6rem; font: inherit; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--background); color: var(--foreground); }
+</style>
+<hq-portal-approve view={{ valid: false }} token="" done="" problem="">
+  <div class="hq-page">
+    <h1>{view.valid ? view.title : 'This link can’t be used'}</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p zb-if={!view.valid}>It has expired, or it was for someone else. <a href="/portal">Sign in to your client portal</a> to see everything that’s waiting.</p>
+    <section zb-if={view.valid} class="hq-panel" aria-labelledby="approve-what">
+      <h2 id="approve-what">For {view.projectName}</h2>
+      <p zb-if={view.description}>{view.description}</p>
+      <p><strong>{view.statusLabel}</strong>. <a href="/portal/projects/{view.projectId}">See it in your portal</a> (you’ll sign in).</p>
+      <div zb-if={view.awaiting} class="approve-actions">
+        <form method="post" action="/portal/approve/{token}"><input type="hidden" name="decision" value="approved"><button class="hq-button portal-big" type="submit">Approve it</button></form>
+      </div>
+      <details zb-if={view.awaiting} data-spaced>
+        <summary>Ask for changes instead</summary>
+        <form method="post" action="/portal/approve/{token}" class="hq-form" data-spaced>
+          <input type="hidden" name="decision" value="changes-requested">
+          <label for="approve-note">What should change?</label>
+          <textarea id="approve-note" class="approve-note" name="note" required maxlength="2000"></textarea>
+          <div><button class="hq-button secondary" type="submit">Ask for changes</button></div>
+        </form>
+      </details>
+    </section>
+  </div>
+</hq-portal-approve>

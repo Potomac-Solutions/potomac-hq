@@ -40,7 +40,64 @@ export type Places<V> = {
   readonly back: (id: Id | null, form: FormFields) => string;
   /** What to say when it worked; a function to say something about what happened. */
   readonly message: string | ((value: V) => string);
+  /** The post that puts it back, offered as an Undo button and Ctrl+Z (decision 0014). Null when it can't be undone. */
+  readonly undo?: (value: V, id: Id | null, form: FormFields) => Undo | null;
 };
+
+/** A form post that reverses one that just worked. Runs through the same route and permission checks as any other post. */
+export type Undo = {
+  readonly action: string;
+  readonly fields: Readonly<Record<string, string>>;
+  /** What the change was, naming the thing changed, for Recent changes ("Menu website: moved to Quoted"). The page's message when not given. */
+  readonly label?: string;
+};
+
+/** The field that carries an undo's label to `stashUndo`. It is never posted. */
+const LABEL = "__label";
+
+const UNDO_ACTION = /^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/;
+
+/**
+ * Adds `undo` to a location. Before the location is signed, the app swaps it
+ * for a token (`stashUndo`), so its length doesn't matter here.
+ */
+export function withUndo(location: string, undo: Undo | null | undefined): string {
+  if (!undo || !UNDO_ACTION.test(undo.action)) return location;
+  const value = `${undo.action}?${new URLSearchParams({ ...undo.fields, ...(undo.label ? { [LABEL]: undo.label } : {}) } as Record<string, string>).toString()}`;
+  const [path = "", hash = ""] = location.split("#");
+  const joined = `${path}${path.includes("?") ? "&" : "?"}undo=${encodeURIComponent(value)}`;
+  return hash ? `${joined}#${hash}` : joined;
+}
+
+/**
+ * Swaps a location's `undo` for `/undo/<token>`, keeping the post with `keep`,
+ * labelled with the location's `done` message.
+ * A location with no undo comes back as it was.
+ */
+export function stashUndo(location: string, keep: (action: string, fields: Readonly<Record<string, string>>, label: string) => string): string {
+  const url = new URL(location, "http://hq.invalid");
+  const raw = url.searchParams.get("undo");
+  if (raw === null) return location;
+  const undo = readUndo(raw);
+  if (undo === null || undo.action.startsWith("/undo/")) url.searchParams.delete("undo");
+  else {
+    const fields = Object.fromEntries(undo.fields.filter((field) => field.name !== LABEL).map((field) => [field.name, field.value]));
+    const label = undo.fields.find((field) => field.name === LABEL)?.value || (url.searchParams.get("done") ?? "");
+    url.searchParams.set("undo", `/undo/${keep(undo.action, fields, label)}`);
+  }
+  const local = `${url.pathname}${url.search}${url.hash}`;
+  return url.origin === "http://hq.invalid" ? local : `${url.origin}${local}`;
+}
+
+/** Reads a signed `undo` back into a form to show. Null for anything that isn't a plain HQ post. */
+export function readUndo(value: string): { readonly action: string; readonly fields: readonly { readonly name: string; readonly value: string }[] } | null {
+  if (!value) return null;
+  const at = value.indexOf("?");
+  const action = at === -1 ? value : value.slice(0, at);
+  if (!UNDO_ACTION.test(action)) return null;
+  const fields = [...new URLSearchParams(at === -1 ? "" : value.slice(at + 1))].map(([name, field]) => ({ name, value: field }));
+  return { action, fields };
+}
 
 /** Adds `name=value` to a location that may already have a query. */
 export function withMessage(location: string, name: "done" | "problem", message: string): string {
@@ -83,7 +140,7 @@ export function formPosts<A = Id | null>(app: PostApp, deps: FormPostDeps<A>) {
       if (param !== undefined && id === null) return c.redirect(deps.sign(withMessage(deps.home, "problem", deps.messageFor("not-found"))), 303);
       const answer = await run(deps.actorOf(c.req.header("cookie") ?? ""), fields, id, files);
       const to = answer.ok
-        ? withMessage(places.done(answer.value, id, fields), "done", typeof places.message === "function" ? places.message(answer.value) : places.message)
+        ? withUndo(withMessage(places.done(answer.value, id, fields), "done", typeof places.message === "function" ? places.message(answer.value) : places.message), places.undo?.(answer.value, id, fields))
         : withMessage(answer.error === "not-found" ? deps.home : places.back(id, fields), "problem", deps.messageFor(answer.error));
       return c.redirect(deps.sign(to), 303);
     }) as never);

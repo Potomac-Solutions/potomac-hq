@@ -24,6 +24,7 @@ export function referralRoutes(deps: { readonly referrals: ReferralsDeps; readon
     done: (link) => `/referrals#link-${link.code}`,
     back: () => "/referrals#add",
     message: "Link made. Print its QR code, or copy its address.",
+    undo: (link) => ({ label: `Referral link made: ${link.label || link.code}`, action: `/referrals/${link.id}/remove`, fields: {} }),
   });
   post("/referrals/:id", (actor, f, id) => editReferralLink(deps.referrals, actor, id as Id, { label: f["label"] ?? "", destination: f["destination"] ?? "" }), {
     done: (link) => `/referrals#link-${link.code}`,

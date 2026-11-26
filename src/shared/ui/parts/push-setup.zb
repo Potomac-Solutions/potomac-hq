@@ -1,0 +1,82 @@
+<!--
+  Phone alerts and installing HQ (quality of life, 2026-11-25), on Settings.
+  "Turn on alerts on this device" asks the browser for permission and posts
+  its push subscription; each device is listed with Remove. "Install HQ"
+  shows where the browser offers it. Without scripts, the device list and
+  the test still work. `view` is the page context's push().
+-->
+<script>
+  import { onMount } from '@zubra/runtime'
+  let state = 'checking'
+  let canInstall = false
+  let installEvent = null
+  let problem = ''
+  const fromB64url = (text) => {
+    const padded = text.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((text.length + 3) % 4)
+    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
+  }
+  const toB64url = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  async function turnOn() {
+    problem = ''
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        problem = 'Alerts are blocked for HQ in this browser. Allow them in its settings, then try again.'
+        return
+      }
+      const registration = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64url(view.publicKey) })
+      const body = new URLSearchParams({ endpoint: subscription.endpoint, p256dh: toB64url(subscription.getKey('p256dh')), auth: toB64url(subscription.getKey('auth')), ua: navigator.userAgent.slice(0, 300) })
+      await fetch('/push/devices', { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' })
+      location.href = '/settings?done=' + encodeURIComponent('Alerts are on for this device.') + '#alerts'
+    } catch {
+      problem = 'This browser couldn’t turn on alerts. On an iPhone, add HQ to your home screen first, then open it from there.'
+    }
+  }
+  async function install() {
+    if (!installEvent) return
+    installEvent.prompt()
+    await installEvent.userChoice
+    installEvent = null
+    canInstall = false
+  }
+  onMount(() => {
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+    state = !supported ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : 'ready'
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault()
+      installEvent = event
+      canInstall = true
+    })
+  })
+</script>
+<style>
+  :host { display: block; }
+  .push-devices { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+  .push-devices li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.45rem 0; border-top: 1px solid var(--border); }
+  .push-devices form { margin: 0; }
+  .push-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .push-actions form { margin: 0; }
+</style>
+<push-setup view={{ ready: false, publicKey: '', devices: [] }}>
+  <section class="hq-panel" id="alerts" aria-labelledby="settings-alerts">
+    <h2 id="settings-alerts">Phone alerts and the HQ app</h2>
+    <p>Put HQ on your phone’s home screen like an app, and get an alert when a client writes or asks for a call, a booked call is about to start, a site goes down, or a task is given to you. Your notice settings’ quiet hours apply.</p>
+    <p class="hq-small hq-muted"><strong>To install:</strong> on an iPhone, tap Share, then Add to Home Screen. On Android, Chrome offers Install app in its menu<span zb-if={canInstall}>, or tap the button below</span>.</p>
+    <div class="push-actions">
+      <button zb-if={canInstall} type="button" class="hq-button secondary" onclick={install}>Install HQ</button>
+      <button zb-if={view.ready && state === 'ready'} type="button" class="hq-button" onclick={turnOn}>Turn on alerts on this device</button>
+      <form zb-if={view.devices.length > 0} method="post" action="/push/test"><button class="hq-button secondary" type="submit">Send a test alert</button></form>
+    </div>
+    <p zb-if={!view.ready} class="hq-muted hq-small">Alerts need HQ_VAPID_PUBLIC_KEY and HQ_VAPID_PRIVATE_KEY on the server. <code>npm run push:keygen</code> makes them.</p>
+    <p zb-if={view.ready && state === 'unsupported'} class="hq-muted hq-small">This browser can’t show alerts. On an iPhone, add HQ to your home screen first, then open it from there.</p>
+    <p zb-if={view.ready && state === 'blocked'} class="hq-muted hq-small">Alerts are blocked for HQ in this browser. Allow them in its settings to turn them on.</p>
+    <p zb-if={problem} class="hq-small" role="alert">{problem}</p>
+    <ul zb-if={view.devices.length > 0} class="push-devices" aria-label="Devices that get alerts">
+      <zb-each items={view.devices} as="device" key={device.id}>
+        <li><span>{device.label} <span class="hq-muted hq-small">since {device.added}</span></span><form method="post" action="/push/devices/{device.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {device.label}</span></button></form></li>
+      </zb-each>
+    </ul>
+  </section>
+</push-setup>

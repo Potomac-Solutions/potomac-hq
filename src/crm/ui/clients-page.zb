@@ -16,6 +16,10 @@
     return { title: 'Clients', view: view.value, importer: context.crm.canImport(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
+<style>
+  .hq-same { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-left: 0.25rem solid var(--warning); border-radius: var(--radius); }
+  .hq-same p { margin: 0; }
+</style>
 <hq-clients view={{ clients: [], canCreate: false, sizeTiers: [], statuses: [], status: "", kind: "", demoCount: 0 }} importer={false} done="" problem="">
   <div class="hq-page">
     <div class="hq-head">
@@ -72,6 +76,14 @@
         <text-field label="Website" name="website" description="Optional, like example.com" autocomplete="url"></text-field>
         <text-field label="Phone" name="phone" type="tel" autocomplete="tel"></text-field>
         <text-field label="Address" name="address" rows={2} autocomplete="street-address"></text-field>
+        <!-- Said again here, beside the box that answers it: the page comes back at this form, with the message far above. -->
+        <div zb-if={problem && problem.includes('already in HQ')} class="hq-same">
+          <p class="hq-small">{problem}</p>
+          <div class="hq-check">
+            <input id="client-different" name="different" type="checkbox" value="1">
+            <label for="client-different">It’s a different business: add it anyway</label>
+          </div>
+        </div>
         <div><button class="hq-button" type="submit">Add client</button></div>
       </form>
     </section>
