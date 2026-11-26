@@ -8,3 +8,4 @@ export { sqliteTwoFactorStore } from "./infrastructure/two-factor-store.ts";
 export { sqliteRefusedLog } from "./infrastructure/refused-log.ts";
 export { sqlitePasskeyStore } from "./infrastructure/passkey-store.ts";
 export { passkeyCrypto } from "./infrastructure/passkey-crypto.ts";
+export { isPreviewRole, previewing, PREVIEW_ROLES, runPreviewing, withRolePreview, type PreviewRole } from "./infrastructure/preview.ts";

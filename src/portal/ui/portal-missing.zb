@@ -1,0 +1,18 @@
+<!--
+  What a client sees for a portal page that isn't there, or isn't theirs
+  (the two look the same, on purpose): the portal's own frame and a way
+  back to their portal, not HQ's "back to the dashboard". Shown in a page's
+  place by `context.portal.missing()`.
+-->
+<script>
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/action-button.zb'
+</script>
+<hq-portal-missing>
+  <div class="hq-page">
+    <empty-state heading="There’s nothing at this address">
+      <span>It may be finished, taken down, or a link that was typed wrong. Everything of yours is on your portal’s first page.</span>
+      <action-button slot="actions" href="/portal">Back to your portal</action-button>
+    </empty-state>
+  </div>
+</hq-portal-missing>

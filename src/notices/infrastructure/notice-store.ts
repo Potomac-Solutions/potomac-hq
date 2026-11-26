@@ -1,3 +1,4 @@
+import { DEFAULT_PREFERENCES, type EmailMode } from "../domain/notice.ts";
 import type { NoticeRow, NoticeSettings, NoticeStore, ReminderStore } from "../application/notices.ts";
 import type { Notice, NoticeKind, Reminder } from "../domain/notice.ts";
 import type { Database } from "../../shared/adapters.ts";
@@ -88,8 +89,21 @@ export function sqliteTaskReminderStore(db: Database): ReminderStore {
 export function sqliteNoticeSettings(db: Database): NoticeSettings {
   const get = db.prepare("select email from notice_setting where user_id = ?");
   const set = db.prepare("insert into notice_setting (user_id, email, updated_at) values (?, ?, ?) on conflict (user_id) do update set email = excluded.email, updated_at = excluded.updated_at");
+  const prefs = db.prepare("select assigned, mentioned, reminder, quiet_from, quiet_to from notice_setting where user_id = ?");
+  // Saving preferences leaves email as it was; someone with no row yet has email off.
+  const setPrefs = db.prepare(
+    "insert into notice_setting (user_id, email, updated_at, assigned, mentioned, reminder, quiet_from, quiet_to) values (?, 0, ?, ?, ?, ?, ?, ?) on conflict (user_id) do update set updated_at = excluded.updated_at, assigned = excluded.assigned, mentioned = excluded.mentioned, reminder = excluded.reminder, quiet_from = excluded.quiet_from, quiet_to = excluded.quiet_to",
+  );
   return {
     emailOf: (userId) => (get.get(userId) as Row | undefined)?.["email"] === 1,
     setEmail: (userId, on, at) => void set.run(userId, on ? 1 : 0, at),
+    preferencesOf(userId) {
+      const row = prefs.get(userId) as Row | undefined;
+      if (!row) return DEFAULT_PREFERENCES;
+      const from = row["quiet_from"];
+      const to = row["quiet_to"];
+      return { modes: { assigned: row["assigned"] as EmailMode, mentioned: row["mentioned"] as EmailMode, reminder: row["reminder"] as EmailMode }, quiet: typeof from === "number" && typeof to === "number" ? { from, to } : null };
+    },
+    setPreferences: (userId, p, at) => void setPrefs.run(userId, at, p.modes.assigned, p.modes.mentioned, p.modes.reminder, p.quiet?.from ?? null, p.quiet?.to ?? null),
   };
 }

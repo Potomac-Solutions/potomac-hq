@@ -12,7 +12,7 @@ export type ClientUserStore = {
   wantsNotices(id: Id): boolean;
   setNotices(id: Id, on: boolean, at: string): void;
   /** The people at a client who can sign in and have not turned notices off. */
-  noticeRecipients(organizationId: Id): { readonly name: string; readonly email: string }[];
+  noticeRecipients(organizationId: Id): { readonly id: Id; readonly name: string; readonly email: string }[];
 };
 
 /** One line of the activity log, as the notice sender and the dashboard read it. */

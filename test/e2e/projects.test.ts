@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { PDF, testApp, wonProject, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -41,7 +41,7 @@ test("run a project from its pages and the board", async () => {
   await page.goto(t.origin + "/");
   await page.getByRole("heading", { name: "Active projects: 1" }).waitFor();
   await assertAccessible(page, "the dashboard with projects");
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
+  await sidebar(page, "Projects");
   await page.waitForURL((url) => url.pathname === "/projects");
   await assertAccessible(page, "the projects list");
   await page.getByRole("link", { name: "Bakery website" }).click();
@@ -127,6 +127,13 @@ test("run a project from its pages and the board", async () => {
   await page.getByRole("button", { name: "Move: Draft the menu page" }).click();
   await page.getByText("Task moved.").waitFor();
   assert.equal(await column("Done").locator(".board-card").count(), 1);
+  assert.equal(await column("To do").locator(".board-card").count(), 0);
+  // Undo puts it back where it was, and undoing the undo moves it again (decision 0014).
+  await page.getByRole("button", { name: "Undo" }).click();
+  await column("To do").locator(".board-card", { hasText: "Draft the menu page" }).waitFor();
+  assert.equal(await column("Done").locator(".board-card").count(), 0);
+  await page.keyboard.press("Control+z");
+  await column("Done").locator(".board-card", { hasText: "Draft the menu page" }).waitFor();
   assert.equal(await column("To do").locator(".board-card").count(), 0);
 
   // The project's own board, and only my tasks.
@@ -309,7 +316,7 @@ test("import a Trello board into a project, after a preview", async () => {
   await page.close();
 });
 
-test("the pipeline: a card dragged to the next column moves a stage", async () => {
+test("the pipeline: a card dragged to the next column moves a stage, back to an earlier one, and undo puts it back", async () => {
   const crm = await import("../../src/crm/index.ts");
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   const client = crm.createClient(t.services.crm, mikey, { name: "Gormania Feed" });
@@ -320,13 +327,28 @@ test("the pipeline: a card dragged to the next column moves a stage", async () =
   const problems = watch(page);
   await page.goto(t.origin + "/pipeline");
   const column = (name: string) => page.locator("section.hq-column", { has: page.getByRole("heading", { name: new RegExp(`^${name}`) }) });
-  await page.locator(".hq-card", { hasText: "Feed store site" }).dragTo(column("Consult booked"));
-  await page.getByText("Stage changed.").waitFor();
+  const card = page.locator(".hq-card", { hasText: "Feed store site" });
+  await card.dragTo(column("Consult booked"));
+  await page.getByText("Moved to Consult booked.").waitFor();
   assert.equal(await column("Consult booked").locator(".hq-card").count(), 1);
-  // Two columns on is not the next stage: the server says so, and nothing moves.
-  await page.locator(".hq-card", { hasText: "Feed store site" }).dragTo(column("Quoted"));
-  await page.getByText("Stages move forward one at a time.").waitFor();
+  await assertAccessible(page, "the pipeline with an Undo bar");
+
+  // Two columns on is not the next stage: it can't be dropped there, and nothing moves.
+  await card.dragTo(column("Quoted"));
   assert.equal(await column("Consult booked").locator(".hq-card").count(), 1);
+
+  // Back to an earlier column (decision 0014).
+  await card.dragTo(column("New"));
+  await page.getByText("Moved back to New.").waitFor();
+  assert.equal(await column("New").locator(".hq-card").count(), 1);
+
+  // Undo puts it back, by the button and by Ctrl+Z.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByText("Moved to Consult booked.").waitFor();
+  assert.equal(await column("Consult booked").locator(".hq-card").count(), 1);
+  await page.keyboard.press("Control+z");
+  await page.getByText("Moved back to New.").waitFor();
+  assert.equal(await column("New").locator(".hq-card").count(), 1);
   await assertAccessible(page, "the pipeline");
   assert.deepEqual(problems, []);
   await page.close();

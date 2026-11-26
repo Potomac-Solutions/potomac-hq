@@ -12,16 +12,25 @@
     if (stop) return stop
     const view = context.people.list()
     if (!view.ok) return context.forbidden()
-    return { title: 'People', view: view.value, rule: context.people.twoFactorRule(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'People', view: view.value, canPreview: context.canPreview, rule: context.people.twoFactorRule(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-people view={{ people: [], invites: [], roles: [], can: {} }} rule={{}} done="" problem="">
+<hq-people view={{ people: [], invites: [], roles: [], can: {} }} can-preview={false} rule={{}} done="" problem="">
   <div class="hq-page">
     <h1>People</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
+
+    <section zb-if={canPreview} class="hq-panel" aria-labelledby="people-preview">
+      <h2 id="people-preview">See HQ as someone else would</h2>
+      <p class="hq-muted">Look around HQ with a role’s access, to check what they can and can’t see. Nothing can be changed while you do; it stops by itself after four hours.</p>
+      <div class="hq-actions">
+        <form method="post" action="/preview"><input type="hidden" name="role" value="manager"><button class="hq-button secondary" type="submit">View as a manager</button></form>
+        <form method="post" action="/preview"><input type="hidden" name="role" value="member"><button class="hq-button secondary" type="submit">View as a member</button></form>
+      </div>
+    </section>
 
     <section class="hq-panel" aria-labelledby="people-list">
       <h2 id="people-list">Who can sign in</h2>

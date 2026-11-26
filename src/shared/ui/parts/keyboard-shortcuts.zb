@@ -1,0 +1,100 @@
+<!--
+  The keyboard shortcuts (decision 0014; the palette itself became the
+  command bar of decision 0015). ? lists every shortcut, and the command
+  bar's "Keyboard shortcuts" opens the same list; G then a letter goes to a
+  page in this person's sidebar. `groups` are the sidebar's hubs.
+-->
+<script>
+  import { onMount, onUnmount } from '@zubra/runtime'
+
+  // G then a letter: the page, if it's in this person's sidebar.
+  const JUMPS = [
+    { key: 't', href: '/today', label: 'Today' },
+    { key: 'w', href: '/todos', label: 'My work' },
+    { key: 'd', href: '/', label: 'Home' },
+    { key: 'p', href: '/pipeline', label: 'Pipeline' },
+    { key: 'c', href: '/clients', label: 'Clients' },
+    { key: 'j', href: '/projects', label: 'Projects' },
+    { key: 'b', href: '/board', label: 'Board' },
+    { key: 'm', href: '/money', label: 'Money' },
+    { key: 'h', href: '/history', label: 'Recent changes' },
+  ]
+  const SHORTCUTS = [
+    { keys: '/', what: 'Go to a page or record, move a deal, or ask the assistant' },
+    { keys: 'Ctrl K', what: 'The same (⌘K on a Mac)' },
+    { keys: 'N', what: 'Quick add a task or to-do' },
+    { keys: 'Ctrl Z', what: 'Undo the last change (⌘Z on a Mac)' },
+    { keys: '?', what: 'This list' },
+    ...JUMPS.map((jump) => ({ keys: 'G then ' + jump.key.toUpperCase(), what: 'Go to ' + jump.label })),
+    { keys: 'Space', what: 'On a board card: pick it up, then drop it' },
+    { keys: '← →', what: 'While a card is picked up: choose a column' },
+    { keys: 'Esc', what: 'Put a picked-up card back, or close this' },
+  ]
+
+  let leader = 0
+  function openKeys() {
+    document.getElementById('hq-keys')?.showModal()
+  }
+  const typing = (target) => target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  function keys(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented || typing(event.target)) return
+    if (document.querySelector('dialog[open], [role=dialog][aria-modal=true]')) return
+    if (event.key === '?') {
+      event.preventDefault()
+      return openKeys()
+    }
+    if (event.key === 'g' || event.key === 'G') {
+      leader = Date.now()
+      return
+    }
+    if (leader && Date.now() - leader < 1200) {
+      leader = 0
+      const jump = JUMPS.find((one) => one.key === event.key.toLowerCase())
+      const allowed = jump && groups.some((group) => group.links.some((link) => link.href === jump.href))
+      if (allowed) {
+        event.preventDefault()
+        location.href = jump.href
+      }
+    }
+  }
+  // A click on the dimmed space around the list closes it.
+  function outside(event) {
+    if (event.target === event.currentTarget) event.currentTarget.close()
+  }
+
+  onMount(() => {
+    document.addEventListener('keydown', keys)
+    document.addEventListener('hq-keys', openKeys)
+  })
+  onUnmount(() => {
+    document.removeEventListener('keydown', keys)
+    document.removeEventListener('hq-keys', openKeys)
+  })
+</script>
+<style>
+  .keys { margin: 6vh auto auto; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: 0 24px 60px rgb(0 0 0 / 0.3); }
+  .keys::backdrop { background: rgb(9 24 31 / 0.45); }
+  .keys kbd { padding: 0.1rem 0.4rem; font: inherit; font-size: 0.75rem; color: var(--muted-foreground); background: var(--muted); border: 1px solid var(--border); border-radius: 0.3rem; }
+  .keys { width: min(52rem, calc(100vw - 2rem)); max-height: calc(100vh - 4rem); padding: 1.25rem 1.5rem 1.5rem; overflow-y: auto; }
+  .keys-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: 0 0 1rem; }
+  .keys h2 { margin: 0; font-size: 1.1rem; }
+  .keys dl { display: grid; grid-template-columns: max-content 1fr max-content 1fr; gap: 0.55rem 1rem; margin: 0; }
+  @media (max-width: 44rem) { .keys dl { grid-template-columns: max-content 1fr; } }
+  .keys dt { white-space: nowrap; }
+  .keys dd { margin: 0; }
+  .keys form { margin: 0; }
+</style>
+<keyboard-shortcuts groups={[]}>
+  <dialog id="hq-keys" class="keys" aria-labelledby="hq-keys-title" onclick={outside}>
+    <div class="keys-head">
+      <h2 id="hq-keys-title">Keyboard shortcuts</h2>
+      <form method="dialog"><button class="hq-button secondary" type="submit">Close</button></form>
+    </div>
+    <dl>
+      <zb-each items={SHORTCUTS} as="shortcut" key={shortcut.keys}>
+        <dt><kbd>{shortcut.keys}</kbd></dt>
+        <dd>{shortcut.what}</dd>
+      </zb-each>
+    </dl>
+  </dialog>
+</keyboard-shortcuts>

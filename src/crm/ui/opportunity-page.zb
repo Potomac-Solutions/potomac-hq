@@ -5,6 +5,7 @@
 -->
 <script>
   'use route /opportunities/:id'
+  import '../../shared/ui/parts/history-panel.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
@@ -20,13 +21,15 @@
     if (stop) return stop
     const view = context.crm.opportunityDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), ai: context.ai.deal(params.id), aiModels: context.ai.models(), aiStates: { triage: context.ai.state('lead-triage'), checkIn: context.ai.state('check-in'), proposal: context.ai.state('proposal-draft') }, emailOn: context.crm.emailOn, origin: context.leads.origin(params.id), referred: context.referralCredit.referredBy(params.id), demos: context.demos.forOpportunity(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.opportunity.title, view: view.value, notes: context.notes.list('opportunity', params.id), touches: context.crm.opportunityTouches(params.id), todos: context.todos.onOpportunity(params.id), proposals: context.proposals.forOpportunity(params.id), ai: context.ai.deal(params.id), aiModels: context.ai.models(), aiStates: { triage: context.ai.state('lead-triage'), checkIn: context.ai.state('check-in'), proposal: context.ai.state('proposal-draft') }, emailOn: context.crm.emailOn, origin: context.leads.origin(params.id), referred: context.referralCredit.referredBy(params.id), demos: context.demos.forOpportunity(params.id), history: context.history('opportunity', params.id), done: context.notice.done, problem: context.notice.problem }
   }
 
   const o = view.opportunity
   const canMove = view.can.setStage && o.open
+  // Moving back, or reopening won or lost (decision 0014).
+  const canMoveBack = view.can.setStage && view.backStages.length > 0
 </script>
-<hq-opportunity ai-models={[]} view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} ai={{ triage: null, checkIn: null, proposal: null }} ai-states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} email-on={false} origin={null} referred={null} demos={null} done="" problem="">
+<hq-opportunity ai-models={[]} view={{ opportunity: {}, client: {}, can: {}, pricings: [], project: null }} notes={{ items: [] }} proposals={{ items: [], templates: [] }} touches={null} todos={null} ai={{ triage: null, checkIn: null, proposal: null }} ai-states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} email-on={false} origin={null} referred={null} demos={null} history={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: o.title, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -105,6 +108,19 @@
         <div><button class="hq-button secondary" type="submit">Mark lost</button></div>
       </form>
     </section>
+    <section zb-if={canMoveBack} class="hq-panel" aria-labelledby="opportunity-back">
+      <h2 id="opportunity-back">{o.open ? 'Move it back' : 'Reopen it'}</h2>
+      <form method="post" action="/opportunities/{o.id}/stage" class="hq-form">
+        <input type="hidden" name="back" value="1">
+        <div class="hq-field">
+          <label for="opportunity-back-to">{o.open ? 'Back to' : 'Reopen at'}</label>
+          <select id="opportunity-back-to" name="to">
+            <zb-each items={view.backStages} as="stage" key={stage.value}><option value={stage.value}>{stage.label}</option></zb-each>
+          </select>
+        </div>
+        <div><button class="hq-button secondary" type="submit">{o.open ? 'Move back' : 'Reopen'}</button></div>
+      </form>
+    </section>
     <section zb-if={view.can.setValue && o.open} class="hq-panel" aria-labelledby="opportunity-price">
       <h2 id="opportunity-price">Price</h2>
       <form method="post" action="/opportunities/{o.id}/value" class="hq-form">
@@ -168,5 +184,6 @@
     <notes-panel notes={notes}></notes-panel>
     </div>
     </div>
+    <history-panel items={history}></history-panel>
   </div>
 </hq-opportunity>

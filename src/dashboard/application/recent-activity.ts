@@ -46,3 +46,26 @@ export function recentActivity(deps: RecentActivityDeps, actorId: Id | null): Re
   }));
   return ok({ items, everything: scope === "everything" });
 }
+
+/** The records that show their own history, and what it takes to see each. */
+const HISTORY_PERMISSION: Readonly<Record<string, string>> = {
+  "client-organization": "client.view",
+  opportunity: "opportunity.view",
+  invoice: "invoice.view",
+  task: "task.view",
+  proposal: "proposal.view",
+};
+
+/** The most events a record's history shows. */
+export const HISTORY_LIMIT = 15;
+
+/**
+ * What changed on one record (quality of life, 2026-11-25): its events from
+ * the activity log, newest first, for someone who may see the record.
+ * Reading changes nothing, so it writes no activity event.
+ */
+export function recordHistory(deps: RecentActivityDeps, actorId: Id | null, recordType: string, recordId: string): readonly ActivityItemView[] {
+  const permission = HISTORY_PERMISSION[recordType];
+  if (!permission || !authorize(deps, actorId, permission).ok) return [];
+  return deps.activity.forRecord(recordType, recordId, HISTORY_LIMIT).map((row) => ({ id: row.id, text: describeEvent(row.action, row.actorName), when: deps.formatWhen(row.occurredAt), whenIso: row.occurredAt }));
+}

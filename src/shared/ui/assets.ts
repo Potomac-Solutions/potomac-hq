@@ -11,7 +11,27 @@ const FILES: Readonly<Record<string, string>> = {
   "theme.css": "text/css; charset=utf-8",
   "potomac-mark.webp": "image/webp",
   "plex-sans.woff2": "font/woff2",
+  "icon-192.png": "image/png",
+  "icon-512.png": "image/png",
+  "apple-touch-icon.png": "image/png",
+  "sw.js": "text/javascript; charset=utf-8",
+  "transitions.js": "text/javascript; charset=utf-8",
 };
+
+/** What a phone needs to install HQ to its home screen (quality of life, 2026-11-25). */
+export const MANIFEST = JSON.stringify({
+  name: "Potomac HQ",
+  short_name: "HQ",
+  start_url: "/",
+  scope: "/",
+  display: "standalone",
+  background_color: "#ffffff",
+  theme_color: "#0b5cad",
+  icons: [
+    { src: "/assets/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/assets/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+  ],
+});
 
 export function loadAssets(): ReadonlyMap<string, Asset> {
   const assets = new Map<string, Asset>();

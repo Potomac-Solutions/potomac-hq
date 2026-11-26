@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { PASSWORD, TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -65,7 +65,7 @@ test("a client asks for their page and sends a round; Potomac sets it up", async
     await assertAccessible(staff, `a client's free landing page (${colorScheme})`);
   }
   assert.match(await text(staff), /A bigger phone number at the top, please\./);
-  await staff.getByRole("link", { name: "Landing pages" }).click();
+  await sidebar(staff, "Landing pages");
   await staff.getByRole("heading", { name: "Free landing pages" }).waitFor();
   await assertAccessible(staff, "free landing pages");
   assert.deepEqual(problems, []);

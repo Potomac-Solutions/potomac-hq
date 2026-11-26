@@ -2,7 +2,7 @@
 // came from: the to-dos page, Today, a client or an opportunity.
 import { Hono } from "hono";
 import { addTodo, completeTodo, reopenTodo, type TodosDeps } from "../application/todos.ts";
-import { formPosts, type Id } from "../../shared/index.ts";
+import { formPosts, ok, type Id } from "../../shared/index.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
@@ -25,7 +25,13 @@ export function backTo(form: Readonly<Record<string, string>>): string {
   return back === "everyone" || form["everyone"] === "1" ? "/todos?everyone=1" : "/todos";
 }
 
-export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
+export function todoRoutes(deps: {
+  readonly todos: TodosDeps;
+  readonly actorOf: (cookieHeader: string) => Id | null;
+  readonly sign: (location: string) => string;
+  /** Undoing a ticked repeating to-do: takes back the next one it made, if nothing has happened to it. "gone", "kept", or "" with none. */
+  readonly takeBack?: (actorId: Id, todoId: Id) => "gone" | "kept" | "";
+}): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/todos" });
   post("/todos", (actor, f) => addTodo(deps.todos, actor, { title: f["title"] ?? "", dueOn: f["dueOn"] ?? null, assigneeId: f["assigneeId"] ?? null, clientId: f["clientId"] ?? null, opportunityId: f["opportunityId"] ?? null }), {
@@ -33,7 +39,26 @@ export function todoRoutes(deps: { readonly todos: TodosDeps; readonly actorOf: 
     back: (_id, f) => backTo(f),
     message: "Added.",
   });
-  post("/todos/:id/done", (actor, _f, id) => completeTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Done." });
-  post("/todos/:id/reopen", (actor, _f, id) => reopenTodo(deps.todos, actor, id as Id), { done: (_v, _id, f) => backTo(f), back: (_id, f) => backTo(f), message: "Back on the list." });
+  // Ticking off and reopening undo each other (decision 0014), landing in the same place.
+  const same = (f: Readonly<Record<string, string>>): Record<string, string> => Object.fromEntries(["back", "backId", "everyone"].filter((key) => f[key]).map((key) => [key, f[key] as string]));
+  post("/todos/:id/done", (actor, _f, id) => completeTodo(deps.todos, actor, id as Id), {
+    done: (_v, _id, f) => backTo(f),
+    back: (_id, f) => backTo(f),
+    message: "Done.",
+    undo: (todo, id, f) => ({ label: `${todo.title}: ticked off`, action: `/todos/${id}/reopen`, fields: { ...same(f), takeBack: "1" } }),
+  });
+  // Undo after ticking one off sends takeBack=1, so a repeat's untouched next one goes too.
+  post("/todos/:id/reopen", (actor, f, id) => {
+    const reopened = reopenTodo(deps.todos, actor, id as Id);
+    if (!reopened.ok) return reopened;
+    const tookBack = f["takeBack"] === "1" && deps.takeBack && actor !== null ? deps.takeBack(actor, id as Id) : "";
+    return ok({ ...reopened.value, tookBack });
+  }, {
+    done: (_v, _id, f) => backTo(f),
+    back: (_id, f) => backTo(f),
+    message: (todo) =>
+      todo.tookBack === "gone" ? "Back on the list. The next one it made is gone too." : todo.tookBack === "kept" ? "Back on the list. The next one it made already has work on it, so it stays." : "Back on the list.",
+    undo: (todo, id, f) => ({ label: `${todo.title}: back on the list`, action: `/todos/${id}/done`, fields: same(f) }),
+  });
   return app;
 }

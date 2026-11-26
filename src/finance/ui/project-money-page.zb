@@ -146,10 +146,11 @@
       <h2 id="money-invoices">Invoices</h2>
       <empty-state zb-if={view.invoices.length === 0} heading="No invoices yet">Draft one for the deposit, the balance or the full amount.</empty-state>
       <table tabindex="0" zb-else class="hq-table">
-        <thead><tr><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Issued</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
+        <thead><tr><th zb-if={view.can.editInvoices} scope="col"><span class="sr-only">Pick</span></th><th scope="col">Invoice</th><th scope="col">For</th><th scope="col">Status</th><th scope="col">Issued</th><th scope="col">Due</th><th scope="col" class="hq-number">Total</th><th scope="col" class="hq-number">Owed</th></tr></thead>
         <tbody>
           <zb-each items={view.invoices} as="invoice" key={invoice.id}>
             <tr>
+              <td zb-if={view.can.editInvoices}><input zb-if={invoice.status === 'draft'} type="checkbox" form="invoices-send" name={'invoice-' + invoice.id} aria-label={'Pick ' + invoice.label}></td>
               <td><a href="/invoices/{invoice.id}">{invoice.label}</a></td>
               <td>{invoice.kindLabel}</td>
               <td>{invoice.statusLabel} <status-badge zb-if={invoice.overdue} variant="danger">Overdue</status-badge></td>
@@ -161,6 +162,10 @@
           </zb-each>
         </tbody>
       </table>
+      <form zb-if={view.can.editInvoices && view.invoices.some((one) => one.status === 'draft')} id="invoices-send" method="post" action="/projects/{id}/invoices/send" class="hq-form-row" data-spaced>
+        <label><input type="checkbox" name="checked"> I’ve checked the ticked drafts</label>
+        <button class="hq-button secondary" type="submit">Mark them sent</button>
+      </form>
       <details zb-if={view.can.editInvoices} class="hq-more">
         <summary>Draft an invoice</summary>
         <form method="post" action="/projects/{id}/invoices" class="hq-form">

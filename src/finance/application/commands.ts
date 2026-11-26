@@ -405,3 +405,24 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
   }
   return { made, sent };
 }
+
+/**
+ * Marks several draft invoices sent at once (quality of life, 2026-11-25),
+ * each through sendInvoiceNow with its own checks and event. Only drafts of
+ * the one project, and only once the person says they've checked them.
+ */
+export function sendInvoicesNow(deps: FinanceDeps, actorId: Id | null, projectId: Id, invoiceIds: readonly string[], checked: boolean): Result<{ readonly sent: number; readonly skipped: number }, "forbidden" | "nothing-picked" | "not-checked"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  const ids = [...new Set(invoiceIds)].slice(0, 50) as Id[];
+  if (ids.length === 0) return err("nothing-picked");
+  if (!checked) return err("not-checked");
+  let sent = 0;
+  let skipped = 0;
+  for (const id of ids) {
+    const invoice = deps.invoices.get(id);
+    const done = invoice && invoice.projectId === projectId ? sendInvoiceNow(deps, actorId, id) : null;
+    if (done?.ok) sent += 1;
+    else skipped += 1;
+  }
+  return ok({ sent, skipped });
+}

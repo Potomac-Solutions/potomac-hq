@@ -13,7 +13,7 @@ import { budgetState, FEATURE_TEXT, FEATURES, isFeature, mayCall, modelChoices, 
 import type { AnswerError, Prompt } from "../domain/prompts.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type ActivityLog, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { AiModel, AiStore, Draft, UsageRow } from "./ports.ts";
+import type { AiModel, AiStore, ChatBlock, ChatMessage, ChatTool, Draft, UsageRow } from "./ports.ts";
 
 export type AiDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
@@ -55,6 +55,8 @@ export const FEATURE_PERMISSION: { readonly [K in Feature]: readonly string[] } 
   "site-diagnosis": ["client.view"],
   "case-study": ["project.edit"],
   "social-posts": ["project.edit"],
+  // Anyone signed in: each thing it does is checked by the service that does it.
+  assistant: [],
 };
 
 export type AiProblem = "forbidden" | "not-found" | "no-key" | "feature-off" | "budget-reached" | "ai-unavailable" | AnswerError;
@@ -118,6 +120,38 @@ export async function draftWith<T>(deps: AiDeps, actorId: Id | null, request: Dr
     recordActivity(deps, { actorId, action: "ai.drafted", recordType: "ai-draft", recordId: draftId, context });
     return ok(draft);
   });
+}
+
+export type Conversed = { readonly blocks: readonly ChatBlock[]; readonly stopReason: string; readonly cost: number };
+
+/**
+ * One turn of the assistant's conversation (decision 0015): the same checks
+ * as a draft (the feature on, a key, room in the shared budget for the most
+ * it could cost), then the call, logged and costed whether or not it worked.
+ * What the model asks to do comes back as blocks; nothing here acts on them.
+ */
+export async function converseWith(
+  deps: AiDeps,
+  actorId: Id,
+  request: { readonly system: string; readonly messages: readonly ChatMessage[]; readonly tools: readonly ChatTool[]; readonly maxOutput: number },
+): Promise<Result<Conversed, AiProblem>> {
+  if (!mayUse(deps, actorId, "assistant")) return err("forbidden");
+  const settings = deps.ai.settings();
+  if (!deps.model || !deps.model.converse) return err("no-key");
+  if (!settings.features.includes("assistant")) return err("feature-off");
+  const month = thisMonth(deps);
+  const size = request.system.length + JSON.stringify(request.messages).length + JSON.stringify(request.tools).length;
+  if (!mayCall(month.total, month.capCents, costOf(settings.price, Math.ceil(size / 3), request.maxOutput))) return err("budget-reached");
+  const answer = await deps.model.converse({ model: settings.model, ...request });
+  const cost = costOf(settings.price, answer.inputCount, answer.outputCount);
+  const problem = answer.ok ? "" : answer.problem.slice(0, 200);
+  deps.transact(() => {
+    const usage: UsageRow = { id: deps.newId(), feature: "assistant", recordType: "user", recordId: actorId, model: settings.model, inputCount: answer.inputCount, outputCount: answer.outputCount, cost, actorId, at: deps.clock(), ok: answer.ok, problem, draftId: null };
+    deps.ai.logUsage(usage);
+    if (!answer.ok) recordActivity(deps, { actorId, action: "ai.failed", recordType: "ai-usage", recordId: usage.id, context: { feature: "assistant", model: settings.model, in: answer.inputCount, out: answer.outputCount, cost, problem } });
+  });
+  if (!answer.ok) return err("ai-unavailable");
+  return ok({ blocks: answer.blocks, stopReason: answer.stopReason, cost });
 }
 
 /** The newest draft of a feature for a record, for someone who may see it; null otherwise. */
@@ -283,6 +317,7 @@ const PLACE: { readonly [K in Feature]: (recordId: string) => string } = {
   "site-diagnosis": () => "/sites",
   "case-study": () => "/marketing",
   "social-posts": () => "/marketing",
+  assistant: () => "/",
 };
 
 export type DraftsView = { readonly items: readonly DraftLine[]; readonly month: AiSettingsView["month"] | null };
