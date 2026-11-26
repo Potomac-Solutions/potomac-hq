@@ -20,13 +20,16 @@ import { listReplies, type Reply } from "./replies/index.ts";
 import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
+import { cardPayPages, cardPayRoutes } from "./cardpay/api/card-pay-routes.ts";
+import { cardPayReady, hearCardPayment, payStep, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
+import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
-import { cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
+import { recordCardPayment, cashForecast, clientInvoices, financeOverview, invoicesOverview, payInstructionsView, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
 import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
 import { sqliteClientMerger } from "./crm/adapters.ts";
-import { createHqStaffPages, isPreviewRole, previewing, runPreviewing, sqliteRateLimit, type PreviewRole } from "./identity/adapters.ts";
+import { sqliteKitStore, createHqStaffPages, isPreviewRole, previewing, runPreviewing, sqliteRateLimit, type PreviewRole } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
@@ -145,6 +148,10 @@ export type AppConfig = {
   readonly contact?: PortalContact;
   /** Reads and commits to client sites' repositories on GitHub. Without it, sites can't be set up or published. */
   readonly sitePublisher?: SitePublisher | null;
+  /** Which payment platform takes cards for invoices (decision 0018). Without it, there is no "Pay by card" but a pasted link. */
+  readonly cardPay?: CardPayConfig | null;
+  /** How the payment platform is reached. For tests. */
+  readonly cardPayFetch?: typeof fetch;
   /** Zips a free landing page's code from GitHub, to hand over. Without it, there is no download. */
   readonly siteArchive?: SiteArchive | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
@@ -368,6 +375,12 @@ export type PageContext = {
     fromClients(): ReturnType<typeof clientActivity>;
     waiting(): ReturnType<typeof staffWaiting>;
     calls(): ReturnType<typeof callsWaiting>;
+  };
+  /** Paying an invoice by card (decision 0018). */
+  readonly cardPay: {
+    ready(): CardPayReady;
+    /** The started payment for one of the signed-in client's invoices, or null. */
+    step(invoiceId: string): PayStep | null;
   };
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
@@ -639,6 +652,22 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
+  // Card payments (decision 0018): the kit's pay, on the platform the settings name.
+  const cardStore = sqliteKitStore(db);
+  const cardKit = config.cardPay ? createCardPayKit(cardStore, config.cardPay, { ...(config.cardPayFetch ? { fetch: config.cardPayFetch } : {}), wanted: (payId) => stillWanted((id) => financeDeps.invoices.get(id), payId) }) : null;
+  const cardPayDeps: CardPayDeps = {
+    pay: cardKit?.pay ?? null,
+    platform: cardKit?.platform ?? "",
+    publicUrl: (config.publicUrl ?? "").replace(/\/$/, ""),
+    invoice: (id) => financeDeps.invoices.get(id),
+    record: (invoiceId, input) => recordCardPayment(financeDeps, invoiceId, input),
+    ...recordedFlags(cardStore),
+    activityLog: sessionDeps.activityLog,
+    transact: sessionDeps.transact,
+    clock: sessionDeps.clock,
+    newId: sessionDeps.newId,
+    log: (message) => log(message),
+  };
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
   // How a client answers a monthly report (decision 0013, section 4).
@@ -824,6 +853,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           fromClients: () => clientActivity(portalDeps, actor),
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
+        },
+        cardPay: {
+          ready: () => cardPayReady(cardPayDeps),
+          step: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? payStep(cardPayDeps, client, parsed.value) : null;
+          },
         },
         portal: {
           session: client ? { name: client.name } : null,
@@ -1248,6 +1284,7 @@ export async function createApp(config: AppConfig): Promise<App> {
             contactComplete: Boolean(contact.phone && contact.email && contact.address),
             clientNotices: config.clientNotices === true,
             sitePublisher: Boolean(config.sitePublisher),
+            cardPay: cardPayDeps.platform,
             database: counts.database,
           };
           return {
@@ -1405,6 +1442,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
+  forms.route("/", cardPayRoutes({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const bookerOf = (cookieHeader: string): PortalBooker | null => {
     const session = clientOf(cookieHeader);
     const user = session ? portalDeps.clientUsers.get(session.clientUserId) : null;
@@ -1747,6 +1785,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
+  downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
@@ -1813,6 +1852,22 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (isStatic(path)) return void (await handleWeb(req, res));
     if (zubra.handle(req, res)) return; // the components' browser modules and stylesheets
 
+    // The payment platform's webhook (decision 0018). Not a form and not from a browser: it is
+    // believed only as far as its signature goes, and then only as a reason to ask the platform.
+    if (req.method === "POST" && /^\/pay\/webhook\/[a-z]{3,12}$/.test(path)) {
+      if (path.slice("/pay/webhook/".length) !== cardPayDeps.platform) return void badRequest(res);
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of req as AsyncIterable<Buffer>) {
+        size += chunk.length;
+        if (size > 256 * 1024) return void badRequest(res);
+        chunks.push(chunk);
+      }
+      const heard = await hearCardPayment(cardPayDeps, { headers: req.headers, body: Buffer.concat(chunks).toString("utf8"), url: `${cardPayDeps.publicUrl}${path}` });
+      res.writeHead(heard === "heard" ? 200 : 400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+      return void res.end(heard === "heard" ? "ok" : "refused");
+    }
+
     if (req.method !== "GET" && req.method !== "HEAD") {
       const type = String(req.headers["content-type"] ?? "").split(";")[0]?.trim().toLowerCase();
       // Browsers always send a length for a form. A post without one is refused,
@@ -1829,7 +1884,15 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    // The step before the payment platform: the page has a link, and this sends most browsers
+    // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
+    const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;
+    if (paying) {
+      const parsed = parseId(paying[1] ?? "");
+      const step = parsed.ok ? payStep(cardPayDeps, clientOf(req.headers.cookie ?? ""), parsed.value) : null;
+      if (step) res.setHeader("refresh", `0;url=${step.url || `/portal/invoices/${step.invoiceId}/pay/frame`}`);
+    }
     if (await router.handle(req, res)) return;
     // An address under the portal that is no page: back to the portal with a word, not HQ's own "not found".
     // Only for an address a person might have typed or followed; a probe (dots, escapes) gets the plain 404.

@@ -136,6 +136,16 @@ leave a page with something typed and not saved, it asks first.
   there shows all of the client's invoices, project or not.
 - HQ never takes a card number. A payment's reference is a check number or
   the card processor's reference.
+- **Pay by card.** When a payment platform is set up (System status says
+  which), every sent invoice with money owed has **Pay by card** in the
+  client's portal. They pay what is still owed on the platform's own page
+  and come back to "Paid. Thank you." You do nothing: the payment appears
+  on the invoice as Card with the platform's reference, and the activity
+  reads "A client paid an invoice by card". If money comes in that HQ can't
+  put on the invoice (it was voided, or paid twice), the activity says "A
+  card payment came in that HQ couldn't put on its invoice": refund it or
+  apply it by hand at the platform. With no platform set up, a link you
+  paste on the invoice is what the client's button opens.
 - **Money**, in the top bar: every project at a glance, and the CSV exports.
 
 ## The client portal
