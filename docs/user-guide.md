@@ -581,6 +581,30 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 - Clients see *Waiting on you*, *What we're doing next* and *Done* at the
   top of each project in the portal.
 
+## For clients, and for the business (decision 0019)
+
+- **Refunds**: on a paid invoice, *Refund the … payment*: through the card
+  platform, or record one you gave back yourself. Tick *no longer owed* to
+  write off the rest.
+- **Deposits** go out the moment a client accepts a proposal (with card pay
+  on), and they can pay it straight away.
+- **Requests from the client** on a client's page: what they asked for in
+  the portal's request box. Each is a task already; *Decline* says why.
+- **About their business** on a client's page: what they filled in on the
+  portal's intake form. Their logo and photos are on their newest project.
+- **How the client rated it** on a finished project. A 3 or under puts a
+  to-do on your list to call them.
+- **Late fees** on the Money page: off until you set an amount and how many
+  days late. At 14 days late HQ puts *Call … about INV-…* on your list.
+- **Profit by client** under Money: who paid what, and what they cost.
+- **Tax pack** on the Money page: one zip for the accountant, a year at a
+  time.
+- **Handoff pack** on a client's page, under *Leaving us, or hosting their
+  own site?*: everything they need to move, in one zip.
+- Clients can turn on **text reminders** and **pay my plan automatically**
+  (PayPal) on their portal's first page. Autopay shows on their page here,
+  with each try; *Turn automatic payment off* stops it.
+
 ## Habits that keep HQ worth using
 
 1. If a client said it, it goes in a note the same day.

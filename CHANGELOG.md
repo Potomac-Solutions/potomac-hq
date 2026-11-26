@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Eleven extras for clients and for running the business** (decision
+  0019). Refunds, in part or in full, through the platform or by hand.
+  The deposit sent the moment a proposal is accepted, with a box to pay it
+  straight away. A request box and an intake form in the portal, and
+  "Rate a finished project" (a low score makes a to-do to call). Late fees,
+  off until set, and a to-do to call at 14 days late. Profit by client, a
+  yearly tax pack zip, and a handoff pack zip for a client who leaves.
+  Text reminders for clients who turn them on (Twilio, `HQ_TWILIO_*`), and
+  autopay of plan invoices from a saved PayPal account.
+
 - A second user-experience pass, 2026-11-26 (`docs/reviews/2026-11-26-ux-round.md`):
   every staff page and every portal page on a laptop and a phone, the
   billing pages by hand, and the client's website editor, social approvals,

@@ -454,6 +454,37 @@ Payment pages already open on the old platform can no longer be confirmed
 by HQ; if one is paid, the old platform's dashboard shows it and you record
 it by hand. Refunds are made at the platform.
 
+## Text reminders (decision 0019)
+
+Off until all three are set, then restart: `HQ_TWILIO_ACCOUNT_SID` (AC…),
+`HQ_TWILIO_AUTH_TOKEN`, and `HQ_TWILIO_FROM`, the sending number like
+`+13045550100` or a messaging service id (MG…). With only some set, HQ
+won't start and says which. Texts go out with the email reminder runs (the
+day-before call reminder every ten minutes, invoice reminders at 09:07), so
+email has to be set up too. Only client people who turned texts on in the
+portal get them. Twilio handles STOP; once someone has replied STOP, HQ
+marks them stopped the next time it tries. Every text is in the
+`text_sent` table with how it went. In the US, register the number for A2P
+10DLC in Twilio first, or carriers will drop many of them.
+
+## Autopay (decision 0019)
+
+On by itself when `HQ_PAY_PROVIDER=paypal`: the portal offers it to clients
+with a plan, and the run is daily at 10:17. Before a client uses it, turn on
+**Vault** for HQ's PayPal app (developer.paypal.com → Apps & Credentials →
+the app → features), in Sandbox and Live; PayPal may ask to approve the
+account. Then, on staging with `HQ_PAY_PAYPAL_SANDBOX=1`: give a test client
+a monthly plan starting today, set up autopay from the portal with a
+sandbox buyer, and the next morning's run (or `runAutopay` by hand) should
+pay the plan invoice. No real PayPal account has done this yet.
+
+When the run can't tell whether PayPal took the money (an outage, a pending
+payment), it makes a to-do "Check whether autopay took …" and never tries
+that invoice again. Look it up in PayPal: record the payment if it went
+through. After three declines it makes a to-do to ask the client to update
+their account. Refund an autopay payment in PayPal, then record it with the
+refund fold-out's "I gave it back myself".
+
 ## The weekly owner email (decision 0016)
 
 Mondays at 07:23 business time, each active admin is emailed last week. It
