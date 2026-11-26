@@ -21,6 +21,9 @@ import { intakeRoutes } from "./intake/api/intake-routes.ts";
 import { feedbackRoutes } from "./feedback/api/feedback-routes.ts";
 import { handoffDownloads } from "./handoff/api/handoff-routes.ts";
 import { textingRoutes } from "./texting/api/texting-routes.ts";
+import { autopayPages, autopayRoutes } from "./autopay/api/autopay-routes.ts";
+import { clientAutopay, portalAutopay, type ClientAutopay, type PortalAutopay, type SavedPay } from "./autopay/index.ts";
+import { savedPayFrom } from "./autopay/adapters.ts";
 import { portalTexting, type PortalTexting } from "./texting/index.ts";
 import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
@@ -162,6 +165,8 @@ export type AppConfig = {
   readonly cardPay?: CardPayConfig | null;
   /** How the payment platform is reached. For tests. */
   readonly cardPayFetch?: typeof fetch;
+  /** Saved payment methods for autopay; by default from the card pay settings (PayPal only). Tests give their own. */
+  readonly savedPay?: SavedPay | null;
   /** Zips a free landing page's code from GitHub, to hand over. Without it, there is no download. */
   readonly siteArchive?: SiteArchive | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
@@ -402,6 +407,8 @@ export type PageContext = {
     waiting(): readonly { readonly id: string; readonly name: string }[];
     forProject(projectId: string): FeedbackView | null;
   };
+  /** Automatic payment of plan bills (2026-11-26). */
+  readonly autopay: { portal(): PortalAutopay; forClient(clientId: string): ClientAutopay | null };
   /** The new-client intake (2026-11-26). */
   readonly intake: {
     portal(): IntakeForm;
@@ -690,7 +697,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   const { db } = config;
 
-  const services = createServices(db, { texts: config.texts ?? null, emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const savedPay = config.savedPay !== undefined ? config.savedPay : savedPayFrom(config.cardPay, config.cardPayFetch ? { fetch: config.cardPayFetch } : {});
+  const services = createServices(db, { savedPay, texts: config.texts ?? null, emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   // Card payments (decision 0018): the kit's pay, on the platform the settings name.
   const cardStore = sqliteKitStore(db);
@@ -900,6 +908,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           forProject: (projectId) => {
             const parsed = parseId(projectId);
             return parsed.ok ? projectFeedback(services.feedback, actor, parsed.value) : null;
+          },
+        },
+        autopay: {
+          portal: () => (client ? portalAutopay(services.autopay, client) : { offered: false, on: false, label: "", platform: "", since: "" }),
+          forClient: (clientId) => {
+            const parsed = parseId(clientId);
+            return parsed.ok ? clientAutopay(services.autopay, actor, parsed.value) : null;
           },
         },
         intake: {
@@ -1513,6 +1528,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   forms.route("/", feedbackRoutes({ feedback: services.feedback, clientOf, sign: signNotice }));
+  forms.route("/", autopayRoutes({ autopay: services.autopay, clientOf, actorOf, sign: signNotice }));
   forms.route("/", textingRoutes({ texting: services.texting, clientOf, sign: signNotice }));
   forms.route("/", intakeRoutes({ intake: services.intake, clientOf, sign: signNotice }));
   forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
@@ -1869,6 +1885,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   downloads.route("/", handoffDownloads({ handoff: services.handoff, actorOf }));
+  downloads.route("/", autopayPages({ autopay: services.autopay, clientOf, sign: signNotice, page: renderPage }));
   downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -1968,7 +1985,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     // The step before the payment platform: the page has a link, and this sends most browsers
     // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
     const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;

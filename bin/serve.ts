@@ -38,6 +38,8 @@ import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { sendWeeklyEmails } from "../src/dashboard/index.ts";
 import { queueAlerts, sendAlerts } from "../src/push/index.ts";
 import { cardPayConfigFrom } from "../src/cardpay/adapters.ts";
+import { runAutopay } from "../src/autopay/index.ts";
+import { savedPayFrom } from "../src/autopay/adapters.ts";
 import { vapidFrom, webPushSender } from "../src/push/adapters.ts";
 import { approvalTokens } from "../src/portal/adapters.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
@@ -209,6 +211,20 @@ const runRecurring = async () => {
 };
 void runRecurring().catch((error: unknown) => log("Recurring invoices: the run failed", error));
 const stopRecurring = scheduleDaily(runRecurring, { zone: BUSINESS_TIME_ZONE, hour: 6, minute: 13, clock: systemClock, log, name: "recurring invoices" });
+
+// Autopay (2026-11-26): plan invoices of clients who saved a payment method
+// are charged at 10:17, after that morning's invoices are made. Only when the
+// card platform can save methods (PayPal). Not run at start-up on purpose.
+const savedPay = savedPayFrom(typeof cardPay === "string" ? null : cardPay);
+const stopAutopayRun = savedPay
+  ? scheduleDaily(
+      async () => {
+        const result = await runAutopay(createServices(db, { savedPay, publicUrl }).autopay);
+        if (result.paid + result.declined + result.unclear > 0) console.log(`Autopay: paid ${result.paid}, declined ${result.declined}, unclear ${result.unclear}.`);
+      },
+      { zone: BUSINESS_TIME_ZONE, hour: 10, minute: 17, clock: systemClock, log, name: "autopay" },
+    )
+  : null;
 
 // Retention: every night at 04:07 business time (docs/retention-policy.md).
 const stopRetention = scheduleDaily(
@@ -558,6 +574,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     clearInterval(creditTimer);
     stopInvoiceReminders?.();
     stopLateInvoices();
+    stopAutopayRun?.();
     if (receiptTimer) clearInterval(receiptTimer);
     stopMorning?.();
     stopNotices?.();

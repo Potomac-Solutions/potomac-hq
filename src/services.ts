@@ -77,6 +77,8 @@ import type { IntakeDeps } from "./intake/index.ts";
 import type { FeedbackDeps } from "./feedback/index.ts";
 import type { HandoffDeps } from "./handoff/index.ts";
 import type { TextingDeps } from "./texting/index.ts";
+import type { AutopayDeps, SavedPay } from "./autopay/index.ts";
+import { sqliteAutopayStore } from "./autopay/adapters.ts";
 import { sqliteTextingStore } from "./texting/adapters.ts";
 import { sqliteHandoffFacts, sqliteLatestBuild } from "./handoff/adapters.ts";
 import { sqliteFeedbackStore } from "./feedback/adapters.ts";
@@ -90,7 +92,7 @@ import { quickAdd, quickAddPreview } from "./projects/index.ts";
 import { createClient, createOpportunity, setOpportunityFollowUp } from "./crm/index.ts";
 import { editProjectDetails } from "./projects/index.ts";
 import { createBookingLink, nextCalls } from "./booking/index.ts";
-import { runningTimer, stopTimer } from "./finance/index.ts";
+import { recordCardPayment, runningTimer, stopTimer } from "./finance/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -214,6 +216,8 @@ export type Services = {
   readonly handoff: HandoffDeps;
   /** Text message reminders (2026-11-26). */
   readonly texting: TextingDeps;
+  /** Automatic payment of plan invoices (2026-11-26). */
+  readonly autopay: AutopayDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -231,6 +235,8 @@ export type ServiceOptions = {
   readonly clock?: Clock;
   /** Sends text messages (2026-11-26). Without it, the portal doesn't offer texts. */
   readonly texts?: TextSender | null;
+  /** Saves a client's payment method and charges it for plan bills (2026-11-26). */
+  readonly savedPay?: SavedPay | null;
   /** Potomac's own website address, for its preview link. */
   readonly siteUrl?: string;
   readonly today?: () => string;
@@ -947,6 +953,19 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
   };
   const texting: TextingDeps = { transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, texts: sqliteTextingStore(db), sender: options.texts ?? null };
+  const autopay: AutopayDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    publicUrl: (options.publicUrl ?? "").replace(/\/$/, ""),
+    autopay: sqliteAutopayStore(db),
+    saved: options.savedPay ?? null,
+    record: (invoiceId, input) => recordCardPayment(finance, invoiceId, input),
+    makeTodo: (input) => taskFromClient(projects, input),
+  };
   const latestBuild = sqliteLatestBuild(db);
   const handoff: HandoffDeps = {
     users,
@@ -1009,5 +1028,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

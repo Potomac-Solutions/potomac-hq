@@ -22,7 +22,7 @@
     const referrals = context.referralCredit.mine()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
-    return { title: 'Your portal', texts: context.texts.portal(), rate: context.feedback.waiting(), intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', autopay: context.autopay.portal(), texts: context.texts.portal(), rate: context.feedback.waiting(), intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...home.attention] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -31,7 +31,7 @@
   .portal-rate-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .portal-rate-buttons .hq-button { min-width: 3rem; justify-content: center; }
 </style>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" texts={{ available: false, on: false, phone: "" }} rate={[]} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" autopay={{ offered: false, on: false, label: "", platform: "", since: "" }} texts={{ available: false, on: false, phone: "" }} rate={[]} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -161,6 +161,20 @@
         <p>Your name, hours, colors, logo and the accounts we’ll need, in one place, so we don’t have to ask over a week of emails.</p>
         <p><a class="hq-button portal-big" href="/portal/intake">Tell us about your business</a></p>
       </div>
+    </section>
+    <section zb-if={autopay.offered} class="hq-panel" id="autopay" aria-labelledby="portal-autopay">
+      <h2 id="portal-autopay">Pay my plan automatically</h2>
+      <div zb-if={autopay.on}>
+        <p>Your plan bills are paid from <strong>{autopay.label}</strong> on the day they’re sent. Set up {autopay.since}. You still get each bill and a receipt by email.</p>
+        <div class="hq-actions">
+          <form method="post" action="/portal/autopay"><button class="hq-button secondary" type="submit">Use a different account</button></form>
+          <form method="post" action="/portal/autopay/stop"><button class="hq-button secondary" type="submit">Stop automatic payment</button></form>
+        </div>
+      </div>
+      <form zb-else method="post" action="/portal/autopay">
+        <p>Skip paying each plan bill by hand: save your {autopay.platform} account once, and each plan bill is paid the day it’s sent. Only plan bills, never anything else, and you can stop any time here. Potomac never sees your card or bank details.</p>
+        <p><button class="hq-button" type="submit">Set up with {autopay.platform}</button></p>
+      </form>
     </section>
     <section zb-if={texts.available} class="hq-panel" id="texts" aria-labelledby="portal-texts">
       <h2 id="portal-texts">Text me reminders</h2>
