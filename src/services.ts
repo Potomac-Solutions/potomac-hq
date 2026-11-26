@@ -61,7 +61,7 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore, sqliteRepeatTaker } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
 import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
@@ -328,6 +328,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     formatWhen,
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
+    // Undoing a finished repeat takes its untouched next one back (pre-staging, 2026-11-25).
+    removeUntouchedTask: sqliteRepeatTaker(db),
   };
   const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), billing: sqliteBillingStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db), cashflow: (from, to) => renewalCashflow(renewals, from, to) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };

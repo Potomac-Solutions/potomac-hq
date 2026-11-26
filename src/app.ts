@@ -96,7 +96,7 @@ import { calendarFeeds, projectRoutes, shareFiles, shareRoutes, workDownloads } 
 import { feedAddressPage, shareAddressPage } from "./projects/ui/feed-views.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { takeBackRepeat, activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
@@ -1598,7 +1598,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: signNotice }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: signNotice, takeBack: (actor, id) => { const taken = takeBackRepeat(services.projects, actor, id); return taken.ok ? taken.value.tookBack : ""; } }));
   forms.route("/", shareRoutes({ projects: projectsDeps, sign: signNotice, allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
   forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: signNotice, secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
   forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: signNotice }));

@@ -90,6 +90,19 @@ test("skip link, the command bar as a dialog, Undo and a brought-back draft, fro
   assert.equal(await page.locator("#note-body").inputValue(), "Rita asked for a Friday call");
   await assertAccessible(page, "brought-back text");
 
+  // A send that never arrives keeps it; one that does lets it go.
+  await page.context().setOffline(true);
+  await page.locator("#note-body").press("Control+Enter").catch(() => {});
+  await page.waitForTimeout(800);
+  await page.context().setOffline(false);
+  await page.goto(`${t.origin}/clients/${client.id}`);
+  await page.getByText(/Brought back text you hadn’t sent/).waitFor();
+  assert.equal(await page.locator("#note-body").inputValue(), "Rita asked for a Friday call", "kept through a dropped signal");
+  await page.locator("#note-body").press("Control+Enter");
+  await page.getByText("Rita asked for a Friday call").first().waitFor();
+  await page.goto(`${t.origin}/clients/${client.id}`);
+  assert.equal(await page.locator("#note-body").inputValue(), "", "sent, so not brought back");
+
   // A client like one already here asks first; the merge form, light and dark.
   await page.goto(`${t.origin}/clients`);
   await page.getByLabel("Business name").fill("Keyboard Cafe LLC");

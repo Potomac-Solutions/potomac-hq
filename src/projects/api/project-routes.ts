@@ -11,7 +11,7 @@ import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
 import * as bulk from "../application/bulk.ts";
-import { formatHours, formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
+import { formatHours, formPosts, ok, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type ProjectRoutesDeps = {
@@ -129,18 +129,32 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     }),
   });
   const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
-  post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
+  // Undoing a finished repeating task sends takeBack=1: the next one it made goes too, if untouched.
+  post("/tasks/:id/status", (actor, f, id) => {
+    const moved = projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? "");
+    if (!moved.ok || f["takeBack"] !== "1") return moved;
+    const taken = projects.takeBackRepeat(deps.projects, actor, id as Id);
+    return ok({ ...moved.value, tookBack: taken.ok ? taken.value.tookBack : "" });
+  }, {
     done: (_, id, f) => back(id, f),
     back,
     // Blocked tasks may be worked on; this says what they are still waiting on.
-    message: (task) =>
-      task.status === "doing" && task.waitingOn.length > 0
-        ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.`
-        : task.next
-          ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
-          : "Task moved.",
-    // Not after a repeating task made its next one: undoing would leave that one behind.
-    undo: (task, id, f) => (task.next ? null : { label: `${task.title}: moved`, action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
+    message: (task: projects.MovedTask & { readonly tookBack?: string }) =>
+      task.tookBack === "gone"
+        ? "Task moved back. The next one it made is gone too."
+        : task.tookBack === "kept"
+          ? "Task moved back. The next one it made already has work on it, so it stays."
+          : task.status === "doing" && task.waitingOn.length > 0
+            ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.`
+            : task.next
+              ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
+              : "Task moved.",
+    // After a repeating task made its next one, Undo takes that one back too (if nothing has happened to it).
+    undo: (task, id, f) => ({
+      label: task.next ? `${task.title}: done, and its next one made` : `${task.title}: moved`,
+      action: `/tasks/${id}/status`,
+      fields: { to: task.from, ...(task.next ? { takeBack: "1" } : {}), ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) },
+    }),
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {

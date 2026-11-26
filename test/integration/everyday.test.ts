@@ -1,10 +1,12 @@
 // Everyday buttons (Mikey, 2026-11-25) over real HTTP: saved replies,
 // duplicate clients and merging them, and booked calls in the calendar feed.
-// Undo is decision 0014's, tested with it.
+// Undo is decision 0014's, tested with it; here, only what was added back to
+// it before staging: undoing a finished repeat takes its next one back too.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as crm from "../../src/crm/index.ts";
 import * as projects from "../../src/projects/index.ts";
+import * as talk from "../../src/projects/application/comments.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { httpClient, signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, wonProject, type Client, type TestApp } from "../support/harness.ts";
 
@@ -67,4 +69,48 @@ test("booked calls: in the host's calendar feed, at their times", async () => {
   assert.match(body, /SUMMARY:Call with Dana Hill/);
   assert.match(body, /DTSTART:\d{8}T\d{6}Z/);
   assert.match(body, /get-ready\/b-feed/);
+});
+
+const undoOf = (html: string) => /action="(\/undo\/[0-9a-f]{32})"/.exec(html)?.[1] ?? "";
+
+test("Undo after finishing a repeating task takes its next one back, unless it has work on it", async () => {
+  const mikey = userId("mikey@example.com");
+  const { project } = await wonProject(t.services, mikey, { client: "Weekly Bakery" });
+  const task = unwrap(projects.addTask(t.services.projects, mikey, project.id, { title: "Post the specials", dueOn: "2026-12-01" }));
+  unwrap(projects.setTaskRepeat(t.services.projects, mikey, task.id, { every: "1", unit: "week", from: "due" }));
+  const finished = await admin.submit(`/tasks/${task.id}/status`, { to: "done" });
+  assert.match(textOf(finished.html), /It repeats, so the next one is due/);
+  const next = t.services.projects.repeats.nextOf(task.id);
+  assert.ok(next, "the next one was made");
+  assert.match(textOf(finished.html), /Post the specials: done, and its next one made/, "Undo is offered, saying so");
+  const undone = await admin.submit(undoOf(finished.html), {});
+  assert.match(textOf(undone.html), /Task moved back\. The next one it made is gone too\./);
+  assert.equal(t.services.projects.tasks.get(task.id)?.status, "todo");
+  assert.equal(t.services.projects.tasks.get(next as Id), null, "the next one is gone");
+  assert.equal(t.services.projects.repeats.nextOf(task.id), null);
+
+  // Finished again: a new next one. Someone comments on it; now Undo leaves it be.
+  const again = await admin.submit(`/tasks/${task.id}/status`, { to: "done" });
+  const second = t.services.projects.repeats.nextOf(task.id) as Id;
+  assert.ok(second);
+  unwrap(talk.addTaskComment(t.services.projects, mikey, second, "Croissants this week"));
+  const kept = await admin.submit(undoOf(again.html), {});
+  assert.match(textOf(kept.html), /already has work on it, so it stays/);
+  assert.equal(t.services.projects.tasks.get(task.id)?.status, "todo");
+  assert.ok(t.services.projects.tasks.get(second), "the next one with a comment stays");
+  await admin.submit(`/tasks/${task.id}/status`, { to: "done" });
+  assert.equal(t.db.prepare("select count(*) as n from task where previous_id = ?").get(task.id)?.["n"], 1, "finishing it again makes no second one");
+});
+
+test("Undo after ticking off a repeating to-do takes its next one back", async () => {
+  await member.post("/todos", { title: "Water the plants", dueOn: "2026-12-01" });
+  const id = t.db.prepare("select id from task where title = 'Water the plants'").get()?.["id"] as Id;
+  const sam = userId("sam@example.com");
+  unwrap(projects.setTaskRepeat(t.services.projects, sam, id, { every: "3", unit: "day", from: "due" }));
+  const ticked = await member.submit(`/todos/${id}/done`, { back: "todos" });
+  const next = t.services.projects.repeats.nextOf(id);
+  assert.ok(next);
+  const undone = await member.submit(undoOf(ticked.html), {});
+  assert.match(textOf(undone.html), /Back on the list\. The next one it made is gone too\./);
+  assert.equal(t.services.projects.tasks.get(next as Id), null);
 });

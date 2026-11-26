@@ -131,7 +131,7 @@
     if (form.target && form.target !== '_self') return
     rememberPlace(form, event.submitter)
     form.removeAttribute('data-hq-dirty')
-    dropDrafts(form)
+    sendingDrafts(form)
     if (actionOf(form) === '/staff/sign-out') dropEveryDraft()
     form.setAttribute('data-hq-sending', '')
     if (event.submitter) event.submitter.setAttribute('aria-busy', 'true')
@@ -175,10 +175,38 @@
       } catch {}
     }, 400)
   }
-  function dropDrafts(form) {
+  // A draft is let go once the page after sending says nothing went wrong, not
+  // when the form goes: a dropped signal or a refused send keeps it (added back
+  // before staging, as decision 0016 had it). Sending notes its keys; the next
+  // page drops them unless it carries a problem.
+  const SENT = 'hq-draft-sent'
+  function sendingDrafts(form) {
     clearTimeout(saving)
     try {
-      for (const field of form.querySelectorAll('textarea[name]')) localStorage.removeItem(draftKey(field))
+      const keys = []
+      for (const field of form.querySelectorAll('textarea[name]')) {
+        if (!drafted(field) || !field.value.trim()) continue
+        // Typed in the moment before sending: kept now, since the timer was cleared.
+        localStorage.setItem(draftKey(field), JSON.stringify({ value: field.value, at: Date.now() }))
+        keys.push(draftKey(field))
+      }
+      sessionStorage.setItem(SENT, JSON.stringify({ keys, at: Date.now() }))
+    } catch {}
+  }
+  // Only the page a send that worked brings settles it: every form post that
+  // works lands with the server's signed done= message (shared/api/forms.ts),
+  // within two minutes. A reload, Back, or a fresh visit after a failed send
+  // keeps the text; the next send that works settles it.
+  function settleSentDrafts() {
+    try {
+      const sent = JSON.parse(sessionStorage.getItem(SENT) || 'null')
+      if (!sent) return
+      const how = performance.getEntriesByType('navigation')[0]?.type
+      const here = new URL(location.href).searchParams
+      if (Date.now() - sent.at > 2 * 60 * 1000) return sessionStorage.removeItem(SENT)
+      if (how === 'reload' || how === 'back_forward' || !here.has('done') || here.has('problem')) return
+      sessionStorage.removeItem(SENT)
+      for (const key of sent.keys || []) localStorage.removeItem(key)
     } catch {}
   }
   function dropEveryDraft() {
@@ -193,7 +221,8 @@
       let draft = null
       try { draft = JSON.parse(localStorage.getItem(draftKey(field)) || 'null') } catch {}
       if (!draft || !draft.value || draft.value === field.value) continue
-      if (Date.now() - draft.at > 7 * 24 * 60 * 60 * 1000) {
+      // Kept for 14 days (decision 0016's span, added back before staging).
+      if (Date.now() - draft.at > 14 * 24 * 60 * 60 * 1000) {
         try { localStorage.removeItem(draftKey(field)) } catch {}
         continue
       }
@@ -334,6 +363,7 @@
     addEventListener('pagereveal', reveal)
     restorePlace()
     fadeDone()
+    settleSentDrafts()
     bringBackDrafts()
   })
   onUnmount(() => {

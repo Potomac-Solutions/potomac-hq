@@ -154,6 +154,10 @@ moves those lines under a version heading. See `docs/conventions.md`.
   - **Duplicate clients**: a name like one already here asks first, and a
     duplicate can be merged into the client to keep.
   - **The portal's timeline**: waiting on you, next, and done.
+  - **Undo after finishing a repeating task or to-do** takes back the next
+    one it made, if nothing has happened to it.
+  - **Unsent text** is kept for two weeks, and through a send that doesn't
+    arrive.
   - **Keyboard**: the command bar keeps focus inside, closes on Escape and
     puts focus back.
 
