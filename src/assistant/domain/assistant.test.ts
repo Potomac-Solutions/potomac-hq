@@ -77,3 +77,18 @@ test("the system prompt says who, when, and how changes are confirmed", () => {
   assert.match(asking, /card with a Do it button\./);
   assert.match(systemPrompt({ name: "M", today: "x", autoSmall: true }), /straight through with an Undo/);
 });
+
+test("the follow-up tools are read and checked too", async () => {
+  const { readWhere } = await import("./assistant.ts");
+  assert.deepEqual(readAsk("set_follow_up", { opportunity_id: ID, on: "" }), { ok: true, value: { tool: "set_follow_up", opportunityId: ID, on: "" } });
+  assert.equal(readAsk("set_follow_up", { opportunity_id: ID, on: "next week" }).ok, false);
+  assert.equal(readAsk("project_health", { project_id: ID, health: "great" }).ok, false);
+  assert.deepEqual(readAsk("booking_link", { label: "Stacy", lasts: "30", one_time: true }), { ok: true, value: { tool: "booking_link", label: "Stacy", lasts: "30", oneTime: true } });
+  assert.equal(readAsk("booking_link", { label: "Stacy", lasts: "365" }).ok, false);
+  assert.deepEqual(readAsk("draft_invoice", { project_id: ID, kind: "deposit", description: "Deposit", amount: "$1,500.50" }), { ok: true, value: { tool: "draft_invoice", projectId: ID, kind: "deposit", description: "Deposit", amount: "1500.50", dueOn: "" } });
+  assert.deepEqual(readAsk("draft_invoice", { project_id: ID, kind: "full", description: "All", amount: 250 }).ok, true, "a number is read as dollars");
+  for (const amount of ["0", "-5", "lots", "1.234"]) assert.equal(readAsk("draft_invoice", { project_id: ID, kind: "full", description: "x", amount }).ok, false, amount);
+  assert.equal(readWhere("/clients/abc?x=1#top"), "/clients/abc?x=1");
+  for (const bad of ["https://evil.example", "//evil.example", "/assistant", "javascript:alert(1)", "/" + "x".repeat(300)]) assert.equal(readWhere(bad), "", bad);
+  assert.match(systemPrompt({ name: "M", today: "x", autoSmall: false, where: "/clients/abc" }), /on the page \/clients\/abc/);
+});

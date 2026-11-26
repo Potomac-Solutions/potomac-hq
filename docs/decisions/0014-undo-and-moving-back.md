@@ -108,6 +108,8 @@ cursor said so, and only the column under the card lit up while dragging.
   move on to its next stage or back one, posted as the page's own form.
   Quick add and search are in it too. It reads `/palette.json`, which only
   answers what search and the opportunity page already would.
+  **Later:** the palette became decision 0015's command bar, which kept
+  the deal moves; `/palette.json` was folded into `/find.json`.
 - **?** lists every shortcut. **G** then a letter goes to a page (T Today,
   W My work, D Dashboard, P Pipeline, C Clients, J Projects, B Board,
   M Money), if it's in that person's navigation. **/** goes to search.

@@ -5,7 +5,8 @@ import { after, before, test } from "node:test";
 import type { AiModel, ChatBlock, ConverseRequest } from "../../src/ai/index.ts";
 import { addTodo } from "../../src/todos/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { actions, signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, type Client, type TestApp } from "../support/harness.ts";
+import { actions, events, signIn, TEST_PASSWORD_COST, testApp, textOf, unwrap, wonProject, type Client, type TestApp } from "../support/harness.ts";
+import * as crm from "../../src/crm/index.ts";
 
 let t: TestApp;
 let admin: Client;
@@ -162,6 +163,93 @@ test("cancel, a failed call, usage on the shared budget, and New chat", async ()
   await admin.post("/assistant/new", {});
   const fresh = textOf(await admin.page("/"));
   assert.doesNotMatch(fresh, /Wolf Armor|Elk Diner/);
-  assert.match(fresh, /What's due today\?/, "ideas to start with");
+  assert.match(fresh, /Do the first one/, "ideas to start with");
   assert.equal(t.db.prepare("select status from assistant_action order by created_at desc, rowid desc limit 1").get()?.["status"], "cancelled", "a card left waiting is cancelled");
+});
+
+// ---- Decision 0015, follow-up --------------------------------------------
+
+const mikeyId = () => t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
+
+test("on another page, the drawer sends with that page's address and comes back to it", async () => {
+  const { client } = await wonProject(t.services, mikeyId(), { client: "Better Days Towing", title: "Towing site" });
+  const page = textOf(await admin.page(`/clients/${client.id}?chat=open`));
+  assert.match(page, /Assistant/);
+  assert.match(page, /Good (morning|afternoon|evening), Mikey\./, "the day, from HQ's own records");
+  queue.push([say("Noted.")]);
+  const sent = await admin.post("/assistant", { message: "what is this client?", from: `/clients/${client.id}` });
+  assert.equal(new URL("http://x" + (sent.headers.get("location") ?? "")).pathname, `/clients/${client.id}`);
+  assert.match(sent.headers.get("location") ?? "", /chat=open/);
+  assert.match((conversed.at(-1) as ConverseRequest).system, new RegExp(`on the page /clients/${client.id}`));
+  queue.push([say("Ok.")]);
+  await admin.post("/assistant", { message: "hi", from: "https://evil.example/x" });
+  assert.doesNotMatch((conversed.at(-1) as ConverseRequest).system, /evil/, "only HQ's own addresses");
+});
+
+test("more it can do: a follow-up day with Undo, project health, an invoice draft, a booking link and a proposal", async () => {
+  const { opportunity, project } = await wonProject(t.services, mikeyId(), { client: "Elk Diner", title: "Ordering site" });
+  const open = unwrap(crm.createOpportunity(t.services.crm, mikeyId(), opportunity.organizationId, { title: "Menu boards", leadSource: "phone", service: "website" }));
+  await admin.post("/assistant/settings", { autoSmall: "on" });
+  queue.push([use("set_follow_up", { opportunity_id: open.id, on: "2026-12-04" }), use("project_health", { project_id: project.id, health: "at-risk" })]);
+  queue.push([say("Done both.")]);
+  await admin.post("/assistant", { message: "follow up on menu boards dec 4 and mark the ordering site at risk" });
+  assert.equal(t.services.crm.opportunities.get(open.id)?.followUpOn, "2026-12-04");
+  assert.equal(t.services.projects.projects.get(project.id)?.health, "at-risk");
+  const followUp = t.db.prepare("select id from assistant_action where tool = 'set_follow_up'").get()?.["id"] as string;
+  await admin.post(`/assistant/actions/${followUp}/undo`, {});
+  assert.equal(t.services.crm.opportunities.get(open.id)?.followUpOn ?? null, null, "back to no follow-up day");
+  await admin.post("/assistant/settings", {});
+
+  queue.push([use("stop_timer", {}), use("draft_invoice", { project_id: project.id, kind: "deposit", description: "Deposit: one third", amount: "$500" })]);
+  await admin.post("/assistant", { message: "stop my timer and draft the deposit invoice" });
+  const results = String(t.db.prepare("select blocks from assistant_message where role = 'user' order by at desc, rowid desc limit 1").get()?.["blocks"]);
+  assert.match(results, /"content":"No timer is running\.","is_error":true/, "no timer: told so, no card");
+  assert.match(textOf(await admin.page("/")), /Draft an invoice on Ordering site: Deposit: one third, \$500\.00\. It stays a draft/);
+  await admin.post(`/assistant/actions/${actionId("waiting")}/do`, {});
+  const invoiceId = String(t.db.prepare("select href from assistant_action where tool = 'draft_invoice'").get()?.["href"]).split("/").pop();
+  const invoice = t.db.prepare("select status from invoice where id = ?").get(invoiceId ?? "");
+  assert.equal(invoice?.["status"], "draft", "drafted, never sent");
+
+  queue.push([use("booking_link", { label: "Stacy at Better Days", lasts: "30", one_time: true })]);
+  await admin.post("/assistant", { message: "make Stacy a booking link" });
+  await admin.post(`/assistant/actions/${actionId("waiting")}/do`, {});
+  const link = t.db.prepare("select token from booking_link order by rowid desc limit 1").get()?.["token"] as string;
+  assert.ok(link);
+  assert.ok(!JSON.stringify(events(t.db)).includes(link), "the link's key is never in the log");
+  assert.ok(!JSON.stringify(t.db.prepare("select * from assistant_action").all()).includes(link), "nor in the conversation");
+
+  queue.push([use("start_proposal", { opportunity_id: open.id })]);
+  await admin.post("/assistant", { message: "start a proposal for menu boards" });
+  assert.match(textOf(await admin.page("/")), /Start a draft proposal for Menu boards \(Elk Diner\), from the service's template\. Nothing is sent/);
+  await admin.post(`/assistant/actions/${actionId("waiting")}/do`, {});
+  assert.equal(t.db.prepare("select count(*) as n from proposal where opportunity_id = ?").get(open.id)?.["n"], 1);
+});
+
+test("pins: the page you're on, to the top of your sidebar, and back off", async () => {
+  const pinned = await admin.post("/nav/pin", { href: "/calls/hours?done=Saved." });
+  assert.equal(new URL("http://x" + (pinned.headers.get("location") ?? "")).pathname, "/calls/hours");
+  const html = await admin.page("/money");
+  assert.match(html, /<summary>(<\?zb[^>]*>)*Pinned/);
+  assert.match(html, /<a href="\/calls\/hours">Calendar hours<\/a>/);
+  assert.match(textOf(await admin.page("/calls/hours")), /★ Pinned/);
+  assert.match(new URL("http://x" + ((await admin.post("/nav/pin", { href: "https://evil.example" })).headers.get("location") ?? "")).searchParams.get("problem") ?? "", /can’t be pinned/);
+  assert.match(new URL("http://x" + ((await member.post("/nav/pin", { href: "/activity" })).headers.get("location") ?? "")).searchParams.get("problem") ?? "", /can’t be pinned/, "not a page they may open");
+  await admin.post("/nav/pin", { href: "/calls/hours" });
+  assert.doesNotMatch(await admin.page("/money"), /Calendar hours<\/a>/);
+  assert.deepEqual(actions(t.db).filter((one) => one.startsWith("nav.")), ["nav.pinned", "nav.unpinned"]);
+});
+
+test("the command bar finds pages and records as you type, only what the person may see", async () => {
+  const found = (await (await admin.get("/find.json?q=elk")).json()) as { items: { kind: string; label: string; href: string }[] };
+  assert.ok(found.items.some((one) => one.kind === "Client" && one.label === "Elk Diner"));
+  const pages = (await (await admin.get("/find.json?q=invoices")).json()) as { items: { kind: string; label: string }[] };
+  assert.equal(pages.items[0]?.kind, "Page");
+  const asMember = (await (await member.get("/find.json?q=audit")).json()) as { items: { label: string }[] };
+  assert.ok(!asMember.items.some((one) => one.label === "Audit history"));
+  // A deal it finds can be moved on from here (decision 0014's palette, folded in).
+  const deal = (await (await admin.get("/find.json?q=menu boards")).json()) as { moves: { label: string; action: string; fields: Record<string, string> }[] };
+  assert.match(deal.moves[0]?.label ?? "", /^Move Menu boards to /);
+  assert.match(deal.moves[0]?.action ?? "", /^\/opportunities\/[0-9a-f-]{36}\/stage$/);
+  const { httpClient } = await import("../support/harness.ts");
+  assert.equal((await httpClient(t.origin).get("/find.json?q=elk")).status, 401);
 });

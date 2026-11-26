@@ -62,15 +62,19 @@ import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts"
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
 import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
-import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
 import { sqliteAssistantStore } from "./assistant/adapters.ts";
-import { PLACES, search, type Place } from "./dashboard/index.ts";
+import { placeAt, PLACES, search, type PinsDeps, type Place } from "./dashboard/index.ts";
+import { sqlitePinStore } from "./dashboard/adapters.ts";
 import { followUpsDue } from "./crm/index.ts";
 import { staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
 import { quickAdd, quickAddPreview } from "./projects/index.ts";
-import { createClient, createOpportunity } from "./crm/index.ts";
+import { createClient, createOpportunity, setOpportunityFollowUp } from "./crm/index.ts";
+import { editProjectDetails } from "./projects/index.ts";
+import { createBookingLink, nextCalls } from "./booking/index.ts";
+import { runningTimer, stopTimer } from "./finance/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -94,6 +98,11 @@ const ASSISTANT_PROBLEMS: Readonly<Record<string, string>> = {
   "name-missing": "Give the client a name.",
   "title-missing": "Give it a title.",
   closed: "That deal is already won or lost.",
+  "not-running": "No timer is running.",
+  "opportunity-closed": "That deal is already won or lost.",
+  "invalid-date": "That isn't a date.",
+  "not-an-amount": "That isn't an amount.",
+  "project-not-active": "That project isn't active.",
 };
 
 /** "Due today" and the times people read are worked out here (docs/data-model.md). */
@@ -171,6 +180,8 @@ export type Services = {
   readonly assistant: AssistantDeps;
   /** The pages a person may open (decision 0015): the sidebar, search and the assistant read it. */
   readonly placesFor: (actorId: Id | null) => readonly Place[];
+  /** Pins in the sidebar (decision 0015, follow-up). */
+  readonly pins: PinsDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -658,6 +669,25 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const may = (actorId: Id, permission: string) => authorize({ users }, actorId, permission).ok;
   const failed = (error: string) => ({ ok: false as const, error: ASSISTANT_PROBLEMS[error] ?? error });
   const actions: AssistantActions = {
+    brief(actorId) {
+      const name = (users.get(actorId)?.name ?? "").split(" ")[0] ?? "";
+      const hour = Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).hour;
+      const hello = `${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"}${name ? `, ${name}` : ""}.`;
+      const waiting = staffWaiting(portal, actorId).items;
+      const follow = followUpsDue(crm, actorId, today());
+      const followUps = follow.ok ? follow.value.items : [];
+      const due = todosDueFor(todos, actorId);
+      const next = nextCalls(booking, actorId, 1)?.[0] ?? null;
+      const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+      const parts = [
+        ...(waiting.length ? [`[${count(waiting.length, "thing a client is waiting on", "things clients are waiting on")}](/#waiting-on-you)`] : []),
+        ...(followUps.length ? [`[${count(followUps.length, "follow-up", "follow-ups")} due](/today)`] : []),
+        ...(due.length ? [`[${count(due.length, "to-do", "to-dos")} due](/todos)`] : []),
+      ];
+      const first = waiting[0] ? `First up: ${waiting[0].text}.` : followUps[0] ? `First up: follow up on ${followUps[0].title} (${followUps[0].clientName}).` : due[0] ? `First up: ${due[0].title}.` : "";
+      const call = next ? ` Next call: ${next.who}, ${next.when}.` : "";
+      return parts.length ? `${hello} You have ${parts.join(", ")}. ${first}${call}` : `${hello} Nothing is waiting on you.${call}`;
+    },
     find(actorId, query) {
       const found = search(searchDeps, actorId, query, placesFor(actorId));
       const idOf = (href: string) => /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/.exec(href)?.[1] ?? "";
@@ -731,7 +761,68 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       const made = createOpportunity(crm, actorId, clientId, { title: input.title, leadSource: input.leadSource, service: input.service || null, summary: input.summary || null });
       return made.ok ? { ok: true, value: { href: `/opportunities/${made.value.id}` } } : failed(made.error);
     },
+    deal(actorId, id) {
+      const deal = may(actorId, "opportunity.view") ? crm.opportunities.get(id) : null;
+      return deal ? { name: `${deal.title} (${crm.clients.get(deal.organizationId)?.name ?? "a client"})`, followUpOn: deal.followUpOn ?? "", open: deal.stage !== "won" && deal.stage !== "lost" } : null;
+    },
+    setFollowUp(actorId, id, on) {
+      const set = setOpportunityFollowUp(crm, actorId, id, on || null);
+      return set.ok ? { ok: true, value: { href: `/opportunities/${id}` } } : failed(set.error);
+    },
+    project(actorId, id) {
+      const project = may(actorId, "project.view") ? projectStore.get(id) : null;
+      return project ? { name: project.name, health: project.health } : null;
+    },
+    setHealth(actorId, id, health) {
+      const project = projectStore.get(id);
+      if (!project) return failed("not-found");
+      const edited = editProjectDetails(projects, actorId, id, { name: project.name, description: project.description, health, startOn: project.startOn, targetOn: project.targetOn });
+      return edited.ok ? { ok: true, value: { href: `/projects/${id}` } } : failed(edited.error);
+    },
+    timer(actorId) {
+      const running = runningTimer(finance, actorId);
+      return running.running ? `${running.label}, ${running.since}` : "";
+    },
+    stopTimer(actorId) {
+      const stopped = stopTimer(finance, actorId);
+      return stopped.ok ? { ok: true, value: { href: "/time" } } : failed(stopped.error);
+    },
+    bookingLink(actorId, input) {
+      const made = createBookingLink(links, actorId, input);
+      // The link's address is its key: it stays on the Calls page, not in the conversation or the log.
+      return made.ok ? { ok: true, value: { href: "/calls#links" } } : failed(made.error);
+    },
+    proposalDraftWaiting: (actorId, opportunityId) => waitingDraft(ai, actorId, "proposal-draft", opportunityId) !== null,
+    startProposal(actorId, opportunityId) {
+      const draft = waitingDraft(ai, actorId, "proposal-draft", opportunityId);
+      const started = draft ? useProposalDraft(ai, actorId, draft.id) : (() => {
+        const made = startProposal(proposals, actorId, opportunityId, {});
+        return made.ok ? { ok: true as const, value: made.value.id } : made;
+      })();
+      return started.ok ? { ok: true, value: { href: `/proposals/${started.value}` } } : failed(String(started.error));
+    },
+    draftInvoice(actorId, projectId, input) {
+      const made = createInvoice(finance, actorId, projectId, { kind: input.kind, description: input.description, amount: input.amount, dueOn: input.dueOn || null });
+      return made.ok ? { ok: true, value: { href: `/invoices/${made.value.id}` } } : failed(made.error);
+    },
   };
+  // What a page is called, for pinning: a page's own name, or a record's.
+  const labelFor = (actorId: Id, href: string): string | null => {
+    const [path = "", query = ""] = href.split("?");
+    const places = placesFor(actorId);
+    const exact = places.find((place) => place.href === path);
+    if (exact) return query ? `${exact.label} (filtered)` : exact.label;
+    const id = /^\/(clients|opportunities|projects|tasks)\/([0-9a-f-]{36})(?:\/|$)/.exec(path);
+    if (id) {
+      const [, kind, recordId] = id as unknown as [string, string, Id];
+      if (kind === "tasks") return actions.task(actorId, recordId)?.title ?? null;
+      return actions.record(actorId, kind === "clients" ? "client" : kind === "opportunities" ? "opportunity" : "project", recordId)?.name ?? null;
+    }
+    const under = placeAt(places, path);
+    return under ? `${under.label}: ${path.split("/").filter(Boolean).slice(1).join(" ")}`.slice(0, 120) : null;
+  };
+  const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
+
   const assistant: AssistantDeps = {
     users,
     transact: sqliteTransact(db),
@@ -748,5 +839,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

@@ -8,7 +8,7 @@
 //
 // Permissions: anyone signed in may talk to it (AI's own checks decide
 // whether it's on); each action is checked by the service that does it.
-import { historyFor, lookedUp, MAX_MESSAGE, MAX_ROUNDS, MOVE_LABELS, readAsk, resultText, segmentsOf, systemPrompt, toolNamed, TOOLS, type Ask, type Block, type Segment } from "../domain/assistant.ts";
+import { HEALTH_LABELS, historyFor, readWhere, lookedUp, MAX_MESSAGE, MAX_ROUNDS, MOVE_LABELS, readAsk, resultText, segmentsOf, systemPrompt, toolNamed, TOOLS, type Ask, type Block, type Segment } from "../domain/assistant.ts";
 import type { IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { AssistantActions, AssistantStore, Done, StoredAction, StoredMessage, Talk, Undo } from "./ports.ts";
@@ -75,6 +75,32 @@ function describe(deps: AssistantDeps, actorId: Id, ask: Ask): Result<string, st
       const client = deps.actions.record(actorId, "client", ask.clientId as Id);
       return client ? ok(`Open a deal at ${client.name}: ${ask.title}`) : err("There's no client with that id that this person may see.");
     }
+    case "set_follow_up": {
+      const deal = deps.actions.deal(actorId, ask.opportunityId as Id);
+      if (!deal) return err("There's no deal with that id that this person may see.");
+      if (!deal.open) return err("That deal is already won or lost.");
+      return ok(ask.on ? `Follow up on ${deal.name} on ${ask.on}` : `Clear the follow-up day on ${deal.name}`);
+    }
+    case "project_health": {
+      const project = deps.actions.project(actorId, ask.projectId as Id);
+      return project ? ok(`Mark ${project.name} ${HEALTH_LABELS[ask.health].toLowerCase()}`) : err("There's no project with that id that this person may see.");
+    }
+    case "stop_timer": {
+      const running = deps.actions.timer(actorId);
+      return running ? ok(`Stop the timer (${running}) and log the time`) : err("No timer is running.");
+    }
+    case "booking_link":
+      return ok(`Make a booking link for ${ask.label}: ${ask.oneTime ? "one call" : "any number of calls"}, ${ask.lasts ? `for ${ask.lasts} days` : "with no end"}. It's shown on Calls to copy; nothing is sent`);
+    case "start_proposal": {
+      const deal = deps.actions.deal(actorId, ask.opportunityId as Id);
+      if (!deal) return err("There's no deal with that id that this person may see.");
+      return ok(`Start a draft proposal for ${deal.name}, ${deps.actions.proposalDraftWaiting(actorId, ask.opportunityId as Id) ? "from the AI draft" : "from the service's template"}. Nothing is sent`);
+    }
+    case "draft_invoice": {
+      const project = deps.actions.project(actorId, ask.projectId as Id);
+      if (!project) return err("There's no project with that id that this person may see.");
+      return ok(`Draft an invoice on ${project.name}: ${ask.description}, $${Number(ask.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ask.dueOn ? `, due ${ask.dueOn}` : ""}. It stays a draft`);
+    }
     default:
       return err("That isn't a change.");
   }
@@ -107,6 +133,24 @@ function perform(deps: AssistantDeps, actorId: Id, ask: Ask): Result<Done, strin
       return a.addClient(actorId, ask);
     case "open_deal":
       return a.openDeal(actorId, ask.clientId as Id, ask);
+    case "set_follow_up": {
+      const before = a.deal(actorId, ask.opportunityId as Id);
+      const set = a.setFollowUp(actorId, ask.opportunityId as Id, ask.on);
+      return set.ok && before ? ok({ ...set.value, undo: { tool: "set_follow_up", opportunityId: ask.opportunityId, on: before.followUpOn } }) : set;
+    }
+    case "project_health": {
+      const before = a.project(actorId, ask.projectId as Id);
+      const set = a.setHealth(actorId, ask.projectId as Id, ask.health);
+      return set.ok && before ? ok({ ...set.value, undo: { tool: "project_health", projectId: ask.projectId, health: before.health } }) : set;
+    }
+    case "stop_timer":
+      return a.stopTimer(actorId);
+    case "booking_link":
+      return a.bookingLink(actorId, ask);
+    case "start_proposal":
+      return a.startProposal(actorId, ask.opportunityId as Id);
+    case "draft_invoice":
+      return a.draftInvoice(actorId, ask.projectId as Id, ask);
     default:
       return err("That isn't a change.");
   }
@@ -114,6 +158,8 @@ function perform(deps: AssistantDeps, actorId: Id, ask: Ask): Result<Done, strin
 
 function runUndo(deps: AssistantDeps, actorId: Id, undo: Undo): Result<Done, string> {
   if (undo.tool === "move_task") return deps.actions.moveTask(actorId, undo.taskId as Id, undo.to);
+  if (undo.tool === "set_follow_up") return deps.actions.setFollowUp(actorId, undo.opportunityId as Id, undo.on);
+  if (undo.tool === "project_health") return deps.actions.setHealth(actorId, undo.projectId as Id, undo.health);
   return deps.actions.setDone(actorId, undo.todoId as Id, undo.tool === "tick_off");
 }
 
@@ -129,8 +175,8 @@ export type SendProblem = "forbidden" | "message-missing" | "assistant-off" | st
 /** What came of a message: how many rounds it took, and the changes waiting for a tap. */
 export type Sent = { readonly rounds: number; readonly waiting: number; readonly done: number };
 
-/** `pick` is the model picked beside the box; anything not allowed is the usual model. */
-export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed: string, pick = ""): Promise<Result<Sent, SendProblem>> {
+/** `pick` is the model picked beside the box; anything not allowed is the usual model. `from` is the page it was sent from. */
+export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed: string, pick = "", from = ""): Promise<Result<Sent, SendProblem>> {
   if (!signedIn(deps, actorId)) return err("forbidden");
   const text = typed.replace(/\r\n/g, "\n").trim();
   if (!text || text.length > MAX_MESSAGE) return err("message-missing");
@@ -140,7 +186,7 @@ export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed
   const autoSmall = deps.store.autoSmall(actorId);
   deps.store.addMessage(actorId, { id: deps.newId(), role: "user", content: [{ type: "text", text }], at: deps.clock() });
 
-  const system = systemPrompt({ name: user?.name ?? "someone", today: deps.todayText(), autoSmall });
+  const system = systemPrompt({ name: user?.name ?? "someone", today: deps.todayText(), autoSmall, where: readWhere(from) });
   let rounds = 0;
   let waiting = 0;
   let done = 0;
@@ -317,7 +363,7 @@ export type ChatView = {
 
 const STATUS_TEXT: Readonly<Record<StoredAction["status"], string>> = { waiting: "Waiting for you", done: "Done", cancelled: "Cancelled", failed: "Didn't work", undone: "Undone" };
 
-const SUGGESTIONS = ["What's due today?", "Add a to-do to call Stacy Friday", "Where do I set my booking hours?", "Log a call with Nu-Finish about their landing page"];
+const SUGGESTIONS = ["Do the first one", "Add a to-do to call Stacy Friday", "Where do I set my booking hours?", "Log a call with Nu-Finish about their landing page"];
 
 export function chatView(deps: AssistantDeps, actorId: Id | null): ChatView {
   if (!signedIn(deps, actorId)) return { on: false, why: "", lines: [], autoSmall: false, suggestions: [] };
@@ -340,5 +386,9 @@ export function chatView(deps: AssistantDeps, actorId: Id | null): ChatView {
       }
     });
   }
-  return { on: state.on, why: state.why, lines, autoSmall: deps.store.autoSmall(actorId), suggestions: lines.length === 0 ? SUGGESTIONS : [] };
+  // The day, from HQ's own records: no model, no budget.
+  const brief = state.on ? deps.actions.brief(actorId) : "";
+  const all: ChatLine[] = brief ? [{ key: "brief", who: "hq", segments: segmentsOf(brief) }, ...lines] : lines;
+  return { on: state.on, why: state.why, lines: all, autoSmall: deps.store.autoSmall(actorId), suggestions: lines.length === 0 ? SUGGESTIONS : [] };
 }
+export { readWhere } from "../domain/assistant.ts";

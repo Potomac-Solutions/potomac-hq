@@ -8,7 +8,27 @@
 -->
 <script>
   import './model-pick.zb'
+  import { onMount } from '@zubra/runtime'
   let busy = false
+  let listening = false
+  let canTalk = false
+  // Speak instead of typing, where the browser can (most phones can).
+  function talk(event) {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition
+    const box = event.target.closest('form')?.querySelector('textarea')
+    if (!Speech || !box || listening) return
+    const heard = new Speech()
+    heard.lang = 'en-US'
+    heard.interimResults = false
+    heard.onresult = (result) => {
+      box.value = (box.value ? box.value + ' ' : '') + result.results[0][0].transcript
+      box.focus()
+    }
+    heard.onend = () => (listening = false)
+    listening = true
+    heard.start()
+  }
+  onMount(() => (canTalk = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)))
   function sending() {
     busy = true
   }
@@ -93,7 +113,10 @@
       <textarea id="chat-message" name="message" required maxlength="1000" rows="2" placeholder="Add a to-do to call Stacy Friday… Where do I set my hours?… What's due today?" onkeydown={key}></textarea>
       <div class="chat-send">
         <model-pick models={models} field-id="chat-model"></model-pick>
+        <span>
+        <button zb-if={canTalk} type="button" class="hq-button secondary" onclick={talk} aria-pressed={listening ? 'true' : 'false'}>{listening ? 'Listening…' : 'Speak'}</button>
         <button class="hq-button" type="submit" aria-busy={busy ? 'true' : 'false'}>{busy ? 'Thinking…' : 'Send'}</button>
+        </span>
       </div>
     </form>
 
@@ -105,7 +128,7 @@
 
     <details zb-if={view.on} class="chat-settings">
       <summary>How changes are made</summary>
-      <p class="hq-small">Every change shows a card first and happens when you tap <strong>Do it</strong>. Small changes (moving a task, ticking off or reopening a to-do) can go straight through instead, each with <strong>Undo</strong> for a day.</p>
+      <p class="hq-small">Every change shows a card first and happens when you tap <strong>Do it</strong>. Small changes (moving a task, ticking off or reopening a to-do, a follow-up day, a project's health) can go straight through instead, each with <strong>Undo</strong> for a day.</p>
       <form method="post" action="/assistant/settings">
         <label><input type="checkbox" name="autoSmall" checked={view.autoSmall}> Let small changes go through without asking</label>
         <button class="hq-button secondary small" type="submit">Save</button>

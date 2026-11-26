@@ -94,15 +94,15 @@ test("a pipeline card moves with a finger, by its grip", async () => {
   await context.close();
 });
 
-test("the command palette goes anywhere and moves a deal; ? lists the shortcuts; G then P goes to the pipeline", async () => {
+test("the command bar goes anywhere and moves a deal; ? lists the shortcuts; G then P goes to the pipeline", async () => {
   await opportunity("Palette deal");
   const page = await signedIn.newPage();
   const problems = watch(page);
   await page.goto(t.origin + "/today");
   await page.keyboard.press("Control+k");
-  const box = page.getByRole("combobox", { name: "Go to, find or do" });
+  const box = page.getByRole("combobox", { name: "Go to a page or record, or ask the assistant" });
   await box.waitFor();
-  await assertAccessible(page, "the command palette");
+  await assertAccessible(page, "the command bar");
   await box.fill("Palette deal");
   const move = page.getByRole("option", { name: /Move Palette deal to Consult booked/ });
   await move.waitFor();
@@ -110,6 +110,11 @@ test("the command palette goes anywhere and moves a deal; ? lists the shortcuts;
   await page.getByText("Moved to Consult booked.").waitFor();
   assert.match(page.url(), /\/opportunities\//);
 
+  await page.getByRole("button", { name: /Go to/ }).click();
+  await box.fill("keys");
+  await page.getByRole("option", { name: /Keyboard shortcuts/ }).click();
+  await page.getByRole("heading", { name: "Keyboard shortcuts" }).waitFor();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /Go to/ }).click();
   await box.fill("clients");
   await page.getByRole("option", { name: /Clients/ }).first().waitFor();

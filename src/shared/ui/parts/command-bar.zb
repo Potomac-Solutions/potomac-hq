@@ -1,0 +1,202 @@
+<!--
+  The command bar (decision 0015, follow-up): press / or Ctrl+K (⌘K on a
+  Mac), or tap "Go to", and type. Pages and records come up as you type;
+  Enter opens the one picked. A deal it finds can be moved on a stage or
+  back one from here too, posted as the deal's own form would be (decision
+  0014's palette, folded in), and "keys" offers the keyboard shortcuts.
+  When nothing fits, Enter asks the assistant
+  instead, from the page you're on. Without scripts the top bar's search
+  box does the finding. With nothing typed it lists every page in this
+  person's sidebar, as decision 0014's palette did. Only the shell imports
+  this. `here` is the page's address, sent with a question; `ask` says
+  whether the assistant is on; `groups` are the sidebar's hubs.
+-->
+<script>
+  import { onMount, onUnmount } from '@zubra/runtime'
+  let open = false
+  let q = ''
+  let items = []
+  let hits = 0
+  let active = ''
+  let listening = false
+  let canTalk = false
+  let asked = 0
+
+  // Nothing typed: every page in the sidebar, by hub (decision 0014's palette did this).
+  function pages() {
+    const seen = new Set()
+    const all = []
+    for (const hub of groups) for (const link of hub.links) {
+      if (seen.has(link.href)) continue
+      seen.add(link.href)
+      all.push({ kind: hub.label, label: link.label, href: link.href })
+    }
+    return all.slice(0, 40)
+  }
+  function show() {
+    open = true
+    q = ''
+    items = pages()
+    hits = 0
+    active = items[0] ? items[0].href : ''
+    setTimeout(() => document.getElementById('cmd-q')?.focus(), 0)
+  }
+  function hide() {
+    open = false
+  }
+  async function find(text) {
+    q = text
+    const mine = ++asked
+    if (!text.trim()) {
+      items = pages()
+      hits = 0
+      active = items[0] ? items[0].href : ''
+      return
+    }
+    // Until the server answers, the sidebar's pages that fit, so Enter never opens a stale pick.
+    const typedNow = text.trim().toLowerCase()
+    items = pages().filter((one) => one.label.toLowerCase().includes(typedNow))
+    hits = items.length
+    active = items[0] ? items[0].href : ''
+    try {
+      const response = await fetch('/find.json?q=' + encodeURIComponent(text), { credentials: 'same-origin', headers: { accept: 'application/json' } })
+      const body = response.ok ? await response.json() : { items: [], moves: [] }
+      if (mine !== asked) return
+      const moves = (body.moves || []).map((one, index) => ({ kind: 'Move', label: one.label, href: '#move-' + index, move: one }))
+      const keys = /^(keys?|keyboard|shortcuts?)/i.test(text.trim()) ? [{ kind: 'Action', label: 'Keyboard shortcuts', href: '#keys' }] : []
+      // Kept from decision 0014's palette: quick add what's typed, and search for it.
+      const typed = text.trim()
+      const extras = [
+        ...(document.getElementById('hq-quick-text') ? [{ kind: 'Action', label: 'Quick add “' + typed + '”', href: '#add' }] : []),
+        ...(typed.length > 1 ? [{ kind: 'Search', label: 'Search everything for “' + typed + '”', href: '/search?q=' + encodeURIComponent(typed) }] : []),
+      ]
+      const found = [...moves, ...keys, ...(body.items || [])]
+      hits = found.length
+      items = [...found, ...extras]
+      // Enter opens the first real match; with none, it still asks the assistant.
+      active = hits > 0 ? items[0].href : ''
+    } catch {
+      items = []
+      hits = 0
+    }
+  }
+  // A move is a form post, like the deal's own Move button.
+  function post(move) {
+    const form = document.createElement('form')
+    form.method = 'post'
+    form.action = move.action
+    for (const [name, value] of Object.entries(move.fields)) {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = name
+      input.value = value
+      form.append(input)
+    }
+    document.body.append(form)
+    form.requestSubmit()
+  }
+  function go() {
+    const picked = items.find((one) => one.href === active)
+    if (picked && picked.move) return post(picked.move)
+    if (picked && picked.href === '#add') {
+      const box = document.getElementById('hq-quick-text')
+      hide()
+      if (box) {
+        box.value = q
+        setTimeout(() => box.focus(), 0)
+      }
+      return
+    }
+    if (picked && picked.href === '#keys') {
+      hide()
+      document.dispatchEvent(new CustomEvent('hq-keys'))
+      return
+    }
+    if (picked) {
+      location.href = picked.href
+      return
+    }
+    if (ask && q.trim()) document.getElementById('cmd-ask')?.requestSubmit()
+  }
+  function move(step) {
+    if (items.length === 0) return
+    const at = items.findIndex((one) => one.href === active)
+    const next = (at + step + items.length) % items.length
+    active = items[next].href
+    document.getElementById('cmd-item-' + next)?.scrollIntoView({ block: 'nearest' })
+  }
+  function key(event) {
+    if (event.key === 'ArrowDown') { event.preventDefault(); move(1) }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1) }
+    else if (event.key === 'Enter') { event.preventDefault(); go() }
+    else if (event.key === 'Escape') { event.preventDefault(); hide() }
+  }
+  // / or Ctrl+K anywhere, unless you're typing somewhere else.
+  function anywhere(event) {
+    const typing = event.target && (event.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))
+    if ((event.key === 'k' || event.key === 'K') && (event.ctrlKey || event.metaKey)) { event.preventDefault(); open ? hide() : show(); return }
+    if (event.key === '/' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); show() }
+  }
+  function talk() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Speech || listening) return
+    const heard = new Speech()
+    heard.lang = 'en-US'
+    heard.interimResults = false
+    heard.onresult = (event) => find(event.results[0][0].transcript)
+    heard.onend = () => (listening = false)
+    listening = true
+    heard.start()
+  }
+  onMount(() => {
+    document.addEventListener('keydown', anywhere)
+    canTalk = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
+  })
+  onUnmount(() => document.removeEventListener('keydown', anywhere))
+</script>
+<style>
+  :host { display: contents; }
+  .cmd-open { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.75rem; font: inherit; font-size: 0.875rem; color: var(--muted-foreground); background: var(--canvas); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; white-space: nowrap; }
+  .cmd-open kbd { padding: 0 0.3rem; font: inherit; font-size: 0.75rem; border: 1px solid var(--border); border-radius: 0.25rem; }
+  .cmd-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; justify-items: center; align-items: start; padding: 10vh 1rem 1rem; background: color-mix(in srgb, #000 45%, transparent); }
+  .cmd { width: min(40rem, 100%); max-height: 70vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; color: var(--card-foreground); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 20px 60px rgb(0 0 0 / 0.3); }
+  .cmd-top { display: flex; gap: 0.5rem; align-items: center; padding: 0.6rem; border-bottom: 1px solid var(--border); }
+  .cmd-top input { flex: 1 1 auto; min-width: 0; height: 2.5rem; padding: 0 0.6rem; font: inherit; font-size: 1rem; color: var(--foreground); background: transparent; border: 0; }
+  .cmd-top input:focus-visible { outline: none; }
+  .cmd-mic { height: 2.25rem; padding: 0 0.6rem; font: inherit; font-size: 0.875rem; color: var(--foreground); background: var(--muted); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
+  .cmd-list { margin: 0; padding: 0.35rem; list-style: none; overflow-y: auto; }
+  .cmd-list a { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 0.1rem 0.6rem; padding: 0.5rem 0.6rem; color: inherit; text-decoration: none; border-radius: calc(var(--radius) - 2px); }
+  .cmd-list a.active, .cmd-list a:hover { background: var(--accent); color: var(--accent-foreground); }
+  .cmd-kind { font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); padding-top: 0.15rem; }
+  .cmd-detail { grid-column: 2; font-size: 0.8125rem; color: var(--muted-foreground); overflow-wrap: anywhere; }
+  .cmd-foot { padding: 0.5rem 0.9rem; font-size: 0.8125rem; color: var(--muted-foreground); border-top: 1px solid var(--border); }
+  .cmd-foot button { padding: 0; font: inherit; color: var(--primary); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+  @media (max-width: 60rem) { .cmd-open .cmd-hint { display: none; } }
+</style>
+<command-bar here="/" ask={false} groups={[]}>
+  <button type="button" class="cmd-open" onclick={show} aria-haspopup="dialog" aria-keyshortcuts="/ Control+K Meta+K">Go to… <kbd class="cmd-hint">/</kbd></button>
+  <div zb-if={open} class="cmd-backdrop" onclick={(event) => { if (event.target === event.currentTarget) hide() }}>
+    <div class="cmd" role="dialog" aria-modal="true" aria-label="Go to a page or record">
+      <div class="cmd-top">
+        <label class="sr-only" for="cmd-q">Go to a page or record, or ask the assistant</label>
+        <input id="cmd-q" type="search" autocomplete="off" maxlength="100" placeholder={ask ? 'Go to… or tell the assistant what needs to happen' : 'Go to a page or record…'} value={q} oninput={(event) => find(event.target.value)} onkeydown={key} role="combobox" aria-expanded={items.length > 0 ? 'true' : 'false'} aria-controls="cmd-list" aria-activedescendant={active ? 'cmd-item-' + items.findIndex((one) => one.href === active) : null}>
+        <button zb-if={canTalk} type="button" class="cmd-mic" onclick={talk} aria-pressed={listening ? 'true' : 'false'}>{listening ? 'Listening…' : 'Speak'}</button>
+      </div>
+      <ul class="cmd-list" id="cmd-list" role="listbox" aria-label="Matches">
+        <zb-each items={items} as="item" key={item.href}>
+          <li role="presentation"><a id={'cmd-item-' + items.indexOf(item)} role="option" aria-selected={item.href === active ? 'true' : 'false'} class:active={item.href === active} href={item.href} onclick={(event) => { if (item.move || item.href === '#keys' || item.href === '#add') { event.preventDefault(); active = item.href; go() } }}><span class="cmd-kind">{item.kind}</span><span>{item.label}</span><span zb-if={item.detail} class="cmd-detail">{item.detail}</span></a></li>
+        </zb-each>
+      </ul>
+      <p class="cmd-foot">
+        <span zb-if={q.trim() && hits === 0 && ask}>Nothing matches. Press Enter to <button type="button" onclick={go}>ask the assistant</button>.</span>
+        <span zb-if={q.trim() && hits === 0 && !ask}>Nothing matches “{q}”.</span>
+        <span zb-if={!q.trim()}>↑ ↓ to pick, Enter to open, Esc to close, ? for every shortcut.</span>
+        <span zb-if={q.trim() && hits > 0}>Enter opens it.<span zb-if={ask}> Or <button type="button" onclick={() => { active = ''; go() }}>ask the assistant</button> instead.</span></span>
+      </p>
+      <form id="cmd-ask" method="post" action="/assistant" hidden>
+        <input type="hidden" name="message" value={q}>
+        <input type="hidden" name="from" value={here}>
+      </form>
+    </div>
+  </div>
+</command-bar>

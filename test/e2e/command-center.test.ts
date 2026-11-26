@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import type { AiModel, ChatBlock } from "../../src/ai/index.ts";
 import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
-import { TEST_PASSWORD_COST, testApp, type TestApp } from "../support/harness.ts";
+import { PASSWORD, TEST_PASSWORD_COST, testApp, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
 let browser: Browser;
@@ -73,6 +73,69 @@ test("hubs, Get HQ ready, and the assistant", async () => {
   assert.equal(t.db.prepare("select count(*) as n from task where title = 'Send Grover the proof'").get()?.["n"], 1);
   await page.getByRole("link", { name: "Open it" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/tasks/"));
+
+  assert.deepEqual(problems, []);
+});
+
+test("the command bar, the drawer on any page, pins and the phone's tab bar", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(t.origin + "/");
+  await page.getByLabel("Email").fill("mikey@example.com");
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  // Watched from here: the signed-out page answers 401 by design.
+  const problems = watch(page);
+
+  // / opens the command bar; a page comes up as you type; Enter opens it.
+  await page.keyboard.press("/");
+  const bar = page.getByRole("dialog", { name: "Go to a page or record" });
+  await bar.waitFor();
+  // Nothing typed lists this person's pages, by hub (decision 0014's palette did too).
+  await bar.getByRole("option", { name: /Clients\s*Clients/ }).waitFor();
+  assert.ok((await bar.getByRole("option").count()) > 10, "every page in the sidebar");
+  // Kept from decision 0014's palette: quick add and search what's typed, with Enter still asking the assistant when nothing matches.
+  await page.getByLabel("Go to a page or record, or ask the assistant").fill("qqzzx nothing");
+  await bar.getByRole("option", { name: /Search everything for “qqzzx nothing”/ }).waitFor();
+  await bar.getByRole("option", { name: /Quick add “qqzzx nothing”/ }).click();
+  assert.equal(await page.locator("#hq-quick-text").inputValue(), "qqzzx nothing");
+  await page.locator("#hq-quick-text").fill("");
+  await page.keyboard.press("Escape");
+  await page.locator("main").focus();
+  await page.keyboard.press("/");
+  await bar.waitFor();
+  await page.getByLabel("Go to a page or record, or ask the assistant").fill("booking hours");
+  await bar.getByRole("option", { name: /Calendar hours/ }).waitFor();
+  await assertAccessible(page, "the command bar");
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.pathname === "/calls/hours");
+
+  // Pin it; it's at the top of the sidebar on every page.
+  await page.getByRole("button", { name: "Pin", exact: true }).click();
+  await page.getByText("Pinned to your sidebar.").waitFor();
+  await page.goto(t.origin + "/money");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Calendar hours" }).waitFor();
+
+  // Ask, from any page: the drawer, sent with this page's address.
+  await page.getByRole("link", { name: "Ask", exact: true }).click();
+  await page.getByRole("heading", { name: "Assistant" }).waitFor();
+  await assertAccessible(page, "the assistant's drawer");
+  queue.push([{ type: "text", text: "Money is on [Money](/money)." }]);
+  const box = page.getByLabel("Tell the assistant what needs to happen here");
+  await box.fill("where am I?");
+  await box.press("Enter");
+  await page.waitForURL((url) => url.pathname === "/money" && url.searchParams.get("chat") === "open");
+  await page.locator("#assistant").getByText("Money is on").waitFor();
+  await page.getByRole("link", { name: "Close the assistant" }).click();
+  await page.waitForURL((url) => url.pathname === "/money" && !url.searchParams.has("chat"));
+
+  // A phone: the tab bar along the bottom.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tabs = page.getByRole("navigation", { name: "Quick" });
+  await tabs.getByRole("link", { name: "Today" }).click();
+  await page.waitForURL((url) => url.pathname === "/today");
+  await assertAccessible(page, "Today on a phone");
 
   assert.deepEqual(problems, []);
 });
