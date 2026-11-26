@@ -22,8 +22,11 @@
   .notices li[data-unread] { border-left-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, transparent); }
   .notices li[data-unread] a { font-weight: 650; }
   .notices p { margin: 0; overflow-wrap: anywhere; }
+  .notice-prefs h3 { margin: 0; font-size: 1rem; }
+  .notice-quiet { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; border: 0; padding: 0; margin: 0; }
+  .notice-quiet legend { font-weight: 600; margin-bottom: 0.35rem; }
 </style>
-<hq-notices view={{ items: [], unread: 0, email: false, emailReady: false }} done="" problem="">
+<hq-notices view={{ items: [], unread: 0, email: false, emailReady: false, preferences: { kinds: [], hours: [], quietText: '' } }} done="" problem="">
   <div class="hq-page">
     <h1>Notices</h1>
     <p class="hq-muted">Tasks given to you, comments that mention you, and the reminders you set.</p>
@@ -54,6 +57,26 @@
       <form method="post" action="/notices/email">
         <input type="hidden" name="on" value={view.email ? '0' : '1'}>
         <button class="hq-button secondary" type="submit">{view.email ? 'Stop emailing them' : 'Email them to me'}</button>
+      </form>
+      <form zb-if={view.email} method="post" action="/notices/preferences" class="hq-form notice-prefs" data-spaced>
+        <h3>What's emailed, and when</h3>
+        <zb-each items={view.preferences.kinds} as="kind" key={kind.kind}>
+          <div class="hq-field">
+            <label for={'notice-' + kind.kind}>{kind.label}</label>
+            <select id={'notice-' + kind.kind} name={kind.kind}>
+              <zb-each items={kind.options} as="option" key={option.value}><option value={option.value} selected={option.selected}>{option.label}</option></zb-each>
+            </select>
+          </div>
+        </zb-each>
+        <p class="hq-small hq-muted">The morning digest goes at 7 AM. {view.preferences.quietText}</p>
+        <fieldset class="notice-quiet">
+          <legend>Quiet hours</legend>
+          <label for="notice-quiet-from">From</label>
+          <select id="notice-quiet-from" name="quietFrom"><zb-each items={view.preferences.hours} as="hour" key={hour.value}><option value={hour.value} selected={hour.from}>{hour.label}</option></zb-each></select>
+          <label for="notice-quiet-to">to</label>
+          <select id="notice-quiet-to" name="quietTo"><zb-each items={view.preferences.hours} as="hour" key={hour.value}><option value={hour.value} selected={hour.to}>{hour.label}</option></zb-each></select>
+        </fieldset>
+        <div><button class="hq-button" type="submit">Save</button></div>
       </form>
     </section>
   </div>

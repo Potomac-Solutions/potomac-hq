@@ -7,15 +7,15 @@
   import { redirect } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
-  export async function load({ context }) {
+  export async function load({ context, url }) {
     if (context.portal.session) return redirect('/portal')
-    return { title: 'Sign in', signUp: context.portal.signUpOpen, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Sign in', next: context.portal.next(url.searchParams.get('next') || ''), signUp: context.portal.signUpOpen, emailLink: context.portal.canEmailLink, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   :host { display: block; max-width: 26rem; }
 </style>
-<hq-portal-sign-in sign-up={false} done="" problem="">
+<hq-portal-sign-in sign-up={false} email-link={false} next="" done="" problem="">
   <div class="hq-page">
     <h1>Sign in to your client portal</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -23,11 +23,19 @@
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
     <form method="post" action="/portal/sign-in" class="hq-form hq-panel">
+      <input zb-if={next} type="hidden" name="next" value={next}>
       <text-field label="Email" name="email" type="email" autocomplete="username" required={true}></text-field>
       <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
       <div><button class="hq-button portal-big" type="submit">Sign in</button></div>
     </form>
-    <p class="hq-muted">Forgot your password, or never had one? Ask Potomac Solutions for a new link.</p>
+    <details zb-if={emailLink} class="hq-panel" open={false}>
+      <summary>Forgot your password?</summary>
+      <form method="post" action="/portal/sign-in-link" class="hq-form" data-spaced>
+        <text-field label="Send the link to" name="email" type="email" autocomplete="email" required={true} description="The address your portal uses. We’ll email a link to choose a new password. It works once, for a week."></text-field>
+        <div><button class="hq-button secondary" type="submit">Email me a link</button></div>
+      </form>
+    </details>
+    <p zb-if={!emailLink} class="hq-muted">Forgot your password? Call or write to Potomac Solutions, and we’ll send you a new link.</p>
     <p zb-if={signUp}>New here? <a href="/portal/sign-up">Sign up to book a call</a>.</p>
   </div>
 </hq-portal-sign-in>

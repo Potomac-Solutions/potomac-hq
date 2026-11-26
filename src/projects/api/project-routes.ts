@@ -10,7 +10,8 @@ import * as repeating from "../application/repeating.ts";
 import * as calendar from "../application/calendar.ts";
 import * as sharing from "../application/share.ts";
 import * as importing from "../application/task-import.ts";
-import { formatHours, formPosts, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
+import * as bulk from "../application/bulk.ts";
+import { formatHours, formPosts, ok, parseId, readForm, withMessage, type FormFields, type Id } from "../../shared/index.ts";
 import { messageFor } from "./messages.ts";
 
 export type ProjectRoutesDeps = {
@@ -128,18 +129,32 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     }),
   });
   const back = (id: Id | null, f: FormFields) => (RETURN.test(f["returnTo"] ?? "") ? (f["returnTo"] as string) : `/tasks/${id}`);
-  post("/tasks/:id/status", (actor, f, id) => projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? ""), {
+  // Undoing a finished repeating task sends takeBack=1: the next one it made goes too, if untouched.
+  post("/tasks/:id/status", (actor, f, id) => {
+    const moved = projects.moveTaskStatus(deps.projects, actor, id as Id, f["to"] ?? "");
+    if (!moved.ok || f["takeBack"] !== "1") return moved;
+    const taken = projects.takeBackRepeat(deps.projects, actor, id as Id);
+    return ok({ ...moved.value, tookBack: taken.ok ? taken.value.tookBack : "" });
+  }, {
     done: (_, id, f) => back(id, f),
     back,
     // Blocked tasks may be worked on; this says what they are still waiting on.
-    message: (task) =>
-      task.status === "doing" && task.waitingOn.length > 0
-        ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.`
-        : task.next
-          ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
-          : "Task moved.",
-    // Not after a repeating task made its next one: undoing would leave that one behind.
-    undo: (task, id, f) => (task.next ? null : { label: `${task.title}: moved`, action: `/tasks/${id}/status`, fields: { to: task.from, ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) } }),
+    message: (task: projects.MovedTask & { readonly tookBack?: string }) =>
+      task.tookBack === "gone"
+        ? "Task moved back. The next one it made is gone too."
+        : task.tookBack === "kept"
+          ? "Task moved back. The next one it made already has work on it, so it stays."
+          : task.status === "doing" && task.waitingOn.length > 0
+            ? `Task moved. It is still waiting on ${task.waitingOn.map((title) => `“${title}”`).join(", ")}.`
+            : task.next
+              ? `Task moved. It repeats, so the next one is due ${task.nextDue}.`
+              : "Task moved.",
+    // After a repeating task made its next one, Undo takes that one back too (if nothing has happened to it).
+    undo: (task, id, f) => ({
+      label: task.next ? `${task.title}: done, and its next one made` : `${task.title}: moved`,
+      action: `/tasks/${id}/status`,
+      fields: { to: task.from, ...(task.next ? { takeBack: "1" } : {}), ...(RETURN.test(f["returnTo"] ?? "") ? { returnTo: f["returnTo"] as string } : {}) },
+    }),
   });
   // Comments and files on a task. Editing and deleting a comment go back to the task the comment is on.
   post("/tasks/:id/comments", (actor, f, id) => talk.addTaskComment(deps.projects, actor, id as Id, f["body"] ?? ""), {
@@ -252,6 +267,24 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
   });
   // The work table's forms. Each sends the browser back to the filter it was on, read and written again so only filter fields go back.
   const toWork = (f: FormFields) => work.workAddress(f["query"] ?? "");
+  // Many at once: each ticked box is task-<id>.
+  post("/work/bulk", (actor, f) => bulk.bulkChangeTasks(deps.projects, actor, Object.keys(f).filter((key) => key.startsWith("task-") && f[key] === "on").map((key) => key.slice(5)), bulk.readBulkAction(f["action"] ?? "", f[`value-${f["action"] ?? ""}`] ?? "")), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: (result) => (result.skipped > 0 ? `Changed ${result.changed}. ${result.skipped} couldn’t be changed.` : result.changed === 1 ? "Changed 1." : `Changed ${result.changed}.`),
+    // A batch can be undone like one change: each goes back to what it had. Labels are only added, so they're taken off by hand.
+    undo: (result, _id, f) => {
+      const ids = Object.keys(result.was);
+      if (ids.length === 0) return null;
+      const what = f["action"] === "status" ? "moved" : f["action"] === "assign" ? "given" : "dated";
+      return { label: `${ids.length === 1 ? "1 task" : `${ids.length} tasks`}: ${what}`, action: "/work/bulk-undo", fields: { kind: f["action"] ?? "", query: f["query"] ?? "", ...Object.fromEntries(ids.map((id) => [`was-${id}`, result.was[id] ?? ""])) } };
+    },
+  });
+  post("/work/bulk-undo", (actor, f) => bulk.bulkPutBack(deps.projects, actor, f["kind"] ?? "", Object.fromEntries(Object.keys(f).filter((key) => key.startsWith("was-")).map((key) => [key.slice(4), f[key] ?? ""]))), {
+    done: (_, _id, f) => toWork(f),
+    back: (_id, f) => toWork(f),
+    message: (result) => (result.skipped > 0 ? `Put ${result.changed} back. ${result.skipped} couldn’t be.` : result.changed === 1 ? "Put 1 back." : `Put ${result.changed} back.`),
+  });
   post("/work/filters", (actor, f) => work.saveFilter(deps.projects, actor, { name: f["name"] ?? "", query: f["query"] ?? "", shared: f["shared"] === "1", pinned: f["pinned"] === "1" }), {
     done: (_, _id, f) => toWork(f),
     back: (_id, f) => toWork(f),

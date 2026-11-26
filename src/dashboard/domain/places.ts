@@ -49,18 +49,20 @@ export const PLACES: readonly Place[] = [
   { key: "import", label: "Import clients", hub: "clients", href: "/clients/import", hidden: true, gate: "perm:client.edit", words: ["import", "paste", "add clients", "bulk"], what: "Add clients from a pasted list" },
   { key: "proposals", label: "Proposals", hub: "clients", href: "/proposals", gate: "perm:proposal.view", words: ["quotes", "estimates", "agreements", "esign", "sign"], what: "Proposals, quotes and signed agreements" },
   { key: "calls", label: "Calls", hub: "clients", href: "/calls", also: ["/phone", "/get-ready", "/calls/invites"], gate: "perm:call.respond", words: ["booking", "booked calls", "phone", "consultation", "schedule", "booking links"], what: "Booked calls, booking links and call requests" },
-  { key: "hours", label: "Calendar hours", hub: "clients", href: "/calls/hours", hidden: true, gate: "perm:call.respond", words: ["hours", "availability", "open hours", "when i'm free", "calendar"], what: "The hours people can book you" },
+  { key: "hours", label: "Hours for calls", hub: "clients", href: "/calls/hours", hidden: true, gate: "perm:call.respond", words: ["hours", "availability", "open hours", "when i'm free", "calendar", "calendar hours", "booking hours"], what: "The hours people can book you" },
   { key: "availability", label: "Availability", hub: "clients", href: "/calls/availability", hidden: true, gate: "perm:call.respond", words: ["availability", "timeful", "calendly", "paint times", "grid"], what: "Paint your availability, or fill it from Timeful or Calendly" },
   { key: "guides", label: "Call guides", hub: "clients", href: "/call-guides", hidden: true, gate: "perm:call.respond", words: ["questions", "script", "guide"], what: "The questions each kind of call works through" },
+  { key: "replies", label: "Saved replies", hub: "clients", href: "/replies", gate: "perm:contact.edit", words: ["snippets", "templates", "canned", "messages", "email text"], what: "Messages written once and used again" },
   { key: "monthly-reports", label: "Monthly reports", hub: "clients", href: "/monthly-reports", gate: "perm:client-report.send", words: ["client reports", "monthly", "plan clients"], what: "Monthly reports to plan clients" },
 
   { key: "projects", label: "Projects", hub: "work", href: "/projects", also: ["/tasks", "/imports"], words: ["jobs", "phases", "milestones", "deliverables"], what: "Projects, phases and milestones" },
   { key: "board", label: "Board", hub: "work", href: "/board", words: ["kanban", "drag", "columns"], what: "Every task on a board" },
   { key: "timeline", label: "Timeline", hub: "work", href: "/timeline", words: ["gantt", "schedule", "dates"], what: "Tasks on a timeline" },
   { key: "work", label: "All work", hub: "work", href: "/work", words: ["filters", "table", "saved filters", "list"], what: "Every task in a table, with saved filters" },
+  { key: "workload", label: "Team workload", hub: "work", href: "/workload", gate: "perm:report.view", words: ["capacity", "team", "who's busy", "overloaded", "hours", "overdue"], what: "Who has what due this week, and who's over their usual hours" },
   { key: "labels", label: "Labels", hub: "work", href: "/labels", words: ["tags", "colors"], what: "Task labels" },
   { key: "time", label: "Time", hub: "work", href: "/time", gate: "perm:time.log", words: ["timer", "hours", "timesheet", "billable", "time tracking"], what: "Your hours and the timer" },
-  { key: "calendar-feed", label: "Calendar feed", hub: "work", href: "/calendar-feed", hidden: true, words: ["ical", "calendar", "subscribe", "google calendar"], what: "Your tasks in your own calendar app" },
+  { key: "calendar-feed", label: "Calendar feed", hub: "work", href: "/calendar-feed", hidden: true, words: ["ical", "calendar", "subscribe", "google calendar"], what: "Your tasks and booked calls in your own calendar app" },
 
   { key: "sites", label: "Sites", hub: "sites", href: "/sites", words: ["monitoring", "uptime", "down", "certificates", "ssl"], what: "Clients' sites, watched for outages" },
   { key: "websites", label: "Site content", hub: "sites", href: "/websites", words: ["website content", "photos", "pages", "text"], what: "Content for clients' websites" },
@@ -87,7 +89,9 @@ export const PLACES: readonly Place[] = [
   { key: "ask", label: "Ask HQ", hub: "company", href: "/ask", gate: "ai:ask", words: ["question", "ai"], what: "Questions answered from the knowledge base" },
   { key: "people", label: "People", hub: "company", href: "/people", gate: "perm:user.view", words: ["users", "team", "invite", "roles", "jayanti", "accounts"], what: "Who has an HQ account, and their roles" },
   { key: "activity", label: "Audit history", hub: "company", href: "/activity", gate: "perm:activity.view-all", words: ["activity", "log", "audit", "history", "who did"], what: "Everything everyone did" },
+  { key: "refused", label: "Refused attempts", hub: "company", href: "/activity/refused", hidden: true, gate: "perm:activity.view-all", words: ["refused", "denied", "blocked", "failed sign-in", "wrong password", "security"], what: "Sign-ins and changes HQ refused" },
   { key: "webhooks", label: "Webhooks", hub: "company", href: "/webhooks", gate: "perm:webhook.manage", words: ["n8n", "integrations", "events"], what: "Webhooks to other tools" },
+  { key: "status", label: "System status", hub: "company", href: "/status", gate: "perm:user.set-roles", words: ["health", "backups", "errors", "email", "server", "logs", "status", "uptime"], what: "Backups, email, errors, AI spend and server settings in one place" },
   { key: "ai-settings", label: "AI model and budget", hub: "company", href: "/settings/ai", gate: "ai:manage", words: ["ai", "claude", "budget", "model", "features", "assistant"], what: "Which AI features are on, the model and the budget" },
   { key: "settings", label: "Settings", hub: "company", href: "/settings", hidden: true, words: ["theme", "dark mode", "password", "two-factor", "2fa", "passkey", "morning email", "account"], what: "Your account: theme, password, two-factor, morning email" },
 ];
@@ -133,7 +137,7 @@ export function navHubs(
   options: { readonly extra?: Readonly<Record<string, readonly NavLink[]>>; readonly currentHref?: string | null } = {},
 ): readonly NavHub[] {
   const found = placeAt(allowed, path);
-  // On a page the sidebar doesn't list (Calendar hours), the listed page it
+  // On a page the sidebar doesn't list (Hours for calls), the listed page it
   // sits under (Calls) is the current one.
   const here = found?.hidden ? (allowed.find((place) => !place.hidden && place.hub === found.hub && found.href.startsWith(place.href + "/")) ?? found) : found;
   const currentHub = here?.hub ?? null;
@@ -163,7 +167,7 @@ const STOP = new Set(["a", "an", "the", "to", "of", "my", "i", "me", "where", "i
 /**
  * Pages that match what was typed, best first: a page's name scores most,
  * then its other words, then what it's for. Words like "where is" and "go
- * to" are ignored, so "where do I set my hours" finds Calendar hours.
+ * to" are ignored, so "where do I set my hours" finds Hours for calls.
  */
 export function matchPlaces(places: readonly Place[], raw: string, limit = 5): readonly Place[] {
   const asked = wordsOf(raw).filter((word) => !STOP.has(word));

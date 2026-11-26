@@ -140,6 +140,8 @@ export type NoticeOptions = {
   readonly toClients: boolean;
   /** Potomac's phone number, for the client's email. */
   readonly phone: string;
+  /** A one-tap link to approve a deliverable, for one person. Left out, the email just says to sign in. */
+  readonly approveLink?: (deliverableId: Id, clientUserId: Id) => string;
 };
 
 export type NoticeResult = { readonly read: number; readonly toStaff: number; readonly toClients: number; readonly failed: number };
@@ -159,6 +161,8 @@ export type NoticeResult = { readonly read: number; readonly toStaff: number; re
 export async function sendNotices(deps: PortalDeps, mail: Mail, options: NoticeOptions): Promise<NoticeResult> {
   const staff = new Map<string, { name: string; lines: StaffLine[] }>();
   const clients = new Map<Id, string[]>();
+  // Deliverables shared for each client, for links that approve them from the email.
+  const shared = new Map<Id, Id[]>();
   const read = deps.transact(() => {
     const events = deps.events.after(deps.events.cursor(), 500);
     const last = events.at(-1);
@@ -177,6 +181,7 @@ export async function sendNotices(deps: PortalDeps, mail: Mail, options: NoticeO
       const kind = FOR_CLIENT_ACTIONS[event.action];
       const organizationId = kind && options.toClients ? organizationOf(deps, event) : null;
       if (kind && organizationId) clients.set(organizationId, [...(clients.get(organizationId) ?? []), kind]);
+      if (organizationId && event.action === "deliverable.shared") shared.set(organizationId, [...(shared.get(organizationId) ?? []), event.recordId as Id]);
     }
     deps.events.setCursor(last.position, deps.clock());
     return events.length;
@@ -198,8 +203,13 @@ export async function sendNotices(deps: PortalDeps, mail: Mail, options: NoticeO
   for (const [email, entry] of staff) if (await send(email, staffEmail(entry.name, entry.lines, options.publicUrl))) toStaff += 1;
   for (const [organizationId, kinds] of clients) {
     const organization = deps.clients.get(organizationId)?.name ?? "your business";
+    const waiting = (shared.get(organizationId) ?? []).flatMap((id) => {
+      const deliverable = deps.deliverables.get(id);
+      return deliverable && deliverable.status === "shared" ? [deliverable] : [];
+    });
     for (const person of deps.clientUsers.noticeRecipients(organizationId)) {
-      if (await send(person.email, clientEmail({ name: person.name, organization, kinds, publicUrl: options.publicUrl, phone: options.phone }))) toClients += 1;
+      const approvals = options.approveLink ? waiting.map((deliverable) => ({ title: deliverable.title, link: `${options.publicUrl}${options.approveLink?.(deliverable.id, person.id) ?? ""}` })) : [];
+      if (await send(person.email, clientEmail({ name: person.name, organization, kinds, publicUrl: options.publicUrl, phone: options.phone, approvals }))) toClients += 1;
     }
   }
   if (toStaff + toClients + failed > 0) {

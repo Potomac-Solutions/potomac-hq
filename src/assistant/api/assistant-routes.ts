@@ -34,7 +34,13 @@ export function assistantRoutes(deps: { readonly assistant: AssistantDeps; reado
     return from && from !== "/" ? `${from}${from.includes("?") ? "&" : "?"}chat=open#assistant` : CHAT;
   };
   post("/assistant", (actor, f) => sendMessage(a, actor, f["message"] ?? "", f["model"] ?? "", f["from"] ?? ""), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
-  post("/assistant/actions/:id/do", (actor, _f, id) => confirmAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
+  // A small change done from a card joins the Undo bar, Ctrl+Z and Recent changes (decision 0014), like one made by hand.
+  post("/assistant/actions/:id/do", (actor, _f, id) => confirmAction(a, actor, id as Id), {
+    done: (_v, _id, f) => back(f),
+    back: (_id, f) => back(f),
+    message: "",
+    undo: (did, id, f) => (did.undo && id ? { label: `Assistant: ${a.store.action(id as Id)?.summary ?? "a change"}`, action: `/assistant/actions/${id}/undo`, fields: f["from"] ? { from: f["from"] } : {} } : null),
+  });
   post("/assistant/actions/:id/cancel", (actor, _f, id) => cancelAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });
   post("/assistant/actions/:id/undo", (actor, _f, id) => undoAction(a, actor, id as Id), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "Undone." });
   post("/assistant/new", (actor) => newChat(a, actor), { done: (_v, _id, f) => back(f), back: (_id, f) => back(f), message: "" });

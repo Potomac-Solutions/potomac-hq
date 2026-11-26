@@ -398,6 +398,22 @@ until it's connected to Railway or Netlify as a static site, once, by hand.
 Without the key HQ starts and says "The site builder can't ask Claude".
 Builds can still be seen and downloaded.
 
+## Phone alerts (decision 0016)
+
+Run `npm run push:keygen` once and set `HQ_VAPID_PUBLIC_KEY`,
+`HQ_VAPID_PRIVATE_KEY` and `HQ_VAPID_SUBJECT` (a `mailto:` address) on the
+server, then restart. Keep the private key out of the repository. Each person
+then turns alerts on per device under Settings → Phone alerts. A new key pair
+makes every device's subscription stop working: people turn alerts on again.
+
+On an iPhone, alerts only work once HQ is added to the home screen and opened
+from there.
+
+## The weekly owner email (decision 0016)
+
+Mondays at 07:23 business time, each active admin is emailed last week. It
+needs email set up. A restart that day sends nothing twice.
+
 ## Dependency updates
 
 Dependabot (`.github/dependabot.yml`) opens pull requests into `staging`:

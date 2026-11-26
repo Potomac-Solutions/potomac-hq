@@ -1,6 +1,7 @@
 // The CRM's changes. Each one checks permission first, makes its change and
 // writes its activity event in one transaction, and answers with a code.
 import { activateOnWin, changeClientStatus, newClient, type Client, type ClientError, type ClientInput } from "../domain/client.ts";
+import { sameBusiness } from "../domain/duplicates.ts";
 import { newContact, type Contact, type ContactError, type ContactInput } from "../domain/contact.ts";
 import {
   isService,
@@ -341,4 +342,55 @@ export function recordInquiry(deps: CrmDeps, ownerId: Id, input: InquiryInput): 
     recordActivity(deps, { actorId: null, action: "opportunity.inquiry-received", recordType: "opportunity", recordId: made.value.id, context: { clientId, known: known !== null } });
     return ok({ clientId, opportunityId: made.value.id, known: known !== null });
   });
+}
+
+// ---- Duplicates and merging (quality of life, 2026-11-25) ----------------
+
+/** Clients already in HQ whose names look like this one, for a warning before adding it. */
+export function possibleDuplicates(deps: CrmDeps, actorId: Id | null, name: string): readonly { readonly id: Id; readonly name: string }[] {
+  if (!allowed(deps, actorId, "client.view") || !name.trim()) return [];
+  return deps.clients
+    .list()
+    .filter((client) => !client.demo && !mergedAway(client) && sameBusiness(client.name, name))
+    .slice(0, 3)
+    .map((client) => ({ id: client.id, name: client.name }));
+}
+
+/** Moves everything of one client onto another. Infrastructure, inside the caller's transaction. Throws when it can't, so nothing is half done. */
+export type ClientMerger = (fromId: Id, intoId: Id) => void;
+
+/**
+ * Merges a duplicate client into the one to keep: its contacts, deals,
+ * projects and everything else move over, and it stays behind as a former
+ * client named "(merged)", so old links and the activity log still make
+ * sense. Permission: `client.set-status`.
+ */
+/** A client that was merged into another: kept as a former client so old links work. */
+export const mergedAway = (client: { readonly name: string; readonly status: string }): boolean => client.status === "former" && client.name.endsWith(" (merged)");
+
+export const mayMerge = (deps: CrmDeps, actorId: Id | null): boolean => allowed(deps, actorId, "client.set-status") && allowed(deps, actorId, "opportunity.view-value");
+
+export function mergeClients(deps: CrmDeps & { readonly merge: ClientMerger }, actorId: Id | null, fromId: Id, intoId: Id): Result<Client, Refused | "same-client" | "cant-merge" | "already-merged"> {
+  // Merging moves deals and invoices too, so it's for managers and admins:
+  // whoever may set a client's status and see what its work is worth.
+  if (!mayMerge(deps, actorId)) return err("forbidden");
+  if (fromId === intoId) return err("same-client");
+  const from = deps.clients.get(fromId);
+  const into = deps.clients.get(intoId);
+  if (!from || !into) return err("not-found");
+  // One already merged away has nothing left to move, and the one it went to is the one to merge.
+  if (mergedAway(from) || mergedAway(into)) return err("already-merged");
+  try {
+    return deps.transact(() => {
+      deps.merge(fromId, intoId);
+      const at = deps.clock();
+      deps.clients.update({ ...from, name: `${from.name} (merged)`.slice(0, 200), status: "former" }, at);
+      recordActivity(deps, { actorId, action: "client.merged", recordType: "client-organization", recordId: intoId, context: { fromId, fromName: from.name } });
+      // And on the one merged away, so its page can say where it went.
+      recordActivity(deps, { actorId, action: "client.merged-into", recordType: "client-organization", recordId: fromId, context: { intoId, intoName: into.name } });
+      return ok(into);
+    });
+  } catch {
+    return err("cant-merge");
+  }
 }

@@ -31,7 +31,7 @@ export function staffEmail(name: string, lines: readonly StaffLine[], publicUrl:
   return { subject: subject.slice(0, 150), body };
 }
 
-export function clientEmail(input: { readonly name: string; readonly organization: string; readonly kinds: readonly string[]; readonly publicUrl: string; readonly phone: string }): { subject: string; body: string } {
+export function clientEmail(input: { readonly name: string; readonly organization: string; readonly kinds: readonly string[]; readonly publicUrl: string; readonly phone: string; readonly approvals?: readonly { readonly title: string; readonly link: string }[] }): { subject: string; body: string } {
   const kinds = [...new Set(input.kinds)];
   return {
     subject: "Something new from Potomac Solutions",
@@ -42,6 +42,7 @@ export function clientEmail(input: { readonly name: string; readonly organizatio
       "",
       ...kinds.map((kind) => `- ${kind}`),
       "",
+      ...(input.approvals && input.approvals.length > 0 ? ["Look it over and approve it, or ask for changes, in one tap:", ...input.approvals.flatMap((one) => [`- ${one.title}: ${one.link}`]), ""] : []),
       "Sign in to see it:",
       `${input.publicUrl}/portal`,
       "",

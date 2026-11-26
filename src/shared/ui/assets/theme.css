@@ -351,3 +351,12 @@ hq-portal .hq-table th, hq-portal .hq-table td { padding-left: 0.3rem; padding-r
 }
 /* A button whose form is on its way. */
 button[aria-busy=true] { cursor: progress; opacity: 0.7; }
+
+/* The portal's timeline: waiting on you, next, done (quality of life, 2026-11-25). */
+.portal-timeline { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-block: 0.75rem; }
+.portal-lane { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem 1rem; }
+.portal-lane h3 { font-size: 1rem; margin: 0 0 0.5rem; }
+.portal-lane ul { margin: 0; padding-inline-start: 1.1rem; }
+.portal-lane li + li { margin-top: 0.25rem; }
+.portal-lane[data-lane="yours"] { border-inline-start: 4px solid var(--warning); }
+.portal-lane[data-lane="done"] ul { list-style: none; padding-inline-start: 0; }

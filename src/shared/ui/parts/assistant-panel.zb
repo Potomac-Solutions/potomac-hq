@@ -52,12 +52,12 @@
   .chat-scroll { display: flex; flex-direction: column-reverse; max-height: 28rem; overflow-y: auto; }
   .chat-log { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
   .chat-log li { display: flex; min-width: 0; }
-  .chat-you { justify-content: flex-end; }
+  .is-you { justify-content: flex-end; }
   .chat-bubble { max-width: min(36rem, 90%); padding: 0.55rem 0.8rem; border-radius: calc(var(--radius) + 2px); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
-  .chat-you .chat-bubble { color: var(--primary-foreground); background: var(--primary); border-bottom-right-radius: 0.2rem; }
-  .chat-hq .chat-bubble { background: var(--muted); border-bottom-left-radius: 0.2rem; }
-  .chat-looked { font-size: 0.8125rem; color: var(--muted-foreground); }
-  .chat-looked::before { content: "↳ "; }
+  .is-you .chat-bubble { color: var(--primary-foreground); background: var(--primary); border-bottom-right-radius: 0.2rem; }
+  .is-hq .chat-bubble { background: var(--muted); border-bottom-left-radius: 0.2rem; }
+  .is-looked { font-size: 0.8125rem; color: var(--muted-foreground); }
+  .is-looked::before { content: "↳ "; }
   .chat-card { flex: 1 1 auto; max-width: 36rem; display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; background: var(--card); border: 1px solid var(--border); border-left: 0.25rem solid var(--primary); border-radius: var(--radius); }
   .chat-card.settled { border-left-color: var(--border); }
   .chat-card p { margin: 0; }
@@ -79,7 +79,7 @@
   <section class="hq-panel chat" id="chat" aria-labelledby="chat-heading">
     <div class="chat-head">
       <h2 id="chat-heading">What needs to happen?</h2>
-      <form zb-if={view.lines.length > 0} method="post" action="/assistant/new"><button class="hq-button secondary small" type="submit">New chat</button></form>
+      <form zb-if={view.lines.length > 1} method="post" action="/assistant/new"><button class="hq-button secondary small" type="submit">New chat</button></form>
     </div>
 
     <p zb-if={!view.on && view.why} class="hq-muted" role="status">{view.why}</p>
@@ -88,7 +88,7 @@
     <div zb-if={view.lines.length > 0} class="chat-scroll" tabindex="0" role="log" aria-label="Conversation with the assistant">
     <ol class="chat-log">
       <zb-each items={view.lines} as="line" key={line.key}>
-        <li class={'chat-' + line.who}>
+        <li class={'is-' + line.who}>
           <span zb-if={line.who === 'you'} class="chat-bubble"><span class="sr-only">You: </span>{line.text}</span>
           <span zb-if={line.who === 'hq'} class="chat-bubble"><span class="sr-only">Assistant: </span><zb-each items={line.segments} as="part" key={part.text + part.href}><a zb-if={part.href} href={part.href}>{part.text}</a><span zb-else>{part.text}</span></zb-each></span>
           <span zb-if={line.who === 'looked'}>{line.text}</span>

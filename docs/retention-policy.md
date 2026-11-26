@@ -23,6 +23,8 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | A passkey challenge | Until it is answered, or five minutes | It is for one use |
 | A passkey's public key | Until it is removed, or two-factor sign-in is turned off or reset | It is how HQ checks the passkey |
 | A refused attempt (wrong password or code, a form someone was not allowed to use) | 90 days | Long enough to see a pattern. It can come from anyone, so it is not kept for good like the activity log |
+| A phone alert, once sent or dropped (decision 0016) | 30 days | It was shown on a phone; what it was about is in its own record |
+| A device's push subscription | Until it's removed, the browser says it's gone, or it fails 20 times in a row | It is how HQ reaches that phone |
 | The assistant's conversations and its settled cards (decision 0015) | 90 days | Long enough to look back at what it did. What it changed is in the records and the activity log, which are kept as usual |
 | One-time links (setup, invite, password reset) that expired or were used | 30 days after they stopped working | The same |
 | Invites to HQ that nobody used | 30 days | The link stopped working after 7 |

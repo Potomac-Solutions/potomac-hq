@@ -25,14 +25,14 @@
     </div>
     <section class="hq-panel" aria-labelledby="feed-now">
       <h2 id="feed-now">{view.on ? 'Your address is on' : 'No address yet'}</h2>
-      <p zb-if={view.on}>Made {view.made}. {view.lastUsed ? 'A calendar last checked it ' + view.lastUsed + '.' : 'No calendar has checked it yet.'} It shows {view.filterName ? 'the tasks in your filter “' + view.filterName + '”' : 'your open tasks with due dates, and the milestones of your projects'}.</p>
+      <p zb-if={view.on}>Made {view.made}. {view.lastUsed ? 'A calendar last checked it ' + view.lastUsed + '.' : 'No calendar has checked it yet.'} It shows {view.filterName ? 'the tasks in your filter “' + view.filterName + '”' : 'your open tasks with due dates, the milestones of your projects, and the calls booked with you, at their times'}.</p>
       <p zb-if={view.on} class="hq-muted hq-small">The address was shown once, when it was made. If you've lost it, make a new one below; the old one stops working.</p>
       <p zb-if={!view.on}>Make a private address, then subscribe to it in your calendar. HQ shows it once.</p>
       <form method="post" action="/calendar-feed" class="hq-form" data-spaced>
         <div class="hq-field">
           <label for="feed-filter">What it shows</label>
           <select id="feed-filter" name="filterId">
-            <option value="">My open tasks with due dates, and my projects' milestones</option>
+            <option value="">My open tasks with due dates, my projects' milestones, and calls booked with me</option>
             <zb-each items={view.filters} as="one" key={one.value}><option value={one.value} selected={one.on}>The saved filter “{one.label}”</option></zb-each>
           </select>
           <p zb-if={view.filters.length === 0} class="hq-muted hq-small">Save a filter on <a href="/work">All work</a> to follow it here instead.</p>

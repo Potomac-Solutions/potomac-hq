@@ -44,9 +44,13 @@ export function applyRetention(deps: ActivityDeps & { readonly db: Database; rea
   const chats = deps.db.prepare("delete from assistant_message where at < ?");
   const cards = deps.db.prepare("delete from assistant_action where created_at < ? and status <> 'waiting'");
   const chatCutoff = now.subtract({ hours: 24 * ASSISTANT_DAYS }).toString();
+  // Phone alerts once sent or dropped: 30 days (quality of life, 2026-11-25).
+  const alerts = deps.db.prepare("delete from push_queue where created_at < ? and (sent_at is not null or dropped_at is not null)");
+  const alertCutoff = now.subtract({ hours: 24 * 30 }).toString();
   return deps.transact(() => {
     chats.run(chatCutoff);
     cards.run(chatCutoff);
+    alerts.run(alertCutoff);
     const result = {
       sessions: Number(expired.run("staff-sessions", "portal:staff-sessions", signInCutoff).changes),
       links: Number(expired.run("staff-tokens", "portal:staff-tokens", signInCutoff).changes),

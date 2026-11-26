@@ -96,6 +96,43 @@ moves those lines under a version heading. See `docs/conventions.md`.
   limit passed), not just "refused". Only the error message is kept, never
   the rest of the response.
 
+- Quality of life (decision 0016):
+  - **System status** for admins: backups, email, errors, AI spend and
+    server settings in one place.
+  - **What changed here** on clients, deals, invoices, tasks and proposals.
+  - **Notice settings**: right away, a 7 AM digest or never for each kind,
+    and quiet hours (migration 0075).
+  - **Many at once** on All work (move, give, date, label), and marking
+    several draft invoices sent.
+  - **Team workload** for managers and admins.
+  - **View as a manager or member**, read-only, for admins.
+  - **The weekly owner email**, Mondays at 7:23.
+  - **HQ on a phone**: install to the home screen, and alerts for client
+    messages and call requests, calls about to start, sites down and
+    notices (migration 0076; `npm run push:keygen`, `HQ_VAPID_*`).
+  - **The portal**: Email me a link to sign in (self-serve password reset),
+    and approving a deliverable from the email in one tap.
+  - **Booked calls in the calendar feed**, at their times.
+  - **Saved replies** beside a message to a client (migration 0077).
+  - **Duplicate clients**: a name like one already here asks first, and a
+    duplicate can be merged into the client to keep.
+  - **The portal's timeline**: waiting on you, next, and done.
+  - **Undo after finishing a repeating task or to-do** takes back the next
+    one it made, if nothing has happened to it.
+  - **Unsent text** is kept for two weeks, and through a send that doesn't
+    arrive.
+  - **Keyboard**: the command bar keeps focus inside, closes on Escape and
+    puts focus back.
+  - **A user-experience pass** (`docs/reviews/2026-11-25-ux-pass.md`): the
+    Undo bar clears the phone's tab bar; merging moves notes, asks first
+    and links the one merged away; saved replies fill in the client and
+    contact; Enter in the command bar never moves a deal; a batch on All
+    work and an assistant card can be undone like any change.
+  - **The same pass as a client**: signing in goes on to the page they
+    were headed for; a portal page that isn't there is the portal's own,
+    with a way back; a message from the first page lands with the
+    project's messages.
+
 ## [0.17.0] - 2026-11-25
 
 - Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep

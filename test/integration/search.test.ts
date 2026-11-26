@@ -81,7 +81,7 @@ test("nothing typed can break it, and nothing found says what to try", async () 
 
 test("search finds HQ's own pages, only those the person may open (decision 0015)", async () => {
   const hours = await admin.page("/search?q=where+do+I+set+my+hours");
-  assert.match(textOf(hours), /Pages Calendar hours The hours people can book you/);
+  assert.match(textOf(hours), /Pages Hours for calls The hours people can book you/);
   assert.match(hours, /href="\/calls\/hours"/);
   assert.match(textOf(await admin.page("/search?q=invoices")), /Pages Money Invoices, payments and expenses/);
   assert.doesNotMatch(textOf(await member.page("/search?q=invoices")), /Pages Money/, "a member may not open Money");

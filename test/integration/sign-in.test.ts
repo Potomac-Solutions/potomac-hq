@@ -118,7 +118,8 @@ test("no page carries an inline script or an inline style block, and the policy 
     const html = await (await b.get(path)).text();
     assert.doesNotMatch(html, /<style[\s>]/, path);
     for (const script of html.matchAll(/<script\b[^>]*>/g)) {
-      assert.match(script[0], /^<script type="module" src="\/_zubra\/[^"]+"><?/, `${path}: ${script[0]}`);
+      // Zubra's modules, and the one classic script every head has (assets/transitions.js), both from HQ itself.
+      assert.match(script[0], /^<script (type="module" src="\/_zubra\/[^"]+"|src="\/assets\/transitions\.js")><?/, `${path}: ${script[0]}`);
     }
     assert.doesNotMatch(html, /\son[a-z]+=/, `${path}: inline event handler`);
   }

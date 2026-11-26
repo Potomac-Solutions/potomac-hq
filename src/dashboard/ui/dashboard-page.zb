@@ -95,6 +95,8 @@
   .hq-setup-list li.done .hq-setup-mark { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
   .hq-setup-list li.done strong { text-decoration: line-through; color: var(--muted-foreground); }
   .hq-setup-list .hq-scope { display: block; margin: 0.1rem 0 0; }
+  /* On a phone the button goes under the words, so they keep the row's width. */
+  @media (max-width: 40rem) { .hq-setup-list li { grid-template-columns: 1.5rem minmax(0, 1fr); } .hq-setup-list li > a { grid-column: 2; justify-self: start; } }
 </style>
 <hq-dashboard items={[]} everything={false} follow-ups={[]} show-follow-ups={false} stages={[]} open-count={0} projects={[]} show-projects={false} deadlines={[]} hours={null} over={[]} show-over={false} from-clients={[]} waiting={[]} calls={null} renewals={[]} sites={[]} done="" problem="" remind-two-factor={false} stats={[]} today="" setup={null} chat={null} chat-models={[]} chat-manage={false}>
  <div class="hq-page">

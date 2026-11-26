@@ -163,6 +163,9 @@ function runUndo(deps: AssistantDeps, actorId: Id, undo: Undo): Result<Done, str
   return deps.actions.setDone(actorId, undo.todoId as Id, undo.tool === "tick_off");
 }
 
+/** What the conversation says after a message Claude never answered. */
+const NO_ANSWER = "That one didn’t get an answer, and nothing was changed. Send it again when you’re ready.";
+
 /** A note from HQ in the conversation: what came of a card. The model reads it next time. */
 function note(deps: AssistantDeps, actorId: Id, text: string): void {
   deps.store.addMessage(actorId, { id: deps.newId(), role: "assistant", content: [{ type: "text", text }], at: deps.clock() });
@@ -195,6 +198,8 @@ export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed
     const answer = await deps.talk(actorId, pick, { system, messages: historyFor(deps.store.messages(actorId)), tools: TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema })), maxOutput: 1024 });
     if (!answer.ok) {
       recordActivity(deps, { actorId, action: "assistant.failed", recordType: "user", recordId: actorId, context: { rounds, problem: answer.error } });
+      // Said in the conversation too, so the message above isn't left hanging with no answer.
+      note(deps, actorId, NO_ANSWER);
       return err(answer.error);
     }
     const blocks = answer.value.blocks;
@@ -203,6 +208,7 @@ export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed
     if (uses.length === 0) break;
 
     let stop = false;
+    const refused: string[] = [];
     const results: Block[] = [];
     // Not one transaction: each change is its own module's, in its own.
     {
@@ -220,6 +226,7 @@ export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed
         const summary = describe(deps, actorId, ask.value);
         if (!summary.ok) {
           results.push({ type: "tool_result", tool_use_id: use.id, content: summary.error, is_error: true });
+          refused.push(summary.error);
           continue;
         }
         const action: StoredAction = { id: deps.newId(), userId: actorId, toolUseId: use.id, ask: ask.value, summary: summary.value, status: "waiting", href: "", problem: "", undo: null, createdAt: deps.clock(), decidedAt: null };
@@ -236,8 +243,13 @@ export async function sendMessage(deps: AssistantDeps, actorId: Id | null, typed
       }
       deps.store.addMessage(actorId, { id: deps.newId(), role: "user", content: results, at: deps.clock() });
     }
-    // A card waits for the person; more lookups would only spend.
-    if (stop) break;
+    // A card waits for the person; more lookups would only spend. Anything
+    // asked for alongside it that couldn't be offered is said, since the model
+    // gets no turn to say so.
+    if (stop) {
+      if (refused.length > 0) note(deps, actorId, `One more change couldn’t be set up: ${refused.join(" ")}`);
+      break;
+    }
     if (rounds >= MAX_ROUNDS) {
       note(deps, actorId, "That took more lookups than one message is allowed. Ask again, a little more narrowly.");
       break;
@@ -363,7 +375,9 @@ export type ChatView = {
 
 const STATUS_TEXT: Readonly<Record<StoredAction["status"], string>> = { waiting: "Waiting for you", done: "Done", cancelled: "Cancelled", failed: "Didn't work", undone: "Undone" };
 
-const SUGGESTIONS = ["Do the first one", "Add a to-do to call Stacy Friday", "Where do I set my booking hours?", "Log a call with Nu-Finish about their landing page"];
+/** Only offered when the day's line names something to do first. */
+const FIRST_ONE = "Do the first one";
+const SUGGESTIONS = [FIRST_ONE, "Add a to-do to call Stacy Friday", "Where do I set my booking hours?", "Log a call with Nu-Finish about their landing page"];
 
 export function chatView(deps: AssistantDeps, actorId: Id | null): ChatView {
   if (!signedIn(deps, actorId)) return { on: false, why: "", lines: [], autoSmall: false, suggestions: [] };
@@ -373,9 +387,13 @@ export function chatView(deps: AssistantDeps, actorId: Id | null): ChatView {
   const actions = new Map(deps.store.actionsFor(actorId, uses).map((action) => [action.toolUseId, action]));
   const now = Date.parse(deps.clock());
   const lines: ChatLine[] = [];
+  // What a card already says isn't said again in a bubble under it. Those
+  // notes are in the conversation for the model to read next time.
+  const echoes = new Set([...actions.values()].flatMap((action) => [`Done: ${action.summary}.`, `Cancelled: ${action.summary}.`, `Undone: ${action.summary}.`, ...(action.problem ? [`That didn't work: ${action.problem}`] : [])]));
   for (const message of messages) {
     message.content.forEach((block, index) => {
       const key = `${message.id}-${index}`;
+      if (block.type === "text" && message.role === "assistant" && echoes.has(block.text)) return;
       if (block.type === "text") lines.push(message.role === "user" ? { key, who: "you", text: block.text } : { key, who: "hq", segments: segmentsOf(block.text) });
       else if (block.type === "tool_use") {
         const action = actions.get(block.id);
@@ -389,6 +407,6 @@ export function chatView(deps: AssistantDeps, actorId: Id | null): ChatView {
   // The day, from HQ's own records: no model, no budget.
   const brief = state.on ? deps.actions.brief(actorId) : "";
   const all: ChatLine[] = brief ? [{ key: "brief", who: "hq", segments: segmentsOf(brief) }, ...lines] : lines;
-  return { on: state.on, why: state.why, lines: all, autoSmall: deps.store.autoSmall(actorId), suggestions: lines.length === 0 ? SUGGESTIONS : [] };
+  return { on: state.on, why: state.why, lines: all, autoSmall: deps.store.autoSmall(actorId), suggestions: lines.length === 0 ? SUGGESTIONS.filter((idea) => idea !== FIRST_ONE || brief.includes("](")) : [] };
 }
 export { readWhere } from "../domain/assistant.ts";

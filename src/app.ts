@@ -7,18 +7,26 @@ import { createZubra } from "@zubra/server";
 import { Hono } from "hono";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
+import { mayMerge, mergedAway, possibleDuplicates, clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
-import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, search, setupChecklist, type NavHub, type Setup } from "./dashboard/index.ts";
+import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes, type FindMove } from "./dashboard/api/nav-routes.ts";
+import { pushRoutes } from "./push/api/push-routes.ts";
+import { replyRoutes } from "./replies/api/reply-routes.ts";
+import { listReplies, type Reply } from "./replies/index.ts";
+import { approvalTokens } from "./portal/adapters.ts";
+import { approvalView, type ApprovalView } from "./portal/index.ts";
+import { devicesFor, type DevicesView } from "./push/index.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
 import { financeOverview, projectChanges, hoursThisWeek, invoiceDetail, invoiceReminders, profitAndLoss, projectMoney, projectsOverBudget, recurringOverview, taskTime, timeSheet } from "./finance/index.ts";
 import { MAX_FILE_BYTES } from "./files/index.ts";
-import { sqliteSetupCounts } from "./dashboard/adapters.ts";
-import { createHqStaffPages, sqliteRateLimit } from "./identity/adapters.ts";
+import { sqliteSetupCounts, sqliteStatusCounts, sqliteWorkload } from "./dashboard/adapters.ts";
+import { sqliteClientMerger } from "./crm/adapters.ts";
+import { createHqStaffPages, isPreviewRole, previewing, runPreviewing, sqliteRateLimit, type PreviewRole } from "./identity/adapters.ts";
 import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
@@ -79,7 +87,7 @@ import { problemPage, recoveryCodesPage, userLinkPage } from "./identity/ui/view
 import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
-import { clientPortalRoutes, portalDownloads, staffPortalRoutes } from "./portal/api/portal-routes.ts";
+import { clientPortalRoutes, portalDownloads, portalNext, staffPortalRoutes } from "./portal/api/portal-routes.ts";
 import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
@@ -88,7 +96,7 @@ import { calendarFeeds, projectRoutes, shareFiles, shareRoutes, workDownloads } 
 import { feedAddressPage, shareAddressPage } from "./projects/ui/feed-views.ts";
 import { proposalDownloads, proposalRoutes } from "./proposals/api/proposal-routes.ts";
 import { listProposals, proposalDetail, proposalsFor, proposalVersion } from "./proposals/index.ts";
-import { activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
+import { takeBackRepeat, activeProjects, board, labelsPage, listProjects, pinnedFilters, projectTimeline, projectsTimeline, calendarFeedView, sharedProject, shareLinks, canImportTasks, taskImportPreview, quickAddPreview, readSkip, workTable, projectHealthReport, projectOverview, projectLinks, type ProjectLinksView, projectTasks, taskDetail, upcomingDeadlines } from "./projects/index.ts";
 import { createServices } from "./services.ts";
 import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
@@ -96,8 +104,8 @@ import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
 import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
-import { err, parseId, readUndo, recordActivity, stashUndo, type Id, type Result } from "./shared/index.ts";
-import { loadAssets, themeLinks } from "./shared/ui/assets.ts";
+import { err, parseId, readUndo, recordActivity, stashUndo, withMessage, type Id, type Result } from "./shared/index.ts";
+import { loadAssets, MANIFEST, themeLinks } from "./shared/ui/assets.ts";
 import { ICON_LINK, renderPage } from "./shared/ui/page.ts";
 
 export { BUSINESS_TIME_ZONE } from "./services.ts";
@@ -155,6 +163,8 @@ export type AppConfig = {
   readonly ai?: AiModel | null;
   /** Whether nightly backups are configured (HQ_BACKUP_*), for Get HQ ready. */
   readonly backups?: boolean;
+  /** HQ's VAPID public key (HQ_VAPID_PUBLIC_KEY), when phone alerts are set up. */
+  readonly vapidPublicKey?: string | null;
 };
 
 /** What a page sees of AI (decision 0012). Each part is null when there's nothing, or this person may not see it. */
@@ -213,7 +223,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-frame-options": "DENY",
   "referrer-policy": "same-origin",
   "content-security-policy":
-    "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; script-src 'self'; worker-src 'self'; manifest-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 type Answer = ReturnType<typeof show>;
@@ -265,6 +275,10 @@ export type PageContext = {
     emailOn: boolean;
     /** The person's open call, for the shell. */
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
+    /** Clients this one could be merged into, ones that look the same first; empty for someone who may not merge. */
+    mergeChoices(clientId: string): readonly { readonly id: string; readonly name: string; readonly same: boolean }[];
+    /** The client this one was merged into, when it was. */
+    mergedInto(clientId: string): { readonly id: string; readonly name: string } | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
@@ -350,6 +364,8 @@ export type PageContext = {
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** What an approval link from an email opens (quality of life, 2026-11-25). */
+    approval(token: string): ApprovalView;
     /** How to reach Potomac. Shown on every portal page, signed in or not. */
     readonly contact: PortalContact;
     /** True when clients are emailed that something is waiting, so the page offers to turn it off. */
@@ -361,6 +377,12 @@ export type PageContext = {
     proposal(id: string): ReturnType<typeof portalProposal>;
     /** Whether someone new can sign up to book a call. */
     readonly signUpOpen: boolean;
+    /** Whether HQ can email a sign-in link: email is set up. The portal's sign-in page offers it only then. */
+    readonly canEmailLink: boolean;
+    /** A path the portal's sign-in may go on to, or "" (see portalNext). */
+    next(path: string): string;
+    /** In a portal page's place when it isn't there or isn't this client's: the portal's own "nothing here", not HQ's. */
+    missing(): Answer;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
@@ -523,6 +545,21 @@ export type PageContext = {
   nav(path: string, search: string): readonly NavHub[];
   /** Pages this person pinned, the one at this address marked; and whether this address is pinned. */
   pins(href: string): { readonly items: readonly { readonly href: string; readonly label: string; readonly current: boolean }[]; readonly here: boolean; readonly href: string };
+  /** What changed on a record, for someone who may see it (quality of life, 2026-11-25). */
+  history(recordType: string, recordId: string): ReturnType<typeof recordHistory>;
+  /** Team workload, for whoever may see reports; null for anyone else. */
+  workload(): { readonly lines: readonly WorkloadLine[]; readonly week: string } | null;
+  /** Phone alerts: whether they're set up, the key a browser subscribes with, and this person's devices. */
+  push(): DevicesView;
+  /** Saved replies this person may use, and their first name for {me}. */
+  /** `clientId` names who the message is for, so {first name} can be their main contact's. */
+  replies(clientId?: string): { readonly can: boolean; readonly items: readonly Reply[]; readonly me: string; readonly firstName: string };
+  /** The role an admin is viewing HQ as, read-only, or null. */
+  readonly preview: { readonly role: string; readonly label: string } | null;
+  /** Whether this person may view HQ as another role (an admin, not already previewing). */
+  readonly canPreview: boolean;
+  /** System status, for admins; null for anyone else. */
+  status(): { readonly checks: readonly StatusCheck[]; readonly errors: readonly { readonly when: string; readonly message: string }[]; readonly version: string; readonly started: string; readonly database: string; readonly migrations: string } | null;
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
   setup(): Setup | null;
   readonly knowledge: {
@@ -543,6 +580,15 @@ export type PageContext = {
     readonly twoFactor: { readonly required: boolean; readonly on: boolean; readonly setup: { readonly key: string; readonly link: string; readonly scannable: boolean } | null; readonly recoveryText: string };
   };
 };
+
+/** HQ's own version, from package.json, for System status. */
+const HQ_VERSION: string = (() => {
+  try {
+    return String((JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")) as { version?: unknown }).version ?? "");
+  } catch {
+    return "";
+  }
+})();
 
 /** What every module answers a form someone may not use with. */
 const NOT_ALLOWED = "You don’t have permission to do that.";
@@ -570,10 +616,18 @@ const MAX_LONG_FORM_BYTES = 128 * 1024;
 const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 export async function createApp(config: AppConfig): Promise<App> {
-  const log = config.log ?? ((message, error) => console.error(message, error ?? ""));
+  // What System status shows of this process: errors and email since it started.
+  const startedAt = new Date().toISOString();
+  const ops = { errors: [] as { at: string; message: string }[], errorCount: 0, sent: 0, failed: 0, lastProblem: "", lastProblemAt: null as string | null };
+  const logTo = config.log ?? ((message, error) => console.error(message, error ?? ""));
+  const log = (message: string, error?: unknown): void => {
+    ops.errorCount += 1;
+    ops.errors = [{ at: new Date().toISOString(), message: message.slice(0, 200) }, ...ops.errors].slice(0, 10);
+    logTo(message, error);
+  };
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   const users = sessionDeps.users;
   const contact: PortalContact = config.contact ?? { phone: "", email: "", address: "" };
@@ -689,6 +743,10 @@ export async function createApp(config: AppConfig): Promise<App> {
   });
 
   const setupCounts = sqliteSetupCounts(db);
+  // Links in clients' emails that approve a deliverable (quality of life, 2026-11-25).
+  const approvals = approvalTokens(config.noticeSecret);
+  const statusCounts = sqliteStatusCounts(db);
+  const workloadRows = sqliteWorkload(db);
   const placesFor = services.placesFor;
 
   const handleStaff = staffRoutes({
@@ -761,7 +819,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           session: client ? { name: client.name } : null,
           contact,
           notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
-          guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in" }, { status: 401 })),
+          // The sign-in form in the page's place, told which page it was so signing in goes on to it.
+          guard: () => (client ? null : show("portal/ui/portal-sign-in-page", { ...notice, title: "Sign in", next: portalNext(new URL(request.url).pathname), signUp: signUpOpen(), emailLink: inviteMail !== null }, { status: 401 })),
           // Each of these is given the session and nothing else to decide whose records to read.
           home: () => portalHome(portalDeps, client as NonNullable<typeof client>),
           project: (id) => {
@@ -772,7 +831,11 @@ export async function createApp(config: AppConfig): Promise<App> {
             const parsed = parseId(id);
             return client && parsed.ok ? portalProposal(portalDeps, client, parsed.value) : missing();
           },
+          approval: (token) => approvalView(portalDeps, approvals, token),
           signUpOpen: signUpOpen(),
+          canEmailLink: inviteMail !== null,
+          next: portalNext,
+          missing: () => show("portal/ui/portal-missing", { title: "Not found" }, { status: 404 }),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
             const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
@@ -815,6 +878,25 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           openCall: () => openCall(services.calls, actor),
+          mergedInto: (clientId) => {
+            if (actor === null || !authorize(sessionDeps, actor, "client.view").ok) return null;
+            const self = crmDeps.clients.get(clientId as Id);
+            if (!self || !mergedAway(self)) return null;
+            const into = db.prepare("select json_extract(context, '$.intoId') as id from activity_event where action = 'client.merged-into' and record_type = 'client-organization' and record_id = ? order by occurred_at desc limit 1").get(clientId)?.["id"];
+            const kept = typeof into === "string" ? crmDeps.clients.get(into as Id) : null;
+            return kept ? { id: kept.id, name: kept.name } : null;
+          },
+          mergeChoices: (clientId) => {
+            if (!mayMerge(crmDeps, actor)) return [];
+            const self = crmDeps.clients.get(clientId as Id);
+            if (!self || mergedAway(self)) return [];
+            const same = new Set(possibleDuplicates(crmDeps, actor, self.name).map((one) => one.id));
+            return crmDeps.clients
+              .list()
+              .filter((one) => one.id !== self.id && !one.demo && one.status !== "former" && !mergedAway(one))
+              .map((one) => ({ id: one.id, name: one.name, same: same.has(one.id) }))
+              .sort((a, b) => Number(b.same) - Number(a.same) || a.name.localeCompare(b.name));
+          },
           callGuides: () => {
             const view = callGuides(services.calls, actor);
             return view.ok ? view.value : null;
@@ -1109,6 +1191,56 @@ export async function createApp(config: AppConfig): Promise<App> {
           const items = pinsFor(services.pins, actor).map((pin) => ({ ...pin, current: pin.href === clean }));
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
+        push: () => devicesFor(services.push, actor, services.formatWhen),
+        replies: (clientId) => {
+          const can = actor !== null && authorize(sessionDeps, actor, "contact.edit").ok;
+          // The client's main contact, or their only one; with several and no main one, it's left to the writer.
+          const contacts = can && clientId ? crmDeps.contacts.listFor(clientId as Id) : [];
+          const who = contacts.find((one) => one.isPrimary) ?? (contacts.length === 1 ? contacts[0] : undefined);
+          return { can, items: listReplies(services.replies, actor), me: (user?.name ?? "").split(" ")[0] ?? "", firstName: (who?.name ?? "").trim().split(/\s+/)[0] ?? "" };
+        },
+        preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
+        canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
+        workload: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "report.view").ok) return null;
+          const day = Temporal.PlainDate.from(date);
+          const monday = day.subtract({ days: day.dayOfWeek - 1 });
+          const sunday = monday.add({ days: 6 });
+          const lines = workloadLines(workloadRows(date, monday.toString(), sunday.toString(), monday.subtract({ weeks: 4 }).toString()), Math.min(5, day.dayOfWeek));
+          return { lines, week: `${monday.toLocaleString("en-US", { month: "short", day: "numeric" })} to ${sunday.toLocaleString("en-US", { month: "short", day: "numeric" })}` };
+        },
+        history: (recordType, recordId) => recordHistory(dashboardDeps, actor, recordType, recordId),
+        status: () => {
+          if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
+          const counts = statusCounts();
+          const view = aiSettingsView(aiDeps, actor);
+          const month = view.ok ? view.value.month : { spent: "?", budget: "?", percent: 0 };
+          const facts = {
+            version: HQ_VERSION,
+            startedAt,
+            now: services.session.clock(),
+            backupsConfigured: config.backups === true,
+            lastBackupAt: counts.lastBackupAt,
+            lastBackupFailedAt: counts.lastBackupFailedAt,
+            emailReady: Boolean(config.email),
+            email: { sent: ops.sent, failed: ops.failed, lastProblem: ops.lastProblem, lastProblemAt: ops.lastProblemAt },
+            errors: { count: ops.errorCount, recent: ops.errors },
+            ai: { keySet: Boolean(config.ai), featuresOn: aiDeps.ai.settings().features.length, spent: month.spent, budget: month.budget, percent: month.percent },
+            publicUrl: config.publicUrl ?? "",
+            contactComplete: Boolean(contact.phone && contact.email && contact.address),
+            clientNotices: config.clientNotices === true,
+            sitePublisher: Boolean(config.sitePublisher),
+            database: counts.database,
+          };
+          return {
+            checks: statusChecks(facts, services.formatWhen),
+            errors: ops.errors.map((one) => ({ when: services.formatWhen(one.at), message: one.message })),
+            version: HQ_VERSION,
+            started: services.formatWhen(startedAt),
+            database: sizeText(counts.database.bytes),
+            migrations: `${counts.database.migrations}, the newest ${counts.database.lastMigration}`,
+          };
+        },
         setup: () => {
           if (actor === null || !authorize(sessionDeps, actor, "user.set-roles").ok) return null;
           const counts = setupCounts();
@@ -1158,7 +1290,22 @@ export async function createApp(config: AppConfig): Promise<App> {
     return user && !secondStepDue(user.id, cookieHeader) ? user.id : null;
   };
   // "Forgot your password?" by email, when email is set up.
-  const email = config.email ?? null;
+  // Email, counted for System status.
+  const email = config.email
+    ? {
+        ...config.email,
+        send: async (message: Parameters<EmailConfig["send"]>[0]) => {
+          const sent = await (config.email as EmailConfig).send(message);
+          if ("ok" in sent) ops.sent += 1;
+          else {
+            ops.failed += 1;
+            ops.lastProblem = sent.error.slice(0, 120);
+            ops.lastProblemAt = new Date().toISOString();
+          }
+          return sent;
+        },
+      }
+    : null;
   const resetMail = email
     ? createNotify({
         send: email.send,
@@ -1233,8 +1380,9 @@ export async function createApp(config: AppConfig): Promise<App> {
     }
     return forms.fetch(new Request(new URL(kept.action, "http://hq.invalid"), { method: "POST", headers, body: new URLSearchParams(kept.fields as Record<string, string>).toString() }), c.env);
   });
-  forms.route("/", crmRoutes({ crm: crmDeps, actorOf, sign: signNotice }));
+  forms.route("/", crmRoutes({ crm: crmDeps, merge: sqliteClientMerger(db), actorOf, sign: signNotice }));
   forms.route("/", importRoutes({ clientImport: services.clientImport, actorOf, sign: signNotice }));
+  forms.route("/", replyRoutes({ replies: services.replies, actorOf, sign: signNotice }));
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: signNotice, feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
@@ -1283,6 +1431,10 @@ export async function createApp(config: AppConfig): Promise<App> {
             subject: "Someone tried to book a call with your details",
             body: `Hi ${name},\n\nSomeone just tried to book a free call on the Potomac Solutions website using your email address or phone number. You already have an account with us, so we didn't book a second free call.\n\nIf it was you, open this link to sign in (or choose a new password) and book from your dashboard. It works once, for a week:\n\n${link}\n\nIf it wasn't you, please let us know${contactLine}. Nothing has been booked or changed, and nobody can use this link without access to this inbox.\n\nPotomac Solutions`,
           }),
+          "portal-sign-in": ({ name, link }: { name: string; link: string }) => ({
+            subject: "Your link to sign in to Potomac Solutions",
+            body: `Hi ${name},\n\nHere's the link you asked for. Open it to sign in to your client portal and choose a password (or a new one). It works once, for a week:\n\n${link}\n\nIf you didn't ask for it, ignore this email and nothing changes.\n\nPotomac Solutions`,
+          }),
           "portal-link": ({ name, link }: { name: string; link: string }) => ({
             subject: "Your Potomac Solutions client portal",
             body: `Hi ${name},\n\nPotomac Solutions has set up a client portal for you. Open this link to choose your password. It works once, for a week:\n\n${link}\n\nIn the portal you can follow your project, approve work and send messages.\n\nPotomac Solutions`,
@@ -1310,6 +1462,10 @@ export async function createApp(config: AppConfig): Promise<App> {
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
       refusedSignIn: (address, from) => recordRefusal(refusedDeps, { kind: "portal-sign-in", email: address, address: from, detail: "refused" }),
+      approvals,
+      ...(inviteMail
+        ? { signInLink: { mail: async (to, token) => "ok" in (await inviteMail.notify({ email: to.email }, "portal-sign-in", { name: to.name, link: `${publicUrl}/portal/accept?token=${token}` })), allowPerEmail: sqliteRateLimit(db, { name: "portal-link-email", max: 3, windowMs: 60 * 60_000 }) } }
+        : {}),
       ...(inviteMail
         ? {
             signUp: {
@@ -1407,6 +1563,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", callRoutes({ calls: services.calls, mail: recapMail, actorOf, sign: signNotice }));
   forms.route("/", aiRoutes({ ai: services.ai, mail: recapMail, actorOf, sign: signNotice }));
   forms.route("/", assistantRoutes({ assistant: services.assistant, actorOf, sign: signNotice }));
+  forms.route("/", pushRoutes({ push: services.push, actorOf, sign: signNotice }));
   forms.route("/", navRoutes({ pins: services.pins, actorOf, sign: signNotice }));
   forms.route("/", monitorRoutes({ monitor: services.monitor, actorOf, sign: signNotice }));
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
@@ -1449,7 +1606,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: signNotice }));
+  forms.route("/", todoRoutes({ todos: services.todos, actorOf, sign: signNotice, takeBack: (actor, id) => { const taken = takeBackRepeat(services.projects, actor, id); return taken.ok ? taken.value.tookBack : ""; } }));
   forms.route("/", shareRoutes({ projects: projectsDeps, sign: signNotice, allowComment: sqliteRateLimit(db, { name: "share-comment", max: 30, windowMs: 60 * 60_000 }) }));
   forms.route("/", webhookRoutes({ webhooks: services.webhooks, actorOf, sign: signNotice, secretPage: (view) => renderPage("Webhook secret", webhookSecretPage(view)) }));
   forms.route("/", noticeRoutes({ notices: services.notices, actorOf, sign: signNotice }));
@@ -1534,7 +1691,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       log,
     }),
   );
-  web.route("/", staticRoutes({ assets: loadAssets(), healthy: () => ping.get()?.["ok"] === 1 }));
+  web.route("/", staticRoutes({ assets: loadAssets(), manifest: MANIFEST, healthy: () => ping.get()?.["ok"] === 1 }));
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
@@ -1572,14 +1729,35 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
     res.end("Bad request");
   }
 
+  // View as a role (quality of life, 2026-11-25). The cookie only names the
+  // role; whether to honour it is decided on every request from the person's
+  // real access, before the preview starts.
+  const PREVIEW_COOKIE = config.secure ? "__Host-hq-preview" : "hq-preview";
+  const previewOf = (req: IncomingMessage): { readonly userId: Id; readonly role: PreviewRole } | null => {
+    const role = new RegExp(`(?:^|;\\s*)${PREVIEW_COOKIE}=([a-z]+)`).exec(req.headers.cookie ?? "")?.[1] ?? "";
+    if (!isPreviewRole(role)) return null;
+    const who = account(req.headers.cookie ?? "");
+    const user = who ? users.findByStaffAccount(who.account) : null;
+    return user && authorize(sessionDeps, user.id, "user.set-roles").ok ? { userId: user.id, role } : null;
+  };
+  const previewCookie = (value: string, maxAge: number) => `${PREVIEW_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secure ? "; Secure" : ""}`;
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // Starting or stopping a preview is decided on the person's real access.
+    const bare = (req.url ?? "").split("?")[0];
+    const preview = bare === "/preview" || bare === "/preview/stop" ? null : previewOf(req);
+    if (preview === null) return handleRequest(req, res, false);
+    return runPreviewing(preview.userId, preview.role, () => handleRequest(req, res, true));
+  }
+
+  async function handleRequest(req: IncomingMessage, res: ServerResponse, inPreview: boolean): Promise<void> {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
     // Every address HQ serves starts with one slash. Anything else ("//...",
@@ -1589,6 +1767,28 @@ export async function createApp(config: AppConfig): Promise<App> {
     if (!target.startsWith("/") || target.startsWith("//") || !URL.canParse(target, "http://hq.invalid")) return void badRequest(res);
     const url = new URL(target, "http://hq.invalid");
     const path = url.pathname;
+
+    // Starting and stopping a preview: an admin's own choice, from People.
+    if (req.method === "POST" && (path === "/preview" || path === "/preview/stop")) {
+      if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
+      const body = await new Promise<string>((resolve) => {
+        let text = "";
+        req.on("data", (chunk: Buffer) => (text.length < 200 ? (text += chunk.toString("utf8")) : undefined));
+        req.on("end", () => resolve(text));
+      });
+      const role = new URLSearchParams(body).get("role") ?? "";
+      const who = account(req.headers.cookie ?? "");
+      const user = who ? users.findByStaffAccount(who.account) : null;
+      const admin = user !== null && authorize(sessionDeps, user.id, "user.set-roles").ok;
+      if (path === "/preview" && (!admin || !isPreviewRole(role))) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "Only an admin can view HQ as another role." }));
+      if (user && admin) services.session.transact(() => recordActivity(services.session, { actorId: user.id, action: path === "/preview" ? "user.preview-started" : "user.preview-stopped", recordType: "user", recordId: user.id, context: path === "/preview" ? { role } : {} }));
+      res.writeHead(303, { location: path === "/preview" ? "/" : "/people", "set-cookie": path === "/preview" ? previewCookie(role, 4 * 3600) : previewCookie("", 0), "cache-control": "no-store" });
+      return void res.end();
+    }
+    // A preview is for looking: every change is refused until it stops.
+    if (inPreview && req.method !== "GET" && req.method !== "HEAD" && path !== "/staff/sign-out") {
+      return void sendHtml(res, 403, "Viewing as another role", problemPage({ title: "You're viewing HQ as another role", message: "Nothing can be changed while you’re viewing as someone else. Use Stop viewing at the top of the page, then try again." }));
+    }
 
     if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);
     if (isStatic(path)) return void (await handleWeb(req, res));
@@ -1612,6 +1812,13 @@ export async function createApp(config: AppConfig): Promise<App> {
     res.setHeader("cache-control", "no-store");
     if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/portal/landing-page.zip" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     if (await router.handle(req, res)) return;
+    // An address under the portal that is no page: back to the portal with a word, not HQ's own "not found".
+    // Only for an address a person might have typed or followed; a probe (dots, escapes) gets the plain 404.
+    if (req.method === "GET" && /^\/portal\/[a-z0-9/-]+$/.test(path)) {
+      res.writeHead(303, { location: notices.sign(withMessage("/portal", "problem", "There’s no page at that address. This is your portal’s first page.")) });
+      res.end();
+      return;
+    }
     await router.notFound(req, res);
   }
 

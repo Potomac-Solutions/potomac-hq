@@ -50,6 +50,7 @@ import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
 import { linkedBusyCalendar, manageTokens, noBusyCalendar, outsideFetch, sqliteBookingLinkStore, sqliteBookingStore, sqliteCalendarLinkStore, sqliteScheduleInviteStore } from "./booking/adapters.ts";
+import { withRolePreview } from "./identity/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRateLimit, sqliteRefusedLog, sqliteTwoFactorStore, sqlitePasskeyStore, passkeyCrypto, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import { authorize, type RefusedDeps, type SessionDeps, type TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
@@ -60,13 +61,18 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore, sqliteRepeatTaker } from "./projects/adapters.ts";
 import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
 import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
 import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
 import { sqliteAssistantStore } from "./assistant/adapters.ts";
-import { placeAt, PLACES, search, type PinsDeps, type Place } from "./dashboard/index.ts";
-import { sqlitePinStore } from "./dashboard/adapters.ts";
+import { placeAt, PLACES, search, type PinsDeps, type Place, type WeeklyDeps } from "./dashboard/index.ts";
+import { sqlitePinStore, sqliteWeekFacts, sqliteWeeklySent } from "./dashboard/adapters.ts";
+import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/adapters.ts";
+import type { PushDeps } from "./push/index.ts";
+import type { RepliesDeps } from "./replies/index.ts";
+import { sqliteReplyStore } from "./replies/adapters.ts";
+import { isQuiet } from "./notices/index.ts";
 import { followUpsDue } from "./crm/index.ts";
 import { staffWaiting } from "./portal/index.ts";
 import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
@@ -182,6 +188,12 @@ export type Services = {
   readonly placesFor: (actorId: Id | null) => readonly Place[];
   /** Pins in the sidebar (decision 0015, follow-up). */
   readonly pins: PinsDeps;
+  /** The weekly owner email (quality of life, 2026-11-25). */
+  readonly weekly: WeeklyDeps;
+  /** Phone alerts (quality of life, 2026-11-25). */
+  readonly push: PushDeps;
+  /** Saved replies (quality of life, 2026-11-25). */
+  readonly replies: RepliesDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -225,6 +237,8 @@ export type ServiceOptions = {
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
   readonly aiModel?: AiModel | null;
+  /** HQ's VAPID public key, when phone alerts are set up. */
+  readonly vapidPublicKey?: string | null;
 };
 
 const ownersOf = (owner: string | readonly string[] | null | undefined): readonly string[] => (owner == null ? [] : typeof owner === "string" ? [owner.toLowerCase()] : owner.map((one) => one.toLowerCase()));
@@ -233,7 +247,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clock = options.clock ?? systemClock;
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
-  const users = sqliteUserStore(db);
+  // Admins can view HQ as a manager or member, read-only (quality of life, 2026-11-25).
+  const users = withRolePreview(db, sqliteUserStore(db));
   const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, passkeys: sqlitePasskeyStore(db), webauthn: passkeyCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
@@ -275,8 +290,18 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const startOfDay = (day: string) => Temporal.PlainDate.from(day).toZonedDateTime(BUSINESS_TIME_ZONE).toInstant().toString();
   const audit: AuditDeps = { users, audit: sqliteAuditReader(db), formatWhen, startOfDay };
   const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
+  // A host's booked calls, for their calendar feed: two weeks back to three months ahead.
+  const callsHosted = db.prepare("select id, name, topic, starts_at, ends_at from booking where host_id = ? and status = 'booked' and starts_at >= ? and starts_at <= ? order by starts_at");
   const projects: ProjectsDeps = {
     ...session,
+    bookedCalls: (userId, base) => {
+      const now = Temporal.Instant.from(clock());
+      return callsHosted.all(userId, now.subtract({ hours: 14 * 24 }).toString(), now.add({ hours: 92 * 24 }).toString()).map((row) => {
+        const start = String(row["starts_at"]);
+        const day = Temporal.Instant.from(start).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString();
+        return { uid: `call-${String(row["id"])}@potomac-hq`, summary: `Call with ${String(row["name"])}`, description: [String(row["topic"] ?? ""), `Get ready in HQ: ${base}/get-ready/${String(row["id"])}`].filter(Boolean).join("\n"), url: `${base}/get-ready/${String(row["id"])}`, start: day, end: day, at: { start, end: String(row["ends_at"]) } };
+      });
+    },
     activityLog: eventLog,
     files: sqliteFileRecordStore(db),
     blobs: sqliteBlobStore(db),
@@ -303,6 +328,8 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     formatWhen,
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
+    // Undoing a finished repeat takes its untouched next one back (pre-staging, 2026-11-25).
+    removeUntouchedTask: sqliteRepeatTaker(db),
   };
   const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
@@ -823,6 +850,37 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
 
+  const replies: RepliesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, replies: sqliteReplyStore(db) };
+  const noticePrefs = sqliteNoticeSettings(db);
+  const push: PushDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    devices: sqliteDeviceStore(db),
+    queue: sqliteAlertQueue(db),
+    sources: sqliteAlertSources(db),
+    publicKey: options.vapidPublicKey ?? null,
+    quietNow: (userId) => isQuiet(noticePrefs.preferencesOf(userId).quiet, Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).hour),
+    timeOf: (instant) => Temporal.Instant.from(instant).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
+  const weekFacts = sqliteWeekFacts(db);
+  const weekly: WeeklyDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    sentFor: sqliteWeeklySent(db),
+    facts(from, to, day) {
+      const shared = ai.sharedBudget();
+      const spent = ai.ai.spentSince(ai.monthStart()) + shared.builderSpent;
+      return { ...weekFacts(from, to, day), ai: `$${(spent / 1_000_000).toFixed(2)} of $${(shared.capCents / 100).toFixed(2)}` };
+    },
+  };
+
   const assistant: AssistantDeps = {
     users,
     transact: sqliteTransact(db),
@@ -839,5 +897,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
