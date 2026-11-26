@@ -212,6 +212,64 @@ export function receivePayment(
   });
 }
 
+/** Money given back on one payment. */
+export type Refund = {
+  readonly id: Id;
+  readonly paymentId: Id;
+  readonly amount: Money;
+  /** YYYY-MM-DD. */
+  readonly refundedOn: string;
+  readonly reason: string;
+  /** The platform's refund reference, or a check number. Never a card number. */
+  readonly reference: string;
+  /** "platform": HQ asked the payment platform. "by-hand": given back some other way; HQ only records it. */
+  readonly through: "platform" | "by-hand";
+  readonly recordedBy: Id;
+};
+
+export type RefundInput = { readonly amount: string; readonly on: string; readonly reason?: string | null; readonly reference?: string | null };
+export type RefundError =
+  | "not-an-amount"
+  | "amount-must-be-positive"
+  | "more-than-was-paid"
+  | "refund-reason-too-long"
+  | "reference-too-long"
+  | "looks-like-a-card-number"
+  | "date-in-future"
+  | "invalid-date";
+
+/**
+ * Give back some or all of one payment. A paid invoice that is now short is
+ * owed again (sent); a written-off or voided one stays as it is. Whether the
+ * client still owes the rest is the caller's to settle (`writeOff`).
+ */
+export function refundPayment(
+  invoice: Invoice,
+  payment: Payment,
+  refundedAlready: number,
+  ids: { readonly id: Id; readonly recordedBy: Id },
+  input: RefundInput,
+  through: Refund["through"],
+  today: string,
+): Result<{ invoice: Invoice; refund: Refund }, RefundError> {
+  const amount = parseAmount(input.amount, "USD");
+  if (!amount.ok) return err("not-an-amount");
+  if (amount.value.minor <= 0) return err("amount-must-be-positive");
+  if (refundedAlready + amount.value.minor > payment.amount.minor) return err("more-than-was-paid");
+  const on = calendarDate(input.on.trim());
+  if (!on.ok) return err("invalid-date");
+  if (on.value > today) return err("date-in-future");
+  const reason = optionalText(input.reason, 300);
+  if (!reason.ok) return err("refund-reason-too-long");
+  const reference = optionalText(input.reference, 100);
+  if (!reference.ok) return err("reference-too-long");
+  if (reference.value !== null && /(?:\d[ -]?){13,19}/.test(reference.value)) return err("looks-like-a-card-number");
+  return ok({
+    invoice: invoice.status === "paid" ? { ...invoice, status: "sent" } : invoice,
+    refund: { ...ids, paymentId: payment.id, amount: amount.value, refundedOn: on.value, reason: reason.value ?? "", reference: reference.value ?? "", through },
+  });
+}
+
 /**
  * Where a project's payment stands after one of its invoices changed. Null
  * when the change says nothing new. A paid deposit is "deposit paid". Any

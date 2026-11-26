@@ -403,9 +403,11 @@ export type InvoiceView = {
   readonly client: { readonly id: string; readonly name: string };
   readonly clientName: string;
   readonly lines: readonly { readonly key: string; readonly description: string; readonly amount: string }[];
-  readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly methodLabel: string; readonly reference: string }[];
+  readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly method: string; readonly methodLabel: string; readonly reference: string; readonly refunded: string; readonly refundablePlain: string; readonly refundable: boolean }[];
+  /** Money given back on this invoice's payments, oldest first. */
+  readonly refunds: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly how: string; readonly reason: string; readonly reference: string }[];
   readonly owedPlain: string;
-  readonly can: { readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean; readonly promise: boolean; readonly payLink: boolean; readonly writeOff: boolean };
+  readonly can: { readonly refund: boolean; readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean; readonly promise: boolean; readonly payLink: boolean; readonly writeOff: boolean };
   /** When the client promised to pay, and what they said. */
   readonly promise: { readonly on: string; readonly when: string; readonly note: string; readonly due: boolean } | null;
   readonly payLink: string;
@@ -420,15 +422,22 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
   if (!invoice) return err("not-found");
   const today = deps.today();
   const edit = may(deps, actorId, "invoice.edit");
+  const refunds = deps.invoices.refunds(invoiceId);
   return ok({
     invoice: { ...invoiceRowView(invoice, today), note: invoice.note, draft: invoice.status === "draft" },
     project: invoice.projectId === null ? null : { id: invoice.projectId, name: invoice.projectName },
     client: { id: invoice.organizationId, name: invoice.clientName },
     clientName: invoice.clientName,
     lines: invoice.lines.map((line, index) => ({ key: String(index), description: line.description, amount: formatMoney(line.amount) })),
-    payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: friendlyDay(payment.receivedOn, today), amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),
+    payments: deps.invoices.payments(invoiceId).map((payment) => {
+      const back = refunds.filter((one) => one.paymentId === payment.id).reduce((sum, one) => sum + one.amount.minor, 0);
+      const left = payment.amount.minor - back;
+      return { id: payment.id, on: friendlyDay(payment.receivedOn, today), amount: formatMoney(payment.amount), method: payment.method, methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference, refunded: back > 0 ? `${formatMoney({ minor: back, currency: payment.amount.currency })} refunded` : "", refundablePlain: plain(left), refundable: left > 0 };
+    }),
+    refunds: refunds.map((one) => ({ id: one.id, on: friendlyDay(one.refundedOn, today), amount: formatMoney(one.amount), how: one.through === "platform" ? "Through the payment platform" : "By hand", reason: one.reason, reference: one.reference })),
     owedPlain: plain(invoice.total.minor - invoice.paidMinor),
     can: {
+      refund: may(deps, actorId, "payment.record"),
       addLine: edit && invoice.status === "draft",
       send: edit && invoice.status === "draft",
       void: edit && (invoice.status === "draft" || invoice.status === "sent") && invoice.paidMinor === 0,

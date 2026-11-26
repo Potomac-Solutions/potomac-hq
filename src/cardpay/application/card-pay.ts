@@ -15,6 +15,7 @@ export type CardPayments = {
   start(input: { id: string; cents: number; currency?: string; description?: string; back?: string; cancel?: string }): Promise<{ ok: true; ref: string } | { ok?: undefined; error: string }>;
   settle(input: { id?: string; ref?: string; told?: string }): Promise<Settled>;
   heard(request: { headers: Record<string, string | string[] | undefined>; body: string; url: string }): Promise<Settled | { ok?: undefined; error?: undefined; ignore: true }>;
+  refund(input: { id: string; cents?: number }): Promise<{ ok: true; ref: string; cents: number } | { ok?: undefined; error: string }>;
 };
 
 /** The words for each platform, where a client reads them. */
@@ -28,7 +29,10 @@ export type CardPayDeps = {
   /** HQ's own address, for where the platform sends the client back. */
   readonly publicUrl: string;
   readonly invoice: (id: Id) => (Invoice & { readonly paidMinor: number }) | null;
-  readonly record: (invoiceId: Id, input: { readonly minor: number; readonly platform: string; readonly reference: string }) => Result<unknown, string>;
+  readonly record: (invoiceId: Id, input: { readonly minor: number; readonly platform: string; readonly reference: string }) => Result<{ readonly payment: { readonly id: Id } }, string>;
+  /** Which kit payment an invoice payment came from, so it can be refunded through the platform. */
+  readonly remember: (paymentId: Id, payId: string) => void;
+  readonly payIdOf: (paymentId: Id) => string | null;
   /** Whether a kit payment has been put on its invoice, and saying it has. */
   readonly recorded: (payId: string) => boolean;
   readonly markRecorded: (payId: string, how: "recorded" | "unmatched") => void;
@@ -150,6 +154,7 @@ function finish(deps: CardPayDeps, settled: Settled): Outcome {
   const recorded = deps.record(invoiceId, { minor: settled.cents, platform: PLATFORM_LABELS[deps.platform] ?? deps.platform, reference: settled.payment || settled.ref });
   if (recorded.ok) {
     deps.markRecorded(settled.id, "recorded");
+    deps.remember(recorded.value.payment.id, settled.id);
     return "paid";
   }
   // Paid at the platform, but the invoice changed meanwhile (voided, or paid another way).
@@ -182,4 +187,37 @@ export async function hearCardPayment(deps: CardPayDeps, request: { readonly hea
   if (!heard.ok && (heard.error === "bad-signature" || heard.error === "no-webhook")) return "refuse";
   finish(deps, heard);
   return "heard";
+}
+
+/** Whether a payment can be refunded through the platform: it came from one, and the platform refunds. */
+export function refundableByPlatform(deps: CardPayDeps, paymentId: Id): boolean {
+  return deps.pay !== null && deps.platform !== "helcim" && deps.payIdOf(paymentId) !== null;
+}
+
+export type RefundSteps<Plan, Done> = {
+  /** Everything checked, nothing written. */
+  readonly plan: () => Result<Plan & { readonly minor: number }, string>;
+  /** Written, once the money has gone back. */
+  readonly record: (reference: string) => Result<Done, string>;
+};
+
+/**
+ * Give money back through the payment platform: checked first, then the
+ * platform asked, then recorded. If the platform refuses, nothing is recorded.
+ * If it refunds and the record then fails (the invoice changed meanwhile),
+ * the money is back with the client and the log says so, for recording by hand.
+ */
+export async function refundThroughPlatform<Plan, Done>(deps: CardPayDeps, paymentId: Id, steps: RefundSteps<Plan, Done>): Promise<Result<Done, string>> {
+  const payId = deps.payIdOf(paymentId);
+  if (!deps.pay || !payId || deps.platform === "helcim") return err("refund-not-through-platform");
+  const planned = steps.plan();
+  if (!planned.ok) return planned;
+  const sent = await deps.pay.refund({ id: payId, cents: planned.value.minor });
+  if (!sent.ok) {
+    deps.log(`Refund refused by ${deps.platform} for ${payId}: ${sent.error}`);
+    return err(sent.error === "bad-amount" ? "more-than-was-paid" : "refund-failed");
+  }
+  const recorded = steps.record(`${PLATFORM_LABELS[deps.platform] ?? deps.platform} ${sent.ref}`.trim());
+  if (!recorded.ok) deps.log(`Refunded through ${deps.platform} (${sent.ref}) but not recorded: ${recorded.error}. Record it by hand.`);
+  return recorded;
 }

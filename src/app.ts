@@ -21,7 +21,8 @@ import { approvalTokens } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { cardPayPages, cardPayRoutes } from "./cardpay/api/card-pay-routes.ts";
-import { cardPayReady, hearCardPayment, payStep, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
+import { refundRoutes } from "./cardpay/api/refund-routes.ts";
+import { cardPayReady, hearCardPayment, payStep, refundableByPlatform, stillWanted, type CardPayDeps, type CardPayReady, type PayStep } from "./cardpay/index.ts";
 import { createCardPayKit, recordedFlags, type CardPayConfig } from "./cardpay/adapters.ts";
 import { fileRoutes } from "./files/api/file-routes.ts";
 import { financeDownloads, financeRoutes } from "./finance/api/finance-routes.ts";
@@ -379,6 +380,8 @@ export type PageContext = {
   /** Paying an invoice by card (decision 0018). */
   readonly cardPay: {
     ready(): CardPayReady;
+    /** Whether a payment came through the platform and can be refunded there. */
+    byPlatform(paymentId: string): boolean;
     /** The started payment for one of the signed-in client's invoices, or null. */
     step(invoiceId: string): PayStep | null;
   };
@@ -856,6 +859,10 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         cardPay: {
           ready: () => cardPayReady(cardPayDeps),
+          byPlatform: (paymentId) => {
+            const parsed = parseId(paymentId);
+            return parsed.ok && refundableByPlatform(cardPayDeps, parsed.value);
+          },
           step: (id) => {
             const parsed = parseId(id);
             return parsed.ok ? payStep(cardPayDeps, client, parsed.value) : null;
@@ -1441,6 +1448,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", projectRoutes({ projects: projectsDeps, actorOf, sign: signNotice, feedPage: (view) => renderPage("Your calendar address", feedAddressPage(view)), sharePage: (view) => renderPage("Your share link", shareAddressPage(view)), ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}) }));
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
+  forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   forms.route("/", cardPayRoutes({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const bookerOf = (cookieHeader: string): PortalBooker | null => {

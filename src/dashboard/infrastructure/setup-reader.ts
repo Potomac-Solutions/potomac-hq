@@ -56,10 +56,20 @@ export function sqliteWorkload(db: Database): (today: string, monday: string, su
 /** Last week's figures for the weekly owner email, demo clients left out. Dates are YYYY-MM-DD; `to` is included. */
 export function sqliteWeekFacts(db: Database): (from: string, to: string, today: string) => Omit<import("../domain/weekly.ts").WeekFacts, "ai"> {
   const real = "p.organization_id in (select id from client_organization where demo = 0)";
-  const moneyIn = db.prepare(`select coalesce(sum(pay.amount_minor), 0) as n from payment pay join invoice i on i.id = pay.invoice_id join project p on p.id = i.project_id where ${real} and pay.received_on between ? and ?`);
+  // Every invoice counts, on a project or on the client alone; refunds are money going back out.
+  const realInvoice = "i.organization_id in (select id from client_organization where demo = 0)";
+  const moneyIn = db.prepare(
+    `select (select coalesce(sum(pay.amount_minor), 0) from payment pay join invoice i on i.id = pay.invoice_id where ${realInvoice} and pay.received_on between ?1 and ?2)
+          - (select coalesce(sum(r.amount_minor), 0) from payment_refund r join payment pay on pay.id = r.payment_id join invoice i on i.id = pay.invoice_id where ${realInvoice} and r.refunded_on between ?1 and ?2) as n`,
+  );
   const moneyOut = db.prepare(`select coalesce(sum(e.amount_minor), 0) as n from expense e join project p on p.id = e.project_id where ${real} and e.removed_at is null and e.spent_on between ? and ?`);
-  const owed = db.prepare(`select coalesce(sum(i.total_minor), 0) - coalesce((select sum(pay.amount_minor) from payment pay join invoice x on x.id = pay.invoice_id join project p on p.id = x.project_id where x.status = 'sent' and ${real}), 0) as n from invoice i join project p on p.id = i.project_id where i.status = 'sent' and ${real}`);
-  const overdue = db.prepare(`select count(*) as n from invoice i join project p on p.id = i.project_id where i.status = 'sent' and i.due_on < ? and ${real}`);
+  const owed = db.prepare(
+    `select coalesce(sum(i.total_minor
+             - (select coalesce(sum(pay.amount_minor), 0) from payment pay where pay.invoice_id = i.id)
+             + (select coalesce(sum(r.amount_minor), 0) from payment_refund r join payment pay on pay.id = r.payment_id where pay.invoice_id = i.id)), 0) as n
+       from invoice i where i.status = 'sent' and ${realInvoice}`,
+  );
+  const overdue = db.prepare(`select count(*) as n from invoice i where i.status = 'sent' and i.due_on < ? and ${realInvoice}`);
   const deals = db.prepare("select count(*) as n from opportunity o join client_organization c on c.id = o.organization_id and c.demo = 0 where substr(o.created_at, 1, 10) between ? and ?");
   const closed = db.prepare("select count(*) as n, coalesce(sum(o.value_minor), 0) as v from opportunity o join client_organization c on c.id = o.organization_id and c.demo = 0 where o.stage = ? and substr(o.closed_at, 1, 10) between ? and ?");
   const atRisk = db.prepare(`select p.name from project p where p.status = 'active' and p.health <> 'on-track' and ${real} order by p.name limit 10`);

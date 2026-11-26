@@ -2,7 +2,7 @@
 // its proposal said it would. A management view, not the books.
 export { DEFAULT_RATE_MINOR, PAYMENT_STATUSES, standing, type PaymentStatus, type ProjectFinance } from "./domain/budget.ts";
 export { EXPENSE_CATEGORIES, type Expense } from "./domain/expense.ts";
-export { INVOICE_KINDS, INVOICE_STATUSES, invoiceLabel, PAYMENT_METHODS, type Invoice, type Payment } from "./domain/invoice.ts";
+export { INVOICE_KINDS, INVOICE_STATUSES, invoiceLabel, PAYMENT_METHODS, type Invoice, type Payment, type Refund } from "./domain/invoice.ts";
 export { MAX_TIMER_MINUTES, weekOf, type TimeEntry } from "./domain/time.ts";
 export { METHOD_LABELS } from "./domain/labels.ts";
 export type { ExpenseRow, ExpenseStore, FinanceStore, InvoiceRow, InvoiceStore, PhaseEstimates, TimeRow, TimeStore, ClientEmails, ReminderStore } from "./application/ports.ts";

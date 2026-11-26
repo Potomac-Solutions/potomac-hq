@@ -227,6 +227,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "invoice.voided": "voided an invoice",
   "payment.recorded": "recorded a payment",
   "payment.paid-by-card": "A client paid an invoice by card",
+  "payment.refunded": "gave money back on an invoice",
   "payment.card-unmatched": "A card payment came in that HQ couldn’t put on its invoice",
   "finance.exported": "exported finance records",
   "finance.sheet-synced": "Finance records were synced to the sheet",

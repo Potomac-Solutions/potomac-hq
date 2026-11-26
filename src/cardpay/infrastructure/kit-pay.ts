@@ -39,5 +39,10 @@ export function recordedFlags(store: KitStore) {
   return {
     recorded: (payId: string): boolean => store.get("card-payments-recorded", payId) !== null,
     markRecorded: (payId: string, how: "recorded" | "unmatched"): void => void store.write("card-payments-recorded", payId, { how }),
+    remember: (paymentId: string, payId: string): void => void store.write("card-payment-of", paymentId, { payId }),
+    payIdOf: (paymentId: string): string | null => {
+      const found = store.get("card-payment-of", paymentId) as { payId?: unknown } | null;
+      return typeof found?.payId === "string" ? found.payId : null;
+    },
   };
 }
