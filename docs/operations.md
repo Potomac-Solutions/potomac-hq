@@ -409,6 +409,39 @@ makes every device's subscription stop working: people turn alerts on again.
 On an iPhone, alerts only work once HQ is added to the home screen and opened
 from there.
 
+## Card payments (decision 0018)
+
+Off until `HQ_PAY_PROVIDER` is set. It names one platform; set that
+platform's keys beside it, then restart. HQ says which it is using when it
+starts, and System status has a Card payments line.
+
+| `HQ_PAY_PROVIDER` | Also set | At the platform |
+| --- | --- | --- |
+| `stripe` | `HQ_PAY_STRIPE_KEY` (the secret key), `HQ_PAY_STRIPE_WEBHOOK_SECRET` | Add a webhook endpoint for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Turn Link and other methods on or off in the Dashboard. |
+| `square` | `HQ_PAY_SQUARE_TOKEN`, `HQ_PAY_SQUARE_LOCATION`, `HQ_PAY_SQUARE_WEBHOOK_KEY`; `HQ_PAY_SQUARE_SANDBOX=1` for the sandbox | Add a webhook subscription for `payment.updated`. |
+| `paypal` | `HQ_PAY_PAYPAL_CLIENT`, `HQ_PAY_PAYPAL_SECRET`, `HQ_PAY_PAYPAL_WEBHOOK_ID`; `HQ_PAY_PAYPAL_SANDBOX=1` for the sandbox | Add a webhook for `CHECKOUT.ORDER.APPROVED` and `PAYMENT.CAPTURE.COMPLETED`. |
+| `helcim` | `HQ_PAY_HELCIM_TOKEN` | In the API Access Configuration, allow HelcimPay.js for HQ's address. Helcim has no webhook. |
+| `test` | nothing | Nothing. A stand-in page; no money moves. Never leave this on with real invoices out. |
+
+The webhook address is `HQ_PUBLIC_URL` + `/pay/webhook/` + the platform's
+name, such as `https://hq.potomac.solutions/pay/webhook/stripe`.
+`HQ_PUBLIC_URL` must be the https address: the platform sends clients back
+to it.
+
+**Before the first real invoice.** No platform has taken a real payment
+through this yet. On staging, with the platform's sandbox or test keys: send
+an invoice to a test client, pay it from the portal with the platform's test
+card, and check the invoice shows the payment. Then close the tab before
+coming back on a second one and check the webhook alone records it. Helcim
+is the least sure of the four: its answer is checked with a hash HQ has to
+reproduce exactly, so if a paid Helcim test comes back "We haven't received
+that payment", that is where to look.
+
+**Changing platform.** Change `HQ_PAY_PROVIDER` and its keys and restart.
+Payment pages already open on the old platform can no longer be confirmed
+by HQ; if one is paid, the old platform's dashboard shows it and you record
+it by hand. Refunds are made at the platform.
+
 ## The weekly owner email (decision 0016)
 
 Mondays at 07:23 business time, each active admin is emailed last week. It

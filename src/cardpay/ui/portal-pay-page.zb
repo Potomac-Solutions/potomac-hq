@@ -1,0 +1,31 @@
+<!--
+  The step between the portal and the payment platform (decision 0018): what
+  is being paid and one link to the platform's own page. HQ also sends a
+  Refresh header with this page, so most clients go straight on; the link is
+  for when a browser doesn't.
+-->
+<script>
+  'use route /portal/invoices/:id/pay'
+  import '../../shared/ui/zubra/action-button.zb'
+  export async function load({ context, params }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const step = context.cardPay.step(params.id)
+    if (!step) return context.portal.missing()
+    return { title: 'Pay invoice ' + step.label, step }
+  }
+  const next = step.url || '/portal/invoices/' + step.invoiceId + '/pay/frame'
+</script>
+<hq-portal-pay step={{ label: '', amount: '', platformLabel: '', url: '', invoiceId: '', test: false }}>
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal#invoices">Back to your portal</a></p>
+    <h1>Pay invoice {step.label}</h1>
+    <section class="hq-panel">
+      <p class="portal-owed"><strong>{step.amount}</strong></p>
+      <p zb-if={step.test}>Test mode: no money moves.</p>
+      <p zb-else>You pay on {step.platformLabel}’s secure page. Potomac Solutions never sees your card number.</p>
+      <p><action-button href={next} size="lg">Continue to {step.test ? 'the test page' : step.platformLabel}</action-button></p>
+      <p class="hq-muted hq-small">Taking you there now. If nothing happens, use the button.</p>
+    </section>
+  </div>
+</hq-portal-pay>

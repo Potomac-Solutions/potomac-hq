@@ -19,6 +19,8 @@ export type StatusFacts = {
   readonly contactComplete: boolean;
   readonly clientNotices: boolean;
   readonly sitePublisher: boolean;
+  /** The payment platform taking cards for invoices: 'stripe', 'test', or "" for none. */
+  readonly cardPay?: string;
   readonly database: { readonly bytes: number; readonly migrations: number; readonly lastMigration: string };
 };
 
@@ -66,7 +68,14 @@ export function statusChecks(facts: StatusFacts, when: (instant: string) => stri
   if (!facts.clientNotices) settings.push("HQ_CLIENT_NOTICES is off, so clients aren't emailed when something waits for them");
   if (!facts.sitePublisher) settings.push("GitHub isn't connected, so sites can't be set up or published");
   const config = settings.length === 0 ? check("settings", "Server settings", "ok", "Everything HQ reads is set.") : check("settings", "Server settings", "warning", settings.join(". ") + ".", "/knowledge/operations");
-  return [backups, email, errors, ai, config];
+  const platform = facts.cardPay ?? "";
+  const cards =
+    platform === ""
+      ? check("cards", "Card payments", "warning", "Not set up: clients can't pay an invoice by card from their portal, only by a link you paste on it.", "/knowledge/operations")
+      : platform === "test"
+        ? check("cards", "Card payments", "warning", "Test mode: clients see Pay by card, and no money moves. Set HQ_PAY_PROVIDER to a real platform before sending invoices.", "/knowledge/operations")
+        : check("cards", "Card payments", "ok", `Clients pay invoices by card through ${({ stripe: "Stripe", square: "Square", paypal: "PayPal", helcim: "Helcim" } as Record<string, string>)[platform] ?? platform}. HQ records each payment by itself.`);
+  return [backups, email, errors, ai, cards, config];
 }
 
 /** A database's size in words: "3.4 MB". */

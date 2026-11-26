@@ -36,6 +36,7 @@ import { sendMorningEmails } from "../src/today/index.ts";
 import { emailNotices, fireReminders } from "../src/notices/index.ts";
 import { sendWeeklyEmails } from "../src/dashboard/index.ts";
 import { queueAlerts, sendAlerts } from "../src/push/index.ts";
+import { cardPayConfigFrom } from "../src/cardpay/adapters.ts";
 import { vapidFrom, webPushSender } from "../src/push/adapters.ts";
 import { approvalTokens } from "../src/portal/adapters.ts";
 import { deliverDue } from "../src/webhooks/index.ts";
@@ -132,11 +133,17 @@ console.log(claudeConfig ? `The site builder asks Claude.${builderOwner.length >
 const aiModel = claudeConfig ? claudeModel(claudeConfig.key) : null;
 console.log(aiModel ? "AI drafts: Claude is available. Features are turned on in Settings → AI." : "AI drafts are off: HQ_ANTHROPIC_API_KEY is not set.");
 
+// Card payments (decision 0018): the platform HQ_PAY_PROVIDER names, with its keys.
+const cardPay = cardPayConfigFrom(process.env, publicUrl);
+if (typeof cardPay === "string") console.error(`Card payments are off: ${cardPay}`);
+else console.log(cardPay ? (cardPay.platform === "test" ? "Card payments are in TEST MODE: clients see Pay by card and no money moves." : `Clients pay invoices by card through ${cardPay.platform}. Its webhook address is ${publicUrl}/pay/webhook/${cardPay.platform}`) : "Card payments are off: HQ_PAY_PROVIDER is not set.");
+
 // Phone alerts (quality of life, 2026-11-25): on when HQ_VAPID_* is set.
 const vapid = vapidFrom(process.env);
 const app = await createApp({
   db,
   backups: backupConfigFrom(process.env) !== null,
+  cardPay: typeof cardPay === "string" ? null : cardPay,
   vapidPublicKey: vapid?.publicKey ?? null,
   ai: aiModel,
   claude: claudeConfig ? claudeApi(claudeConfig) : null,

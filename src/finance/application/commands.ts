@@ -409,6 +409,39 @@ export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: 
   });
 }
 
+/**
+ * A card payment the client made on the payment platform's own page (decision
+ * 0018). Nobody in HQ recorded it, so the activity has no actor; the platform
+ * said it was paid, which is the check. The payment row needs a person, so it
+ * carries whoever made the invoice. `reference` is the platform's own, never
+ * a card number.
+ */
+export function recordCardPayment(deps: FinanceDeps, invoiceId: Id, input: { readonly minor: number; readonly platform: string; readonly reference: string }): Result<{ invoice: Invoice; payment: Payment }, "not-found" | PaymentError> {
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const today = deps.today();
+    const amount = (input.minor / 100).toFixed(2);
+    const ids = { id: deps.newId(), recordedBy: invoice.createdBy };
+    let received = receivePayment(invoice, invoice.paidMinor, ids, { amount, method: "card", on: today, reference: `${input.platform} ${input.reference}`.trim().slice(0, 100) }, today);
+    // A platform's reference that happens to read like a card number is left out, not refused.
+    if (!received.ok && received.error === "looks-like-a-card-number") received = receivePayment(invoice, invoice.paidMinor, ids, { amount, method: "card", on: today, reference: input.platform }, today);
+    if (!received.ok) return received;
+    const at = deps.clock();
+    deps.invoices.insertPayment(received.value.payment, at);
+    if (received.value.invoice.status !== invoice.status) deps.invoices.update(received.value.invoice, at);
+    recordActivity(deps, {
+      actorId: null,
+      action: "payment.paid-by-card",
+      recordType: "payment",
+      recordId: received.value.payment.id,
+      context: { projectId: invoice.projectId, invoiceId, number: invoice.number, minor: received.value.payment.amount.minor, method: "card", on: received.value.payment.receivedOn, paidInFull: received.value.invoice.status === "paid", by: "client", platform: input.platform },
+    });
+    followInvoice(deps, null, received.value.invoice);
+    return ok(received.value);
+  });
+}
+
 // ── Recurring invoices ────────────────────────────────────────────────────
 
 /** Sets up a charge that repeats on a project. Permission: `invoice.edit`. */

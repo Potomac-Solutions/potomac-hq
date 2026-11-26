@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Pay by card** in the portal, on a payment platform one setting chooses
+  (decision 0018). `HQ_PAY_PROVIDER` is `stripe`, `square`, `paypal`,
+  `helcim` or `test`; the client pays what is still owed on the platform's
+  own page, and HQ records the payment by itself once the platform confirms
+  it, on coming back or by webhook (`/pay/webhook/<platform>`). HQ still
+  never sees a card number. Money it can't place (a voided invoice, paid
+  twice) is written down for you instead. System status has a Card payments
+  line. With no platform set, the pasted payment link still works. The kit
+  moves to 0.9.0 (`kit/pay/providers`). No migration.
 - Undo and moving back (decision 0014). After a pipeline move, a client or
   project status change, a task move on the board or ticking off a to-do,
   an Undo bar appears at the bottom of the screen; press it or Ctrl+Z (⌘Z).

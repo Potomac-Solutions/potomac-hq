@@ -17,11 +17,11 @@
     const view = context.money.invoice(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
     const reminders = context.money.invoiceReminders(params.id)
-    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, credit: context.referralCredit.forInvoice(params.id), history: context.history('invoice', params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Invoice ' + view.value.invoice.label, view: view.value, reminders: reminders.ok ? reminders.value : null, credit: context.referralCredit.forInvoice(params.id), history: context.history('invoice', params.id), cardPay: context.cardPay.ready(), done: context.notice.done, problem: context.notice.problem }
   }
   const i = view.invoice
 </script>
-<hq-invoice view={{ invoice: {}, project: null, client: {}, promise: null, payLink: '', writtenOff: null, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} done="" problem="">
+<hq-invoice view={{ invoice: {}, project: null, client: {}, promise: null, payLink: '', writtenOff: null, lines: [], payments: [], can: {}, methods: [] }} reminders={null} credit={null} history={[]} card-pay={{ on: false, test: false, label: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={view.project ? [{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${view.project.id}` }, { label: 'Money', href: `/projects/${view.project.id}/money` }, { label: 'Invoice ' + i.label, href: '' }] : [{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: `/clients/${view.client.id}#invoices` }, { label: 'Invoice ' + i.label, href: '' }]}></breadcrumb-trail>
     <h1>Invoice {i.label}</h1>
@@ -69,7 +69,8 @@
       </form>
       <form zb-if={view.can.payLink} method="post" action="/invoices/{i.id}/pay-link" class="hq-form" data-spaced>
         <h3>Card payment link</h3>
-        <p class="hq-small hq-muted">Make a payment link for this amount in your payment service, then paste it here. The client sees “Pay by card” in their portal. Leave it empty to remove it.</p>
+        <p zb-if={cardPay.on} class="hq-small hq-muted">Card payments are on{cardPay.test ? ' in test mode' : ' through ' + cardPay.label}: the client already sees “Pay by card” on this invoice, and HQ records the payment by itself. A link pasted here is only used if card payments are turned off.</p>
+        <p zb-else class="hq-small hq-muted">Make a payment link for this amount in your payment service, then paste it here. The client sees “Pay by card” in their portal. Leave it empty to remove it.</p>
         <text-field label="Link" name="link" type="url" maxlength={500} value={view.payLink} placeholder="https://"></text-field>
         <div><button class="hq-button secondary" type="submit">Save the link</button></div>
       </form>

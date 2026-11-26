@@ -17,6 +17,7 @@ const healthy: StatusFacts = {
   contactComplete: true,
   clientNotices: true,
   sitePublisher: true,
+  cardPay: "stripe",
   database: { bytes: 3_500_000, migrations: 75, lastMigration: "0075-pins" },
 };
 const when = (at: string) => at.slice(0, 10);
@@ -42,6 +43,15 @@ test("email failures, errors, the AI budget and missing settings", () => {
   assert.equal(states({ ...healthy, ai: { ...healthy.ai, percent: 100 } }).ai, "problem");
   const settings = statusChecks({ ...healthy, publicUrl: "", sitePublisher: false }, when).find((one) => one.key === "settings");
   assert.match(settings?.detail ?? "", /HQ_PUBLIC_URL.*GitHub/);
+});
+
+test("card payments: which platform, test mode said loudly, and not set up", () => {
+  const cards = (cardPay: string) => statusChecks({ ...healthy, cardPay }, when).find((one) => one.key === "cards");
+  assert.deepEqual([cards("stripe")?.state, cards("stripe")?.detail], ["ok", "Clients pay invoices by card through Stripe. HQ records each payment by itself."]);
+  assert.equal(cards("test")?.state, "warning");
+  assert.match(cards("test")?.detail ?? "", /Test mode: clients see Pay by card, and no money moves/);
+  assert.equal(cards("")?.state, "warning");
+  assert.match(cards("")?.detail ?? "", /Not set up/);
 });
 
 test("sizes read in KB or MB", () => {
