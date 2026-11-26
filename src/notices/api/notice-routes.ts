@@ -1,7 +1,7 @@
 // Notices' addresses: opening one (marks it read and goes to its task),
 // marking all read, emailing them or not, and a task's reminders.
 import { Hono } from "hono";
-import { addReminder, markAllNoticesRead, openNotice, removeReminder, setNoticeEmail, type NoticesDeps } from "../application/notices.ts";
+import { addReminder, markAllNoticesRead, openNotice, removeReminder, setNoticeEmail, setNoticePreferences, type NoticesDeps } from "../application/notices.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 
 const MESSAGES: Readonly<Record<string, string>> = {
@@ -10,6 +10,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   unchanged: "Nothing changed.",
   "invalid-reminder": "Choose a day and time, or how many days before it's due (0 to 30) and a time.",
   "reminder-in-the-past": "That time has passed. Choose a time from now on.",
+  "invalid-mode": "Choose right away, the morning digest or never for each kind.",
+  "invalid-hours": "Choose when quiet hours start and end, and make them different, or choose no quiet hours for both.",
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
@@ -25,6 +27,11 @@ export function noticeRoutes(deps: Deps): Hono {
     done: () => "/notices#email",
     back: () => "/notices#email",
     message: (on) => (on ? "Your notices will be emailed to you." : "Your notices won't be emailed."),
+  });
+  post("/notices/preferences", (actor, f) => setNoticePreferences(deps.notices, actor, { modes: { assigned: f["assigned"] ?? "now", mentioned: f["mentioned"] ?? "now", reminder: f["reminder"] ?? "now" }, quietFrom: f["quietFrom"] ?? "", quietTo: f["quietTo"] ?? "" }), {
+    done: () => "/notices#email",
+    back: () => "/notices#email",
+    message: "Saved. The bell still shows every notice.",
   });
   post(
     "/tasks/:id/reminders",

@@ -37,14 +37,58 @@ at least 10 characters. The link works once.
 
 The full list is in the article "Authorization matrix".
 
+## Undo
+
+After a move, a status change or an edit, an **Undo** bar appears at the
+bottom of the screen. Press it, or Ctrl+Z (⌘Z on a Mac) when you're not
+typing, to put things back. Undo works for pipeline stages, client and
+project status, task moves on the board, ticking off to-dos, and saving a
+task's or project's details or a deal's price or follow-up. It works once,
+for a day. It isn't offered when putting it back wouldn't be allowed, such
+as a repeating task whose next one was already made.
+
+**Remove** buttons hide the item at once and wait six seconds, with Undo,
+before anything is removed. **Send**, **Publish**, **Share** and **Void**
+buttons wait eight seconds, with Undo, before anything leaves HQ.
+
+Adding a link, comment, label, filter, time, expense, demo or referral link
+can be undone the same way. The few things that can't be undone, like
+turning off two-step sign-in, ask first.
+
+If a page closes before you send what you typed in a comment or note box,
+the text is there when you come back. **Ctrl+Enter** sends the form you're
+typing in.
+
+**Recent changes** (in the sidebar, or G then H) lists what you changed in
+the last day that can still be put back, each with its own Undo, so a
+mistake you notice later can still be undone.
+
+## Getting around by keyboard
+
+- **Ctrl+K** (⌘K), or **Go to…** in the top bar: go to any page, client,
+  deal, project, task or invoice, or move a deal on ("Move Feed store site
+  to Quoted").
+- **?** shows every shortcut. **G** then a letter jumps to a page: **P**
+  Pipeline, **C** Clients, **B** Board, **T** Today and more. **/** opens
+  the same box as Ctrl+K.
+- On the pipeline or the board, focus a card and press **Space**, the
+  **arrow keys**, then **Space** again to move it. **Escape** puts it back.
+- On a phone, drag a card by its grip (the dots on its left edge).
+
+After you save or move something, HQ keeps your place on the page. If you
+leave a page with something typed and not saved, it asks first.
+
 ## A lead comes in
 
 1. **Clients**, then "Add a client". Add the person you talk to as a contact.
 2. On the client, open an **opportunity**: what they want, and how they
    found Potomac.
 3. Move it along the **Pipeline** as it goes: new, consult booked,
-   consulted, quoted. Set a follow-up day and it shows on your dashboard
-   when it is due.
+   consulted, quoted. Drag a card by its grip to the next column, or back to
+   any earlier one; columns it can't go to are dimmed while you drag. Each
+   card also has a Back button, and the opportunity's page can move it back
+   or reopen a won or lost deal. Set a follow-up day and it shows on your
+   dashboard when it is due.
 4. Write what was said in **Notes** on the client or the opportunity.
 
 ## The proposal
@@ -66,7 +110,8 @@ The full list is in the article "Authorization matrix".
 - When a milestone is something the client has to do, like sending photos,
   tick "The client has to do this one". Their portal then puts it first,
   under "waiting on you".
-- The **Board** shows tasks by status. Drag a card, or use its menu.
+- The **Board** shows tasks by status. Drag a card by its grip, or use its
+  menu.
   Moving a task to "Working on" starts your timer. Moving it on stops the
   timer and logs the time.
 - **Deliverables** are files for the client. A draft is yours. Share it and
@@ -439,6 +484,74 @@ budget shared with the site builder ($20 a month to start, set under Site
 builder → Model and cap). At the budget, AI drafts and the site builder stop
 until the first of the month or until the cap is raised; HQ works as usual
 without them. A receipt draft nobody uses is discarded after 30 days.
+
+## Finding your way, and the assistant
+
+The sidebar is eight hubs: **Home**, **Today**, **Clients**, **Work**,
+**Sites**, **Money**, **Growth** and **Company**. The hub you're in is open;
+tap another to open it. Settings is in the top bar. Can't find a page? Type
+what it does in the search box ("booking hours", "dark mode", "invoices"):
+**Pages** come first.
+
+Press **/** (or Ctrl+K, ⌘K on a Mac) anywhere, or tap **Go to…**, and type:
+pages and records come up as you type. If nothing fits, Enter hands it to
+the assistant. **Pin** in the top bar keeps the page you're on at the top
+of your sidebar; **Recent** in the sidebar lists the records you opened on
+this device. On a phone, Home, Today, Search, Add and Ask sit along the
+bottom.
+
+Admins see **Get HQ ready** on Home until everything on it is done. Each
+line ticks itself when HQ can see it's true.
+
+**The assistant** is the box at the top of Home, once it's turned on in
+Settings → AI. Say what needs to happen in plain words: "add a to-do to call
+Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
+"where do I set my hours?", "what's due today?".
+
+- It opens with your day: who's waiting, what's due, your next call.
+- **Ask** in the top bar opens it beside any page. "Log a call here" then
+  means the client you're looking at.
+- **Speak** turns what you say into text, where your browser can.
+- It looks things up by itself: records, pages, the knowledge base, what's
+  due.
+- Besides tasks, notes, calls, clients and deals, it can set a deal's
+  follow-up day, mark a project's health, stop your timer, make a booking
+  link, start a proposal and draft an invoice. Invoices and proposals stay
+  drafts.
+- Every change shows a card first. Nothing happens until you tap **Do it**.
+- It acts as you, so it can't do anything you can't. What it does shows in
+  Audit history as yours.
+- Under **How changes are made** you can let small changes (moving a task,
+  ticking off or reopening a to-do, a follow-up day, a project's health) go
+  straight through, each with **Undo** for a day.
+- It can't send, post, pay or delete. For those it links the page.
+- **New chat** starts over. Conversations are kept 90 days.
+- It uses the same monthly AI budget as the drafts and the site builder.
+
+## Day to day, a little easier (decision 0016)
+
+- **Notices** → *What's emailed, and when*: right away, the 7 AM digest, or
+  never, for each kind, and quiet hours.
+- **All work**: tick rows, then *With the ticked ones* to move, give, date or
+  label them together.
+- **What changed here** at the bottom of a client, deal, invoice, task or
+  proposal.
+- **Settings** → *Phone alerts and the HQ app*: install HQ on your phone and
+  turn on alerts for it.
+- Managers: **Team workload** under Work.
+- Admins: **System status** under Company; **View as a manager / member** on
+  People (read-only, Stop viewing at the top); and a **weekly email** on
+  Mondays.
+- Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
+  straight from the email when work is shared with them.
+- **Saved replies** under Clients: write it once, then *Use a saved reply*
+  beside a message to a client.
+- Changed several tasks at once by mistake? **Undo** puts each one back.
+- Adding a client that's already here? HQ asks first. A duplicate can be
+  merged from *Is this a duplicate?* on its page (managers and admins).
+- Booked calls show in your calendar feed at their times.
+- Clients see *Waiting on you*, *What we're doing next* and *Done* at the
+  top of each project in the portal.
 
 ## Habits that keep HQ worth using
 

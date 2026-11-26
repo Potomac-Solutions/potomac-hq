@@ -22,3 +22,10 @@ test("an all-day calendar: escaped text, a day-after end, folded lines", () => {
   assert.match(file, /SUMMARY:x{67}\r\n x{53}\r\n/, "folded with a leading space");
   assert.ok(file.endsWith("END:VCALENDAR\r\n"));
 });
+
+test("an event at a time has a start and end in UTC, and is busy", async () => {
+  const { allDayCalendar } = await import("./calendar-file.ts");
+  const file = allDayCalendar("HQ", [{ uid: "call-1@potomac-hq", summary: "Call with Stacy", description: "", url: "https://hq.example/calls", start: "2026-11-30", end: "2026-11-30", at: { start: "2026-11-30T19:30:00Z", end: "2026-11-30T20:00:00Z" } }], "2026-11-25T00:00:00Z");
+  assert.match(file, /DTSTART:20261130T193000Z\r\nDTEND:20261130T200000Z/);
+  assert.match(file, /TRANSP:OPAQUE/);
+});

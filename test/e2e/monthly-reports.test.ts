@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser } from "playwright";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { PASSWORD, TEST_PASSWORD_COST, testApp, wonProject, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -26,7 +26,7 @@ test("draft, read and annotate a report; the client reads it once sent", async (
   const mikeyId = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   const plan = await wonProject(t.services, mikeyId, { client: "Moats Hardware", title: "Website plan", pricing: "monthly", amount: "50" });
   await staff.goto(`${t.origin}/today`);
-  await staff.getByRole("link", { name: "Monthly reports" }).click();
+  await sidebar(staff, "Monthly reports");
   await staff.getByRole("button", { name: "Draft last month’s missing reports now" }).click();
   await staff.getByText("Drafted 1 report.").waitFor();
   for (const colorScheme of ["light", "dark"] as const) {

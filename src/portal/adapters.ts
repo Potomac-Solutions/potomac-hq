@@ -2,3 +2,4 @@
 export { createPortalAuth } from "./infrastructure/portal-auth.ts";
 export { sqliteCallStore, sqliteClientUserStore, sqliteEventReader, sqliteUpdateStore } from "./infrastructure/stores.ts";
 export { sqlitePeopleLookup } from "./infrastructure/people-lookup.ts";
+export { approvalTokens } from "./infrastructure/approval-tokens.ts";

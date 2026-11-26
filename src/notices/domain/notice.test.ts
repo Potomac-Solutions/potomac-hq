@@ -77,3 +77,21 @@ test("reminders in words", () => {
   assert.equal(reminderText({ at: null, daysBefore: 1, time: "16:30" }, ZONE), "The day before it's due, at 4:30 PM");
   assert.equal(reminderText({ at: null, daysBefore: 3, time: "09:00" }, ZONE), "3 days before it's due, at 9:00 AM");
 });
+
+test("when a notice is emailed: right away, in the morning digest, never, and never in quiet hours", async () => {
+  const { DEFAULT_PREFERENCES, DIGEST_HOUR, emailDecision, isQuiet, readPreferences } = await import("./notice.ts");
+  assert.equal(emailDecision(DEFAULT_PREFERENCES, "assigned", 14), "send");
+  const prefs = { modes: { assigned: "daily", mentioned: "now", reminder: "never" }, quiet: { from: 21, to: 7 } } as const;
+  assert.equal(emailDecision(prefs, "assigned", 14), "hold");
+  assert.equal(emailDecision(prefs, "assigned", DIGEST_HOUR), "send");
+  assert.equal(emailDecision(prefs, "reminder", 14), "skip");
+  assert.equal(emailDecision(prefs, "mentioned", 23), "hold", "quiet");
+  assert.equal(emailDecision(prefs, "mentioned", 3), "hold", "quiet across midnight");
+  assert.equal(isQuiet({ from: 21, to: 7 }, 7), false, "the end hour isn't quiet");
+  assert.equal(isQuiet({ from: 12, to: 13 }, 12), true);
+  assert.deepEqual(readPreferences({ modes: { assigned: "daily" }, quietFrom: "", quietTo: "" }), { ok: true, value: { modes: { assigned: "daily", mentioned: "now", reminder: "now" }, quiet: null } });
+  assert.equal(readPreferences({ modes: { assigned: "weekly" }, quietFrom: "", quietTo: "" }).ok, false);
+  assert.equal(readPreferences({ modes: {}, quietFrom: "21", quietTo: "" }).ok, false);
+  assert.equal(readPreferences({ modes: {}, quietFrom: "9", quietTo: "9" }).ok, false);
+  assert.equal(readPreferences({ modes: {}, quietFrom: "24", quietTo: "7" }).ok, false);
+});

@@ -111,36 +111,49 @@ export type StageError =
   | "lost-reason-too-long";
 
 /**
- * Moves an opportunity on.
+ * Moves an opportunity on, or back (decision 0014).
  *
  * - Forward one stage at a time: new, consult-booked, consulted, quoted, won.
  * - A landing page may go from consulted straight to won (it is free, so there is no quote).
  * - Any open stage may move to lost, with a reason.
- * - Won and lost are final. A deal that comes back is a new opportunity.
+ * - Only when a person chooses the stage (`byHand: true`, from the pipeline or
+ *   an Undo): any open stage, earlier or later, or won or lost reopened to an
+ *   open stage, which clears the close. Won is still reached only from the
+ *   stage before it. Automatic moves (booking, proposals, import) never go
+ *   back or skip. Reopening a won deal that is already a project is refused
+ *   by the application.
  * - From consulted on, the service must be known. Quoted and won need a price.
  */
 export function moveStage(
   opportunity: Opportunity,
   to: string,
-  options: { readonly at: string; readonly lostReason?: string | null },
+  options: { readonly at: string; readonly lostReason?: string | null; readonly byHand?: boolean },
 ): Result<Opportunity, StageError> {
-  if (!isOpen(opportunity)) return err("closed");
   if (!isStage(to)) return err("invalid-stage");
   if (to === opportunity.stage) return err("unchanged");
+  const open = isOpen(opportunity);
 
   if (to === "lost") {
+    if (!open) return err("closed");
     const reason = requiredText(options.lostReason, 1000);
     if (!reason.ok) return err(reason.error === "missing" ? "lost-reason-required" : "lost-reason-too-long");
     return ok({ ...opportunity, stage: "lost", lostReason: reason.value, closedAt: options.at });
   }
 
+  if (!open && (to === "won" || !options.byHand)) return err("closed");
   const next = FORWARD[FORWARD.indexOf(opportunity.stage) + 1];
   const landingPageSkip = opportunity.service === "landing-page" && opportunity.stage === "consulted" && to === "won";
-  if (to !== next && !landingPageSkip) return err("not-the-next-stage");
+  if (open && to !== next && !landingPageSkip && (to === "won" || !options.byHand)) return err("not-the-next-stage");
   if (FORWARD.indexOf(to) >= FORWARD.indexOf("consulted") && opportunity.service === null) return err("service-required");
   if ((to === "quoted" || to === "won") && (opportunity.pricing === null || opportunity.value === null)) return err("price-required");
 
-  return ok({ ...opportunity, stage: to, closedAt: to === "won" ? options.at : null });
+  return ok({ ...opportunity, stage: to, lostReason: null, closedAt: to === "won" ? options.at : null });
+}
+
+/** The stages it may be moved back (or reopened) to, latest first. */
+export function earlierStages(opportunity: Opportunity): readonly Stage[] {
+  const end = isOpen(opportunity) ? FORWARD.indexOf(opportunity.stage) : FORWARD.indexOf("won");
+  return FORWARD.slice(0, end).reverse();
 }
 
 /** The stage that comes after this one, if any. */

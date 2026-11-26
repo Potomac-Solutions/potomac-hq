@@ -18,6 +18,7 @@ import { linkName, decideDeliverable, DELIVERABLE_STATUS_LABELS, HEALTH_LABELS, 
 import { applyDecision, documentFor, PROPOSAL_STATUS_LABELS, type ProposalDocument } from "../../proposals/index.ts";
 import { err, formatMoney, ok, readableHours, recordActivity, type Id, type Result } from "../../shared/index.ts";
 import type { PortalDeps } from "./staff-side.ts";
+import { portalTimeline, type Timeline } from "../domain/timeline.ts";
 
 /** The client a Cookie header is signed in as, or null. Read from storage every time. */
 /** What an invoice is for, as the client reads it: its project, or for a charge with none, its first line ("Domain name, one year"). */
@@ -234,6 +235,8 @@ export type PortalProjectView = {
   readonly changes: readonly ChangeLine[];
   /** Where to see the work: the links Potomac shared. */
   readonly links: readonly { readonly id: string; readonly name: string; readonly url: string; readonly host: string }[];
+  /** Done, next, and waiting on the client: the part to read first. */
+  readonly timeline: Timeline;
 };
 
 // Said the way a client would: the full list of endings is long and means little to them.
@@ -247,7 +250,7 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
   const next = nextMilestone(milestones);
   const progress = milestoneProgress(milestones);
   const billableMinutes = deps.time.totals(project.id, { from: "0000-01-01", to: "9999-12-31" }).billableMinutes;
-  return ok({
+  const view = {
     project: { id: project.id, name: project.name, description: project.description, ...standingOf(project), target: project.targetOn ? dueText(project.targetOn, today) : "", open: project.status === "active" },
     progress: { ...progress, text: stepsDone(progress.done, progress.total) },
     next: next ? stepText(next.name, next.dueOn, today) : "",
@@ -279,7 +282,13 @@ export function portalProject(deps: PortalDeps, session: ClientSession, projectI
     billableHours: billableMinutes > 0 ? readableHours(billableMinutes) : "",
     changes: changesForClient(deps, project.id),
     links: deps.links.listFor(project.id).filter((one) => one.shared).map((one) => ({ id: one.id, name: linkName(one), url: one.url, host: new URL(one.url).host })),
+  };
+  const timeline = portalTimeline({
+    steps: view.steps,
+    toLookAt: view.deliverables.filter((one) => one.awaiting),
+    toAnswer: view.changes.filter((one) => one.status === "sent"),
   });
+  return ok({ ...view, timeline });
 }
 
 function sentFiles(deps: PortalDeps, projectId: Id) {
@@ -425,4 +434,55 @@ export function requestCall(deps: PortalDeps, session: ClientSession, input: { r
     recordActivity(deps, { actorId: null, action: "call.requested", recordType: "call-request", recordId: request.value.id, context: { organizationId: session.organizationId, clientUserId: session.clientUserId } });
     return ok(request.value);
   });
+}
+
+/**
+ * A sign-in link a client asks for themselves (quality of life, 2026-11-25):
+ * emailed to them, to choose a new password and be signed in, or to finish
+ * an invite they never used. Says nothing about whether the email has an
+ * account: the answer is the same either way. Only an active or invited
+ * client user of a real (not demo) client gets one.
+ */
+export async function emailSignInLink(deps: PortalDeps, typed: string, mail: (to: { readonly email: string; readonly name: string }, token: string) => Promise<boolean>): Promise<Result<true, never>> {
+  const email = typed.trim().toLowerCase();
+  const user = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? deps.clientUsers.byEmail(email) : null;
+  if (!user || user.status === "disabled") return ok(true as const);
+  const token = user.portalAccount === null ? await deps.auth.invite(user.email, user.name) : await deps.auth.resetLink(user.portalAccount);
+  if (token === null) return ok(true as const);
+  deps.transact(() => {
+    recordActivity(deps, { actorId: null, action: "client-user.reset-link-issued", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId, kind: user.portalAccount === null ? "invite" : "reset", asked: "themselves" } });
+  });
+  await mail({ email: user.email, name: user.name }, token);
+  return ok(true as const);
+}
+
+// ---- Approving from email (quality of life, 2026-11-25) -------------------
+
+export type ApprovalTokens = {
+  make(deliverableId: Id, clientUserId: Id): string;
+  /** What a link is for; null when it's been tampered with or is out of date. */
+  read(token: string): { readonly deliverableId: Id; readonly clientUserId: Id } | null;
+};
+
+export type ApprovalView =
+  | { readonly valid: false }
+  | { readonly valid: true; readonly title: string; readonly description: string; readonly projectName: string; readonly projectId: string; readonly awaiting: boolean; readonly statusLabel: string; readonly name: string };
+
+/** What an approval link opens: the deliverable, if the link is good and it's still that person's to decide. */
+export function approvalView(deps: PortalDeps, tokens: ApprovalTokens, token: string): ApprovalView {
+  const read = tokens.read(token);
+  const session = read ? sessionFor(deps.clientUsers.get(read.clientUserId)) : null;
+  const deliverable = read && session ? deps.deliverables.get(read.deliverableId) : null;
+  const project = deliverable && session ? ownProject(deps, session, deliverable.projectId) : null;
+  if (!read || !session || !deliverable || !project || deliverable.status === "draft") return { valid: false };
+  const STATUS: Readonly<Record<string, string>> = { shared: "Waiting on you", approved: "Approved", "changes-requested": "Changes asked for" };
+  return { valid: true, title: deliverable.title, description: deliverable.description, projectName: project.name, projectId: project.id, awaiting: deliverable.status === "shared", statusLabel: STATUS[deliverable.status] ?? deliverable.status, name: session.name };
+}
+
+/** Approves, or asks for changes, from an email's link, as the person it was sent to. */
+export function decideFromLink(deps: PortalDeps, tokens: ApprovalTokens, token: string, input: { readonly decision: string; readonly note?: string | null }): ReturnType<typeof decideOnDeliverable> {
+  const read = tokens.read(token);
+  const session = read ? sessionFor(deps.clientUsers.get(read.clientUserId)) : null;
+  if (!read || !session) return err("not-found");
+  return decideOnDeliverable(deps, session, read.deliverableId, input);
 }

@@ -1,0 +1,21 @@
+<!--
+  What changed on a record (quality of life, 2026-11-25): its newest events
+  from the activity log, folded until opened. `items` are { id, text, when,
+  whenIso }; `heading-id` keeps the heading's id unique on the page.
+-->
+<style>
+  :host { display: block; }
+  .history summary { cursor: pointer; }
+  .history summary h2 { display: inline; margin: 0; font-size: 1.05rem; }
+  .history ol { margin: 0.75rem 0 0; padding: 0; list-style: none; }
+  .history li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.15rem 1rem; padding: 0.45rem 0; border-top: 1px solid var(--border); }
+  .history time { color: var(--muted-foreground); font-size: 0.875rem; }
+</style>
+<history-panel items={[]} heading-id="record-history">
+  <details zb-if={items.length > 0} class="hq-panel history">
+    <summary><h2 id={headingId}>What changed here</h2> <span class="hq-muted hq-small">{items.length === 1 ? '1 change' : items.length + ' changes, newest first'}</span></summary>
+    <ol aria-labelledby={headingId}>
+      <zb-each items={items} as="item" key={item.id}><li><span>{item.text}</span> <time datetime={item.whenIso}>{item.when}</time></li></zb-each>
+    </ol>
+  </details>
+</history-panel>

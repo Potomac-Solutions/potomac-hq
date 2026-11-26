@@ -5,6 +5,7 @@
 //
 // Reading changes nothing, so it writes no activity event.
 import { PER_KIND, rank, searchWords } from "../domain/search.ts";
+import { matchPlaces, type Place } from "../domain/places.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import type { Id } from "../../shared/index.ts";
 import type { SearchHit, SearchKind, SearchReader } from "./ports.ts";
@@ -44,15 +45,19 @@ const EXTRA: Readonly<Record<string, string>> = {
 export type SearchView = {
   readonly q: string;
   readonly searched: boolean;
+  /** Pages in HQ that do what was typed (decision 0015), best first. */
+  readonly pages: readonly { readonly key: string; readonly label: string; readonly href: string; readonly what: string }[];
   readonly total: number;
   readonly groups: readonly { readonly kind: string; readonly label: string; readonly more: boolean; readonly hits: readonly { readonly key: string; readonly name: string; readonly context: string; readonly extra: string; readonly href: string }[] }[];
   /** Where to look when nothing was found. */
   readonly tips: readonly string[];
 };
 
-export function search(deps: SearchDeps, actorId: Id | null, raw: string): SearchView {
+/** `places` are the pages this person may open, so search can offer them too. */
+export function search(deps: SearchDeps, actorId: Id | null, raw: string, places: readonly Place[] = []): SearchView {
   const query = searchWords(raw);
-  if (actorId === null || query.words.length === 0) return { q: query.text, searched: false, total: 0, groups: [], tips: [] };
+  if (actorId === null || query.words.length === 0) return { q: query.text, searched: false, pages: [], total: 0, groups: [], tips: [] };
+  const pages = matchPlaces(places, query.text).map((place) => ({ key: place.key, label: place.label, href: place.href, what: place.what }));
   const allowed = KINDS.filter((kind) => authorize(deps, actorId, kind.permission).ok);
   const groups = allowed.flatMap((kind) => {
     let hits: SearchHit[] = deps.search.find(kind.kind, query.words, PER_KIND + 1);
@@ -71,10 +76,11 @@ export function search(deps: SearchDeps, actorId: Id | null, raw: string): Searc
       },
     ];
   });
-  const total = groups.reduce((sum, group) => sum + group.hits.length, 0);
+  const total = groups.reduce((sum, group) => sum + group.hits.length, 0) + pages.length;
   return {
     q: query.text,
     searched: true,
+    pages,
     total,
     groups,
     tips: total > 0 ? [] : ["Check the spelling, or use fewer words.", "Search finds names and titles, contacts' emails and phone numbers, invoice numbers like INV-0003, and the text of tasks and articles."],

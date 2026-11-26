@@ -8,7 +8,7 @@ import { chromium, type Browser } from "playwright";
 import { readDocuments } from "../../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../../src/knowledge/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { PASSWORD, TEST_PASSWORD_COST, testApp, wonProject, type TestApp } from "../support/harness.ts";
 
 let t: TestApp;
@@ -33,7 +33,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
 
   // People: invite Sam as a manager, and Sam uses the link.
   await page.goto(`${t.origin}/settings`);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "People" }).click();
+  await sidebar(page, "People");
   await page.waitForURL((url) => url.pathname === "/people");
   await assertAccessible(page, "People with one person");
   await page.getByText("Invite someone to HQ").click();
@@ -51,7 +51,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
   await sam.getByLabel(/Choose a password/).fill(PASSWORD);
   await sam.getByRole("button", { name: /Make my account|Save|Sign in|Set/ }).first().click();
   await sam.waitForURL((url) => url.pathname === "/");
-  assert.equal(await sam.getByRole("link", { name: "Reports", exact: true }).count(), 1, "a manager has Reports");
+  assert.equal(await sam.getByRole("navigation", { name: "Main" }).locator('a[href="/reports"]').count(), 1, "a manager has Reports, in the Money hub");
 
   await page.goto(`${t.origin}/people`);
   assert.match(await text(page), /Sam Helper sam@example\.com Manager · Active/);
@@ -102,7 +102,7 @@ test("people, the knowledge base, the audit history and reports", async () => {
   assert.match((await download).suggestedFilename(), /^hq-audit-\d{4}-\d{2}-\d{2}\.csv$/);
 
   // Reports.
-  await page.getByRole("link", { name: "Reports", exact: true }).click();
+  await sidebar(page, "Reports");
   await page.waitForURL((url) => url.pathname === "/reports");
   await assertAccessible(page, "reports");
   assert.match(await text(page), /Win rate\s*100%/);

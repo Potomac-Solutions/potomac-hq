@@ -185,3 +185,55 @@ export function reminderText(reminder: Pick<Reminder, "at" | "daysBefore" | "tim
   if (days === 0) return `The day it's due, at ${time}`;
   return `${days === 1 ? "The day before" : `${days} days before`} it's due, at ${time}`;
 }
+
+// ---- When a notice is emailed (quality of life, 2026-11-25) --------------
+
+export const EMAIL_MODES = ["now", "daily", "never"] as const;
+export type EmailMode = (typeof EMAIL_MODES)[number];
+export const EMAIL_MODE_LABELS: Readonly<Record<EmailMode, string>> = { now: "Right away", daily: "In the morning digest", never: "Never: the bell only" };
+/** The hour the morning digest goes, in Potomac's time zone. */
+export const DIGEST_HOUR = 7;
+
+export type NoticePreferences = {
+  readonly modes: Readonly<Record<NoticeKind, EmailMode>>;
+  /** Quiet from this hour to that one (0 to 23), or null for none. "21 to 7" spans midnight. */
+  readonly quiet: { readonly from: number; readonly to: number } | null;
+};
+
+export const DEFAULT_PREFERENCES: NoticePreferences = { modes: { assigned: "now", mentioned: "now", reminder: "now" }, quiet: null };
+
+/** Whether an hour falls in quiet hours. The start is quiet; the end isn't. */
+export function isQuiet(quiet: NoticePreferences["quiet"], hour: number): boolean {
+  if (!quiet || quiet.from === quiet.to) return false;
+  return quiet.from < quiet.to ? hour >= quiet.from && hour < quiet.to : hour >= quiet.from || hour < quiet.to;
+}
+
+/**
+ * What to do with one unsent notice at this hour: send it, hold it for later,
+ * or skip it (it is never emailed, and stays under the bell).
+ */
+export function emailDecision(preferences: NoticePreferences, kind: NoticeKind, hour: number): "send" | "hold" | "skip" {
+  const mode = preferences.modes[kind];
+  if (mode === "never") return "skip";
+  if (isQuiet(preferences.quiet, hour)) return "hold";
+  if (mode === "daily") return hour === DIGEST_HOUR ? "send" : "hold";
+  return "send";
+}
+
+export type PreferencesError = "invalid-mode" | "invalid-hours";
+
+/** Reads the settings form: a mode per kind, and quiet hours as two hours, or "" for none. */
+export function readPreferences(input: { readonly modes: Readonly<Record<string, string>>; readonly quietFrom: string; readonly quietTo: string }): { ok: true; value: NoticePreferences } | { ok: false; error: PreferencesError } {
+  const modes = {} as Record<NoticeKind, EmailMode>;
+  for (const kind of NOTICE_KINDS) {
+    const mode = input.modes[kind] ?? "now";
+    if (!(EMAIL_MODES as readonly string[]).includes(mode)) return { ok: false, error: "invalid-mode" };
+    modes[kind] = mode as EmailMode;
+  }
+  const hour = (text: string): number | null => (/^\d{1,2}$/.test(text) && Number(text) <= 23 ? Number(text) : null);
+  if (input.quietFrom === "" && input.quietTo === "") return { ok: true, value: { modes, quiet: null } };
+  const from = hour(input.quietFrom);
+  const to = hour(input.quietTo);
+  if (from === null || to === null || from === to) return { ok: false, error: "invalid-hours" };
+  return { ok: true, value: { modes, quiet: { from, to } } };
+}

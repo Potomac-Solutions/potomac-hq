@@ -9,7 +9,7 @@ import { chromium, type Browser } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Claude, ClaudeAnswer, SitePublishing } from "../../src/builder/index.ts";
 import type { Id } from "../../src/shared/index.ts";
-import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
+import { assertAccessible, setUpAdmin, sidebar, text, watch } from "../support/browser.ts";
 import { TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
 import { png } from "../support/png.ts";
 
@@ -34,7 +34,7 @@ const runJobs = async () => {
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Better Days Towing</title><link rel="stylesheet" href="site.css"></head>
 <body><main><h1>Better Days Towing</h1><p id="reach">checking</p><p><a href="tel:301-555-0100">Call 301-555-0100</a></p></main>
 <script>
-  fetch("/", { credentials: "include" }).then((r) => r.text()).then((html) => { document.getElementById("reach").textContent = html.includes("Dashboard") ? "reached HQ" : "no HQ" }).catch(() => { let cookie = ""; try { cookie = document.cookie } catch {} document.getElementById("reach").textContent = "no HQ" + (cookie ? " but a cookie" : "") })
+  fetch("/", { credentials: "include" }).then((r) => r.text()).then((html) => { document.getElementById("reach").textContent = html.includes("Sign out") ? "reached HQ" : "no HQ" }).catch(() => { let cookie = ""; try { cookie = document.cookie } catch {} document.getElementById("reach").textContent = "no HQ" + (cookie ? " but a cookie" : "") })
 </script></body></html>`;
 
 before(async () => {
@@ -53,7 +53,7 @@ test("Mikey makes a client's site with Claude and sees it in the preview", async
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   unwrap(crm.createClient(t.services.crm, mikey, { name: "Better Days Towing", sizeTier: "small", phone: "301-555-0100" }));
 
-  await page.getByRole("link", { name: "Site builder" }).click();
+  await sidebar(page, "Site builder");
   await page.getByRole("heading", { name: "Site builder", level: 1 }).waitFor();
   await assertAccessible(page, "the site builder with no builds");
   const start = page.locator("#start");
