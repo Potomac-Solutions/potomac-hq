@@ -66,7 +66,7 @@
       <h2 id="client-money">Money</h2>
       <dl class="hq-facts">
         <dt>Owed now</dt><dd><a href="#invoices">{invoices.value.money.owed}</a></dd>
-        <dt>Overdue</dt><dd>{invoices.value.money.overdue} <status-badge zb-if={invoices.value.money.hasOverdue} variant="danger">Overdue</status-badge></dd>
+        <dt>Overdue</dt><dd><strong zb-if={invoices.value.money.hasOverdue}>{invoices.value.money.overdue}</strong><span zb-else>{invoices.value.money.overdue}</span></dd>
         <dt>Paid this year</dt><dd>{invoices.value.money.paidThisYear}</dd>
         <dt zb-if={renewals && renewals.items.length > 0}>Next renewal</dt><dd zb-if={renewals && renewals.items.length > 0}><a href="#renewal-{renewals.items[0].id}">{renewals.items[0].name}</a>, {renewals.items[0].when}</dd>
         <dt zb-if={invoices.value.prepaid}>Prepaid hours left</dt><dd zb-if={invoices.value.prepaid}><a href="#billing">{invoices.value.prepaid.left}</a> <status-badge zb-if={invoices.value.prepaid.low} variant="warning">Low</status-badge></dd>
@@ -363,7 +363,7 @@
       <p zb-if={invoices.value.items.length === 0} class="hq-muted">None yet. Project invoices show here too.</p>
       <ul zb-else class="hq-list">
         <zb-each items={invoices.value.items} as="inv" key={inv.id}>
-          <li><a href="/invoices/{inv.id}">{inv.label}</a> · {inv.projectName || 'No project'} · {inv.total} · {inv.statusLabel} <status-badge zb-if={inv.overdue} variant="danger">Overdue</status-badge></li>
+          <li><a href="/invoices/{inv.id}">{inv.label}</a> · {inv.forWhat} · {inv.total} · {inv.statusLabel} <status-badge zb-if={inv.overdue} variant="danger">Overdue</status-badge></li>
         </zb-each>
       </ul>
       <details zb-if={invoices.value.canCreate}>
@@ -378,7 +378,7 @@
           </div>
           <text-field label="Description" name="description" required={true} maxlength={300} placeholder="Domain name betterdaystowing.com, one year"></text-field>
           <text-field label="Amount, in dollars" name="amount" required={true} inputmode="decimal" placeholder="25.00"></text-field>
-          <text-field label="Due on (optional)" name="dueOn" type="date"></text-field>
+          <text-field label="Due on" name="dueOn" type="date"></text-field>
           <label class="hq-check"><input type="checkbox" name="send"> Send it now: it goes straight to the client’s portal</label>
           <div><button class="hq-button" type="submit">Save the invoice</button></div>
         </form>
@@ -406,7 +406,7 @@
             <select id="plan-every" name="every"><zb-each items={invoices.value.everyOptions} as="every" key={every.value}><option value={every.value}>{every.label}</option></zb-each></select>
           </div>
           <text-field label="First invoice on" name="firstOn" type="date" required={true} value={invoices.value.today}></text-field>
-          <text-field label="Last one by (optional)" name="endsOn" type="date"></text-field>
+          <text-field label="Last one by" name="endsOn" type="date"></text-field>
           <label class="hq-check"><input type="checkbox" name="autoSend" value="1"> Send each one by itself, instead of waiting as a draft</label>
           <text-field label="Due this many days after it’s sent" name="dueDays" inputmode="numeric" value="15"></text-field>
           <div><button class="hq-button" type="submit">Save the plan</button></div>
@@ -432,9 +432,9 @@
         <form method="post" action="/clients/{view.client.id}/prepaid" class="hq-form">
           <text-field label="Hours" name="hours" required={true} inputmode="decimal" placeholder="10"></text-field>
           <text-field label="Bought on" name="boughtOn" type="date" required={true} value={invoices.value.today}></text-field>
-          <text-field label="Price, in dollars (optional)" name="price" inputmode="decimal" description="With a price, HQ makes its invoice too."></text-field>
+          <text-field label="Price, in dollars" name="price" inputmode="decimal" description="With a price, HQ makes its invoice too."></text-field>
           <label class="hq-check"><input type="checkbox" name="send"> Send that invoice now</label>
-          <text-field label="Note (optional)" name="note" maxlength={300}></text-field>
+          <text-field label="Note" name="note" maxlength={300}></text-field>
           <div><button class="hq-button" type="submit">Add the hours</button></div>
         </form>
       </details>

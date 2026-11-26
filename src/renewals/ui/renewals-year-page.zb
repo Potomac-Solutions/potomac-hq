@@ -26,6 +26,7 @@
         <dt>Costs Potomac</dt><dd>{view.totals.cost}</dd>
         <dt>Billed to clients</dt><dd>{view.totals.billed}</dd>
         <dt>What renewals earn</dt><dd><strong>{view.totals.margin}</strong></dd>
+        <dt zb-if={view.totals.noCost > 0}>With no cost entered</dt><dd zb-if={view.totals.noCost > 0}>{view.totals.noCost}. {view.totals.noCost === 1 ? 'Its cost counts' : 'Their costs count'} as nothing here, so the year earns less than this reads. Enter what each costs on the client’s page.</dd>
         <dt zb-if={view.totals.losses > 0}>Billed at a loss</dt><dd zb-if={view.totals.losses > 0}><status-badge variant="danger">{view.totals.losses}</status-badge> billed for less than they cost. Change their price on the client’s page.</dd>
       </dl>
     </section>

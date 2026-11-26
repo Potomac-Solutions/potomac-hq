@@ -9,6 +9,19 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- A second user-experience pass, 2026-11-26 (`docs/reviews/2026-11-26-ux-round.md`):
+  every staff page and every portal page on a laptop and a phone, the
+  billing pages by hand, and the client's website editor, social approvals,
+  monthly report and call invite. Fixed: a phone's top bar while a call is
+  open, a proposal's page on a phone, doubled "(optional)" on five fields,
+  invoice dates as "Mon, Nov 23", what each invoice is for on a client's
+  page, a renewal with no cost entered counted as free, a bank account
+  number in the pay instructions, Ask HQ saying "no access" to an admin
+  when it is only off, and smaller wording.
+- Card payments, after the pass: HQ uses PayPal (decision 0018, point 8).
+  Backing out at the platform comes back to plain words; an invoice that is
+  voided or paid another way while the client is at PayPal is never
+  charged; a payment shows in its invoice's "What changed here".
 - **Pay by card** in the portal, on a payment platform one setting chooses
   (decision 0018). `HQ_PAY_PROVIDER` is `stripe`, `square`, `paypal`,
   `helcim` or `test`; the client pays what is still owed on the platform's

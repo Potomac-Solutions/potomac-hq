@@ -110,7 +110,7 @@ test("a client with no project is billed for their domain on the client alone, a
   const invoice = t.services.finance.invoices.get(billed.invoiceId);
   assert.deepEqual([invoice?.organizationId, invoice?.projectId, invoice?.projectName, invoice?.status, invoice?.total.minor], [other.client.id, null, "", "sent", 2500]);
   // It shows on the client's page and its own page says whose it is.
-  assert.match(textOf(await admin.page(`/clients/${other.client.id}`)), /No project/);
+  assert.match(textOf(await admin.page(`/clients/${other.client.id}`)), /INV-\d{4} · moatshardware\.com: domain renewal/);
   assert.match(textOf(await admin.page(`/invoices/${billed.invoiceId}`)), /Moats Hardware/);
   // Paid in full, the renewal says so; no project's payment status moves.
   unwrap(finance.recordPayment(t.services.finance, mikey, billed.invoiceId, { amount: "25", method: "check", on: day(0), reference: "1042" }));

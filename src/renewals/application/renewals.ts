@@ -146,7 +146,7 @@ export function changeRenewalPrice(deps: RenewalsDeps, actorId: Id | null, id: I
 export type YearLine = { readonly key: string; readonly on: string; readonly when: string; readonly renewalId: string; readonly organizationId: string; readonly clientName: string; readonly name: string; readonly kindLabel: string; readonly cost: string; readonly price: string; readonly margin: string; readonly atALoss: boolean; readonly ours: boolean; readonly costMinor: number; readonly priceMinor: number };
 export type RenewalYearView = {
   readonly months: readonly { readonly month: string; readonly label: string; readonly lines: readonly YearLine[]; readonly cost: string; readonly billed: string }[];
-  readonly totals: { readonly cost: string; readonly billed: string; readonly margin: string; readonly losses: number };
+  readonly totals: { readonly cost: string; readonly billed: string; readonly margin: string; readonly losses: number; /** Renewals with no cost entered: their cost counts as nothing, so the year earns less than it reads. */ readonly noCost: number };
 };
 
 /** Money in from renewals over a minor amount, signed. */
@@ -174,7 +174,7 @@ export function renewalYear(deps: RenewalsDeps, actorId: Id | null): Result<Rene
         clientName: deps.clientName(renewal.organizationId) ?? "",
         name: renewal.name,
         kindLabel: RENEWAL_KIND_LABELS[renewal.kind],
-        cost: renewal.cost ? usd(cost) : "",
+        cost: renewal.cost ? usd(cost) : "Not set",
         price: renewal.price ? usd(price) : "Ours",
         margin: renewal.price ? signed(price - cost) : "",
         atALoss: renewal.price !== null && price < cost,
@@ -197,7 +197,7 @@ export function renewalYear(deps: RenewalsDeps, actorId: Id | null): Result<Rene
   });
   const totalCost = lines.reduce((sum, one) => sum + one.costMinor, 0);
   const totalBilled = lines.filter((one) => !one.ours).reduce((sum, one) => sum + one.priceMinor, 0);
-  return ok({ months, totals: { cost: usd(totalCost), billed: usd(totalBilled), margin: signed(totalBilled - totalCost), losses: new Set(lines.filter((one) => one.atALoss).map((one) => one.renewalId)).size } });
+  return ok({ months, totals: { cost: usd(totalCost), billed: usd(totalBilled), margin: signed(totalBilled - totalCost), losses: new Set(lines.filter((one) => one.atALoss).map((one) => one.renewalId)).size, noCost: new Set(lines.filter((one) => one.cost === "Not set").map((one) => one.renewalId)).size } });
 }
 
 /** Money a renewal moves between two days: billing the client (not billed yet) and Potomac paying for it. */

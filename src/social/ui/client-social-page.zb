@@ -70,7 +70,7 @@
           <input type="hidden" name="month" value={view.month}>
           <zb-each items={view.planChoices} as="choice" key={choice.value}>
             <label class="hq-check"><input type="checkbox" name="network-{choice.value}" value="1" checked={choice.checked}> {choice.label}</label>
-            <text-field label="{choice.label} page" name="page-{choice.value}" value={choice.pageUrl} description="The address of the client’s page, like facebook.com/feedstore"></text-field>
+            <text-field label="{choice.label} page" name="page-{choice.value}" value={choice.pageUrl} description={'The address of the client’s page, like ' + ({ facebook: 'facebook.com', instagram: 'instagram.com', linkedin: 'linkedin.com/company' }[choice.value] || 'facebook.com') + '/feedstore'}></text-field>
           </zb-each>
           <text-field label="Posts a month" name="postsPerMonth" type="number" value={String(view.plan ? view.plan.postsPerMonth : 8)} required={true}></text-field>
           <text-field label="Blog posts a month" name="blogsPerMonth" type="number" value={String(view.plan ? view.plan.blogsPerMonth : 1)} required={true}></text-field>
