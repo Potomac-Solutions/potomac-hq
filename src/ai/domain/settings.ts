@@ -4,7 +4,7 @@
 // is one cap shared with the site builder (Mikey, 2026-11-25): it is kept with
 // the site builder's settings, and both count what the other spent.
 import { err, ok, type Result } from "../../shared/domain/result.ts";
-import { DEFAULT_MODEL, knownModel, readModelId, readPrice, type ModelPrice } from "./models.ts";
+import { DEFAULT_CEILING, DEFAULT_MODEL, KNOWN_MODELS, knownModel, readModelId, readPrice, type ModelPrice } from "./models.ts";
 
 export const FEATURES = [
   "call-recap",
@@ -19,6 +19,7 @@ export const FEATURES = [
   "site-diagnosis",
   "case-study",
   "social-posts",
+  "assistant",
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
@@ -38,11 +39,15 @@ export const FEATURE_TEXT: { readonly [K in Feature]: { readonly label: string; 
   "site-diagnosis": { label: "Site-down diagnosis", what: "Adds a likely cause and a first step to site alerts.", phase: "Money and admin" },
   "case-study": { label: "Case study drafts", what: "Drafts a case study for the Work page from a project's history.", phase: "Marketing" },
   "social-posts": { label: "Social post drafts", what: "Drafts Facebook, Instagram and LinkedIn posts from finished work.", phase: "Marketing" },
+  assistant: { label: "The assistant", what: "The box on Home: say what needs to happen, and it finds things and proposes changes you confirm (decision 0015).", phase: "Everywhere" },
 };
 
 export type AiSettings = {
+  /** The usual model: HQ's own jobs use it, and every form starts on it. */
   readonly model: string;
   readonly price: ModelPrice;
+  /** The dearest known model anyone may pick for one request, here and in the site builder. */
+  readonly ceiling: string;
   readonly features: readonly Feature[];
   /** What Potomac charges, in its own words: lead triage reads it. */
   readonly priceGuide: string;
@@ -52,6 +57,7 @@ export type AiSettings = {
 export const DEFAULT_SETTINGS: AiSettings = {
   model: DEFAULT_MODEL,
   price: { input: 100_000, output: 500_000, long: { above: 100_000, input: 500_000, output: 2_500_000 } },
+  ceiling: DEFAULT_CEILING,
   features: [],
   priceGuide: "",
 };
@@ -67,11 +73,13 @@ export type SettingsInput = {
   readonly otherOutput?: string;
   readonly features: readonly string[];
   readonly priceGuide?: string;
+  /** A known model's id. Left out: the ceiling as it was. */
+  readonly ceiling?: string;
 };
 
-export type SettingsError = "model-invalid" | "price-invalid" | "price-guide-too-long";
+export type SettingsError = "model-invalid" | "price-invalid" | "price-guide-too-long" | "ceiling-invalid";
 
-export function readSettings(input: SettingsInput): Result<AiSettings, SettingsError> {
+export function readSettings(input: SettingsInput, ceilingWas: string = DEFAULT_CEILING): Result<AiSettings, SettingsError> {
   let model: string;
   let price: ModelPrice;
   const known = knownModel(input.model.trim());
@@ -91,8 +99,33 @@ export function readSettings(input: SettingsInput): Result<AiSettings, SettingsE
   const priceGuide = (input.priceGuide ?? "").trim().replace(/\r\n/g, "\n");
   if (priceGuide.length > MAX_PRICE_GUIDE) return err("price-guide-too-long");
   const features = FEATURES.filter((one) => input.features.includes(one));
-  return ok({ model, price, features, priceGuide });
+  const ceiling = knownModel((input.ceiling ?? ceilingWas).trim());
+  if (!ceiling) return err("ceiling-invalid");
+  return ok({ model, price, ceiling: ceiling.id, features, priceGuide });
 }
+
+export type ModelChoice = { readonly id: string; readonly label: string; readonly price: ModelPrice };
+
+/**
+ * What someone may pick for one request: every known model up to the ceiling's
+ * price, cheapest first, and always the usual model, even one dearer than the
+ * ceiling or one HQ doesn't list.
+ */
+export function modelChoices(settings: Pick<AiSettings, "model" | "price" | "ceiling">): readonly ModelChoice[] {
+  const top = knownModel(settings.ceiling)?.price.output ?? settings.price.output;
+  const listed: ModelChoice[] = KNOWN_MODELS.filter((one) => one.price.output <= top || one.id === settings.model).map((one) => ({ id: one.id, label: one.label, price: one.price }));
+  if (!listed.some((one) => one.id === settings.model)) listed.push({ id: settings.model, label: settings.model, price: settings.price });
+  return listed.sort((a, b) => a.price.output - b.price.output);
+}
+
+/** The model for one request: the pick when it is one of the choices, otherwise the usual model. */
+export function pickModel(settings: Pick<AiSettings, "model" | "price" | "ceiling">, pick: string): { readonly model: string; readonly price: ModelPrice } {
+  const found = modelChoices(settings).find((one) => one.id === pick.trim());
+  return found ? { model: found.id, price: found.price } : { model: settings.model, price: settings.price };
+}
+
+/** The ceiling's output price, in dollars per million tokens: the site builder's limit. */
+export const ceilingDollars = (settings: Pick<AiSettings, "ceiling" | "price">): number => (knownModel(settings.ceiling)?.price.output ?? settings.price.output) / 1_000_000;
 
 export type BudgetState = "ok" | "warning" | "reached";
 

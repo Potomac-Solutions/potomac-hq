@@ -5,6 +5,7 @@
 -->
 <script>
   'use route /tasks/:id'
+  import '../../shared/ui/parts/history-panel.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
   import { notFound } from '@zubra/router'
@@ -16,7 +17,7 @@
     if (stop) return stop
     const view = context.projects.task(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), reminders: context.bell.reminders(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.task.title, view: view.value, timer: context.time.forTask(params.id), reminders: context.bell.reminders(params.id), history: context.history('task', params.id), done: context.notice.done, problem: context.notice.problem }
   }
   const t = view.task
 </script>
@@ -31,7 +32,7 @@
   .comment summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
   .comment-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 </style>
-<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} reminders={[]} done="" problem="">
+<hq-task view={{ task: { labels: [] }, form: { people: [], phases: [], priorities: [], statuses: [] }, canEdit: false, labelChoices: [], colours: [], parent: null, subtasks: [], canAddSubtasks: false, waitingOn: [], holdsUp: [], blockerChoices: [], comments: [], files: [], canAttach: false, repeat: null, canRepeat: false, repeatUnits: [], previous: null, next: null }} timer={{ can: false }} reminders={[]} history={[]} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={t.projectId ? [{ label: 'Projects', href: '/projects' }, { label: t.projectName, href: `/projects/${t.projectId}` }, { label: 'Tasks', href: `/projects/${t.projectId}/tasks` }, { label: t.title, href: '' }] : [{ label: 'My work', href: '/todos' }, { label: t.title, href: '' }]}></breadcrumb-trail>
     <h1>{t.title}</h1>
@@ -315,5 +316,6 @@
         <div><button class="hq-button" type="submit">Save task</button></div>
       </form>
     </section>
+    <history-panel items={history}></history-panel>
   </div>
 </hq-task>

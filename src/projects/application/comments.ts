@@ -50,7 +50,7 @@ export function addTaskComment(deps: ProjectsDeps, actorId: Id | null, taskId: I
 }
 
 /** Only the author. The old words stay in the event. */
-export function editTaskComment(deps: ProjectsDeps, actorId: Id | null, commentId: Id, body: string): Result<Comment, Refused | CommentError | "unchanged"> {
+export function editTaskComment(deps: ProjectsDeps, actorId: Id | null, commentId: Id, body: string): Result<Comment & { readonly previous: Comment }, Refused | CommentError | "unchanged"> {
   if (!allowed(deps, actorId, "task.view")) return err("forbidden");
   return deps.transact(() => {
     const comment = deps.comments.get(commentId);
@@ -67,7 +67,7 @@ export function editTaskComment(deps: ProjectsDeps, actorId: Id | null, commentI
       recordId: comment.taskId,
       context: { projectId: deps.tasks.get(comment.taskId)?.projectId ?? null, commentId, was: comment.body, body: edited.value.body, mentions: mentionedPeople(deps, edited.value.body).filter((id) => !before.has(id)) },
     });
-    return ok(edited.value);
+    return ok({ ...edited.value, previous: comment });
   });
 }
 

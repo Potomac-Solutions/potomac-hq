@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { answerObject, day } from "./answer.ts";
 import { costOf, dollarsText, knownModel, readPrice } from "./models.ts";
 import { readCaseStudy, readProposal, readReceipt, readRecap, readScope, readTriage, recapPrompt, triagePrompt } from "./prompts.ts";
-import { budgetState, mayCall, monthOf, readSettings } from "./settings.ts";
+import { budgetState, ceilingDollars, DEFAULT_SETTINGS, mayCall, modelChoices, monthOf, pickModel, readSettings } from "./settings.ts";
 
 test("what a call costs: Haiku 5.5 at $0.10 and $0.50 a million, five times that past 100,000 input tokens", () => {
   const haiku = knownModel("claude-haiku-5-5");
@@ -82,4 +82,21 @@ test("a receipt: never a card number, and an unknown category is other", () => {
   const read = readReceipt('{"vendor": "Lowe\'s 4111 1111 1111 1111", "on": "2026-11-20", "amount": 42.5, "tax": "2.55", "category": "lumber", "note": "Paid with 4111-1111-1111-1111"}', ["supplies", "other"]);
   assert.ok(read.ok);
   assert.deepEqual(read.value, { vendor: "Lowe's", on: "2026-11-20", amount: 42.5, tax: 2.55, category: "other", note: "Paid with" });
+});
+
+test("a model can be picked for one request, up to the ceiling; anything else is the usual model", () => {
+  const settings = { ...DEFAULT_SETTINGS, ceiling: "claude-sonnet-5-5" };
+  assert.deepEqual(modelChoices(settings).map((one) => one.id), ["claude-haiku-5-5", "claude-sonnet-5-5"]);
+  assert.equal(pickModel(settings, "claude-sonnet-5-5").model, "claude-sonnet-5-5");
+  assert.equal(pickModel(settings, "claude-sonnet-5-5").price.output, 10_000_000);
+  assert.equal(pickModel(settings, "claude-opus-5-5").model, "claude-haiku-5-5", "above the ceiling");
+  assert.equal(pickModel(settings, "").model, "claude-haiku-5-5");
+  assert.equal(ceilingDollars(settings), 10);
+  // The usual model is always a choice, even above the ceiling or not listed.
+  const odd = { model: "claude-x-1", price: { input: 1, output: 99_000_000 }, ceiling: "claude-haiku-5-5" };
+  assert.deepEqual(modelChoices(odd).map((one) => one.id), ["claude-haiku-5-5", "claude-x-1"]);
+  // Saving keeps the ceiling when the form leaves it out, and refuses one HQ doesn't know.
+  const kept = readSettings({ model: "claude-haiku-5-5", features: [] }, "claude-fable-5-2");
+  assert.equal(kept.ok && kept.value.ceiling, "claude-fable-5-2");
+  assert.deepEqual(readSettings({ model: "claude-haiku-5-5", features: [], ceiling: "gpt-9" }), { ok: false, error: "ceiling-invalid" });
 });

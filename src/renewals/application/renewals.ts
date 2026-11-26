@@ -5,7 +5,7 @@
 //
 // A client pays for a renewal a week before it renews (PAY_AHEAD_DAYS), so
 // Potomac knows in time whether to renew it or let it lapse.
-import { billed, billedThisTerm, billFor, newRenewal, payBy, PAY_AHEAD_DAYS, RENEWAL_KIND_LABELS, renewed, stateOf, TERM_LABELS, TERMS, yearly, type BillError, type Renewal, type RenewalError, type RenewalInput } from "../domain/renewal.ts";
+import { answerThisTerm, billed, billedThisTerm, billFor, changePrice, isRenewalChoice, newRenewal, occurrences, type PriceError, payBy, PAY_AHEAD_DAYS, RENEWAL_KIND_LABELS, renewed, stateOf, TERM_LABELS, TERMS, yearly, type BillError, type Renewal, type RenewalChoice, type RenewalError, type RenewalInput } from "../domain/renewal.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { dueText, err, formatMoney, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { BilledInvoice, ClientNames, RenewalBilling, RenewalStore } from "./ports.ts";
@@ -63,19 +63,21 @@ export function retireRenewal(deps: RenewalsDeps, actorId: Id | null, id: Id): R
 
 /**
  * Bills the client for a renewal's coming term: an invoice with one line,
- * sent, on one of their projects, due a week before it renews. Once a term.
+ * sent, on the client alone or on one of their projects, due a week before
+ * it renews. Once a term. `projectId` "" is the client alone.
  * Permissions: `client.edit` and `invoice.edit`.
  */
 export function billRenewal(deps: RenewalsDeps, actorId: Id | null, id: Id, input: { readonly projectId: string }): Result<Renewal, Refused | BillError | "project-missing"> {
   if (!allowed(deps, actorId, "client.edit") || !deps.billing.mayBill(actorId)) return err("forbidden");
   const found = deps.renewals.get(id);
   if (!found || !found.active) return err("not-found");
-  const project = deps.billing.projectsFor(found.organizationId).find((one) => one.id === input.projectId);
-  if (!project) return err("project-missing");
+  const wanted = input.projectId.trim();
+  const project = wanted === "" ? null : deps.billing.projectsFor(found.organizationId).find((one) => one.id === wanted);
+  if (project === undefined) return err("project-missing");
   const bill = billFor(found, deps.today());
   if (!bill.ok) return bill;
   // Finance makes and sends the invoice in its own transactions; then the renewal records it.
-  const sent = deps.billing.send(actorId, found.organizationId, project.id, bill.value);
+  const sent = deps.billing.send(actorId, found.organizationId, project?.id ?? null, bill.value);
   if (!sent.ok) return sent;
   return deps.transact(() => {
     const current = deps.renewals.get(id) ?? found;
@@ -83,6 +85,146 @@ export function billRenewal(deps: RenewalsDeps, actorId: Id | null, id: Id, inpu
     deps.renewals.update(next, deps.clock());
     recordActivity(deps, { actorId, action: "renewal.billed", recordType: "renewal", recordId: id, context: { organizationId: found.organizationId, invoiceId: sent.value.id, renewsOn: found.renewsOn, dueOn: bill.value.dueOn, minor: bill.value.amount.minor } });
     return ok(next);
+  });
+}
+
+export type BillTogetherError = Refused | BillError | "project-missing" | "choose-two" | "mixed-clients";
+
+/**
+ * Bills several of a client's renewals on one invoice: a line each, due a
+ * week before the first of them renews (or today, if that's passed), sent.
+ * Each must be one Potomac bills, not billed for its coming term, and the
+ * client's. Fewer emails for them, less chasing for Potomac.
+ */
+export function billRenewalsTogether(deps: RenewalsDeps, actorId: Id | null, organizationId: Id, ids: readonly Id[], input: { readonly projectId: string }): Result<readonly Renewal[], BillTogetherError> {
+  if (!allowed(deps, actorId, "client.edit") || !deps.billing.mayBill(actorId)) return err("forbidden");
+  const unique = [...new Set(ids)];
+  if (unique.length < 2) return err("choose-two");
+  const found = unique.map((id) => deps.renewals.get(id));
+  if (found.some((one) => !one || !one.active)) return err("not-found");
+  const renewals = found as Renewal[];
+  if (renewals.some((one) => one.organizationId !== organizationId)) return err("mixed-clients");
+  const wanted = input.projectId.trim();
+  const project = wanted === "" ? null : deps.billing.projectsFor(organizationId).find((one) => one.id === wanted);
+  if (project === undefined) return err("project-missing");
+  const today = deps.today();
+  const bills = [];
+  for (const one of renewals) {
+    const bill = billFor(one, today);
+    if (!bill.ok) return bill;
+    bills.push(bill.value);
+  }
+  const dueOn = bills.map((one) => one.dueOn).sort()[0] as string;
+  const sent = deps.billing.sendTogether(actorId, organizationId, project?.id ?? null, bills.map((one) => ({ description: one.description, amount: one.amount })), dueOn);
+  if (!sent.ok) return sent;
+  return deps.transact(() => {
+    const done = renewals.map((one) => {
+      const next = billed(deps.renewals.get(one.id) ?? one, sent.value.id);
+      deps.renewals.update(next, deps.clock());
+      recordActivity(deps, { actorId, action: "renewal.billed", recordType: "renewal", recordId: one.id, context: { organizationId, invoiceId: sent.value.id, renewsOn: one.renewsOn, dueOn, together: unique.length } });
+      return next;
+    });
+    return ok(done);
+  });
+}
+
+/** A new price for the client from their next bill; what it was is kept and shown to them. `client.edit` and billing. */
+export function changeRenewalPrice(deps: RenewalsDeps, actorId: Id | null, id: Id, price: string): Result<Renewal, Refused | PriceError> {
+  if (!allowed(deps, actorId, "client.edit") || !deps.billing.mayBill(actorId)) return err("forbidden");
+  return deps.transact(() => {
+    const found = deps.renewals.get(id);
+    if (!found || !found.active) return err("not-found");
+    const changed = changePrice(found, price, deps.today());
+    if (!changed.ok) return changed;
+    deps.renewals.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action: "renewal.price-changed", recordType: "renewal", recordId: id, context: { organizationId: found.organizationId, wasMinor: found.price?.minor ?? null, minor: changed.value.price?.minor ?? null } });
+    return ok(changed.value);
+  });
+}
+
+/** One time a renewal comes up in the next 12 months, with what it costs Potomac and what the client is billed. */
+export type YearLine = { readonly key: string; readonly on: string; readonly when: string; readonly renewalId: string; readonly organizationId: string; readonly clientName: string; readonly name: string; readonly kindLabel: string; readonly cost: string; readonly price: string; readonly margin: string; readonly atALoss: boolean; readonly ours: boolean; readonly costMinor: number; readonly priceMinor: number };
+export type RenewalYearView = {
+  readonly months: readonly { readonly month: string; readonly label: string; readonly lines: readonly YearLine[]; readonly cost: string; readonly billed: string }[];
+  readonly totals: { readonly cost: string; readonly billed: string; readonly margin: string; readonly losses: number; /** Renewals with no cost entered: their cost counts as nothing, so the year earns less than it reads. */ readonly noCost: number };
+};
+
+/** Money in from renewals over a minor amount, signed. */
+const signed = (minor: number) => (minor < 0 ? `−${usd(-minor)}` : usd(minor));
+
+/**
+ * Every renewal coming up in the next 12 months, month by month: what it
+ * costs Potomac, what the client is billed, and the difference. One billed
+ * for less than it costs is flagged. Permission: `client.view`.
+ */
+export function renewalYear(deps: RenewalsDeps, actorId: Id | null): Result<RenewalYearView, "forbidden"> {
+  if (!allowed(deps, actorId, "client.view")) return err("forbidden");
+  const today = Temporal.PlainDate.from(deps.today());
+  const end = today.add({ months: 12 }).subtract({ days: 1 }).toString();
+  const lines: YearLine[] = deps.renewals.listActive().flatMap((renewal) =>
+    occurrences(renewal, today.toString(), end).map((on) => {
+      const cost = renewal.cost?.minor ?? 0;
+      const price = renewal.price?.minor ?? 0;
+      return {
+        key: `${renewal.id}-${on}`,
+        on,
+        when: Temporal.PlainDate.from(on).toLocaleString("en-US", { month: "short", day: "numeric" }),
+        renewalId: renewal.id,
+        organizationId: renewal.organizationId,
+        clientName: deps.clientName(renewal.organizationId) ?? "",
+        name: renewal.name,
+        kindLabel: RENEWAL_KIND_LABELS[renewal.kind],
+        cost: renewal.cost ? usd(cost) : "Not set",
+        price: renewal.price ? usd(price) : "Ours",
+        margin: renewal.price ? signed(price - cost) : "",
+        atALoss: renewal.price !== null && price < cost,
+        ours: renewal.price === null || price <= 0,
+        costMinor: cost,
+        priceMinor: price,
+      };
+    }),
+  );
+  lines.sort((a, b) => a.on.localeCompare(b.on) || a.clientName.localeCompare(b.clientName));
+  const months = [...new Set(lines.map((one) => one.on.slice(0, 7)))].map((month) => {
+    const inMonth = lines.filter((one) => one.on.startsWith(month));
+    return {
+      month,
+      label: Temporal.PlainYearMonth.from(month).toLocaleString("en-US", { month: "long", year: "numeric", calendar: "iso8601" }),
+      lines: inMonth,
+      cost: usd(inMonth.reduce((sum, one) => sum + one.costMinor, 0)),
+      billed: usd(inMonth.filter((one) => !one.ours).reduce((sum, one) => sum + one.priceMinor, 0)),
+    };
+  });
+  const totalCost = lines.reduce((sum, one) => sum + one.costMinor, 0);
+  const totalBilled = lines.filter((one) => !one.ours).reduce((sum, one) => sum + one.priceMinor, 0);
+  return ok({ months, totals: { cost: usd(totalCost), billed: usd(totalBilled), margin: signed(totalBilled - totalCost), losses: new Set(lines.filter((one) => one.atALoss).map((one) => one.renewalId)).size, noCost: new Set(lines.filter((one) => one.cost === "Not set").map((one) => one.renewalId)).size } });
+}
+
+/** Money a renewal moves between two days: billing the client (not billed yet) and Potomac paying for it. */
+export type RenewalCashLine = { readonly on: string; readonly label: string; readonly organizationId: string; readonly inMinor: number; readonly outMinor: number };
+
+/**
+ * For the cash forecast: each renewal's coming bills to clients that aren't
+ * sent yet (on their pay-by day), and what Potomac pays its provider (the day
+ * it renews). One a client is letting lapse moves nothing. A billed one's
+ * money in is its invoice, counted there. No permission here: the caller checks.
+ */
+export function renewalCashflow(deps: RenewalsDeps, from: string, to: string): readonly RenewalCashLine[] {
+  const today = deps.today();
+  return deps.renewals.listActive().flatMap((renewal): RenewalCashLine[] => {
+    if (answerThisTerm(renewal) === "lapse") return [];
+    const who = deps.clientName(renewal.organizationId) ?? "";
+    return occurrences(renewal, from, to).flatMap((on, index): RenewalCashLine[] => {
+      const term = { ...renewal, renewsOn: on };
+      const lines: RenewalCashLine[] = [];
+      if (renewal.cost && renewal.cost.minor > 0) lines.push({ on, label: `${renewal.name} renews (${who})`, organizationId: renewal.organizationId, inMinor: 0, outMinor: renewal.cost.minor });
+      const billedAlready = index === 0 && on === renewal.renewsOn && billState(deps, renewal, today).state !== "not-billed";
+      if (renewal.price && renewal.price.minor > 0 && !billedAlready) {
+        const due = payBy(term);
+        lines.push({ on: due < from ? from : due, label: `Bill ${renewal.name} (${who})`, organizationId: renewal.organizationId, inMinor: renewal.price.minor, outMinor: 0 });
+      }
+      return lines;
+    });
   });
 }
 
@@ -122,11 +264,21 @@ export type RenewalLine = {
   readonly invoiceId: string;
   /** True when it can be billed now: Potomac bills it, this term isn't billed, and the actor may. */
   readonly canBill: boolean;
+  /** The client's answer for this term in their portal, or null. */
+  readonly answer: RenewalChoice | null;
+  /** Their answer in a sentence, with when. "" when they haven't answered. */
+  readonly answerText: string;
+  /** A recent price change, for Potomac's people. "" when none. */
+  readonly priceNote: string;
+  /** The current price as typed, for the change form. */
+  readonly priceText: string;
 };
 
 function lineOf(deps: RenewalsDeps, renewal: Renewal, today: string, actorId: Id | null = null): RenewalLine {
   const { state, invoice } = billState(deps, renewal, today);
   const due = longDay(payBy(renewal));
+  const answer = answerThisTerm(renewal);
+  const answerText = answer === null || !renewal.answer ? "" : `${answer === "renew" ? "The client asked us to renew it" : "The client asked us to let it lapse"}, ${longDay(renewal.answer.at.slice(0, 10))}.`;
   const billing =
     state === "ours" ? ""
     : state === "not-billed" ? `Not billed yet. The client pays by ${due}, a week before it renews.`
@@ -152,7 +304,11 @@ function lineOf(deps: RenewalsDeps, renewal: Renewal, today: string, actorId: Id
     billState: state,
     billing,
     invoiceId: invoice?.id ?? "",
-    canBill: state === "not-billed" && actorId !== null && allowed(deps, actorId, "client.edit") && deps.billing.mayBill(actorId),
+    canBill: state === "not-billed" && answer !== "lapse" && actorId !== null && allowed(deps, actorId, "client.edit") && deps.billing.mayBill(actorId),
+    answer,
+    answerText,
+    priceNote: priceNoteOf(renewal, today, false),
+    priceText: renewal.price ? (renewal.price.minor / 100).toFixed(2) : "",
   };
 }
 
@@ -218,7 +374,23 @@ export type PortalRenewalLine = {
   readonly say: string;
   /** True when it's billed and not paid: a thing waiting on them. */
   readonly owing: boolean;
+  /** Their answer for this term, or null; and whether they may still answer or change it. */
+  readonly answer: RenewalChoice | null;
+  readonly canAnswer: boolean;
+  /** A recent price change, told before the bill: "" when none. */
+  readonly priceNote: string;
 };
+
+/** A price change is told to the client for about four months, so it reaches them before the next bill. */
+const PRICE_NOTE_DAYS = 120;
+function priceNoteOf(renewal: Renewal, today: string, forClient: boolean): string {
+  const change = renewal.priceChange;
+  if (!change || Temporal.PlainDate.from(change.on).until(today).days > PRICE_NOTE_DAYS) return "";
+  const term = (TERM_LABELS[renewal.termMonths] ?? `every ${renewal.termMonths} months`).toLowerCase();
+  const was = change.was ? formatMoney(change.was) : "nothing";
+  const now = renewal.price ? formatMoney(renewal.price) : "nothing: we pay for it";
+  return forClient ? `New price from your next bill: ${now}, ${term} (it was ${was}).` : `Price changed ${longDay(change.on)}: ${now}, was ${was}. The client sees this in their portal.`;
+}
 
 /** How far ahead the portal shows a renewal coming: about two months. */
 export const PORTAL_AHEAD_DAYS = 60;
@@ -237,12 +409,63 @@ export function portalRenewals(deps: RenewalsDeps, organizationId: Id): readonly
     const owing = state === "billed" || state === "late";
     if (days > PORTAL_AHEAD_DAYS && !owing) return [];
     const due = longDay(payBy(renewal));
+    const answer = answerThisTerm(renewal);
     const say =
       state === "paid" ? "Paid, thank you. We’ll renew it before it runs out."
+      : answer === "lapse" ? `You asked us to let it lapse. We won’t renew it, and it runs out ${longDay(renewal.renewsOn)}. Changed your mind? Tell us below.`
       : state === "late" ? `We asked for payment by ${due}, a week before it renews, so we know to renew it. Please pay ${invoice?.label ?? "the invoice"} as soon as you can, or tell us if you’d like to let it go.`
       : state === "billed" ? `Please pay ${invoice?.label ?? "the invoice"} by ${due}, a week before it renews, so we know to renew it.`
+      : answer === "renew" ? `Thank you: we’ll renew it. We’ll send the bill, due ${due}, a week before it renews.`
       : `We’ll send the bill. It’s due ${due}, a week before it renews.`;
-    return [{ id: renewal.id, name: renewal.name, kindLabel: RENEWAL_KIND_LABELS[renewal.kind], renewsOn: renewal.renewsOn, renews: longDay(renewal.renewsOn), price: renewal.price ? formatMoney(renewal.price) : "", payBy: payBy(renewal), state, say, owing }];
+    return [{ id: renewal.id, name: renewal.name, kindLabel: RENEWAL_KIND_LABELS[renewal.kind], renewsOn: renewal.renewsOn, renews: longDay(renewal.renewsOn), price: renewal.price ? formatMoney(renewal.price) : "", payBy: payBy(renewal), state, say, owing: owing && answer !== "lapse", answer, canAnswer: state !== "paid" && Temporal.PlainDate.compare(today, renewal.renewsOn) < 0, priceNote: priceNoteOf(renewal, today, true) }];
+  });
+}
+
+/** Who is signed in to the portal, as renewals need to know them. */
+export type RenewalClient = { readonly clientUserId: Id; readonly organizationId: Id };
+
+/**
+ * The client answers in their portal: renew it, or let it lapse, for the
+ * coming term. Only a renewal Potomac bills them for, theirs, active, not yet
+ * paid and before it renews. They may change their mind until then. The
+ * organization comes from the session, never from what they send.
+ */
+export function answerRenewal(deps: RenewalsDeps, session: RenewalClient | null, id: Id, choice: string): Result<RenewalChoice, "not-found" | "invalid-choice" | "already-paid" | "too-late"> {
+  if (!session) return err("not-found");
+  if (!isRenewalChoice(choice)) return err("invalid-choice");
+  return deps.transact(() => {
+    const renewal = deps.renewals.get(id);
+    if (!renewal || !renewal.active || renewal.organizationId !== session.organizationId || !renewal.price || renewal.price.minor <= 0) return err("not-found");
+    const today = deps.today();
+    if (billState(deps, renewal, today).state === "paid") return err("already-paid");
+    if (Temporal.PlainDate.compare(today, renewal.renewsOn) >= 0) return err("too-late");
+    const at = deps.clock();
+    deps.renewals.answer(renewal.id, { choice, forTerm: renewal.renewsOn, at, by: session.clientUserId }, at);
+    recordActivity(deps, { actorId: null, action: choice === "renew" ? "renewal.client-said-renew" : "renewal.client-said-lapse", recordType: "renewal", recordId: renewal.id, context: { organizationId: renewal.organizationId, clientUserId: session.clientUserId, by: "client", renewsOn: renewal.renewsOn } });
+    return ok(choice);
+  });
+}
+
+/**
+ * What a renewal asks of Potomac's people on Today: bill it in time, a
+ * client's answer to act on, or that it renews. One per renewal, or none.
+ * Billing shows from 30 days before it renews, so the bill goes out before
+ * the client's pay-by day.
+ */
+export type RenewalTask = { readonly id: string; readonly organizationId: string; readonly kind: "bill" | "lapse" | "unpaid" | "renews"; readonly text: string; readonly detail: string; readonly action: string; readonly overdue: boolean; readonly at: string };
+
+export function renewalTasks(deps: RenewalsDeps, actorId: Id | null, renewsWithinDays: number): readonly RenewalTask[] {
+  if (!allowed(deps, actorId, "client.view")) return [];
+  const today = deps.today();
+  return renewalsComingUp(deps, actorId).flatMap((one): RenewalTask[] => {
+    const base = { id: one.id, organizationId: one.organizationId };
+    const pastPayBy = Temporal.PlainDate.compare(today, one.payBy) > 0;
+    if (one.answer === "lapse" && one.billState !== "paid") return [{ ...base, kind: "lapse", text: `Let ${one.name} lapse`, detail: `${one.clientName} asked us not to renew it · ${one.when}`, action: "Open", overdue: false, at: one.renewsOn }];
+    if (one.canBill) return [{ ...base, kind: "bill", text: `Bill ${one.name}`, detail: `${one.clientName} · ${one.price}, due ${longDay(one.payBy)}${one.answer === "renew" ? " · they asked us to renew it" : ""}`, action: "Bill it", overdue: pastPayBy, at: one.payBy }];
+    if (one.billState === "late") return [{ ...base, kind: "unpaid", text: `${one.name} isn’t paid`, detail: `${one.clientName} · renews ${one.when}${one.answer === "renew" ? " · they asked us to renew it" : ""}`, action: "Decide", overdue: true, at: one.payBy }];
+    const days = Temporal.PlainDate.from(today).until(one.renewsOn).days;
+    if (days > renewsWithinDays) return [];
+    return [{ ...base, kind: "renews", text: `${one.name} renews`, detail: `${one.clientName} · ${one.when}${one.autoRenews ? " · renews by itself" : ""}`, action: "Open", overdue: one.state === "overdue", at: one.renewsOn }];
   });
 }
 

@@ -2,7 +2,7 @@
 // how it reads a streamed answer split across chunks, and how it fails.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { builderOwnerFrom, claudeApi, claudeConfigFrom } from "./claude.ts";
+import { anthropicReason, builderOwnersFrom, claudeApi, claudeConfigFrom } from "./claude.ts";
 import { previewTokens } from "./preview-tokens.ts";
 
 const CALL = { model: "claude-opus-5-5", system: "Be good.", tool: { name: "save_site", description: "Save.", input_schema: { type: "object" } }, message: "Make a site.", maxTokens: 32_000 };
@@ -26,8 +26,20 @@ test("the key and the owner are read from the environment and checked", () => {
   assert.equal(claudeConfigFrom({}), null);
   assert.deepEqual(claudeConfigFrom({ HQ_ANTHROPIC_API_KEY: ` ${KEY} ` }), { key: KEY });
   assert.throws(() => claudeConfigFrom({ HQ_ANTHROPIC_API_KEY: "hello" }), /doesn't look like a Claude API key/);
-  assert.equal(builderOwnerFrom({ HQ_SITE_BUILDER_OWNER: " Mikey@Example.com " }), "mikey@example.com");
-  assert.throws(() => builderOwnerFrom({ HQ_SITE_BUILDER_OWNER: "mikey" }), /email/);
+  assert.deepEqual(builderOwnersFrom({}), []);
+  assert.deepEqual(builderOwnersFrom({ HQ_SITE_BUILDER_OWNER: " Mikey@Example.com " }), ["mikey@example.com"]);
+  assert.deepEqual(builderOwnersFrom({ HQ_SITE_BUILDER_OWNER: "mikey@example.com, Jayanti@Example.com,,mikey@example.com" }), ["mikey@example.com", "jayanti@example.com"]);
+  assert.throws(() => builderOwnersFrom({ HQ_SITE_BUILDER_OWNER: "mikey" }), /email/);
+  assert.throws(() => builderOwnersFrom({ HQ_SITE_BUILDER_OWNER: "mikey@example.com; jayanti@example.com" }), /email/);
+});
+
+test("a refusal keeps Anthropic's reason, on one line, and nothing else from the body", async () => {
+  const body = JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "max_tokens: 32000 > 16000, which is the maximum\nallowed" } });
+  const refuse: typeof fetch = async () => new Response(body, { status: 400 });
+  assert.deepEqual(await claudeApi({ key: KEY }, { fetch: refuse }).ask(CALL), { ok: false, error: "refused", reason: "max_tokens: 32000 > 16000, which is the maximum allowed", inputTokens: 0, outputTokens: 0 });
+  assert.equal(anthropicReason("not json"), "");
+  assert.equal(anthropicReason("{}"), "");
+  assert.equal(anthropicReason(JSON.stringify({ error: { message: "x".repeat(500) } })).length, 300);
 });
 
 test("a streamed answer is read across chunk boundaries, with its token counts", async () => {

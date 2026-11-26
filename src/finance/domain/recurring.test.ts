@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { isDue, monthlyMinor, newRecurring, nextAfter, periodLine } from "./recurring.ts";
 import type { Id } from "../../shared/domain/id.ts";
 
-const ids = { id: "11111111-1111-4111-8111-111111111111" as Id, projectId: "22222222-2222-4222-8222-222222222222" as Id, createdBy: "33333333-3333-4333-8333-333333333333" as Id };
+const ids = { id: "11111111-1111-4111-8111-111111111111" as Id, organizationId: "44444444-4444-4444-8444-444444444444" as Id, projectId: "22222222-2222-4222-8222-222222222222" as Id, createdBy: "33333333-3333-4333-8333-333333333333" as Id };
 
 test("a recurring invoice is checked, and due 15 days after sending unless set", () => {
   const made = newRecurring(ids, { description: " Hosting and care ", amount: "49", every: "month", firstOn: "2027-01-31" });

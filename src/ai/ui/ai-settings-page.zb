@@ -62,7 +62,14 @@
           <select id="ai-model-choice" name="model">
             <zb-each items={view.models} as="option" key={option.value}><option value={option.value} selected={option.value === view.model}>{option.label}</option></zb-each>
           </select>
-          <span class="hint">Haiku 5.5 costs $0.10 per million tokens read and $0.50 per million written: a recap or a triage is a fraction of a cent.</span>
+          <span class="hint">The usual model: HQ’s own jobs use it, and every “Draft” button starts on it. Haiku 5.5 costs $0.10 per million tokens read and $0.50 per million written: a recap or a triage is a fraction of a cent.</span>
+        </div>
+        <div class="hq-field">
+          <label for="ai-ceiling">Highest model anyone may pick</label>
+          <select id="ai-ceiling" name="ceiling">
+            <zb-each items={view.ceilings} as="option" key={option.value}><option value={option.value} selected={option.value === view.ceiling}>{option.label}</option></zb-each>
+          </select>
+          <span class="hint">Next to each “Draft” button and in the site builder, whoever asks can pick a model for that one request, up to this one. The shared monthly budget still stops everything.</span>
         </div>
         <fieldset class="hq-form">
           <legend>Another model</legend>

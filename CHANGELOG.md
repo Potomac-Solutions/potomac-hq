@@ -9,6 +9,212 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-26
+
+- A user-experience pass on the eleven extras, 2026-11-26
+  (`docs/reviews/2026-11-26-ux-extras.md`). Fixed: the intake form losing
+  everything typed when it was refused; a refund billing the client again
+  unless a box was ticked (it now asks, and "no" is picked); late fees
+  reaching back to invoices already late when the fee was set; a client on
+  automatic payment being told to pay a plan bill, and told nothing when the
+  charge was declined; a rating's note lost when the number was tapped
+  first; a public review asked for straight after a low rating. The
+  portal's first page puts proposals, invoices and automatic payment
+  together, above the settings panels.
+
+- **Eleven extras for clients and for running the business** (decision
+  0019). Refunds, in part or in full, through the platform or by hand.
+  The deposit sent the moment a proposal is accepted, with a box to pay it
+  straight away. A request box and an intake form in the portal, and
+  "Rate a finished project" (a low score makes a to-do to call). Late fees,
+  off until set, and a to-do to call at 14 days late. Profit by client, a
+  yearly tax pack zip, and a handoff pack zip for a client who leaves.
+  Text reminders for clients who turn them on (Twilio, `HQ_TWILIO_*`), and
+  autopay of plan invoices from a saved PayPal account.
+
+- A second user-experience pass, 2026-11-26 (`docs/reviews/2026-11-26-ux-round.md`):
+  every staff page and every portal page on a laptop and a phone, the
+  billing pages by hand, and the client's website editor, social approvals,
+  monthly report and call invite. Fixed: a phone's top bar while a call is
+  open, a proposal's page on a phone, doubled "(optional)" on five fields,
+  invoice dates as "Mon, Nov 23", what each invoice is for on a client's
+  page, a renewal with no cost entered counted as free, a bank account
+  number in the pay instructions, Ask HQ saying "no access" to an admin
+  when it is only off, and smaller wording.
+- Card payments, after the pass: HQ uses PayPal (decision 0018, point 8).
+  Backing out at the platform comes back to plain words; an invoice that is
+  voided or paid another way while the client is at PayPal is never
+  charged; a payment shows in its invoice's "What changed here".
+- **Pay by card** in the portal, on a payment platform one setting chooses
+  (decision 0018). `HQ_PAY_PROVIDER` is `stripe`, `square`, `paypal`,
+  `helcim` or `test`; the client pays what is still owed on the platform's
+  own page, and HQ records the payment by itself once the platform confirms
+  it, on coming back or by webhook (`/pay/webhook/<platform>`). HQ still
+  never sees a card number. Money it can't place (a voided invoice, paid
+  twice) is written down for you instead. System status has a Card payments
+  line. With no platform set, the pasted payment link still works. The kit
+  moves to 0.9.0 (`kit/pay/providers`). No migration.
+- Undo and moving back (decision 0014). After a pipeline move, a client or
+  project status change, a task move on the board or ticking off a to-do,
+  an Undo bar appears at the bottom of the screen; press it or Ctrl+Z (⌘Z).
+  Opportunities can be dragged back to any earlier stage, moved back with a
+  card's Back button, and reopened from won (unless already a project) or
+  lost on their own page. Automatic moves still only go forward. Dragging
+  is clearer on the pipeline and the board: a grip on each card, the card
+  lifts and fades while dragged, columns it can go to are outlined with
+  "Drop to move here", and pipeline columns it can't go to are dimmed.
+- More undo and easier getting around (decision 0014, sections 4 to 7).
+  Undo also covers saving a task's or project's details and a deal's price
+  or follow-up, and reopening a lost deal; it is kept server-side behind a
+  one-time token (`/undo/<token>`, migration 0072). Remove buttons hide the
+  item and wait six seconds with Undo before sending. After a post HQ keeps
+  your scroll and focus, cards slide to their new place where the browser
+  supports view transitions, forms can't be sent twice, leaving a typed form
+  asks first, and green messages fade. New: a command palette (Ctrl+K or
+  "Go to…") that also moves deals, a shortcut list (?), G-then-letter
+  jumps, moving board and pipeline cards with Space and the arrow keys, and
+  dragging cards by the grip on a phone.
+- Recent changes and undo send (decision 0014, sections 8 and 9). A new
+  Recent changes page (sidebar, Ctrl+K, G then H) lists your changes from
+  the last day that can still be undone, one per thing, each with Undo.
+  An undo is now usable only by the person who made the change, and the
+  Undo bar names what it puts back. Send, publish, share, void and
+  call-cancel buttons wait eight seconds with Undo before anything leaves
+  HQ. A client's demo flag can be undone.
+- Undo for adding, a confirm step, and unsent text kept (decision 0014,
+  section 10). Adding a project link, comment, label, saved filter, time,
+  expense, demo or referral link can be undone, and so can editing a
+  comment. Turning off two-step sign-in, removing a passkey, new recovery
+  codes, resetting someone's two-step sign-in, turning an account off and
+  new webhook or automation secrets ask first. Unsent text in long boxes
+  comes back after a closed or crashed page. Ctrl+Enter sends a form.
+  Dropped cards move to their column at once. Pages leave room for the
+  Undo bars.
+- The sidebar is eight hubs (decision 0015): Home, Today, Clients, Work,
+  Sites, Money, Growth and Company. The hub you're in is open; the others
+  fold to one line and open with a tap. Every page keeps its address. The
+  dashboard is now Home. One list in code names every page, its hub, the
+  words people use for it and who may open it.
+- Search finds pages as well as records: "where do I set my hours",
+  "invoices" or "dark mode" offer the page that does it, under **Pages**.
+- **Get HQ ready** on Home, for admins (decision 0015): backups, email, how
+  clients reach you, two-factor sign-in, booking hours, clients, a second
+  person and AI, each with why it matters and a link to where it's done.
+  Every line is worked out from HQ itself; the panel folds at three
+  quarters and goes away when all are done. `bin/serve.ts` tells HQ whether
+  backups are configured.
+- **The assistant** on Home (decision 0015): say what needs to happen in
+  plain words. It finds records and pages, reads the knowledge base and
+  checks what's due by itself; every change it proposes (quick add a task
+  or to-do, move a task, tick off or reopen a to-do, add a note, log a call
+  or message, add a client, open a deal) shows a card and happens on **Do
+  it**, as you, through the same services as the buttons. A setting lets
+  small changes go through with **Undo**. It is a feature in Settings → AI
+  (off to start), shares the monthly AI budget, and takes a model picked
+  beside the box up to the ceiling. Conversations are kept 90 days.
+  Migration 0073.
+- Finding your way, part two (decision 0015, follow-up): a command bar on
+  `/` or Ctrl+K (⌘K) and **Go to…**, with pages and records as you type and
+  Enter to ask the assistant when nothing fits; **Ask** in the top bar
+  opens the assistant beside any page, sent with that page's address;
+  a tab bar along the bottom on phones; the conversation opens with your
+  day from HQ's own records; **Pin** keeps pages at the top of your sidebar
+  (migration 0074) and **Recent** lists records opened on this device;
+  **Speak** where the browser can. The assistant can also set a follow-up
+  day and a project's health (with Undo), stop the timer, make a booking
+  link, start a proposal and draft an invoice. Decision 0014's command
+  palette is now this command bar: it moves a deal it finds on or back a
+  stage, and "keys" opens the shortcut list.
+- Billing extras (decision 0017, third part; migration 0081):
+  - An invoice can record a promised payment day (Today reminds you that
+    day), carry a card payment link Potomac made itself ("Pay by card" in
+    the portal), and be written off (voided with a reason, kept apart from
+    a mistake). A one-off charge can be drafted and sent in one step.
+  - A client's billing contact gets invoices, reminders, receipts and
+    statements. The client's page has a money line (owed, overdue, paid
+    this year, next renewal), prepaid hours that time draws down (Today
+    warns when low), and recurring invoices with no project.
+  - Renewals: bill several together on one invoice; change a price and the
+    client sees it in their portal first; Renewals → the next 12 months,
+    with what each costs, is billed and earns, and losses flagged.
+  - Clients: receipts emailed when a payment is recorded and a statement in
+    the first week of each month (both only with invoice emails on, once
+    each); "How to pay" in Potomac's own words (Money page); a yearly
+    download of what they paid; the free page shown with its domain.
+  - Money → Cash forecast: the next 13 weeks of money in and out.
+
+- Renewals asked of in time (decision 0017, added). Today says "Bill
+  <renewal>" from 30 days before it renews, so the bill goes out before the
+  client's pay-by day, and "isn't paid" once that day passes.
+- Clients answer a renewal in their portal: "Renew it" or "Let it lapse",
+  for its coming term, and may change their mind until it renews. Potomac
+  sees the answer on the client's page and on Today, and isn't asked to bill
+  one the client is letting lapse. Migration 0080.
+- Money → Invoices: every invoice, project or not, by where it stands
+  (waiting for payment, overdue, drafts, paid, voided), with what's owed,
+  overdue and drafted, and who owes what.
+- The portal names an invoice with no project by what it's for.
+
+- Invoices on a client, with or without a project (decision 0017,
+  migration 0078). Bill a domain or a one-off charge from the client's
+  page; renewals bill the client alone by default. A deposit or a balance
+  still needs a project.
+- A free landing page can live on the client's own domain (decision 0017,
+  migration 0079). With its renewal date and price, the domain goes on the
+  client's Renewals, ready to bill.
+
+- Pick a model per request (decision 0012, added). Settings → AI has a new
+  "Highest model anyone may pick" (Opus 5.5 to start). Beside each "Draft"
+  button, on Ask HQ and beside "Ask Claude" in the site builder, a Model
+  list offers the models up to it, starting on the usual one. HQ's own jobs
+  keep using the usual model. Claude Fable 5.2 is now a known model.
+  Migration 0071.
+
+- `HQ_SITE_BUILDER_OWNER` takes several emails separated by commas, so both
+  founders can change Settings → AI and the site builder's model and cap.
+  Each must still be an admin. One email works as before.
+- When the Claude API refuses a request, the site builder and the AI drafts
+  now show Anthropic's own reason (such as a model the key can't use or a
+  limit passed), not just "refused". Only the error message is kept, never
+  the rest of the response.
+
+- Quality of life (decision 0016):
+  - **System status** for admins: backups, email, errors, AI spend and
+    server settings in one place.
+  - **What changed here** on clients, deals, invoices, tasks and proposals.
+  - **Notice settings**: right away, a 7 AM digest or never for each kind,
+    and quiet hours (migration 0075).
+  - **Many at once** on All work (move, give, date, label), and marking
+    several draft invoices sent.
+  - **Team workload** for managers and admins.
+  - **View as a manager or member**, read-only, for admins.
+  - **The weekly owner email**, Mondays at 7:23.
+  - **HQ on a phone**: install to the home screen, and alerts for client
+    messages and call requests, calls about to start, sites down and
+    notices (migration 0076; `npm run push:keygen`, `HQ_VAPID_*`).
+  - **The portal**: Email me a link to sign in (self-serve password reset),
+    and approving a deliverable from the email in one tap.
+  - **Booked calls in the calendar feed**, at their times.
+  - **Saved replies** beside a message to a client (migration 0077).
+  - **Duplicate clients**: a name like one already here asks first, and a
+    duplicate can be merged into the client to keep.
+  - **The portal's timeline**: waiting on you, next, and done.
+  - **Undo after finishing a repeating task or to-do** takes back the next
+    one it made, if nothing has happened to it.
+  - **Unsent text** is kept for two weeks, and through a send that doesn't
+    arrive.
+  - **Keyboard**: the command bar keeps focus inside, closes on Escape and
+    puts focus back.
+  - **A user-experience pass** (`docs/reviews/2026-11-25-ux-pass.md`): the
+    Undo bar clears the phone's tab bar; merging moves notes, asks first
+    and links the one merged away; saved replies fill in the client and
+    contact; Enter in the command bar never moves a deal; a batch on All
+    work and an assistant card can be undone like any change.
+  - **The same pass as a client**: signing in goes on to the page they
+    were headed for; a portal page that isn't there is the portal's own,
+    with a way back; a message from the first page lands with the
+    project's messages.
+
 ## [0.17.0] - 2026-11-25
 
 - Who looked at a demo (decision 0013, slice 9). Under Sales → Demos, keep

@@ -36,3 +36,33 @@ export function profitByMonth(input: { readonly invoiced: readonly Dated[]; read
   for (const row of input.spent) if (inRange(row.on)) categories.set(row.category, (categories.get(row.category) ?? 0) + row.minor);
   return { months, totals, byCategory: [...categories].map(([category, minor]) => ({ category, minor })).toSorted((a, b) => b.minor - a.minor) };
 }
+
+/** One client's money and time over a period (2026-11-26). */
+export type ClientTally = {
+  readonly invoiced: number;
+  /** Payments less refunds. */
+  readonly received: number;
+  readonly expenses: number;
+  /** What their renewals cost Potomac (domains, hosting). */
+  readonly renewalCost: number;
+  readonly minutes: number;
+};
+
+export type ClientProfit = ClientTally & {
+  /** Received, less expenses and renewal costs: what the client left Potomac with. */
+  readonly net: number;
+  /** Net for each hour worked, in cents; null with no time logged. */
+  readonly perHour: number | null;
+};
+
+/** Each client's net and what each hour earned, best per hour first; clients with no time last, by net. */
+export function profitByClient<K>(tallies: ReadonlyMap<K, ClientTally>): { readonly key: K; readonly profit: ClientProfit }[] {
+  const rows = [...tallies].map(([key, t]) => {
+    const net = t.received - t.expenses - t.renewalCost;
+    return { key, profit: { ...t, net, perHour: t.minutes > 0 ? Math.round((net * 60) / t.minutes) : null } };
+  });
+  return rows.toSorted((a, b) => {
+    if (a.profit.perHour === null || b.profit.perHour === null) return a.profit.perHour === null && b.profit.perHour === null ? b.profit.net - a.profit.net : a.profit.perHour === null ? 1 : -1;
+    return b.profit.perHour - a.profit.perHour;
+  });
+}

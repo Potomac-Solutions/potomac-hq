@@ -7,6 +7,7 @@
 <script>
   import '../zubra/status-badge.zb'
   import '../zubra/text-field.zb'
+  import './model-pick.zb'
 </script>
 <style>
   .ai-project { display: grid; gap: 1rem; }
@@ -15,15 +16,16 @@
   .ai-draft { border-top: 1px solid var(--border); padding-top: 1rem; display: grid; gap: 0.6rem; }
   .ai-pre { white-space: pre-wrap; margin: 0; }
 </style>
-<ai-project-panel ai={{ scope: [], update: null }} states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} project-id="" active={false}>
+<ai-project-panel models={[]} ai={{ scope: [], update: null }} states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} project-id="" active={false}>
   <section zb-if={ai.scope.length || ai.update || states.update.on || states.caseStudy.on || states.posts.on || states.update.why || states.caseStudy.why} class="hq-panel ai-project" id="ai" aria-labelledby="ai-project-heading">
     <h2 id="ai-project-heading">AI drafts</h2>
     <p zb-if={states.update.why || states.caseStudy.why} class="hq-muted hq-small">{states.update.why || states.caseStudy.why}</p>
-    <div class="ai-asks">
-      <form zb-if={active && states.update.on} method="post" action="/projects/{projectId}/ai/update"><button class="hq-button secondary" type="submit">Draft this week’s update</button></form>
-      <form zb-if={states.caseStudy.on} method="post" action="/projects/{projectId}/ai/case-study"><button class="hq-button secondary" type="submit">Draft a case study</button></form>
-      <form zb-if={states.posts.on} method="post" action="/projects/{projectId}/ai/posts"><button class="hq-button secondary" type="submit">Draft social posts</button></form>
-    </div>
+    <form zb-if={(active && states.update.on) || states.caseStudy.on || states.posts.on} method="post" action="/projects/{projectId}/ai/case-study" class="ai-asks">
+      <model-pick models={models} field-id="project-model"></model-pick>
+      <button zb-if={active && states.update.on} class="hq-button secondary" type="submit" formaction="/projects/{projectId}/ai/update">Draft this week’s update</button>
+      <button zb-if={states.caseStudy.on} class="hq-button secondary" type="submit" formaction="/projects/{projectId}/ai/case-study">Draft a case study</button>
+      <button zb-if={states.posts.on} class="hq-button secondary" type="submit" formaction="/projects/{projectId}/ai/posts">Draft social posts</button>
+    </form>
 
     <zb-each items={ai.scope} as="flag" key={flag.id}>
       <div class="ai-draft">

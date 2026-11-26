@@ -29,8 +29,10 @@ export const isApproved = (status: PageStatus): boolean => status === "approved"
 export type FreePage = {
   readonly id: Id;
   readonly organizationId: Id;
-  /** The part before .potomac.solutions. Null until Potomac chooses it. */
+  /** The part before .potomac.solutions. Null until Potomac chooses it, or when it's on the client's own domain. */
   readonly subdomain: string | null;
+  /** The client's own domain, like betterdaystowing.com, when the page lives there instead. */
+  readonly ownDomain: string | null;
   readonly status: PageStatus;
   /** Where its code lives, to hand it over as a zip: owner/name, and a branch. */
   readonly repo: { readonly owner: string; readonly name: string; readonly branch: string } | null;
@@ -62,7 +64,19 @@ export function cleanSubdomain(typed: string): Result<string | null, SubdomainEr
   return RESERVED.has(text) ? err("subdomain-reserved") : ok(text);
 }
 
-export const addressOf = (subdomain: string | null): string => (subdomain ? `https://${subdomain}.${DOMAIN}` : "");
+export type DomainError = "domain-invalid" | "domain-ours";
+
+/** A client's own domain, typed as "BetterDaysTowing.com", "https://www.betterdaystowing.com/" or the like. Empty for none. */
+export function cleanDomain(typed: string): Result<string | null, DomainError> {
+  const text = typed.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "").replace(/\.$/, "");
+  if (text === "") return ok(null);
+  if (text.length > 253 || !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(text)) return err("domain-invalid");
+  // A name on potomac.solutions is chosen as the address, not typed as a domain of its own.
+  return text === DOMAIN || text.endsWith(`.${DOMAIN}`) ? err("domain-ours") : ok(text);
+}
+
+/** Where the page lives: its own domain, or its name on potomac.solutions. "" until chosen. */
+export const addressOf = (page: Pick<FreePage, "subdomain" | "ownDomain"> | null): string => (page?.ownDomain ? `https://${page.ownDomain}` : page?.subdomain ? `https://${page.subdomain}.${DOMAIN}` : "");
 
 /** "owner/name", or "owner/name#branch". Empty for none. */
 export function cleanRepo(typed: string): Result<FreePage["repo"], "repo-invalid"> {

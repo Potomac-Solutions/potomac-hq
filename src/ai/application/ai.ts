@@ -9,11 +9,11 @@
 // draft is asked for, seen and used with the permission the finished thing
 // needs (FEATURE_PERMISSION), so AI gives no one more than they already have.
 import { costOf, dollarsText, KNOWN_MODELS, knownModel } from "../domain/models.ts";
-import { budgetState, FEATURE_TEXT, FEATURES, isFeature, mayCall, readSettings, type AiSettings, type BudgetState, type Feature, type SettingsError, type SettingsInput } from "../domain/settings.ts";
+import { budgetState, FEATURE_TEXT, FEATURES, isFeature, mayCall, modelChoices, pickModel, readSettings, type AiSettings, type BudgetState, type Feature, type SettingsError, type SettingsInput } from "../domain/settings.ts";
 import type { AnswerError, Prompt } from "../domain/prompts.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type ActivityLog, type Id, type Result, type Transact } from "../../shared/index.ts";
-import type { AiModel, AiStore, Draft, UsageRow } from "./ports.ts";
+import type { AiModel, AiStore, ChatBlock, ChatMessage, ChatTool, Draft, UsageRow } from "./ports.ts";
 
 export type AiDeps = ActivityDeps & {
   readonly users: IdentityUserStore;
@@ -24,8 +24,8 @@ export type AiDeps = ActivityDeps & {
   /** The first instant of this month in the business time zone. */
   readonly monthStart: () => string;
   readonly formatWhen: (instant: string) => string;
-  /** The one person who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Null: nobody. */
-  readonly ownerEmail: string | null;
+  /** Who may change the settings (HQ_SITE_BUILDER_OWNER, as for the site builder). Empty: nobody. */
+  readonly ownerEmails: readonly string[];
   /**
    * The monthly budget, one cap shared with the site builder (Mikey,
    * 2026-11-25): the cap in cents, and what the site builder has spent of it
@@ -55,6 +55,8 @@ export const FEATURE_PERMISSION: { readonly [K in Feature]: readonly string[] } 
   "site-diagnosis": ["client.view"],
   "case-study": ["project.edit"],
   "social-posts": ["project.edit"],
+  // Anyone signed in: each thing it does is checked by the service that does it.
+  assistant: [],
 };
 
 export type AiProblem = "forbidden" | "not-found" | "no-key" | "feature-off" | "budget-reached" | "ai-unavailable" | AnswerError;
@@ -120,6 +122,38 @@ export async function draftWith<T>(deps: AiDeps, actorId: Id | null, request: Dr
   });
 }
 
+export type Conversed = { readonly blocks: readonly ChatBlock[]; readonly stopReason: string; readonly cost: number };
+
+/**
+ * One turn of the assistant's conversation (decision 0015): the same checks
+ * as a draft (the feature on, a key, room in the shared budget for the most
+ * it could cost), then the call, logged and costed whether or not it worked.
+ * What the model asks to do comes back as blocks; nothing here acts on them.
+ */
+export async function converseWith(
+  deps: AiDeps,
+  actorId: Id,
+  request: { readonly system: string; readonly messages: readonly ChatMessage[]; readonly tools: readonly ChatTool[]; readonly maxOutput: number },
+): Promise<Result<Conversed, AiProblem>> {
+  if (!mayUse(deps, actorId, "assistant")) return err("forbidden");
+  const settings = deps.ai.settings();
+  if (!deps.model || !deps.model.converse) return err("no-key");
+  if (!settings.features.includes("assistant")) return err("feature-off");
+  const month = thisMonth(deps);
+  const size = request.system.length + JSON.stringify(request.messages).length + JSON.stringify(request.tools).length;
+  if (!mayCall(month.total, month.capCents, costOf(settings.price, Math.ceil(size / 3), request.maxOutput))) return err("budget-reached");
+  const answer = await deps.model.converse({ model: settings.model, ...request });
+  const cost = costOf(settings.price, answer.inputCount, answer.outputCount);
+  const problem = answer.ok ? "" : answer.problem.slice(0, 200);
+  deps.transact(() => {
+    const usage: UsageRow = { id: deps.newId(), feature: "assistant", recordType: "user", recordId: actorId, model: settings.model, inputCount: answer.inputCount, outputCount: answer.outputCount, cost, actorId, at: deps.clock(), ok: answer.ok, problem, draftId: null };
+    deps.ai.logUsage(usage);
+    if (!answer.ok) recordActivity(deps, { actorId, action: "ai.failed", recordType: "ai-usage", recordId: usage.id, context: { feature: "assistant", model: settings.model, in: answer.inputCount, out: answer.outputCount, cost, problem } });
+  });
+  if (!answer.ok) return err("ai-unavailable");
+  return ok({ blocks: answer.blocks, stopReason: answer.stopReason, cost });
+}
+
 /** The newest draft of a feature for a record, for someone who may see it; null otherwise. */
 export function latestDraft<T>(deps: AiDeps, actorId: Id | null, feature: Feature, recordId: string): Drafted<T> | null {
   if (actorId === null || !mayUse(deps, actorId, feature)) return null;
@@ -161,6 +195,26 @@ export function draftDone(deps: AiDeps, actorId: Id | null, draftId: Id): Result
   });
 }
 
+// ---- Picking a model for one request -----------------------------------------
+
+/** The models someone may pick for a draft, the usual one selected. */
+export function modelOptions(deps: Pick<AiDeps, "ai">): readonly { readonly id: string; readonly label: string; readonly selected: boolean }[] {
+  const settings = deps.ai.settings();
+  return modelChoices(settings).map((one) => ({ id: one.id, label: one.label, selected: one.id === settings.model }));
+}
+
+/**
+ * The same deps, asking with the model picked on the form for this one
+ * request. A pick above the ceiling, or none, is the usual model. HQ's own
+ * jobs never pass through here, so they always use the usual model.
+ */
+export function choosingModel<D extends Pick<AiDeps, "ai">>(deps: D, pick: string): D {
+  const settings = deps.ai.settings();
+  const chosen = pickModel(settings, pick);
+  if (chosen.model === settings.model) return deps;
+  return { ...deps, ai: { ...deps.ai, settings: () => ({ ...deps.ai.settings(), ...chosen }) } };
+}
+
 // ---- Settings and usage (admins) ------------------------------------------
 
 export type AiSettingsView = {
@@ -170,6 +224,9 @@ export type AiSettingsView = {
   readonly ownerSet: boolean;
   readonly model: string;
   readonly models: readonly { readonly value: string; readonly label: string }[];
+  /** The dearest model anyone may pick when they ask, and the models it may be. */
+  readonly ceiling: string;
+  readonly ceilings: readonly { readonly value: string; readonly label: string }[];
   /** A model HQ doesn't list: its id and prices as typed. Empty for a listed one. */
   readonly other: { readonly id: string; readonly input: string; readonly output: string };
   readonly features: readonly { readonly key: Feature; readonly label: string; readonly what: string; readonly phase: string; readonly on: boolean }[];
@@ -199,9 +256,11 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   return ok({
     keySet: deps.model !== null,
     canChange: isOwner(deps, actorId),
-    ownerSet: deps.ownerEmail !== null,
+    ownerSet: deps.ownerEmails.length > 0,
     model: listed ? settings.model : "other",
     models: [...KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })), { value: "other", label: "Another model" }],
+    ceiling: settings.ceiling,
+    ceilings: KNOWN_MODELS.map((one) => ({ value: one.id, label: one.label })),
     other: listed ? { id: "", input: "", output: "" } : { id: settings.model, input: perMillion(settings.price.input), output: perMillion(settings.price.output) },
     features: FEATURES.map((key) => ({ key, ...FEATURE_TEXT[key], on: settings.features.includes(key) })),
     priceGuide: settings.priceGuide,
@@ -214,13 +273,17 @@ export function aiSettingsView(deps: AiDeps, actorId: Id | null): Result<AiSetti
   });
 }
 
-/** The owner: an admin whose email is HQ_SITE_BUILDER_OWNER. */
-const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmail">, actorId: Id | null): boolean => may(deps, actorId, "ai.manage") && deps.ownerEmail !== null && deps.users.get(actorId as Id)?.email.toLowerCase() === deps.ownerEmail.toLowerCase();
+/** An owner: an admin whose email is in HQ_SITE_BUILDER_OWNER. */
+const isOwner = (deps: Pick<AiDeps, "users" | "ownerEmails">, actorId: Id | null): boolean => {
+  if (!may(deps, actorId, "ai.manage")) return false;
+  const email = deps.users.get(actorId as Id)?.email.toLowerCase();
+  return email !== undefined && deps.ownerEmails.includes(email);
+};
 
 /** Saves Settings → AI: the owner alone. A change applies from the next call. */
 export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: SettingsInput): Result<AiSettings, "forbidden" | SettingsError> {
   if (actorId === null || !isOwner(deps, actorId)) return err("forbidden");
-  const read = readSettings(input);
+  const read = readSettings(input, deps.ai.settings().ceiling);
   if (!read.ok) return read;
   return deps.transact(() => {
     const before = deps.ai.settings();
@@ -230,7 +293,7 @@ export function saveAiSettings(deps: AiDeps, actorId: Id | null, input: Settings
       action: "ai.settings-changed",
       recordType: "ai-setting",
       recordId: "ai-setting" as Id,
-      context: { model: read.value.model, features: [...read.value.features], modelWas: before.model, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
+      context: { model: read.value.model, features: [...read.value.features], modelWas: before.model, ceiling: read.value.ceiling, ceilingWas: before.ceiling, priceGuideChanged: before.priceGuide !== read.value.priceGuide },
     });
     return ok(read.value);
   });
@@ -254,6 +317,7 @@ const PLACE: { readonly [K in Feature]: (recordId: string) => string } = {
   "site-diagnosis": () => "/sites",
   "case-study": () => "/marketing",
   "social-posts": () => "/marketing",
+  assistant: () => "/",
 };
 
 export type DraftsView = { readonly items: readonly DraftLine[]; readonly month: AiSettingsView["month"] | null };

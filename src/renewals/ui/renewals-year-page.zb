@@ -1,0 +1,56 @@
+<!--
+  The next 12 months of renewals, month by month: what each costs Potomac,
+  what the client is billed, and the difference. One billed at a loss is
+  flagged. `client.view`.
+-->
+<script>
+  'use route /renewals/year'
+  import '../../shared/ui/zubra/status-badge.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.renewals.year()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Renewals, the next 12 months', view: view.value }
+  }
+</script>
+<hq-renewals-year view={{ months: [], totals: {} }}>
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Renewals', href: '/renewals' }, { label: 'The next 12 months', href: '' }]}></breadcrumb-trail>
+    <h1>Renewals, the next 12 months</h1>
+    <section class="hq-panel" aria-labelledby="year-totals">
+      <h2 id="year-totals">Over the year</h2>
+      <dl class="hq-facts">
+        <dt>Costs Potomac</dt><dd>{view.totals.cost}</dd>
+        <dt>Billed to clients</dt><dd>{view.totals.billed}</dd>
+        <dt>What renewals earn</dt><dd><strong>{view.totals.margin}</strong></dd>
+        <dt zb-if={view.totals.noCost > 0}>With no cost entered</dt><dd zb-if={view.totals.noCost > 0}>{view.totals.noCost}. {view.totals.noCost === 1 ? 'Its cost counts' : 'Their costs count'} as nothing here, so the year earns less than this reads. Enter what each costs on the client’s page.</dd>
+        <dt zb-if={view.totals.losses > 0}>Billed at a loss</dt><dd zb-if={view.totals.losses > 0}><status-badge variant="danger">{view.totals.losses}</status-badge> billed for less than they cost. Change their price on the client’s page.</dd>
+      </dl>
+    </section>
+    <empty-state zb-if={view.months.length === 0} heading="Nothing renews in the next year">Add renewals on each client’s page.</empty-state>
+    <zb-each items={view.months} as="month" key={month.month}>
+      <section class="hq-panel" aria-labelledby="month-{month.month}">
+        <h2 id="month-{month.month}">{month.label}</h2>
+        <p class="hq-muted hq-small">Costs {month.cost} · billed {month.billed}</p>
+        <table tabindex="0" class="hq-table hq-stack">
+          <thead><tr><th scope="col">Day</th><th scope="col">Client</th><th scope="col">What</th><th scope="col" class="hq-number">Costs</th><th scope="col" class="hq-number">Billed</th><th scope="col" class="hq-number">Earns</th></tr></thead>
+          <tbody>
+            <zb-each items={month.lines} as="line" key={line.key}>
+              <tr>
+                <td><time datetime={line.on}>{line.when}</time></td>
+                <td><a href="/clients/{line.organizationId}#renewal-{line.renewalId}">{line.clientName}</a></td>
+                <td>{line.name} <span class="hq-muted">· {line.kindLabel}</span></td>
+                <td class="hq-number">{line.cost}</td>
+                <td class="hq-number">{line.price}</td>
+                <td class="hq-number">{line.margin} <status-badge zb-if={line.atALoss} variant="danger">Loss</status-badge></td>
+              </tr>
+            </zb-each>
+          </tbody>
+        </table>
+      </section>
+    </zb-each>
+  </div>
+</hq-renewals-year>

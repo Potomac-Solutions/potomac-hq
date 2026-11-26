@@ -15,7 +15,12 @@ export function sqliteActivityReader(db: Database): ActivityReader {
   const clientRecords = db.prepare(
     `${select} where e.record_type in (${CLIENT_RECORD_TYPES.map(() => "?").join(", ")}) ${order}`,
   );
+  // An invoice's own events, and the payments made against it: those are written about the payment.
+  const oneRecord = db.prepare(
+    `${select} where (e.record_type = ? and e.record_id = ?) or (? = 'invoice' and e.record_type = 'payment' and json_extract(e.context, '$.invoiceId') = ?) ${order}`,
+  );
   return {
+    forRecord: (recordType, recordId, limit) => oneRecord.all(recordType, recordId, recordType, recordId, limit).map((row) => ({ ...row })) as ActivityRow[],
     recent(scope, limit) {
       const rows = scope === "everything" ? everything.all(limit) : clientRecords.all(...CLIENT_RECORD_TYPES, limit);
       return rows.map((row) => ({ ...row })) as ActivityRow[];

@@ -57,6 +57,8 @@ export type WorkCell = { readonly id: string; readonly href: string; readonly ti
 
 export type WorkView = {
   readonly form: {
+    /** Whether this person may change tasks, so the table offers ticking several. */
+    readonly canEdit: boolean;
     readonly projects: readonly Choice[];
     readonly clients: readonly Choice[];
     readonly people: readonly Choice[];
@@ -124,6 +126,7 @@ export function workTable(deps: ProjectsDeps, actorId: Id | null, params: Params
 
   return ok({
     form: {
+      canEdit: authorize(deps, actorId, "task.edit").ok,
       projects: [
         ...[...projects].map(([value, label]) => ({ value, label, on: on(filter.projects, value) })).sort(byName),
         { value: "none", label: "To-dos (no project)", on: filter.noProject },

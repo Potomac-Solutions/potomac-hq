@@ -1,5 +1,8 @@
 // What each refusal code says to a person.
 const MESSAGES: Readonly<Record<string, string>> = {
+  "same-client": "Choose a different client to merge it into.",
+  "already-merged": "One of those was already merged into another client. Open the one it went to and merge from there.",
+  "cant-merge": "They couldn’t be merged automatically: something of one can’t move to the other (like a second free landing page). Nothing was changed.",
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",
   "name-missing": "Enter a name.",
@@ -18,6 +21,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "invalid-service": "Choose a service from the list.",
   "summary-too-long": "That summary is too long.",
   "contact-not-at-client": "That contact belongs to a different client.",
+  "contact-has-no-email": "That contact has no email address. Add one, or choose someone else.",
   "invalid-kind": "Choose call, email, text or meeting.",
   "invalid-outcome": "Choose how the call went from the list.",
   "note-missing": "Add a word about it: what was said, or what was sent.",
@@ -44,9 +48,10 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "subject-too-long": "Keep the subject under 150 characters.",
   "body-missing": "Write something to send.",
   "body-too-long": "Keep the email under 4,000 characters.",
-  closed: "This opportunity is closed. A deal that comes back is a new opportunity.",
+  closed: "This opportunity is closed. Reopen it to an earlier stage first.",
   "invalid-stage": "Choose a stage from the list.",
-  "not-the-next-stage": "Stages move forward one at a time.",
+  "not-the-next-stage": "Stages move forward one at a time. Moving back is always allowed.",
+  "has-project": "This deal is already a project, so it stays won.",
   "service-required": "Choose the service before moving past a consult.",
   "price-required": "This needs a price first. An admin or manager sets it.",
   "lost-reason-required": "Say why it was lost.",
@@ -61,6 +66,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "not-won": "Only a won opportunity becomes a project.",
   "already-converted": "This opportunity is already a project.",
 };
+
 
 export function messageFor(code: string): string {
   return MESSAGES[code] ?? "That didn’t work. Try again.";

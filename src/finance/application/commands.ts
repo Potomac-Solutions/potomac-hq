@@ -3,7 +3,8 @@
 // writes its activity event in one transaction, and answers with a code.
 import { defaultFinance, setBudget, setPayment, type BudgetError, type BudgetInput, type ProjectFinance } from "../domain/budget.ts";
 import { newExpense, type Expense, type ExpenseError, type ExpenseInput } from "../domain/expense.ts";
-import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, receivePayment, sendInvoice, voidInvoice, type Invoice, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput } from "../domain/invoice.ts";
+import { addCreditLine, addInvoiceLine, newInvoice, paymentStatusAfter, promisePayment, receivePayment, refundPayment, sendInvoice, setPayLink, voidInvoice, writeOff, type Invoice, type PayLinkError, type PromiseError, type WriteOffError, type InvoiceError, type InvoiceInput, type Payment, type PaymentError, type PaymentInput, type Refund, type RefundError, type RefundInput } from "../domain/invoice.ts";
+import { newBlock, type BlockError, type BlockInput, type PrepaidBlock } from "../domain/prepaid.ts";
 import { logEntry, startEntry, stopEntry, type TimeEntry, type TimeError, type TimeInput } from "../domain/time.ts";
 import { isDue, newRecurring, nextAfter, periodLine, type RecurringError, type RecurringInput, type RecurringInvoice } from "../domain/recurring.ts";
 import type { CrmDeps } from "../../crm/index.ts";
@@ -11,15 +12,18 @@ import { saveFile, type UploadError } from "../../files/index.ts";
 import { authorize } from "../../identity/index.ts";
 import type { ProjectsDeps, Task } from "../../projects/index.ts";
 import { err, ok, recordActivity, type Id, type Money, type Result } from "../../shared/index.ts";
-import type { ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
+import type { BillingStore, ChangeRequestStore, ExpenseStore, FinanceStore, InvoiceStore, RecurringStore, PhaseEstimates, TimeStore } from "./ports.ts";
 
 export type FinanceDeps = ProjectsDeps &
-  Pick<CrmDeps, "opportunities"> & {
+  Pick<CrmDeps, "opportunities" | "clients"> & {
     readonly time: TimeStore;
     readonly expenses: ExpenseStore;
     readonly finance: FinanceStore;
     readonly invoices: InvoiceStore;
     readonly recurring: RecurringStore;
+    readonly billing: BillingStore;
+    /** Renewals' money in and out between two days, for the cash forecast. Absent: none counted. */
+    readonly cashflow?: (from: string, to: string) => readonly { readonly on: string; readonly label: string; readonly organizationId: string; readonly inMinor: number; readonly outMinor: number }[];
     readonly phaseEstimates: PhaseEstimates;
     readonly changes: ChangeRequestStore;
   };
@@ -185,12 +189,81 @@ export function setProjectPayment(deps: FinanceDeps, actorId: Id | null, project
 export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(projectId)) return err("not-found");
-    const invoice = newInvoice({ id: deps.newId(), projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const invoice = newInvoice({ id: deps.newId(), organizationId: project.organizationId, projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
     if (!invoice.ok) return invoice;
     deps.invoices.insert(invoice.value, deps.clock());
     recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { projectId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
     return ok(invoice.value);
+  });
+}
+
+/**
+ * An invoice on a client with no project: a domain, a one-off charge. Its kind
+ * is "full" or "other"; a deposit or a balance needs a project. `invoice.edit`.
+ */
+export function createClientInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: InvoiceInput, options: { readonly send?: boolean } = {}): Result<Invoice, Refused | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    return clientInvoiceInside(deps, actorId, organizationId, input, options.send === true);
+  });
+}
+
+/** Makes (and, if asked, sends) an invoice on a client alone, inside a transaction already open. */
+function clientInvoiceInside(deps: FinanceDeps, actorId: Id, organizationId: Id, input: InvoiceInput, send: boolean): Result<Invoice, InvoiceError> {
+  const invoice = newInvoice({ id: deps.newId(), organizationId, projectId: null, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
+  if (!invoice.ok) return invoice;
+  deps.invoices.insert(invoice.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.created", recordType: "invoice", recordId: invoice.value.id, context: { organizationId, number: invoice.value.number, kind: invoice.value.kind, minor: invoice.value.total.minor } });
+  if (!send) return ok(invoice.value);
+  // Drafted and sent in one step, for a small charge like a domain.
+  const sent = sendInvoice(invoice.value, deps.today());
+  if (!sent.ok) return ok(invoice.value);
+  deps.invoices.update(sent.value, deps.clock());
+  recordActivity(deps, { actorId, action: "invoice.sent", recordType: "invoice", recordId: sent.value.id, context: { organizationId, number: sent.value.number, minor: sent.value.total.minor } });
+  return ok(sent.value);
+}
+
+/**
+ * A client buys a block of prepaid hours. With a price, HQ makes its invoice
+ * on the client too, a draft or sent. `invoice.edit`.
+ */
+export function addPrepaidHours(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: BlockInput & { readonly price?: string | null; readonly send?: boolean }): Result<PrepaidBlock, Refused | BlockError | InvoiceError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact((): Result<PrepaidBlock, Refused | BlockError | InvoiceError> => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const checked = newBlock({ id: deps.newId(), organizationId, createdBy: actorId, invoiceId: null }, input);
+    if (!checked.ok) return checked;
+    const price = (input.price ?? "").trim();
+    let invoiceId: Id | null = null;
+    if (price !== "") {
+      const hours = checked.value.minutes / 60;
+      const made = clientInvoiceInside(deps, actorId, organizationId, { kind: "full", description: `${hours} prepaid hours`, amount: price }, input.send === true);
+      if (!made.ok) return made;
+      invoiceId = made.value.id;
+    }
+    const block = { ...checked.value, invoiceId };
+    deps.billing.insertBlock(block, deps.clock());
+    recordActivity(deps, { actorId, action: "prepaid-hours.added", recordType: "client", recordId: organizationId, context: { minutes: block.minutes, boughtOn: block.boughtOn, invoiceId } });
+    return ok(block);
+  });
+}
+
+/** How clients pay, in Potomac's words, for the portal. `invoice.edit`. */
+export function setPayInstructions(deps: FinanceDeps, actorId: Id | null, text: string): Result<{ readonly text: string }, "forbidden" | "too-long" | "number-in-instructions"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  const clean = text.trim().replace(/\r\n/g, "\n");
+  if (clean.length > 2000) return err("too-long");
+  // Shown to every client: never a card or account number.
+  if (/(?:\d[ -]?){13,19}/.test(clean)) return err("number-in-instructions");
+  // A bank account or routing number is shorter than a card's: caught by the word beside it, so a phone number or a PO box still passes.
+  if (/\b(?:account|acct|routing|aba|iban|swift)\b[^\n]{0,40}?(?:\d[ -]?){6,}/i.test(clean)) return err("number-in-instructions");
+  return deps.transact(() => {
+    deps.billing.setPayInstructions(clean, actorId, deps.clock());
+    recordActivity(deps, { actorId, action: "finance.pay-instructions-set", recordType: "setting", recordId: "finance-setting" as Id, context: { length: clean.length } });
+    return ok({ text: clean });
   });
 }
 
@@ -235,9 +308,11 @@ export function addLineToInvoice(deps: FinanceDeps, actorId: Id | null, invoiceI
 export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepted: { readonly projectId: Id; readonly ownerId: Id; readonly deposit: Money | null; readonly title: string; readonly version: number }): Invoice | null {
   if (!accepted.deposit || accepted.deposit.minor <= 0) return null;
   if (deps.invoices.listForProject(accepted.projectId).some((invoice) => invoice.kind === "deposit" && invoice.status !== "void")) return null;
+  const project = deps.projects.get(accepted.projectId);
+  if (!project) return null;
   const amount = (accepted.deposit.minor / 100).toFixed(2);
   const invoice = newInvoice(
-    { id: deps.newId(), projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
+    { id: deps.newId(), organizationId: project.organizationId, projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
     { kind: "deposit", description: `Deposit, one third of “${accepted.title}”`.slice(0, 200), amount, note: `Drafted by HQ when version ${accepted.version} of the proposal was accepted.` },
   );
   if (!invoice.ok) throw new Error(`Could not draft the deposit invoice: ${invoice.error}`);
@@ -248,11 +323,34 @@ export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepte
 
 /** Moves the project's payment status on when one of its invoices changes, and records it. Inside a transaction. */
 function followInvoice(deps: FinanceDeps, actorId: Id | null, changed: Invoice): void {
-  const to = paymentStatusAfter(changed, deps.invoices.listForProject(changed.projectId));
-  const before = deps.finance.get(changed.projectId) ?? defaultFinance(changed.projectId);
+  // A charge on the client alone has no project to move on.
+  const projectId = changed.projectId;
+  if (projectId === null) return;
+  const to = paymentStatusAfter(changed, deps.invoices.listForProject(projectId));
+  const before = deps.finance.get(projectId) ?? defaultFinance(projectId);
   if (to === null || to === before.paymentStatus) return;
   deps.finance.save({ ...before, paymentStatus: to, invoiceRef: before.invoiceRef }, deps.clock());
-  recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: changed.projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
+  recordActivity(deps, { actorId, action: "project.payment-status-changed", recordType: "project", recordId: projectId, context: { from: before.paymentStatus, to, because: "invoice", invoiceNumber: changed.number } });
+}
+
+/**
+ * The deposit of a proposal the client just accepted, sent at once so they can
+ * pay it by card there and then (2026-11-26). Only a deposit drafted from the
+ * proposal: anything else waits for a person. No actor: the client's
+ * acceptance is what sends it. Answers the deposit invoice, sent, or null.
+ */
+export function sendDepositOnAcceptance(deps: FinanceDeps, projectId: Id): Invoice | null {
+  return deps.transact(() => {
+    const deposit = deps.invoices.listForProject(projectId).find((one) => one.kind === "deposit" && one.status !== "void" && one.status !== "paid");
+    if (!deposit) return null;
+    if (deposit.status === "sent") return deposit;
+    const sent = sendInvoice(deposit, deps.today());
+    if (!sent.ok) return null;
+    deps.invoices.update(sent.value, deps.clock());
+    recordActivity(deps, { actorId: null, action: "invoice.sent-on-acceptance", recordType: "invoice", recordId: deposit.id, context: { projectId, number: deposit.number, minor: sent.value.total.minor } });
+    followInvoice(deps, null, sent.value);
+    return sent.value;
+  });
 }
 
 /** Sends a draft: it gets today's date and can no longer be edited. The project becomes "invoiced". */
@@ -284,6 +382,32 @@ export function voidInvoiceNow(deps: FinanceDeps, actorId: Id | null, invoiceId:
   });
 }
 
+/** One change to a sent invoice by Potomac, checked and logged. */
+function changeInvoice<E extends string>(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, action: string, change: (invoice: Invoice) => Result<Invoice, E>, context: (changed: Invoice) => Record<string, unknown>): Result<Invoice, Refused | E> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const changed = change(invoice);
+    if (!changed.ok) return changed;
+    deps.invoices.update(changed.value, deps.clock());
+    recordActivity(deps, { actorId, action, recordType: "invoice", recordId: invoiceId, context: { organizationId: invoice.organizationId, projectId: invoice.projectId, number: invoice.number, ...context(changed.value) } });
+    return ok(changed.value);
+  });
+}
+
+/** The client said when they'll pay: Today asks on that day if it's still owed. An empty day clears it. */
+export const promiseInvoicePayment = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly on: string; readonly note?: string | null }): Result<Invoice, Refused | PromiseError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.promised", (invoice) => promisePayment(invoice, input), (changed) => ({ promisedOn: changed.promisedOn }));
+
+/** A card payment link Potomac made itself; the portal shows "Pay by card". Empty clears it. */
+export const setInvoicePayLink = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, link: string): Result<Invoice, Refused | PayLinkError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.pay-link-set", (invoice) => setPayLink(invoice, link), (changed) => ({ hasLink: changed.payLink !== null }));
+
+/** Money that won't come: voided and marked written off, with why. */
+export const writeOffInvoice = (deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: { readonly note: string }): Result<Invoice, Refused | WriteOffError> =>
+  changeInvoice(deps, actorId, invoiceId, "invoice.written-off", (invoice) => writeOff(invoice, input, deps.today()), (changed) => ({ owedMinor: Math.max(0, changed.total.minor - (deps.invoices.get(changed.id)?.paidMinor ?? 0)) }));
+
 /** Records money received against a sent invoice. When it is paid in full, the project's payment status follows. */
 export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: Id, input: PaymentInput): Result<{ invoice: Invoice; payment: Payment }, Refused | PaymentError> {
   if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
@@ -307,17 +431,116 @@ export function recordPayment(deps: FinanceDeps, actorId: Id | null, invoiceId: 
   });
 }
 
+/**
+ * A card payment the client made on the payment platform's own page (decision
+ * 0018). Nobody in HQ recorded it, so the activity has no actor; the platform
+ * said it was paid, which is the check. The payment row needs a person, so it
+ * carries whoever made the invoice. `reference` is the platform's own, never
+ * a card number.
+ */
+export function recordCardPayment(deps: FinanceDeps, invoiceId: Id, input: { readonly minor: number; readonly platform: string; readonly reference: string }): Result<{ invoice: Invoice; payment: Payment }, "not-found" | PaymentError> {
+  return deps.transact(() => {
+    const invoice = deps.invoices.get(invoiceId);
+    if (!invoice) return err("not-found");
+    const today = deps.today();
+    const amount = (input.minor / 100).toFixed(2);
+    const ids = { id: deps.newId(), recordedBy: invoice.createdBy };
+    let received = receivePayment(invoice, invoice.paidMinor, ids, { amount, method: "card", on: today, reference: `${input.platform} ${input.reference}`.trim().slice(0, 100) }, today);
+    // A platform's reference that happens to read like a card number is left out, not refused.
+    if (!received.ok && received.error === "looks-like-a-card-number") received = receivePayment(invoice, invoice.paidMinor, ids, { amount, method: "card", on: today, reference: input.platform }, today);
+    if (!received.ok) return received;
+    const at = deps.clock();
+    deps.invoices.insertPayment(received.value.payment, at);
+    if (received.value.invoice.status !== invoice.status) deps.invoices.update(received.value.invoice, at);
+    recordActivity(deps, {
+      actorId: null,
+      action: "payment.paid-by-card",
+      recordType: "payment",
+      recordId: received.value.payment.id,
+      context: { projectId: invoice.projectId, invoiceId, number: invoice.number, minor: received.value.payment.amount.minor, method: "card", on: received.value.payment.receivedOn, paidInFull: received.value.invoice.status === "paid", by: "client", platform: input.platform },
+    });
+    followInvoice(deps, null, received.value.invoice);
+    return ok(received.value);
+  });
+}
+
+/**
+ * Money given back on a payment (2026-11-26). `through: "platform"` when the
+ * payment platform was asked first (cardpay does that, then calls this);
+ * "by-hand" when it was given back some other way and HQ only records it.
+ * `noLongerOwed` writes off what the refund leaves owing, with the reason.
+ */
+export type RefundRequest = RefundInput & { readonly noLongerOwed?: boolean };
+
+/** Everything a refund is checked for, without writing: a card refund asks this before the platform. */
+export function planRefund(deps: FinanceDeps, actorId: Id | null, paymentId: Id, input: RefundRequest): Result<{ payment: Payment; invoice: Invoice; minor: number; refundable: number }, Refused | RefundError | "write-off-note-missing"> {
+  if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
+  const payment = deps.invoices.payment(paymentId);
+  const invoice = payment ? deps.invoices.get(payment.invoiceId) : null;
+  if (!payment || !invoice) return err("not-found");
+  const already = deps.invoices.refunds(invoice.id).filter((one) => one.paymentId === paymentId).reduce((sum, one) => sum + one.amount.minor, 0);
+  const planned = refundPayment(invoice, payment, already, { id: paymentId, recordedBy: actorId as Id }, input, "by-hand", deps.today());
+  if (!planned.ok) return planned;
+  if (input.noLongerOwed && !(input.reason ?? "").trim()) return err("write-off-note-missing");
+  return ok({ payment, invoice, minor: planned.value.refund.amount.minor, refundable: payment.amount.minor - already });
+}
+
+export function recordRefund(deps: FinanceDeps, actorId: Id | null, paymentId: Id, input: RefundRequest, through: Refund["through"] = "by-hand"): Result<{ invoice: Invoice; refund: Refund }, Refused | RefundError | WriteOffError> {
+  if (!allowed(deps, actorId, "payment.record")) return err("forbidden");
+  return deps.transact(() => {
+    const payment = deps.invoices.payment(paymentId);
+    const invoice = payment ? deps.invoices.get(payment.invoiceId) : null;
+    if (!payment || !invoice) return err("not-found");
+    const already = deps.invoices.refunds(invoice.id).filter((one) => one.paymentId === paymentId).reduce((sum, one) => sum + one.amount.minor, 0);
+    const today = deps.today();
+    const made = refundPayment(invoice, payment, already, { id: deps.newId(), recordedBy: actorId as Id }, input, through, today);
+    if (!made.ok) return made;
+    let after = made.value.invoice;
+    if (input.noLongerOwed && after.status === "sent") {
+      const off = writeOff(after, { note: input.reason ?? "" }, today);
+      if (!off.ok) return off;
+      after = off.value;
+    }
+    const at = deps.clock();
+    deps.invoices.insertRefund(made.value.refund, at);
+    if (after !== invoice) deps.invoices.update(after, at);
+    recordActivity(deps, {
+      actorId,
+      action: "payment.refunded",
+      recordType: "invoice",
+      recordId: invoice.id,
+      context: { number: invoice.number, minor: made.value.refund.amount.minor, through, paymentId, noLongerOwed: Boolean(input.noLongerOwed && after.status === "void") },
+    });
+    if (after.status !== invoice.status) followInvoice(deps, actorId, after);
+    return ok({ invoice: after, refund: made.value.refund });
+  });
+}
+
 // ── Recurring invoices ────────────────────────────────────────────────────
 
 /** Sets up a charge that repeats on a project. Permission: `invoice.edit`. */
 export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(projectId)) return err("not-found");
-    const made = newRecurring({ id: deps.newId(), projectId, createdBy: actorId }, input);
+    const project = deps.projects.get(projectId);
+    if (!project) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId: project.organizationId, projectId, createdBy: actorId }, input);
     if (!made.ok) return made;
     deps.recurring.insert(made.value, deps.clock());
     recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { projectId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
+    return ok(made.value);
+  });
+}
+
+/** A recurring invoice on a client with no project: hosting, upkeep, a plan. `invoice.edit`. */
+export function addClientRecurringInvoice(deps: FinanceDeps, actorId: Id | null, organizationId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(organizationId)) return err("not-found");
+    const made = newRecurring({ id: deps.newId(), organizationId, projectId: null, createdBy: actorId }, input);
+    if (!made.ok) return made;
+    deps.recurring.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "recurring-invoice.added", recordType: "recurring-invoice", recordId: made.value.id, context: { organizationId, every: made.value.every, minor: made.value.amount.minor, autoSend: made.value.autoSend } });
     return ok(made.value);
   });
 }
@@ -352,10 +575,12 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
     for (let n = 0; n < 12; n++) {
       const done = deps.transact(() => {
         const recurring = deps.recurring.get(first.id);
-        if (!recurring || !isDue(recurring, today) || !deps.projects.get(recurring.projectId)) return null;
+        if (!recurring || !isDue(recurring, today)) return null;
+        // One on a project needs it still there; one on the client alone needs the client.
+        if (recurring.projectId !== null ? !deps.projects.get(recurring.projectId) : !deps.clients.get(recurring.organizationId)) return null;
         const dueOn = recurring.autoSend ? Temporal.PlainDate.from(today).add({ days: recurring.dueDays }).toString() : null;
         const invoice = newInvoice(
-          { id: deps.newId(), projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
+          { id: deps.newId(), organizationId: recurring.organizationId, projectId: recurring.projectId, number: deps.invoices.nextNumber(), createdBy: recurring.createdBy },
           { kind: "other", description: periodLine(recurring, recurring.nextOn), amount: (recurring.amount.minor / 100).toFixed(2), dueOn, note: "Made by HQ from a recurring invoice." },
         );
         if (!invoice.ok) throw new Error(`Could not make a recurring invoice: ${invoice.error}`);
@@ -381,4 +606,25 @@ export function runRecurringInvoices(deps: FinanceDeps): { readonly made: number
     }
   }
   return { made, sent };
+}
+
+/**
+ * Marks several draft invoices sent at once (quality of life, 2026-11-25),
+ * each through sendInvoiceNow with its own checks and event. Only drafts of
+ * the one project, and only once the person says they've checked them.
+ */
+export function sendInvoicesNow(deps: FinanceDeps, actorId: Id | null, projectId: Id, invoiceIds: readonly string[], checked: boolean): Result<{ readonly sent: number; readonly skipped: number }, "forbidden" | "nothing-picked" | "not-checked"> {
+  if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
+  const ids = [...new Set(invoiceIds)].slice(0, 50) as Id[];
+  if (ids.length === 0) return err("nothing-picked");
+  if (!checked) return err("not-checked");
+  let sent = 0;
+  let skipped = 0;
+  for (const id of ids) {
+    const invoice = deps.invoices.get(id);
+    const done = invoice && invoice.projectId === projectId ? sendInvoiceNow(deps, actorId, id) : null;
+    if (done?.ok) sent += 1;
+    else skipped += 1;
+  }
+  return ok({ sent, skipped });
 }

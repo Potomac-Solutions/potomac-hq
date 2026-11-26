@@ -30,7 +30,7 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p class="hq-muted">Domains, hosting, certificates and licenses that run out on a date. Add them on each client’s page. Over a year they cost {view.yearlyCost} and are billed at {view.yearlyBilled}.</p>
+    <p class="hq-muted">Domains, hosting, certificates and licenses that run out on a date. Add them on each client’s page. Over a year they cost {view.yearlyCost} and are billed at {view.yearlyBilled}. <a href="/renewals/year">The next 12 months, with what each earns</a>.</p>
     <empty-state zb-if={view.overdue.length + view.soon.length + view.later.length === 0} heading="Nothing to renew yet">Add a client’s domain or hosting on the client’s page, under Renewals.</empty-state>
     <zb-each items={[{ key: 'overdue', title: 'Overdue', items: view.overdue }, { key: 'soon', title: 'In the next 30 days', items: view.soon }, { key: 'later', title: 'Later', items: view.later }]} as="group" key={group.key}>
       <section zb-if={group.items.length > 0} class="hq-panel" aria-labelledby="renewals-{group.key}">

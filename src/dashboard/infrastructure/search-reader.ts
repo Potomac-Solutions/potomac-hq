@@ -31,10 +31,10 @@ const KINDS: Readonly<Record<SearchKind, { readonly from: string; readonly hayst
     order: "r.title",
   },
   invoices: {
-    from: "invoice i join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id",
-    haystack: "'inv-' || printf('%04d', i.number) || ' ' || c.name || ' ' || p.name || ' ' || i.lines",
+    from: "invoice i left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id",
+    haystack: "'inv-' || printf('%04d', i.number) || ' ' || c.name || ' ' || coalesce(p.name, '') || ' ' || i.lines",
     name: "'INV-' || printf('%04d', i.number)",
-    context: "c.name || ', ' || p.name",
+    context: "c.name || coalesce(', ' || p.name, '')",
     extra: "i.status",
     href: "'/invoices/' || i.id",
     order: "i.number desc",
@@ -63,8 +63,8 @@ export function sqliteSearchReader(db: Database): SearchReader {
     return made;
   };
   const byNumber = db.prepare(
-    `select 'INV-' || printf('%04d', i.number) as name, c.name || ', ' || p.name as context, i.status as extra, '/invoices/' || i.id as href, i.id as id
-       from invoice i join project p on p.id = i.project_id join client_organization c on c.id = p.organization_id where i.number = ?`,
+    `select 'INV-' || printf('%04d', i.number) as name, c.name || coalesce(', ' || p.name, '') as context, i.status as extra, '/invoices/' || i.id as href, i.id as id
+       from invoice i left join project p on p.id = i.project_id join client_organization c on c.id = i.organization_id where i.number = ?`,
   );
   const toHit = (row: Record<string, unknown>): SearchHit => ({ id: String(row["id"]), name: String(row["name"]), context: String(row["context"] ?? ""), extra: String(row["extra"] ?? ""), href: String(row["href"]) });
   return {

@@ -2,7 +2,7 @@
 // left out entirely for anyone without `opportunity.view-value`.
 import { CLIENT_STATUS_LABELS, LEAD_SOURCE_LABELS, options, PRICING_LABELS, priceLabel, SERVICE_LABELS, SIZE_TIER_LABELS, STAGE_LABELS } from "../domain/labels.ts";
 import { isClientStatus } from "../domain/client.ts";
-import { isFollowUpDue, isOpen, nextStage, STAGES, type Opportunity } from "../domain/opportunity.ts";
+import { earlierStages, isFollowUpDue, isOpen, nextStage, STAGES, type Opportunity } from "../domain/opportunity.ts";
 import { pipelineNumbers } from "../domain/pipeline-report.ts";
 import { authorize } from "../../identity/index.ts";
 import { dueText, err, formatMoney, ok, type Id, type Result } from "../../shared/index.ts";
@@ -53,9 +53,11 @@ export type ClientDetailView = {
     readonly address: string;
     readonly demo: boolean;
   };
-  readonly contacts: readonly { readonly id: string; readonly name: string; readonly email: string; readonly phone: string; readonly title: string; readonly isPrimary: boolean }[];
+  readonly contacts: readonly { readonly id: string; readonly name: string; readonly email: string; readonly phone: string; readonly title: string; readonly isPrimary: boolean; readonly isBilling: boolean }[];
+  /** Who gets the bills, when it isn't the usual people. "" when not set. */
+  readonly billingContactId: string;
   readonly opportunities: readonly OpportunityRow[];
-  readonly can: { readonly setStatus: boolean; readonly addContact: boolean; readonly createOpportunity: boolean; readonly viewOpportunities: boolean };
+  readonly can: { readonly setStatus: boolean; readonly addContact: boolean; readonly setBilling: boolean; readonly createOpportunity: boolean; readonly viewOpportunities: boolean };
   readonly statuses: readonly Option[];
   readonly services: readonly Option[];
   readonly leadSources: readonly Option[];
@@ -92,6 +94,8 @@ export type OpportunityDetailView = {
   readonly nextStageLabel: string;
   /** A free landing page may go from consulted straight to won. */
   readonly canSkipToWon: boolean;
+  /** Where a person may move it back to, or reopen it to (decision 0014), latest first. */
+  readonly backStages: readonly { readonly value: string; readonly label: string }[];
   readonly project: { readonly id: string; readonly name: string } | null;
   readonly can: {
     readonly setStage: boolean;
@@ -173,11 +177,14 @@ export function clientDetail(deps: CrmDeps, actorId: Id | null, clientId: Id): R
       phone: contact.phone ?? "",
       title: contact.title ?? "",
       isPrimary: contact.isPrimary,
+      isBilling: deps.clients.billingContact(clientId) === contact.id,
     })),
+    billingContactId: deps.clients.billingContact(clientId) ?? "",
     opportunities: viewOpportunities ? deps.opportunities.listFor(clientId).map((o) => row(o, showValue)) : [],
     can: {
       setStatus: may(deps, actorId, "client.set-status"),
       addContact: may(deps, actorId, "contact.edit"),
+      setBilling: may(deps, actorId, "client.edit"),
       createOpportunity: may(deps, actorId, "opportunity.create"),
       viewOpportunities,
     },
@@ -229,6 +236,8 @@ export function opportunityDetail(deps: CrmDeps, actorId: Id | null, opportunity
     nextStage: next ?? "",
     nextStageLabel: next ? (STAGE_LABELS[next] ?? next) : "",
     canSkipToWon: opportunity.service === "landing-page" && opportunity.stage === "consulted",
+    // None once a won deal is a project.
+    backStages: project ? [] : earlierStages(opportunity).map((stage) => ({ value: stage, label: STAGE_LABELS[stage] ?? stage })),
     project: project ? { id: project.id, name: project.name } : null,
     can: {
       setStage: may(deps, actorId, "opportunity.set-stage"),
@@ -260,6 +269,11 @@ export type PipelineView = {
   readonly columns: readonly {
     readonly stage: string;
     readonly label: string;
+    /** Its place in the pipeline, 0 for new. A card may be dropped on any earlier column, or the next one. */
+    readonly index: number;
+    /** The column before it, for a card's Back button (decision 0014). Empty for new. */
+    readonly backStage: string;
+    readonly backStageLabel: string;
     readonly nextStage: string;
     readonly nextStageLabel: string;
     readonly items: readonly {
@@ -283,11 +297,14 @@ export function pipeline(deps: CrmDeps, actorId: Id | null, today: string): Resu
   if (!may(deps, actorId, "opportunity.view")) return err("forbidden");
   const showValue = may(deps, actorId, "opportunity.view-value");
   const open = deps.opportunities.listOpen();
-  const columns = STAGES.filter((stage) => stage !== "won" && stage !== "lost").map((stage) => {
+  const columns = STAGES.filter((stage) => stage !== "won" && stage !== "lost").map((stage, index) => {
     const next = STAGES[STAGES.indexOf(stage) + 1] ?? "";
     return {
       stage,
       label: STAGE_LABELS[stage] ?? stage,
+      index,
+      backStage: STAGES[index - 1] ?? "",
+      backStageLabel: STAGES[index - 1] ? (STAGE_LABELS[STAGES[index - 1] as string] ?? "") : "",
       nextStage: next,
       nextStageLabel: STAGE_LABELS[next] ?? next,
       items: open

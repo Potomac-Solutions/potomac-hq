@@ -4,7 +4,7 @@ import type { Id } from "../../shared/domain/id.ts";
 import type { Money } from "../../shared/domain/money.ts";
 import { activateOnWin, changeClientStatus, newClient } from "./client.ts";
 import { newContact } from "./contact.ts";
-import { isFollowUpDue, moveStage, newOpportunity, nextStage, setFollowUp, setValue, type Opportunity } from "./opportunity.ts";
+import { earlierStages, isFollowUpDue, moveStage, newOpportunity, nextStage, setFollowUp, setValue, type Opportunity } from "./opportunity.ts";
 
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}` as Id;
 const usd = (minor: number): Money => ({ minor, currency: "USD" });
@@ -80,7 +80,7 @@ test("stages move forward one at a time", () => {
     assert.ok(moved.ok, to);
     o = moved.value;
   }
-  assert.deepEqual(moveStage(o, "new", { at }), { ok: false, error: "not-the-next-stage" });
+  assert.deepEqual(moveStage(o, "new", { at }), { ok: false, error: "not-the-next-stage" }, "never back unless asked");
   assert.deepEqual(moveStage(o, "won", { at }), { ok: false, error: "not-the-next-stage" });
   assert.deepEqual(moveStage(o, "consulted", { at }), { ok: false, error: "unchanged" });
   assert.deepEqual(moveStage(o, "quoted", { at }), { ok: false, error: "price-required" }, "a quote needs a price");
@@ -92,7 +92,7 @@ test("stages move forward one at a time", () => {
   assert.ok(won.ok);
   assert.equal(won.value.closedAt, at);
   assert.equal(nextStage(won.value), null);
-  assert.deepEqual(moveStage(won.value, "lost", { at, lostReason: "changed mind" }), { ok: false, error: "closed" }, "won is final");
+  assert.deepEqual(moveStage(won.value, "lost", { at, lostReason: "changed mind" }), { ok: false, error: "closed" }, "won can't go straight to lost");
 });
 
 test("the service must be known from consulted on", () => {
@@ -111,13 +111,13 @@ test("a free landing page skips the quote", () => {
   assert.deepEqual(moveStage(opp({ service: "website", stage: "consulted", pricing: "fixed", value: usd(100000) }), "won", { at }), { ok: false, error: "not-the-next-stage" }, "only a landing page skips");
 });
 
-test("any open stage can be lost, with a reason, and lost is final", () => {
+test("any open stage can be lost, with a reason", () => {
   assert.deepEqual(moveStage(opp(), "lost", { at }), { ok: false, error: "lost-reason-required" });
   const lost = moveStage(opp(), "lost", { at, lostReason: "  Went with a cousin  " });
   assert.ok(lost.ok);
   assert.equal(lost.value.lostReason, "Went with a cousin");
   assert.equal(lost.value.closedAt, at);
-  assert.deepEqual(moveStage(lost.value, "consult-booked", { at }), { ok: false, error: "closed" });
+  assert.deepEqual(moveStage(lost.value, "won", { at }), { ok: false, error: "closed" }, "lost can't jump to won");
 });
 
 test("a price must fit its pricing shape", () => {
@@ -139,4 +139,32 @@ test("a follow-up is a real date, and is due on or after that day while open", (
   const cleared = setFollowUp(set.value, "");
   assert.ok(cleared.ok);
   assert.equal(cleared.value.followUpOn, null);
+});
+
+test("a person may move an opportunity to any open stage, and reopen won or lost (decision 0014)", () => {
+  const quoted = opp({ service: "website", stage: "quoted", pricing: "fixed", value: usd(100000) });
+  const back = moveStage(quoted, "new", { at, byHand: true });
+  assert.ok(back.ok);
+  assert.equal(back.value.stage, "new");
+  assert.deepEqual(earlierStages(quoted), ["consulted", "consult-booked", "new"]);
+  const undone = moveStage(back.value, "quoted", { at, byHand: true });
+  assert.ok(undone.ok, "a person may put it back where it was, skipping ahead");
+  assert.deepEqual(moveStage(back.value, "won", { at, byHand: true }), { ok: false, error: "not-the-next-stage" }, "won only from the stage before it");
+  assert.deepEqual(earlierStages(opp()), []);
+
+  const won = { ...quoted, stage: "won" as const, closedAt: at };
+  assert.deepEqual(moveStage(won, "quoted", { at }), { ok: false, error: "closed" }, "automatic moves never reopen");
+  const reopened = moveStage(won, "quoted", { at, byHand: true });
+  assert.ok(reopened.ok);
+  assert.equal(reopened.value.closedAt, null);
+  assert.deepEqual(earlierStages(won), ["quoted", "consulted", "consult-booked", "new"]);
+
+  const lost = moveStage(opp(), "lost", { at, lostReason: "Went with a cousin" });
+  assert.ok(lost.ok);
+  const reopenedLost = moveStage(lost.value, "new", { at, byHand: true });
+  assert.ok(reopenedLost.ok);
+  assert.equal(reopenedLost.value.lostReason, null);
+  assert.equal(reopenedLost.value.closedAt, null);
+  assert.deepEqual(moveStage(lost.value, "won", { at, byHand: true }), { ok: false, error: "closed" }, "lost can't jump to won");
+  assert.deepEqual(moveStage(lost.value, "quoted", { at, byHand: true }), { ok: false, error: "service-required" }, "reopening still checks the stage's needs");
 });

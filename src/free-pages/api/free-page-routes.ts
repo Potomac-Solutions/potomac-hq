@@ -2,7 +2,7 @@
 // section 3). Potomac's people use the client's Landing page; the client uses
 // the portal's.
 import { Hono } from "hono";
-import { approveFreePage, archiveOf, markRoundDone, recordRound, requestFreePage, sendRound, setUpFreePage, type ClientSide, type FreePagesDeps } from "../application/free-pages.ts";
+import { approveFreePage, archiveOf, markRoundDone, recordRound, requestFreePage, sendRound, setUpFreePage, type ClientSide, type FreePagesDeps, type SetUp } from "../application/free-pages.ts";
 import type { SiteArchive } from "../application/ports.ts";
 import { formPosts, parseId, type Id } from "../../shared/index.ts";
 
@@ -12,6 +12,9 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "subdomain-invalid": "An address is letters, digits and single hyphens, like moats-hardware.",
   "subdomain-reserved": "That name is kept for Potomac’s own use. Choose another.",
   "subdomain-taken": "Another client’s page already has that address.",
+  "domain-invalid": "Type the domain like betterdaystowing.com.",
+  "domain-ours": "That’s a name on potomac.solutions: choose “A name on potomac.solutions” and type just the name.",
+  "domain-taken": "Another client’s page is already on that domain.",
   "invalid-status": "Choose a status from the list.",
   "repo-invalid": "Enter the repository as owner/name, like Potomac-Solutions/moats-landing.",
   "already-has-one": "Someone at this client already has a free landing page with another client. It’s one free page a person.",
@@ -23,14 +26,22 @@ const MESSAGES: Readonly<Record<string, string>> = {
 };
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
+/** What saving says about the domain's renewal, when the page is on the client's own domain. */
+const RENEWAL_WORDS: Readonly<Record<SetUp["renewal"], string>> = {
+  "not-asked": "Saved.",
+  added: "Saved. Their domain is on their Renewals, ready to bill.",
+  "already-there": "Saved. Their domain was already on their Renewals.",
+  failed: "Saved, but the domain wasn’t added to Renewals: check its date and amounts, or add it under Renewals on the client’s page.",
+};
+
 export function freePageStaffRoutes(deps: { readonly freePages: FreePagesDeps; readonly actorOf: (cookieHeader: string) => Id | null; readonly sign: (location: string) => string }): Hono {
   const app = new Hono();
   const post = formPosts(app, { actorOf: deps.actorOf, sign: deps.sign, messageFor, home: "/landing-pages" });
   const pageOf = (id: Id | null) => `/clients/${id}/landing-page`;
-  post("/clients/:id/landing-page", (actor, f, id) => setUpFreePage(deps.freePages, actor, id as Id, { subdomain: f["subdomain"] ?? "", status: f["status"] ?? "", repo: f["repo"] ?? "" }), {
+  post("/clients/:id/landing-page", (actor, f, id) => setUpFreePage(deps.freePages, actor, id as Id, { subdomain: f["subdomain"] ?? "", status: f["status"] ?? "", repo: f["repo"] ?? "", where: f["where"] ?? "", ownDomain: f["ownDomain"] ?? "", renewsOn: f["renewsOn"] ?? "", cost: f["cost"] ?? "", price: f["price"] ?? "" }), {
     done: (_page, id) => pageOf(id),
     back: (id) => pageOf(id),
-    message: "Saved.",
+    message: (page) => RENEWAL_WORDS[page.renewal],
   });
   post("/clients/:id/landing-page/rounds", (actor, f, id) => recordRound(deps.freePages, actor, id as Id, f["text"] ?? ""), {
     done: (round, id) => `${pageOf(id)}#round-${round.number}`,

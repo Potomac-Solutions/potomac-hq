@@ -40,7 +40,18 @@ export type Renewal = {
   /** The invoice last sent for it, and the renewal date that invoice was for. Null until it is first billed. */
   readonly invoiceId: Id | null;
   readonly billedFor: string | null;
+  /** What the client was billed before the last price change, and the day it changed. Null when it never has. */
+  readonly priceChange: { readonly was: Money | null; readonly on: string } | null;
+  /** The client's answer in the portal, and the renewal date it was for. Null until they answer. */
+  readonly answer: { readonly choice: RenewalChoice; readonly forTerm: string; readonly at: string; readonly by: Id } | null;
 };
+
+export const RENEWAL_CHOICES = ["renew", "lapse"] as const;
+export type RenewalChoice = (typeof RENEWAL_CHOICES)[number];
+export const isRenewalChoice = (value: string): value is RenewalChoice => (RENEWAL_CHOICES as readonly string[]).includes(value);
+
+/** The client's answer for the coming term, or null: an answer for an earlier term doesn't count. */
+export const answerThisTerm = (renewal: Renewal): RenewalChoice | null => (renewal.answer && renewal.answer.forTerm === renewal.renewsOn ? renewal.answer.choice : null);
 
 export type RenewalInput = { readonly kind: string; readonly name: string; readonly provider?: string | null; readonly renewsOn: string; readonly termMonths: string; readonly cost?: string | null; readonly price?: string | null; readonly autoRenews?: boolean; readonly note?: string | null };
 export type RenewalError = "invalid-kind" | "name-missing" | "name-too-long" | "provider-too-long" | "invalid-date" | "invalid-term" | "not-an-amount" | "note-too-long";
@@ -68,7 +79,7 @@ export function newRenewal(ids: { readonly id: Id; readonly organizationId: Id }
   if (!price.ok) return price;
   const note = optionalText(input.note, 500);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true, invoiceId: null, billedFor: null });
+  return ok({ ...ids, kind: input.kind as RenewalKind, name: name.value, provider: provider.value ?? "", renewsOn: renewsOn.value, termMonths: term, cost: cost.value, price: price.value, autoRenews: input.autoRenews === true, note: note.value ?? "", active: true, invoiceId: null, billedFor: null, priceChange: null, answer: null });
 }
 
 /** Renewed: its date moves on one term, from the date it was due, not from today. */
@@ -113,3 +124,32 @@ export function billFor(renewal: Renewal, today: string): Result<{ readonly desc
 
 /** The renewal with the invoice sent for its coming term. */
 export const billed = (renewal: Renewal, invoiceId: Id): Renewal => ({ ...renewal, invoiceId, billedFor: renewal.renewsOn });
+
+export type PriceError = "not-an-amount" | "same-price";
+
+/**
+ * A new price for the client, from their next bill: a registrar raised its
+ * price, say. What it was is kept, so the client is told before the bill.
+ * Empty: Potomac pays for it itself from now on.
+ */
+export function changePrice(renewal: Renewal, typed: string, today: string): Result<Renewal, PriceError> {
+  const text = typed.trim();
+  const price = text === "" ? ok(null) : parseAmount(text, "USD");
+  if (!price.ok || (price.value !== null && price.value.minor < 0)) return err("not-an-amount");
+  if ((price.value?.minor ?? 0) === (renewal.price?.minor ?? 0)) return err("same-price");
+  return ok({ ...renewal, price: price.value, priceChange: { was: renewal.price, on: today } });
+}
+
+/** Each day a renewal comes up between two days, inclusive, one term after another. */
+export function occurrences(renewal: Pick<Renewal, "renewsOn" | "termMonths">, from: string, to: string): readonly string[] {
+  const out: string[] = [];
+  let on = Temporal.PlainDate.from(renewal.renewsOn);
+  const start = Temporal.PlainDate.from(from);
+  const end = Temporal.PlainDate.from(to);
+  while (Temporal.PlainDate.compare(on, start) < 0) on = on.add({ months: renewal.termMonths });
+  for (let n = 0; n < 240 && Temporal.PlainDate.compare(on, end) <= 0; n++) {
+    out.push(on.toString());
+    on = on.add({ months: renewal.termMonths });
+  }
+  return out;
+}

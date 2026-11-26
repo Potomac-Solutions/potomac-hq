@@ -1,0 +1,63 @@
+<!--
+  System status, for admins: whether backups, email, AI and the server's
+  settings are working, the newest errors, and what HQ is running on. Errors
+  and email are counted since HQ last started; the rest is read from the
+  database.
+-->
+<script>
+  'use route /status'
+  import '../../shared/ui/zubra/status-badge.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const status = context.status()
+    if (!status) return context.forbidden()
+    return { title: 'System status', status }
+  }
+</script>
+<style>
+  .status-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .status-list li { display: grid; grid-template-columns: 9rem minmax(0, 1fr) auto; gap: 0.25rem 1rem; align-items: start; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .status-list li:first-child { border-top: 0; }
+  .status-list p { margin: 0; overflow-wrap: anywhere; }
+  .status-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0; }
+  .status-facts dt { font-weight: 600; }
+  .status-facts dd { margin: 0; }
+  .status-errors { margin: 0; padding-left: 1.1rem; }
+  .status-errors li { margin: 0.3rem 0; overflow-wrap: anywhere; }
+  @media (max-width: 40rem) { .status-list li { grid-template-columns: 1fr; } }
+</style>
+<hq-status status={{ checks: [], errors: [], version: '', started: '', database: '', migrations: '' }}>
+  <div class="hq-page">
+    <h1>System status</h1>
+    <section class="hq-panel" aria-labelledby="status-checks">
+      <h2 id="status-checks">What HQ depends on</h2>
+      <ul class="status-list">
+        <zb-each items={status.checks} as="check" key={check.key}>
+          <li>
+            <strong>{check.label}</strong>
+            <p>{check.detail}</p>
+            <span><status-badge variant={check.state === 'ok' ? 'success' : check.state === 'warning' ? 'warning' : 'danger'}>{check.stateText}</status-badge> <a zb-if={check.href} href={check.href}>{check.state === 'ok' ? 'Open' : 'Fix'}<span class="sr-only">: {check.label}</span></a></span>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+    <section class="hq-panel" aria-labelledby="status-errors">
+      <h2 id="status-errors">Newest errors</h2>
+      <p zb-if={status.errors.length === 0} class="hq-muted">None since HQ started.</p>
+      <ol zb-else class="status-errors">
+        <zb-each items={status.errors} as="error" key={error.when + error.message}><li><span class="hq-muted">{error.when}</span> · {error.message}</li></zb-each>
+      </ol>
+      <p class="hq-muted hq-small">The full error and its details go to the server log, and by email to HQ_ALERT_EMAIL where set.</p>
+    </section>
+    <section class="hq-panel" aria-labelledby="status-running">
+      <h2 id="status-running">Running</h2>
+      <dl class="status-facts">
+        <dt>Version</dt><dd>{status.version}</dd>
+        <dt>Started</dt><dd>{status.started}</dd>
+        <dt>Database</dt><dd>{status.database}</dd>
+        <dt>Migrations</dt><dd>{status.migrations}</dd>
+      </dl>
+    </section>
+  </div>
+</hq-status>

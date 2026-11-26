@@ -183,7 +183,7 @@ still open.
 | --- | --- | --- |
 | The payment page | The card gateway is not chosen (`docs/tool-boundaries.md`, open item 1), and HQ must never see a card number. An invoice shows what is owed and says how to pay | When the gateway is chosen |
 | A calendar for booking | A request and an answer do the job for one person's calendar | When requests are frequent |
-| Self-serve password reset and password change | See above | With email in real use |
+| Self-serve password reset and password change | See above | With email in real use. **Reset done in decision 0016** (Email me a link on the portal's sign-in page) |
 | Email notices to clients | Needs wording Mikey approves, and unsubscribe handling | After the portal's first real client |
 | ~~Files sent by the client~~ | Built after all. See "The portal, as a client" below | Done |
 | Several organizations for one client user | One email, one organization | When someone needs it |

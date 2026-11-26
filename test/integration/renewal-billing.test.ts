@@ -45,7 +45,7 @@ test("the domain is billed from the client's page: one invoice, sent, due a week
   assert.match(page, new RegExp(`Not billed yet\\. The client pays by ${longDay(day(13))}, a week before it renews\\.`));
 
   assert.equal(problemOf(await member.post(`/renewals/${domain.id}/bill`, { projectId })), "You don’t have permission to do that.", "a member can't send invoices");
-  assert.equal(problemOf(await admin.post(`/renewals/${domain.id}/bill`, { projectId: "" })), "Choose the project the invoice goes on. A client with no project needs one first: an ongoing one for their plan works.");
+  assert.equal(problemOf(await admin.post(`/renewals/${domain.id}/bill`, { projectId: "0190a000-0000-7000-8000-0000000000ff" })), "That project isn’t this client’s. Choose one of theirs, or bill the client with no project.");
   assert.equal(doneOf(await admin.post(`/renewals/${domain.id}/bill`, { projectId, back: "client", clientId })), "Billed. The invoice is in the client’s portal, due a week before it renews.");
 
   const billed = renewal(domain.id);
@@ -97,4 +97,35 @@ test("a renewal Potomac doesn't bill for is not shown to the client and can't be
   const ours = unwrap(renewals.addRenewal(t.services.renewals, mikey, clientId, { kind: "ssl", name: "Certificate", renewsOn: day(10), termMonths: "12", cost: "0" }));
   assert.equal(problemOf(await admin.post(`/renewals/${ours.id}/bill`, { projectId })), "Set what we bill for it first. A renewal with no price is ours to pay.");
   assert.doesNotMatch(textOf(await stacy.page("/portal")), /Certificate/);
+});
+
+test("a client with no project is billed for their domain on the client alone, and pays it in the portal like any invoice", async () => {
+  const other = await wonProject(t.services, mikey, { client: "Moats Hardware", title: "Free landing page" });
+  // Moats has a project; bill on the client alone anyway, as for a client with none.
+  const domain = unwrap(renewals.addRenewal(t.services.renewals, mikey, other.client.id, { kind: "domain", name: "moatshardware.com", renewsOn: day(30), termMonths: "12", cost: "15", price: "25" }));
+  assert.match(await admin.page(`/clients/${other.client.id}`), /<option value="" selected>The client, no project<\/option>/);
+  assert.equal(doneOf(await admin.post(`/renewals/${domain.id}/bill`, { projectId: "", back: "client", clientId: other.client.id })), "Billed. The invoice is in the client’s portal, due a week before it renews.");
+  const billed = renewal(domain.id);
+  assert.ok(billed?.invoiceId);
+  const invoice = t.services.finance.invoices.get(billed.invoiceId);
+  assert.deepEqual([invoice?.organizationId, invoice?.projectId, invoice?.projectName, invoice?.status, invoice?.total.minor], [other.client.id, null, "", "sent", 2500]);
+  // It shows on the client's page and its own page says whose it is.
+  assert.match(textOf(await admin.page(`/clients/${other.client.id}`)), /INV-\d{4} · moatshardware\.com: domain renewal/);
+  assert.match(textOf(await admin.page(`/invoices/${billed.invoiceId}`)), /Moats Hardware/);
+  // Paid in full, the renewal says so; no project's payment status moves.
+  unwrap(finance.recordPayment(t.services.finance, mikey, billed.invoiceId, { amount: "25", method: "check", on: day(0), reference: "1042" }));
+  assert.equal(t.services.finance.invoices.get(billed.invoiceId)?.status, "paid");
+  assert.match(textOf(await admin.page(`/clients/${other.client.id}`)), /Paid/);
+});
+
+test("a one-off charge is billed from the client's page with no project; a deposit can't be", async () => {
+  assert.equal(problemOf(await member.post(`/clients/${clientId}/invoices`, { kind: "other", description: "Domain transfer", amount: "20" })), "You don’t have permission to do that.");
+  assert.equal(problemOf(await admin.post(`/clients/${clientId}/invoices`, { kind: "deposit", description: "Deposit", amount: "100" })), "A deposit or a balance goes on a project. Bill this as the full amount or something else.");
+  const made = await admin.post(`/clients/${clientId}/invoices`, { kind: "other", description: "Domain transfer", amount: "20" });
+  assert.equal(doneOf(made), "Invoice drafted. Check it, then send it.");
+  const id = /\/invoices\/([0-9a-f-]{36})/.exec(made.headers.get("location") ?? "")?.[1] as Id;
+  const invoice = t.services.finance.invoices.get(id);
+  assert.deepEqual([invoice?.organizationId, invoice?.projectId, invoice?.status], [clientId, null, "draft"]);
+  assert.match(textOf(await admin.page(`/clients/${clientId}`)), /Domain transfer|No project/);
+  assert.match(textOf(await admin.page(`/invoices/${id}`)), /Better Days Towing/);
 });

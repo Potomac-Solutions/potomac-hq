@@ -117,7 +117,7 @@ Do it for the test environment first, then again for production.
 | `HQ_GITHUB_TOKEN` | A fine-grained GitHub token with Contents read and write on the client sites' repositories only (see "Site content") | For clients changing their own site |
 | `HQ_ANTHROPIC_API_KEY` | A Claude API key from platform.claude.com (see "The site builder") | For the site builder and the AI drafts of decision 0012 |
 | `HQ_GITHUB_ADMIN_TOKEN` | A fine-grained GitHub token that may make repositories in the organization and write to them (see "The site builder") | For new repositories from the site builder |
-| `HQ_SITE_BUILDER_OWNER` | Mikey's email: the one person who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
+| `HQ_SITE_BUILDER_OWNER` | The founders' emails, separated by commas (one is fine): who may change the site builder's model and monthly cap, and the AI drafts' model, budget and features | For the site builder and AI drafts |
 | `HQ_GOOGLE_CALENDAR_ID`, `HQ_GOOGLE_SERVICE_ACCOUNT` | A Google Calendar whose busy times booked calls avoid, and a service account's key (defaults to the sheet's) | Optional |
 
 Set `PORT` to `3000` (see "Railway settings that work"). `HQ_CACHE_DIR` is
@@ -360,7 +360,7 @@ Admins make client websites with Claude under Delivery → Site builder
 - `HQ_ANTHROPIC_API_KEY`: a key from platform.claude.com → API keys. Give
   it its own workspace in the Claude Console, with its own spend limit
   there too, as a second stop behind HQ's.
-- `HQ_SITE_BUILDER_OWNER`: Mikey's email, exactly as his HQ account has it.
+- `HQ_SITE_BUILDER_OWNER`: the founders' emails, separated by commas, exactly as their HQ accounts have them. Each must be an admin.
   Only he can change the model and the monthly cap, under Site builder →
   Model and cap. Every admin can see them and what's been spent.
 
@@ -397,6 +397,98 @@ until it's connected to Railway or Netlify as a static site, once, by hand.
 
 Without the key HQ starts and says "The site builder can't ask Claude".
 Builds can still be seen and downloaded.
+
+## Phone alerts (decision 0016)
+
+Run `npm run push:keygen` once and set `HQ_VAPID_PUBLIC_KEY`,
+`HQ_VAPID_PRIVATE_KEY` and `HQ_VAPID_SUBJECT` (a `mailto:` address) on the
+server, then restart. Keep the private key out of the repository. Each person
+then turns alerts on per device under Settings → Phone alerts. A new key pair
+makes every device's subscription stop working: people turn alerts on again.
+
+On an iPhone, alerts only work once HQ is added to the home screen and opened
+from there.
+
+## Card payments (decision 0018)
+
+Off until `HQ_PAY_PROVIDER` is set. It names one platform; set that
+platform's keys beside it, then restart. HQ says which it is using when it
+starts, and System status has a Card payments line.
+
+| `HQ_PAY_PROVIDER` | Also set | At the platform |
+| --- | --- | --- |
+| `stripe` | `HQ_PAY_STRIPE_KEY` (the secret key), `HQ_PAY_STRIPE_WEBHOOK_SECRET` | Add a webhook endpoint for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Turn Link and other methods on or off in the Dashboard. |
+| `square` | `HQ_PAY_SQUARE_TOKEN`, `HQ_PAY_SQUARE_LOCATION`, `HQ_PAY_SQUARE_WEBHOOK_KEY`; `HQ_PAY_SQUARE_SANDBOX=1` for the sandbox | Add a webhook subscription for `payment.updated`. |
+| `paypal` | `HQ_PAY_PAYPAL_CLIENT`, `HQ_PAY_PAYPAL_SECRET`, `HQ_PAY_PAYPAL_WEBHOOK_ID`; `HQ_PAY_PAYPAL_SANDBOX=1` for the sandbox | Add a webhook for `CHECKOUT.ORDER.APPROVED` and `PAYMENT.CAPTURE.COMPLETED`. |
+| `helcim` | `HQ_PAY_HELCIM_TOKEN` | In the API Access Configuration, allow HelcimPay.js for HQ's address. Helcim has no webhook. |
+| `test` | nothing | Nothing. A stand-in page; no money moves. Never leave this on with real invoices out. |
+
+The webhook address is `HQ_PUBLIC_URL` + `/pay/webhook/` + the platform's
+name, such as `https://hq.potomac.solutions/pay/webhook/stripe`.
+`HQ_PUBLIC_URL` must be the https address: the platform sends clients back
+to it.
+
+**PayPal, which HQ uses.** In developer.paypal.com, under Apps &
+Credentials, make an app (Sandbox first, then Live): its Client ID and
+Secret are `HQ_PAY_PAYPAL_CLIENT` and `HQ_PAY_PAYPAL_SECRET`. On the app,
+add a webhook to `HQ_PUBLIC_URL/pay/webhook/paypal` for "Checkout order
+approved" and "Payment capture completed"; its Webhook ID is
+`HQ_PAY_PAYPAL_WEBHOOK_ID`. Keep `HQ_PAY_PAYPAL_SANDBOX=1` until a sandbox
+payment has gone through, then swap in the Live app's three values and
+remove it. Set the webhook: without it, a client who approves at PayPal and
+closes the tab before coming back is never charged and the invoice stays
+owed. PayPal charges only when HQ asks, so a voided invoice is never
+charged.
+
+**Before the first real invoice.** No platform has taken a real payment
+through this yet. On staging, with the platform's sandbox or test keys: send
+an invoice to a test client, pay it from the portal with the platform's test
+card, and check the invoice shows the payment. Then close the tab before
+coming back on a second one and check the webhook alone records it. Helcim
+is the least sure of the four: its answer is checked with a hash HQ has to
+reproduce exactly, so if a paid Helcim test comes back "We haven't received
+that payment", that is where to look.
+
+**Changing platform.** Change `HQ_PAY_PROVIDER` and its keys and restart.
+Payment pages already open on the old platform can no longer be confirmed
+by HQ; if one is paid, the old platform's dashboard shows it and you record
+it by hand. Refunds are made at the platform.
+
+## Text reminders (decision 0019)
+
+Off until all three are set, then restart: `HQ_TWILIO_ACCOUNT_SID` (AC…),
+`HQ_TWILIO_AUTH_TOKEN`, and `HQ_TWILIO_FROM`, the sending number like
+`+13045550100` or a messaging service id (MG…). With only some set, HQ
+won't start and says which. Texts go out with the email reminder runs (the
+day-before call reminder every ten minutes, invoice reminders at 09:07), so
+email has to be set up too. Only client people who turned texts on in the
+portal get them. Twilio handles STOP; once someone has replied STOP, HQ
+marks them stopped the next time it tries. Every text is in the
+`text_sent` table with how it went. In the US, register the number for A2P
+10DLC in Twilio first, or carriers will drop many of them.
+
+## Autopay (decision 0019)
+
+On by itself when `HQ_PAY_PROVIDER=paypal`: the portal offers it to clients
+with a plan, and the run is daily at 10:17. Before a client uses it, turn on
+**Vault** for HQ's PayPal app (developer.paypal.com → Apps & Credentials →
+the app → features), in Sandbox and Live; PayPal may ask to approve the
+account. Then, on staging with `HQ_PAY_PAYPAL_SANDBOX=1`: give a test client
+a monthly plan starting today, set up autopay from the portal with a
+sandbox buyer, and the next morning's run (or `runAutopay` by hand) should
+pay the plan invoice. No real PayPal account has done this yet.
+
+When the run can't tell whether PayPal took the money (an outage, a pending
+payment), it makes a to-do "Check whether autopay took …" and never tries
+that invoice again. Look it up in PayPal: record the payment if it went
+through. After three declines it makes a to-do to ask the client to update
+their account. Refund an autopay payment in PayPal, then record it with the
+refund fold-out's "I gave it back myself".
+
+## The weekly owner email (decision 0016)
+
+Mondays at 07:23 business time, each active admin is emailed last week. It
+needs email set up. A restart that day sends nothing twice.
 
 ## Dependency updates
 

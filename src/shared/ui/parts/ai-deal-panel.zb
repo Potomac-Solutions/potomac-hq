@@ -7,6 +7,7 @@
 <script>
   import '../zubra/status-badge.zb'
   import '../zubra/text-field.zb'
+  import './model-pick.zb'
 </script>
 <style>
   .ai-deal { display: grid; gap: 1rem; }
@@ -22,16 +23,17 @@
   .ai-lines td.num, .ai-lines th.num { text-align: right; }
   .ai-pre { white-space: pre-wrap; margin: 0; }
 </style>
-<ai-deal-panel ai={{ triage: null, checkIn: null, proposal: null }} states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} opportunity-id="" open={false} email-on={false}>
+<ai-deal-panel models={[]} ai={{ triage: null, checkIn: null, proposal: null }} states={{ triage: { on: false, why: '' }, checkIn: { on: false, why: '' }, proposal: { on: false, why: '' } }} opportunity-id="" open={false} email-on={false}>
   <section zb-if={ai.triage || ai.checkIn || ai.proposal || (open && (states.triage.on || states.checkIn.on || states.proposal.on)) || states.triage.why || states.checkIn.why || states.proposal.why} class="hq-panel ai-deal" id="ai" aria-labelledby="ai-deal-heading">
     <h2 id="ai-deal-heading">AI drafts</h2>
     <p class="hq-muted hq-small">AI only drafts. Nothing goes to the client until you press Send.</p>
     <p zb-if={states.triage.why || states.checkIn.why || states.proposal.why} class="hq-muted hq-small">{states.triage.why || states.checkIn.why || states.proposal.why}</p>
-    <div zb-if={open} class="ai-asks">
-      <form zb-if={states.triage.on} method="post" action="/opportunities/{opportunityId}/ai/triage"><button class="hq-button secondary" type="submit">{ai.triage ? 'Triage again' : 'Triage with AI'}</button></form>
-      <form zb-if={states.checkIn.on} method="post" action="/opportunities/{opportunityId}/ai/check-in"><button class="hq-button secondary" type="submit">Draft a check-in</button></form>
-      <form zb-if={states.proposal.on} method="post" action="/opportunities/{opportunityId}/ai/proposal"><button class="hq-button secondary" type="submit">Draft a proposal</button></form>
-    </div>
+    <form zb-if={open && (states.triage.on || states.checkIn.on || states.proposal.on)} method="post" action="/opportunities/{opportunityId}/ai/triage" class="ai-asks">
+      <model-pick models={models} field-id="deal-model"></model-pick>
+      <button zb-if={states.triage.on} class="hq-button secondary" type="submit" formaction="/opportunities/{opportunityId}/ai/triage">{ai.triage ? 'Triage again' : 'Triage with AI'}</button>
+      <button zb-if={states.checkIn.on} class="hq-button secondary" type="submit" formaction="/opportunities/{opportunityId}/ai/check-in">Draft a check-in</button>
+      <button zb-if={states.proposal.on} class="hq-button secondary" type="submit" formaction="/opportunities/{opportunityId}/ai/proposal">Draft a proposal</button>
+    </form>
 
     <div zb-if={ai.triage} class="ai-draft">
       <h3>Triage <status-badge zb-if={ai.triage.spam} variant="danger">Looks like spam</status-badge> <status-badge zb-if={!ai.triage.spam && ai.triage.urgency === 'high'} variant="warning">Urgent</status-badge></h3>

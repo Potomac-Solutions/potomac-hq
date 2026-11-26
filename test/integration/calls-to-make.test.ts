@@ -34,7 +34,7 @@ before(async () => {
   const won = await wonProject(t.services, mikeyId, { client: "Elk Diner", title: "Diner website" });
   diner = won.client.id;
   unwrap(crm.addContact(t.services.crm, mikeyId, diner, { name: "Rita Okafor", email: "rita@example.com", phone: "304-555-0111", isPrimary: true }));
-  t.db.prepare("insert into invoice (id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by, created_at, updated_at) values (?, ?, 7, 'full', 'sent', '[]', 80000, 'USD', ?, ?, '', ?, ?, ?)").run("00000000-0000-4000-8000-00000000c001", won.project.id, day(-40), day(-10), mikeyId, now(), now());
+  t.db.prepare("insert into invoice (id, organization_id, project_id, number, kind, status, lines, total_minor, currency, issued_on, due_on, note, created_by, created_at, updated_at) values (?, ?, ?, 7, 'full', 'sent', '[]', 80000, 'USD', ?, ?, '', ?, ?, ?)").run("00000000-0000-4000-8000-00000000c001", won.client.id, won.project.id, day(-40), day(-10), mikeyId, now(), now());
   t.db.prepare("insert into client_user (id, organization_id, name, email, status, invited_by, created_at, updated_at) values (?, ?, 'Rita Okafor', 'rita@example.com', 'invited', ?, ?, ?)").run("00000000-0000-4000-8000-00000000c002", diner, mikeyId, now(), now());
   t.db.prepare("insert into call_request (id, organization_id, client_user_id, wanted, note, status, created_at, updated_at) values (?, ?, ?, 'mornings', '', 'requested', ?, ?)").run("00000000-0000-4000-8000-00000000c003", diner, "00000000-0000-4000-8000-00000000c002", now(), now());
 

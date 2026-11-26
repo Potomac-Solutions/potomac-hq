@@ -76,7 +76,16 @@ test("nothing typed can break it, and nothing found says what to try", async () 
   }
   const none = textOf(await admin.page("/search?q=zzqqxx"));
   assert.match(none, /Nothing matches “zzqqxx”\. Check the spelling, or use fewer words\./);
-  assert.match(textOf(await admin.page("/search")), /^(?!.*matches).*Search Find a client/s, "an empty box searches nothing");
+  assert.match(textOf(await admin.page("/search")), /^(?!.*matches).*Search Find a page, client/s, "an empty box searches nothing");
+});
+
+test("search finds HQ's own pages, only those the person may open (decision 0015)", async () => {
+  const hours = await admin.page("/search?q=where+do+I+set+my+hours");
+  assert.match(textOf(hours), /Pages Hours for calls The hours people can book you/);
+  assert.match(hours, /href="\/calls\/hours"/);
+  assert.match(textOf(await admin.page("/search?q=invoices")), /Pages Invoices Every invoice by where it stands: owed, overdue, drafts Money Invoices, payments and expenses/);
+  assert.doesNotMatch(textOf(await member.page("/search?q=invoices")), /Pages Money/, "a member may not open Money");
+  assert.doesNotMatch(textOf(await member.page("/search?q=audit")), /Audit history/);
 });
 
 test("each kind is searched only for someone who may see it", async () => {

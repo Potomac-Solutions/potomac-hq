@@ -1,7 +1,8 @@
+import type { PrepaidBlock } from "../domain/prepaid.ts";
 import type { ChangeRequest } from "../domain/change-request.ts";
 import type { ProjectFinance } from "../domain/budget.ts";
 import type { Expense } from "../domain/expense.ts";
-import type { Invoice, Payment } from "../domain/invoice.ts";
+import type { Invoice, Payment, Refund } from "../domain/invoice.ts";
 import type { RecurringInvoice } from "../domain/recurring.ts";
 import type { ReminderKind } from "../domain/reminders.ts";
 import type { TimeEntry } from "../domain/time.ts";
@@ -51,7 +52,8 @@ export type PhaseEstimates = {
   forProject(projectId: Id): { readonly phaseId: Id | null; readonly minutes: number }[];
 };
 
-export type InvoiceRow = Invoice & { readonly projectName: string; readonly clientName: string; readonly organizationId: Id; readonly paidMinor: number };
+/** An invoice with its client's and project's names. `projectName` is "" for a charge on the client alone. */
+export type InvoiceRow = Invoice & { readonly projectName: string; readonly clientName: string; readonly paidMinor: number };
 
 export type InvoiceStore = {
   /** The number the next invoice takes: one more than the highest so far. */
@@ -61,9 +63,15 @@ export type InvoiceStore = {
   get(id: Id): InvoiceRow | null;
   /** A project's invoices, newest first. */
   listForProject(projectId: Id): InvoiceRow[];
+  /** Every invoice to a client, on a project or not, newest first. */
+  listForClient(organizationId: Id): InvoiceRow[];
   /** Every invoice, oldest first. */
   list(): InvoiceRow[];
   insertPayment(payment: Payment, at: string): void;
+  payment(id: Id): Payment | null;
+  insertRefund(refund: Refund, at: string): void;
+  /** The refunds on an invoice's payments, oldest first. */
+  refunds(invoiceId: Id): Refund[];
   /** An invoice's payments, oldest first. */
   payments(invoiceId: Id): Payment[];
   /** Every payment with its invoice's number and names, oldest first. */
@@ -78,6 +86,8 @@ export type RecurringStore = {
   listForProject(projectId: Id): RecurringInvoice[];
   /** Every active one, by next day. */
   listActive(): RecurringInvoice[];
+  /** A client's with no project, active first. */
+  listForClientAlone(organizationId: Id): RecurringInvoice[];
   /** Active ones whose next day has come. */
   due(today: string): RecurringInvoice[];
   /** Marks an invoice as made by a recurring invoice. */
@@ -105,4 +115,24 @@ export type ChangeRequestStore = {
   get(id: Id): ChangeRequest | null;
   /** A project's changes, newest first. */
   listFor(projectId: Id): ChangeRequest[];
+};
+
+/** Billing extras (decision 0017, third part): how clients pay, prepaid hours, receipts and statements sent. */
+export type BillingStore = {
+  /** How clients pay, in Potomac's words, for the portal. "" until set. */
+  payInstructions(): string;
+  setPayInstructions(text: string, by: Id, at: string): void;
+  insertBlock(block: PrepaidBlock, at: string): void;
+  blocksFor(organizationId: Id): PrepaidBlock[];
+  /** Clients with any prepaid block. */
+  clientsWithBlocks(): Id[];
+  /** Minutes logged on a client's projects on or after a day, removed entries left out. */
+  minutesSince(organizationId: Id, since: string): number;
+  /** Payments recorded at or after a moment with no receipt sent yet, oldest first. */
+  paymentsWithoutReceipt(since: string): { readonly payment: Payment; readonly invoiceId: Id }[];
+  markReceipt(paymentId: Id, at: string, sentTo: string): void;
+  statementSent(organizationId: Id, month: string): boolean;
+  markStatement(organizationId: Id, month: string, at: string, sentTo: string): void;
+  /** A client's payments received in a year, by day. */
+  paymentsForClient(organizationId: Id, year: number): { readonly payment: Payment; readonly invoiceNumber: number; readonly projectName: string; readonly forWhat: string }[];
 };

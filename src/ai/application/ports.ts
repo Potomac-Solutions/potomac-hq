@@ -15,8 +15,31 @@ export type ModelAnswer =
   /** No answer: why, in a few words, and anything it was charged for. */
   | { readonly ok: false; readonly problem: string; readonly inputCount: number; readonly outputCount: number };
 
-/** Claude, or a stand-in in tests. Never throws. */
-export type AiModel = { ask(request: ModelRequest): Promise<ModelAnswer> };
+/** One block of a conversation, as Claude's Messages API has them (decision 0015). */
+export type ChatBlock =
+  | { readonly type: "text"; readonly text: string }
+  | { readonly type: "tool_use"; readonly id: string; readonly name: string; readonly input: Readonly<Record<string, unknown>> }
+  | { readonly type: "tool_result"; readonly tool_use_id: string; readonly content: string; readonly is_error?: boolean };
+
+export type ChatMessage = { readonly role: "user" | "assistant"; readonly content: readonly ChatBlock[] };
+
+/** A tool the model may use: its name, what it's for, and its input as JSON Schema. */
+export type ChatTool = { readonly name: string; readonly description: string; readonly input_schema: Readonly<Record<string, unknown>> };
+
+export type ConverseRequest = {
+  readonly model: string;
+  readonly system: string;
+  readonly messages: readonly ChatMessage[];
+  readonly tools: readonly ChatTool[];
+  readonly maxOutput: number;
+};
+
+export type ConverseAnswer =
+  | { readonly ok: true; readonly blocks: readonly ChatBlock[]; readonly stopReason: string; readonly inputCount: number; readonly outputCount: number }
+  | { readonly ok: false; readonly problem: string; readonly inputCount: number; readonly outputCount: number };
+
+/** Claude, or a stand-in in tests. Never throws. `converse` is a conversation with tools; a stand-in may leave it out. */
+export type AiModel = { ask(request: ModelRequest): Promise<ModelAnswer>; converse?(request: ConverseRequest): Promise<ConverseAnswer> };
 
 export type StoredSettings = AiSettings & { readonly updatedBy: Id | null; readonly updatedAt: string };
 

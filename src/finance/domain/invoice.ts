@@ -20,7 +20,10 @@ export type InvoiceLine = { readonly description: string; readonly amount: Money
 
 export type Invoice = {
   readonly id: Id;
-  readonly projectId: Id;
+  /** The client billed. */
+  readonly organizationId: Id;
+  /** The project it is for, or null for a charge on the client alone, such as a domain. */
+  readonly projectId: Id | null;
   /** 1, 2, 3… in the order invoices were made. Shown as INV-0001. */
   readonly number: number;
   readonly kind: InvoiceKind;
@@ -32,7 +35,18 @@ export type Invoice = {
   readonly dueOn: string | null;
   readonly note: string;
   readonly createdBy: Id;
+  /** The day the client promised to pay, and what they said. Null and "" when none. */
+  readonly promisedOn: string | null;
+  readonly promiseNote: string;
+  /** A card payment link Potomac made itself with its payment service, shown in the portal. */
+  readonly payLink: string | null;
+  /** Written off: voided as money that won't come, kept apart from a mistake. */
+  readonly writtenOffOn: string | null;
+  readonly writtenOffNote: string;
 };
+
+/** What Potomac adds to a sent invoice after the fact: a promise, a payment link, a write-off. */
+export const NO_EXTRAS = { promisedOn: null, promiseNote: "", payLink: null, writtenOffOn: null, writtenOffNote: "" } as const;
 
 export type Payment = {
   readonly id: Id;
@@ -53,11 +67,13 @@ export const depositShare = (minor: number): number => Math.ceil(minor / 3);
 export const invoiceLabel = (number: number): string => `INV-${String(number).padStart(4, "0")}`;
 
 export type InvoiceInput = { readonly kind: string; readonly description: string; readonly amount: string; readonly dueOn?: string | null; readonly note?: string | null };
-export type InvoiceError = "invalid-invoice-kind" | "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive" | "invalid-date" | "note-too-long";
+export type InvoiceError = "project-needed" | "invalid-invoice-kind" | "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive" | "invalid-date" | "note-too-long";
 
 /** A new draft with one line. More lines can be added while it is a draft. */
-export function newInvoice(ids: { readonly id: Id; readonly projectId: Id; readonly number: number; readonly createdBy: Id }, input: InvoiceInput): Result<Invoice, InvoiceError> {
+export function newInvoice(ids: { readonly id: Id; readonly organizationId: Id; readonly projectId: Id | null; readonly number: number; readonly createdBy: Id }, input: InvoiceInput): Result<Invoice, InvoiceError> {
   if (!(INVOICE_KINDS as readonly string[]).includes(input.kind)) return err("invalid-invoice-kind");
+  // A deposit or a balance is against a project's budget; a charge on the client alone is "full" or "other".
+  if (ids.projectId === null && (input.kind === "deposit" || input.kind === "balance")) return err("project-needed");
   const line = invoiceLine(input);
   if (!line.ok) return line;
   const due = (input.dueOn ?? "").trim();
@@ -65,7 +81,7 @@ export function newInvoice(ids: { readonly id: Id; readonly projectId: Id; reado
   if (!dueOn.ok) return dueOn;
   const note = optionalText(input.note, 1000);
   if (!note.ok) return err("note-too-long");
-  return ok({ ...ids, kind: input.kind as InvoiceKind, status: "draft", lines: [line.value], total: line.value.amount, issuedOn: null, dueOn: dueOn.value, note: note.value ?? "" });
+  return ok({ ...ids, kind: input.kind as InvoiceKind, status: "draft", lines: [line.value], total: line.value.amount, issuedOn: null, dueOn: dueOn.value, note: note.value ?? "", ...NO_EXTRAS });
 }
 
 function invoiceLine(input: { readonly description: string; readonly amount: string }): Result<InvoiceLine, "description-missing" | "description-too-long" | "not-an-amount" | "amount-must-be-positive"> {
@@ -109,6 +125,52 @@ export function sendInvoice(invoice: Invoice, today: string): Result<Invoice, "n
   return ok({ ...invoice, status: "sent", issuedOn: today });
 }
 
+export type PromiseError = "not-sent" | "invalid-date" | "promise-note-too-long";
+
+/** The client said when they'll pay. An empty day clears it. Only on a sent invoice. */
+export function promisePayment(invoice: Invoice, input: { readonly on: string; readonly note?: string | null }): Result<Invoice, PromiseError> {
+  if (invoice.status !== "sent") return err("not-sent");
+  const text = input.on.trim();
+  if (text === "") return ok({ ...invoice, promisedOn: null, promiseNote: "" });
+  const on = calendarDate(text);
+  if (!on.ok) return err("invalid-date");
+  const note = optionalText(input.note, 300);
+  if (!note.ok) return err("promise-note-too-long");
+  return ok({ ...invoice, promisedOn: on.value, promiseNote: note.value ?? "" });
+}
+
+export type PayLinkError = "already-paid" | "link-not-https" | "link-too-long";
+
+/** A card payment link from Potomac's payment service: https only. Empty clears it. */
+export function setPayLink(invoice: Invoice, link: string): Result<Invoice, PayLinkError> {
+  if (invoice.status === "paid" || invoice.status === "void") return err("already-paid");
+  const text = link.trim();
+  if (text === "") return ok({ ...invoice, payLink: null });
+  if (text.length > 500) return err("link-too-long");
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return err("link-not-https");
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return err("link-not-https");
+  return ok({ ...invoice, payLink: url.toString() });
+}
+
+export type WriteOffError = "not-sent" | "write-off-note-missing" | "write-off-note-too-long";
+
+/**
+ * Money that won't come: a sent invoice is voided and marked written off,
+ * with why, so the books show what happened and a mistake stays a mistake.
+ * Payments already received stay received.
+ */
+export function writeOff(invoice: Invoice, input: { readonly note: string }, today: string): Result<Invoice, WriteOffError> {
+  if (invoice.status !== "sent") return err("not-sent");
+  const note = requiredText(input.note, 300);
+  if (!note.ok) return err(note.error === "missing" ? "write-off-note-missing" : "write-off-note-too-long");
+  return ok({ ...invoice, status: "void", writtenOffOn: today, writtenOffNote: note.value, promisedOn: null, promiseNote: "" });
+}
+
 /** A mistake is voided, never deleted, so the numbers have no gaps. A paid invoice stays paid. */
 export function voidInvoice(invoice: Invoice): Result<Invoice, "already-void" | "already-paid"> {
   if (invoice.status === "void") return err("already-void");
@@ -147,6 +209,64 @@ export function receivePayment(
   return ok({
     invoice: paid ? { ...invoice, status: "paid" } : invoice,
     payment: { ...ids, invoiceId: invoice.id, amount: amount.value, method: input.method as PaymentMethod, receivedOn: on.value, reference: reference.value ?? "" },
+  });
+}
+
+/** Money given back on one payment. */
+export type Refund = {
+  readonly id: Id;
+  readonly paymentId: Id;
+  readonly amount: Money;
+  /** YYYY-MM-DD. */
+  readonly refundedOn: string;
+  readonly reason: string;
+  /** The platform's refund reference, or a check number. Never a card number. */
+  readonly reference: string;
+  /** "platform": HQ asked the payment platform. "by-hand": given back some other way; HQ only records it. */
+  readonly through: "platform" | "by-hand";
+  readonly recordedBy: Id;
+};
+
+export type RefundInput = { readonly amount: string; readonly on: string; readonly reason?: string | null; readonly reference?: string | null };
+export type RefundError =
+  | "not-an-amount"
+  | "amount-must-be-positive"
+  | "more-than-was-paid"
+  | "refund-reason-too-long"
+  | "reference-too-long"
+  | "looks-like-a-card-number"
+  | "date-in-future"
+  | "invalid-date";
+
+/**
+ * Give back some or all of one payment. A paid invoice that is now short is
+ * owed again (sent); a written-off or voided one stays as it is. Whether the
+ * client still owes the rest is the caller's to settle (`writeOff`).
+ */
+export function refundPayment(
+  invoice: Invoice,
+  payment: Payment,
+  refundedAlready: number,
+  ids: { readonly id: Id; readonly recordedBy: Id },
+  input: RefundInput,
+  through: Refund["through"],
+  today: string,
+): Result<{ invoice: Invoice; refund: Refund }, RefundError> {
+  const amount = parseAmount(input.amount, "USD");
+  if (!amount.ok) return err("not-an-amount");
+  if (amount.value.minor <= 0) return err("amount-must-be-positive");
+  if (refundedAlready + amount.value.minor > payment.amount.minor) return err("more-than-was-paid");
+  const on = calendarDate(input.on.trim());
+  if (!on.ok) return err("invalid-date");
+  if (on.value > today) return err("date-in-future");
+  const reason = optionalText(input.reason, 300);
+  if (!reason.ok) return err("refund-reason-too-long");
+  const reference = optionalText(input.reference, 100);
+  if (!reference.ok) return err("reference-too-long");
+  if (reference.value !== null && /(?:\d[ -]?){13,19}/.test(reference.value)) return err("looks-like-a-card-number");
+  return ok({
+    invoice: invoice.status === "paid" ? { ...invoice, status: "sent" } : invoice,
+    refund: { ...ids, paymentId: payment.id, amount: amount.value, refundedOn: on.value, reason: reason.value ?? "", reference: reference.value ?? "", through },
   });
 }
 

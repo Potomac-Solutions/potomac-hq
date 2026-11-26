@@ -62,7 +62,7 @@ async function portalUser(organizationId: string, name: string, email: string): 
 before(async () => {
   t = await testApp({
     ai: fake,
-    builderOwner: "mikey@example.com",
+    builderOwner: ["mikey@example.com", "jayanti@example.com"],
     email: { publicUrl: "https://hq.example", send: async (message) => (sent.push({ to: message.to, subject: message.subject, body: message.body }), { ok: true }) },
   });
   mikey = await signIn(t, "mikey@example.com", "Mikey Nichols", ["admin"]);
@@ -268,4 +268,28 @@ test("one budget, shared with the site builder: each counts the other, and it's 
   await turnOn([]);
   assert.equal(await triageNewLeads(jobs()), 0, "off is off");
   assert.equal((await mikey.get("/ask")).status, 200, "the last answer stays readable");
+});
+
+test("both founders may change the settings when HQ_SITE_BUILDER_OWNER lists both; other admins still can't", async () => {
+  const jayanti = await signIn(t, "jayanti@example.com", "Jayanti Nichols", ["admin"]);
+  assert.doesNotMatch(textOf(await jayanti.page("/settings/ai")), /Only the owner set in HQ_SITE_BUILDER_OWNER/);
+  assert.equal(query(await jayanti.post("/settings/ai", { model: "claude-haiku-5-5", "feature-ask": "on" }), "problem"), "");
+  assert.match(await mikey.page("/settings/ai"), /name="feature-ask" checked/);
+  assert.equal(query(await jayanti.post("/builder/settings", { model: "claude-haiku-5-5", cap: "20.00" }), "problem"), "", "and the site builder's model and cap");
+  const jo = await signIn(t, "jo2@example.com", "Jo Admin", ["admin"]);
+  assert.match(query(await jo.post("/settings/ai", { model: "claude-opus-5-5" }), "problem"), /permission/);
+});
+
+test("a draft can be asked of a model picked on the form, up to the ceiling; HQ's own jobs use the usual one", async () => {
+  await mikey.post("/settings/ai", { model: "claude-haiku-5-5", ceiling: "claude-sonnet-5-5", "feature-ask": "on" });
+  const page = await mikey.page("/ask");
+  assert.match(page, /<option value="claude-haiku-5-5" selected/);
+  assert.match(page, /<option value="claude-sonnet-5-5"/);
+  assert.doesNotMatch(page, /<option value="claude-opus-5-5"/);
+  await mikey.post("/ask", { question: "What did we decide about deposits?", model: "claude-sonnet-5-5" });
+  assert.equal(t.db.prepare("select model from ai_usage order by at desc, rowid desc limit 1").get()?.["model"], "claude-sonnet-5-5");
+  await mikey.post("/ask", { question: "And quotes?", model: "claude-opus-5-5" });
+  assert.equal(t.db.prepare("select model from ai_usage order by at desc, rowid desc limit 1").get()?.["model"], "claude-haiku-5-5", "above the ceiling: the usual model");
+  assert.match(textOf(await mikey.page("/settings/ai")), /Highest model anyone may pick/);
+  assert.match(query(await mikey.post("/settings/ai", { model: "claude-haiku-5-5", ceiling: "gpt-9" }), "problem"), /highest model/);
 });

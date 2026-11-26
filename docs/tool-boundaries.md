@@ -76,6 +76,7 @@ the site's host builds it. HQ never serves a client's public site.
    "HQ Time", "HQ Expenses", "HQ Projects", "HQ Invoices" and "HQ Payments",
    and replaces only those. It never touches another tab. The layout of
    Mikey's own ledger tabs is still his to decide.*
-3. **The payment page and the booking tool in the portal** (both v0.6 in the
-   table above) are not built. The payment page waits on the card gateway.
+3. **The payment page** is built (decision 0018): the portal's Pay by card
+   goes to the payment platform's own page, and which platform is a setting.
+   Rule 1 holds: the card is typed there, never in HQ.
    See `docs/scope-v0.3-v1.0.md`.

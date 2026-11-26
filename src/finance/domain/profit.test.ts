@@ -24,3 +24,21 @@ test("each month in the range, empty ones too, with received less spent", () => 
 test("a year that crosses into the next", () => {
   assert.deepEqual(profitByMonth({ invoiced: [], received: [], spent: [] }, "2026-12", "2027-01").months.map((row) => row.month), ["2026-12", "2027-01"]);
 });
+
+test("profit by client: received less expenses and renewal costs, and what each hour earned", async () => {
+  const { profitByClient } = await import("./profit.ts");
+  const rows = profitByClient(
+    new Map([
+      ["bakery", { invoiced: 150000, received: 120000, expenses: 10000, renewalCost: 2000, minutes: 1200 }],
+      ["towing", { invoiced: 50000, received: 50000, expenses: 0, renewalCost: 0, minutes: 120 }],
+      ["farm", { invoiced: 2000, received: 2000, expenses: 0, renewalCost: 1500, minutes: 0 }],
+      ["diner", { invoiced: 0, received: 0, expenses: 3000, renewalCost: 0, minutes: 600 }],
+    ]),
+  );
+  assert.deepEqual(rows.map((one) => one.key), ["towing", "bakery", "diner", "farm"]);
+  assert.equal(rows[0]?.profit.perHour, 25000, "$500 for 2 hours");
+  assert.equal(rows[1]?.profit.net, 108000);
+  assert.equal(rows[1]?.profit.perHour, 5400);
+  assert.equal(rows[2]?.profit.perHour, -300, "time spent and money out: it shows as a loss");
+  assert.equal(rows[3]?.profit.perHour, null);
+});

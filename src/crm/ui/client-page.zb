@@ -4,6 +4,7 @@
 -->
 <script>
   'use route /clients/:id'
+  import '../../shared/ui/parts/history-panel.zb'
   import '../../shared/ui/zubra/select-field.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/status-badge.zb'
@@ -20,16 +21,17 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), intake: context.intake.forClient(params.id), autopay: context.autopay.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} touches={null} todos={null} invites={[]} min-day="" done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} intake={null} autopay={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
       <div><h1>{view.client.name}</h1></div>
       <div class="hq-head-actions"><status-badge zb-if={view.client.demo} variant="outline">Demo</status-badge><status-badge variant={view.client.status === 'active' ? 'success' : view.client.status === 'prospective' ? 'primary' : 'neutral'}>{view.client.statusLabel}</status-badge></div>
     </div>
+    <alert-banner zb-if={mergedInto} variant="info">This client was merged into <a href="/clients/{mergedInto.id}">{mergedInto.name}</a>. Everything it had is there now; this page is kept so old links still work.</alert-banner>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -60,6 +62,16 @@
         <button class="hq-button secondary small" type="submit">{view.client.demo ? 'It’s a real client' : 'Mark as a demo'}</button>
       </form>
     </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" aria-labelledby="client-money">
+      <h2 id="client-money">Money</h2>
+      <dl class="hq-facts">
+        <dt>Owed now</dt><dd><a href="#invoices">{invoices.value.money.owed}</a></dd>
+        <dt>Overdue</dt><dd><strong zb-if={invoices.value.money.hasOverdue}>{invoices.value.money.overdue}</strong><span zb-else>{invoices.value.money.overdue}</span></dd>
+        <dt>Paid this year</dt><dd>{invoices.value.money.paidThisYear}</dd>
+        <dt zb-if={renewals && renewals.items.length > 0}>Next renewal</dt><dd zb-if={renewals && renewals.items.length > 0}><a href="#renewal-{renewals.items[0].id}">{renewals.items[0].name}</a>, {renewals.items[0].when}</dd>
+        <dt zb-if={invoices.value.prepaid}>Prepaid hours left</dt><dd zb-if={invoices.value.prepaid}><a href="#billing">{invoices.value.prepaid.left}</a> <status-badge zb-if={invoices.value.prepaid.low} variant="warning">Low</status-badge></dd>
+      </dl>
+    </section>
     <section class="hq-panel" id="contacts" aria-labelledby="client-contacts">
       <h2 id="client-contacts">Contacts</h2>
       <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
@@ -68,7 +80,7 @@
         <tbody>
           <zb-each items={view.contacts} as="contact" key={contact.id}>
             <tr>
-              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge></td>
+              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
               <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a> <form zb-if={contact.phone && touches && touches.canLog} method="post" action="/phone" class="hq-inline"><input type="hidden" name="contactId" value={contact.id}><button class="hq-button secondary hq-small" type="submit" aria-label="Start a call with {contact.name}">Start a call</button></form></td>
@@ -76,6 +88,17 @@
           </zb-each>
         </tbody>
       </table>
+      <form zb-if={view.can.setBilling && view.contacts.length > 0} method="post" action="/clients/{view.client.id}/billing-contact" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="billing-contact">Who gets the bills</label>
+          <select id="billing-contact" name="contactId">
+            <option value="" selected={!view.billingContactId}>The usual people: the primary contact, or whoever uses the portal</option>
+            <zb-each items={view.contacts} as="contact" key={contact.id}><option zb-if={contact.email} value={contact.id} selected={contact.isBilling}>{contact.name}, {contact.email}</option></zb-each>
+          </select>
+          <span class="hint">Invoices, reminders, receipts and monthly statements go to them, such as a spouse or a bookkeeper.</span>
+        </div>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
+      </form>
       <form zb-if={view.can.addContact} method="post" action="/clients/{view.client.id}/contacts" class="hq-form" data-spaced>
         <h3>Add a contact</h3>
         <text-field label="Name" name="name" required={true} autocomplete="name"></text-field>
@@ -329,40 +352,186 @@
         </ul>
       </div>
     </section>
+    <section zb-if={autopay} class="hq-panel" id="autopay" aria-labelledby="client-autopay">
+      <h2 id="client-autopay">Automatic payment</h2>
+      <p zb-if={autopay.on}>On: plan bills are charged to {autopay.label} the day they’re sent. Set up by the client {autopay.since}.</p>
+      <p zb-else class="hq-muted">Off.</p>
+      <ul zb-if={autopay.open.length > 0} class="hq-list">
+        <zb-each items={autopay.open} as="line" key={line}><li>{line}</li></zb-each>
+      </ul>
+      <h3 zb-if={autopay.recent.length > 0}>Tries so far</h3>
+      <ul zb-if={autopay.recent.length > 0} class="hq-list">
+        <zb-each items={autopay.recent} as="one" key={one.label + one.when}>
+          <li>{one.label}, {one.when}: {one.outcome}</li>
+        </zb-each>
+      </ul>
+      <form zb-if={autopay.canStop} method="post" action="/clients/{view.client.id}/autopay/stop"><button class="hq-button secondary" type="submit">Turn automatic payment off</button></form>
+    </section>
+    <section zb-if={intake} class="hq-panel" id="intake" aria-labelledby="client-intake">
+      <h2 id="client-intake">About their business</h2>
+      <p class="hq-muted">What {intake.by || 'the client'} told us in the portal, {intake.sent}. Their logo and photos are with their project’s files.</p>
+      <dl class="hq-facts">
+        <zb-each items={intake.rows} as="row" key={row.label}><dt>{row.label}</dt><dd class="hq-pre-line">{row.value}</dd></zb-each>
+      </dl>
+      <p zb-if={intake.access.length > 0}><strong>Accounts they have:</strong> {intake.access.join(', ')}.<span zb-if={intake.accessNote}> “{intake.accessNote}”</span></p>
+    </section>
+    <section zb-if={asks.can && asks.items.length > 0} class="hq-panel" id="requests" aria-labelledby="client-requests">
+      <h2 id="client-requests">Requests from the client</h2>
+      <p class="hq-muted">Sent from their portal. Each is a task; they see its status.</p>
+      <ul class="hq-list">
+        <zb-each items={asks.items} as="one" key={one.id}>
+          <li>
+            <p><a zb-if={one.taskHref} href={one.taskHref}>{one.title}</a><span zb-else>{one.title}</span> · {one.standingLabel} · sent {one.sent}<span zb-if={one.project}> · {one.project}</span></p>
+            <p zb-if={one.note} class="hq-muted">Not going ahead: “{one.note}”</p>
+            <details zb-if={one.open && asks.canDecline}>
+              <summary>Not going ahead with “{one.title}”</summary>
+              <form method="post" action="/requests/{one.id}/decline" class="hq-form" data-spaced>
+                <input type="hidden" name="client" value={view.client.id}>
+                <text-field label="Why, for the client" name="note" required={true} description="They read this in their portal. If it’s extra work, say a change to the price comes first."></text-field>
+                <div><button class="hq-button secondary" type="submit">Tell the client</button></div>
+              </form>
+            </details>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
     <section zb-if={social} class="hq-panel" id="social" aria-labelledby="client-social">
       <h2 id="client-social">Social media</h2>
       <p zb-if={social.plan}>{social.plan}<span zb-if={social.paused}> · paused</span>. This month: {social.count}.</p>
       <p zb-else class="hq-muted">No plan. For a client on social media marketing: their networks, and how many posts each month.</p>
       <p><a class="hq-button secondary" href="/clients/{view.client.id}/social">{social.plan ? 'Open the calendar' : social.canEdit ? 'Set up a plan' : 'Open'}</a></p>
     </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" id="invoices" aria-labelledby="client-invoices">
+      <h2 id="client-invoices">Invoices</h2>
+      <p zb-if={invoices.value.items.length === 0} class="hq-muted">None yet. Project invoices show here too.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={invoices.value.items} as="inv" key={inv.id}>
+          <li><a href="/invoices/{inv.id}">{inv.label}</a> · {inv.forWhat} · {inv.total} · {inv.statusLabel} <status-badge zb-if={inv.overdue} variant="danger">Overdue</status-badge></li>
+        </zb-each>
+      </ul>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Bill a one-off charge, with no project</summary>
+        <p class="hq-small hq-muted">For a domain, a small fix or anything that isn’t a project. It starts as a draft: check it, then send it. A domain that renews belongs under Renewals, which bills it a week ahead.</p>
+        <form method="post" action="/clients/{view.client.id}/invoices" class="hq-form">
+          <div class="hq-field">
+            <label for="client-invoice-kind">What it is</label>
+            <select id="client-invoice-kind" name="kind">
+              <zb-each items={invoices.value.kinds} as="kind" key={kind.value}><option value={kind.value} selected={kind.value === 'other'}>{kind.label}</option></zb-each>
+            </select>
+          </div>
+          <text-field label="Description" name="description" required={true} maxlength={300} placeholder="Domain name betterdaystowing.com, one year"></text-field>
+          <text-field label="Amount, in dollars" name="amount" required={true} inputmode="decimal" placeholder="25.00"></text-field>
+          <text-field label="Due on" name="dueOn" type="date"></text-field>
+          <label class="hq-check"><input type="checkbox" name="send"> Send it now: it goes straight to the client’s portal</label>
+          <div><button class="hq-button" type="submit">Save the invoice</button></div>
+        </form>
+      </details>
+    </section>
+    <section zb-if={invoices && invoices.ok} class="hq-panel" id="billing" aria-labelledby="client-billing">
+      <h2 id="client-billing">Plans and prepaid hours</h2>
+      <h3>Billed on a schedule, with no project</h3>
+      <p zb-if={invoices.value.plans.length === 0} class="hq-muted">None. Hosting, upkeep or a monthly plan can bill itself here.</p>
+      <ul zb-else class="hq-list">
+        <zb-each items={invoices.value.plans} as="plan" key={plan.id}>
+          <li>
+            {plan.description} · {plan.amount} {plan.everyLabel} · next {plan.next}<span zb-if={plan.endsText}>, {plan.endsText}</span> <status-badge zb-if={!plan.active} variant="neutral">Paused</status-badge>
+            <form zb-if={invoices.value.canCreate} method="post" action="/recurring/{plan.id}/{plan.active ? 'pause' : 'resume'}" class="hq-inline"><button class="hq-button secondary hq-small" type="submit">{plan.active ? 'Pause' : 'Start again'}</button></form>
+          </li>
+        </zb-each>
+      </ul>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Bill something on a schedule</summary>
+        <form method="post" action="/clients/{view.client.id}/recurring" class="hq-form">
+          <text-field label="What it’s for" name="description" required={true} maxlength={200} placeholder="Hosting and upkeep"></text-field>
+          <text-field label="Each time, in dollars" name="amount" required={true} inputmode="decimal" placeholder="49.00"></text-field>
+          <div class="hq-field">
+            <label for="plan-every">How often</label>
+            <select id="plan-every" name="every"><zb-each items={invoices.value.everyOptions} as="every" key={every.value}><option value={every.value}>{every.label}</option></zb-each></select>
+          </div>
+          <text-field label="First invoice on" name="firstOn" type="date" required={true} value={invoices.value.today}></text-field>
+          <text-field label="Last one by" name="endsOn" type="date"></text-field>
+          <label class="hq-check"><input type="checkbox" name="autoSend" value="1"> Send each one by itself, instead of waiting as a draft</label>
+          <text-field label="Due this many days after it’s sent" name="dueDays" inputmode="numeric" value="15"></text-field>
+          <div><button class="hq-button" type="submit">Save the plan</button></div>
+        </form>
+      </details>
+
+      <h3 data-spaced>Prepaid hours</h3>
+      <p zb-if={!invoices.value.prepaid} class="hq-muted">None bought. A client can buy a block of hours up front; time logged on their projects draws it down.</p>
+      <div zb-else>
+        <dl class="hq-facts">
+          <dt>Bought</dt><dd>{invoices.value.prepaid.bought}</dd>
+          <dt>Used</dt><dd>{invoices.value.prepaid.used}</dd>
+          <dt>Left</dt><dd><strong>{invoices.value.prepaid.left}</strong> <status-badge zb-if={invoices.value.prepaid.low} variant="warning">{invoices.value.prepaid.over ? 'Over' : 'Low'}</status-badge></dd>
+        </dl>
+        <ul class="hq-list">
+          <zb-each items={invoices.value.prepaid.blocks} as="block" key={block.id}>
+            <li>{block.hours}, bought {block.boughtOn}<span zb-if={block.note}> · {block.note}</span> <a zb-if={block.invoiceId} href="/invoices/{block.invoiceId}">Invoice</a></li>
+          </zb-each>
+        </ul>
+      </div>
+      <details zb-if={invoices.value.canCreate}>
+        <summary>Add hours they bought</summary>
+        <form method="post" action="/clients/{view.client.id}/prepaid" class="hq-form">
+          <text-field label="Hours" name="hours" required={true} inputmode="decimal" placeholder="10"></text-field>
+          <text-field label="Bought on" name="boughtOn" type="date" required={true} value={invoices.value.today}></text-field>
+          <text-field label="Price, in dollars" name="price" inputmode="decimal" description="With a price, HQ makes its invoice too."></text-field>
+          <label class="hq-check"><input type="checkbox" name="send"> Send that invoice now</label>
+          <text-field label="Note" name="note" maxlength={300}></text-field>
+          <div><button class="hq-button" type="submit">Add the hours</button></div>
+        </form>
+      </details>
+    </section>
     <section zb-if={renewals} class="hq-panel" id="renewals" aria-labelledby="client-renewals">
       <h2 id="client-renewals">Renewals</h2>
       <p zb-if={renewals.items.length === 0} class="hq-muted">Domains, hosting, certificates and licenses this client depends on. Each shows on the dashboard 30 days before it renews.</p>
       <ul zb-else class="hq-list">
         <zb-each items={renewals.items} as="one" key={one.id}>
-          <li>
+          <li id="renewal-{one.id}">
             <p><strong>{one.name}</strong> · {one.kindLabel}<span zb-if={one.provider}> at {one.provider}</span> <status-badge zb-if={one.state === 'overdue'} variant="danger">Overdue</status-badge></p>
             <p class="hq-small"><time datetime={one.renewsOn}>{one.when}</time> · {one.termLabel}<span zb-if={one.autoRenews}> · renews by itself</span><span zb-if={one.cost || one.price}> · costs {one.cost || 'not set'}, billed {one.price || 'not billed'}</span></p>
             <p zb-if={one.note} class="hq-small">{one.note}</p>
+            <p zb-if={one.priceNote} class="hq-small">{one.priceNote}</p>
+            <label zb-if={one.canBill} class="hq-check hq-small"><input type="checkbox" name="bill-{one.id}" form="bill-together"> Bill together with others ticked</label>
+            <p zb-if={one.answerText} class="hq-small"><status-badge variant={one.answer === 'lapse' ? 'warning' : 'success'}>{one.answer === 'lapse' ? 'Let it lapse' : 'Renew it'}</status-badge> {one.answerText}</p>
             <p zb-if={one.billing} class="hq-small"><status-badge zb-if={one.billState === 'late'} variant="danger">Not paid</status-badge><status-badge zb-if={one.billState === 'paid'} variant="success">Paid</status-badge> {one.billing} <a zb-if={one.invoiceId} href="/invoices/{one.invoiceId}">See the invoice</a></p>
-            <form zb-if={one.canBill && renewals.projects.length > 0} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
+            <form zb-if={one.canBill} method="post" action="/renewals/{one.id}/bill" class="hq-form-row">
               <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
               <div class="hq-field">
                 <label for="bill-project-{one.id}">Invoice it on</label>
-                <select id="bill-project-{one.id}" name="projectId" required>
+                <select id="bill-project-{one.id}" name="projectId">
+                  <option value="" selected>The client, no project</option>
                   <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
                 </select>
               </div>
               <button class="hq-button" type="submit">Bill the client {one.price}<span class="sr-only"> for {one.name}</span></button>
             </form>
-            <p zb-if={one.canBill && renewals.projects.length === 0} class="hq-small hq-muted">To bill this, the client needs a project for the invoice to go on. An ongoing one for their plan works.</p>
             <div zb-if={renewals.canEdit} class="hq-form-row">
               <form method="post" action="/renewals/{one.id}/renewed"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">Renewed<span class="sr-only">: {one.name}</span></button></form>
               <form method="post" action="/renewals/{one.id}/retire"><input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}><button class="hq-button secondary" type="submit">No longer ours to renew<span class="sr-only">: {one.name}</span></button></form>
             </div>
+            <details zb-if={renewals.canEdit} class="hq-small">
+              <summary>Change what the client is billed<span class="sr-only"> for {one.name}</span></summary>
+              <form method="post" action="/renewals/{one.id}/price" class="hq-form-row">
+                <input type="hidden" name="back" value="client"><input type="hidden" name="clientId" value={view.client.id}>
+                <text-field label="New price each time, in dollars" name="price" inputmode="decimal" value={one.priceText} description="From their next bill. They see the change in their portal first. Empty: we pay for it."></text-field>
+                <button class="hq-button secondary" type="submit">Change the price</button>
+              </form>
+            </details>
           </li>
         </zb-each>
       </ul>
+      <form zb-if={renewals.items.filter((one) => one.canBill).length > 1} id="bill-together" method="post" action="/clients/{view.client.id}/renewals/bill-together" class="hq-form-row" data-spaced>
+        <div class="hq-field">
+          <label for="bill-together-project">Bill the ticked ones together, on</label>
+          <select id="bill-together-project" name="projectId">
+            <option value="" selected>The client, no project</option>
+            <zb-each items={renewals.projects} as="project" key={project.value}><option value={project.value}>{project.label}</option></zb-each>
+          </select>
+          <span class="hint">One invoice, a line each, due a week before the first of them renews.</span>
+        </div>
+        <button class="hq-button" type="submit">Bill them together</button>
+      </form>
       <details zb-if={renewals.canEdit} class="hq-more">
         <summary>Add a renewal</summary>
         <form method="post" action="/clients/{view.client.id}/renewals" class="hq-form">
@@ -386,5 +555,26 @@
     </section>
     </div>
     </div>
+    <details zb-if={view.can.setStatus} class="hq-panel" id="handoff">
+      <summary>Leaving us, or hosting their own site? <span class="hq-muted hq-small">A handoff pack</span></summary>
+      <p>One zip to give the client: what renews when and what it costs at the provider, their sites and where the code is, the files shared with them, their invoices, what they told us about the business, and next steps for moving the domain.</p>
+      <p><a class="hq-button secondary" href="/clients/{view.client.id}/handoff.zip" download>Download the handoff pack</a></p>
+    </details>
+    <details zb-if={mergeChoices.length > 0 && !mergedInto} class="hq-panel" id="merge">
+      <summary>Is this a duplicate? <span class="hq-muted hq-small">{mergeChoices.some((one) => one.same) ? 'Another client looks the same' : 'Merge it into another client'}</span></summary>
+      <form method="post" action="/clients/{view.client.id}/merge" class="hq-form" data-spaced>
+        <p class="hq-small">Everything of <strong>{view.client.name}</strong> (contacts, deals, projects, invoices, notes and the rest) moves to the client you choose. This one stays as a former client named “(merged)”, with a link to the other, so old links still work.</p>
+        <div class="hq-field">
+          <label for="merge-into">Merge it into</label>
+          <select id="merge-into" name="into" required>
+            <option value="">Choose a client…</option>
+            <zb-each items={mergeChoices} as="one" key={one.id}><option value={one.id}>{one.name}{one.same ? ' (looks the same)' : ''}</option></zb-each>
+          </select>
+        </div>
+        <p class="hq-muted hq-small">A merge can’t be undone, so HQ asks once more before it does it.</p>
+        <div><button class="hq-button secondary" type="submit">Merge them</button></div>
+      </form>
+    </details>
+    <history-panel items={history}></history-panel>
   </div>
 </hq-client>

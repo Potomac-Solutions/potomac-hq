@@ -5,8 +5,9 @@ import { budgetPeriod, budgetWarning, defaultFinance, standing, type Budget, typ
 import { depositShare, invoiceLabel, type Invoice } from "../domain/invoice.ts";
 import { CATEGORY_LABELS, INVOICE_KIND_LABELS, INVOICE_STATUS_LABELS, METHOD_LABELS, options, PAYMENT_LABELS } from "../domain/labels.ts";
 import { weekOf } from "../domain/time.ts";
-import { EVERY_LABELS, monthlyMinor, type RecurringInvoice } from "../domain/recurring.ts";
-import { profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
+import { EVERY_LABELS, monthlyMinor, nextAfter, type RecurringInvoice } from "../domain/recurring.ts";
+import { prepaidBalance } from "../domain/prepaid.ts";
+import { profitByClient, profitByMonth, type Dated, type Spent } from "../domain/profit.ts";
 import { authorize } from "../../identity/index.ts";
 import { milestoneProgress, type Project } from "../../projects/index.ts";
 import { err, formatHours, formatMoney, friendlyDay, ok, readableHours, recordActivity, toCsv, type Cell, type Id, type Money, type Result } from "../../shared/index.ts";
@@ -258,6 +259,9 @@ export type InvoiceRowView = {
   readonly owed: string;
   readonly issuedOn: string;
   readonly dueOn: string;
+  /** The same two days as people read them: "Mon, Nov 23". */
+  readonly issued: string;
+  readonly due: string;
   readonly overdue: boolean;
 };
 
@@ -265,14 +269,17 @@ function invoiceRowView(invoice: InvoiceRow, today = "9999-12-31"): InvoiceRowVi
   return {
     id: invoice.id,
     label: invoiceLabel(invoice.number),
-    kindLabel: INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind,
+    // "Something else" is the form's word for the choice; on a made invoice it reads as what it is.
+    kindLabel: invoice.kind === "other" ? "A one-off charge" : (INVOICE_KIND_LABELS[invoice.kind] ?? invoice.kind),
     status: invoice.status,
-    statusLabel: INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status,
+    statusLabel: invoice.writtenOffOn ? "Written off" : (INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status),
     total: formatMoney(invoice.total),
     paid: formatMoney(usd(invoice.paidMinor)),
     owed: formatMoney(usd(invoice.total.minor - invoice.paidMinor)),
     issuedOn: invoice.issuedOn ?? "",
     dueOn: invoice.dueOn ?? "",
+    issued: friendlyDay(invoice.issuedOn ?? "", today === "9999-12-31" ? (invoice.issuedOn ?? "") : today),
+    due: friendlyDay(invoice.dueOn ?? "", today === "9999-12-31" ? (invoice.dueOn ?? "") : today),
     overdue: invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < today,
   };
 }
@@ -286,14 +293,125 @@ function invoiceSuggestions(budget: Money | null, invoices: readonly Invoice[]):
   return { deposit: plain(depositShare(budget.minor)), balance: plain(budget.minor - invoiced), full: plain(budget.minor) };
 }
 
+export const INVOICE_FILTERS = ["unpaid", "overdue", "drafts", "paid", "void", "all"] as const;
+export type InvoiceFilter = (typeof INVOICE_FILTERS)[number];
+const FILTER_LABELS: Readonly<Record<InvoiceFilter, string>> = { unpaid: "Waiting for payment", overdue: "Overdue", drafts: "Drafts", paid: "Paid", void: "Voided", all: "All" };
+
+export type InvoicesView = {
+  readonly filter: InvoiceFilter;
+  readonly filters: readonly { readonly value: InvoiceFilter; readonly label: string; readonly count: number; readonly current: boolean }[];
+  readonly items: readonly (InvoiceRowView & { readonly clientName: string; readonly organizationId: string; readonly projectName: string; readonly forWhat: string })[];
+  /** Owed on everything sent and not paid, overdue among it, and drafts not sent yet. */
+  readonly totals: { readonly owed: string; readonly overdue: string; readonly drafts: string };
+  /** Owed, by client, most first: who owes us what. */
+  readonly byClient: readonly { readonly organizationId: string; readonly clientName: string; readonly owed: string; readonly overdue: boolean }[];
+};
+
+/** Money → Invoices: every invoice, on a project or not, by where it stands. `invoice.view`. */
+export function invoicesOverview(deps: FinanceDeps, actorId: Id | null, wanted: string | null): Result<InvoicesView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const today = deps.today();
+  const filter: InvoiceFilter = (INVOICE_FILTERS as readonly string[]).includes(wanted ?? "") ? (wanted as InvoiceFilter) : "unpaid";
+  const all = deps.invoices.list().reverse();
+  const owedOf = (one: InvoiceRow) => (one.status === "sent" ? Math.max(0, one.total.minor - one.paidMinor) : 0);
+  const overdue = (one: InvoiceRow) => one.status === "sent" && one.dueOn !== null && one.dueOn < today;
+  const matches: Readonly<Record<InvoiceFilter, (one: InvoiceRow) => boolean>> = {
+    unpaid: (one) => one.status === "sent",
+    overdue,
+    drafts: (one) => one.status === "draft",
+    paid: (one) => one.status === "paid",
+    void: (one) => one.status === "void",
+    all: () => true,
+  };
+  const byClient = new Map<string, { clientName: string; owed: number; overdue: boolean }>();
+  for (const one of all.filter((invoice) => invoice.status === "sent")) {
+    const was = byClient.get(one.organizationId) ?? { clientName: one.clientName, owed: 0, overdue: false };
+    byClient.set(one.organizationId, { clientName: was.clientName, owed: was.owed + owedOf(one), overdue: was.overdue || overdue(one) });
+  }
+  const sum = (list: readonly InvoiceRow[], amount: (one: InvoiceRow) => number) => formatMoney(usd(list.reduce((total, one) => total + amount(one), 0)));
+  return ok({
+    filter,
+    filters: INVOICE_FILTERS.map((value) => ({ value, label: FILTER_LABELS[value], count: all.filter(matches[value]).length, current: value === filter })),
+    items: all.filter(matches[filter]).map((one) => ({ ...invoiceRowView(one, today), clientName: one.clientName, organizationId: one.organizationId, projectName: one.projectName, forWhat: one.projectName || one.lines[0]?.description || "" })),
+    totals: { owed: sum(all, owedOf), overdue: sum(all.filter(overdue), owedOf), drafts: sum(all.filter((one) => one.status === "draft"), (one) => one.total.minor) },
+    byClient: [...byClient]
+      .filter(([, one]) => one.owed > 0)
+      .sort(([, a], [, b]) => b.owed - a.owed)
+      .map(([organizationId, one]) => ({ organizationId, clientName: one.clientName, owed: formatMoney(usd(one.owed)), overdue: one.overdue })),
+  });
+}
+
+/** A client's invoices, on a project or not, and whether this person may bill them for a one-off charge. `invoice.view`. */
+export type ClientInvoicesView = {
+  readonly items: readonly (InvoiceRowView & { readonly projectName: string })[];
+  readonly canCreate: boolean;
+  readonly kinds: readonly Option[];
+  /** The money line at the top of a client's page. */
+  readonly money: { readonly owed: string; readonly overdue: string; readonly hasOverdue: boolean; readonly paidThisYear: string; readonly owedMinor: number };
+  /** Prepaid hours: what's left, and each block bought. Null when they've bought none. */
+  readonly prepaid: { readonly bought: string; readonly used: string; readonly left: string; readonly low: boolean; readonly over: boolean; readonly blocks: readonly { readonly id: string; readonly hours: string; readonly boughtOn: string; readonly note: string; readonly invoiceId: string }[] } | null;
+  /** Recurring invoices on the client with no project: hosting, upkeep, a plan. */
+  readonly plans: readonly RecurringLine[];
+  readonly everyOptions: readonly Option[];
+  readonly today: string;
+};
+
+export function clientInvoices(deps: FinanceDeps, actorId: Id | null, organizationId: Id): Result<ClientInvoicesView, "forbidden"> {
+  if (!may(deps, actorId, "invoice.view")) return err("forbidden");
+  const today = deps.today();
+  const invoices = deps.invoices.listForClient(organizationId);
+  const owed = (one: InvoiceRow) => (one.status === "sent" ? Math.max(0, one.total.minor - one.paidMinor) : 0);
+  const late = invoices.filter((one) => one.status === "sent" && one.dueOn !== null && one.dueOn < today);
+  const year = Number(today.slice(0, 4));
+  const paidThisYear = deps.billing.paymentsForClient(organizationId, year).reduce((sum, one) => sum + one.payment.amount.minor, 0);
+  const blocks = deps.billing.blocksFor(organizationId);
+  const balance = prepaidBalance(blocks, blocks.length > 0 ? deps.billing.minutesSince(organizationId, [...blocks].map((one) => one.boughtOn).sort()[0] as string) : 0);
+  const clientName = deps.clients.get(organizationId)?.name ?? "";
+  return ok({
+    items: invoices.map((invoice) => ({ ...invoiceRowView(invoice, today), projectName: invoice.projectName, forWhat: invoice.projectName || invoice.lines[0]?.description || "No project" })),
+    canCreate: may(deps, actorId, "invoice.edit"),
+    // Without a project, an invoice is for the full amount of something, or another charge.
+    kinds: options(INVOICE_KIND_LABELS).filter((one) => one.value === "other" || one.value === "full"),
+    money: {
+      owed: formatMoney(usd(invoices.reduce((sum, one) => sum + owed(one), 0))),
+      overdue: formatMoney(usd(late.reduce((sum, one) => sum + owed(one), 0))),
+      hasOverdue: late.length > 0,
+      paidThisYear: formatMoney(usd(paidThisYear)),
+      owedMinor: invoices.reduce((sum, one) => sum + owed(one), 0),
+    },
+    prepaid:
+      blocks.length === 0
+        ? null
+        : {
+            bought: readableHours(balance.boughtMinutes),
+            used: readableHours(balance.usedMinutes),
+            left: balance.leftMinutes < 0 ? `${readableHours(-balance.leftMinutes)} over` : readableHours(balance.leftMinutes),
+            low: balance.low,
+            over: balance.leftMinutes < 0,
+            blocks: blocks.map((one) => ({ id: one.id, hours: readableHours(one.minutes), boughtOn: friendlyDay(one.boughtOn, today), note: one.note, invoiceId: one.invoiceId ?? "" })),
+          },
+    plans: deps.recurring.listForClientAlone(organizationId).map((one) => recurringLine(one, "", clientName, today)),
+    everyOptions: options(EVERY_LABELS),
+    today,
+  });
+}
+
 export type InvoiceView = {
   readonly invoice: InvoiceRowView & { readonly note: string; readonly draft: boolean };
-  readonly project: { readonly id: string; readonly name: string };
+  /** The project it is for, or null for a charge on the client alone. */
+  readonly project: { readonly id: string; readonly name: string } | null;
+  readonly client: { readonly id: string; readonly name: string };
   readonly clientName: string;
   readonly lines: readonly { readonly key: string; readonly description: string; readonly amount: string }[];
-  readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly methodLabel: string; readonly reference: string }[];
+  readonly payments: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly method: string; readonly methodLabel: string; readonly reference: string; readonly refunded: string; readonly refundablePlain: string; readonly refundable: boolean }[];
+  /** Money given back on this invoice's payments, oldest first. */
+  readonly refunds: readonly { readonly id: string; readonly on: string; readonly amount: string; readonly how: string; readonly reason: string; readonly reference: string }[];
   readonly owedPlain: string;
-  readonly can: { readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean };
+  readonly can: { readonly refund: boolean; readonly addLine: boolean; readonly send: boolean; readonly void: boolean; readonly pay: boolean; readonly promise: boolean; readonly payLink: boolean; readonly writeOff: boolean };
+  /** When the client promised to pay, and what they said. */
+  readonly promise: { readonly on: string; readonly when: string; readonly note: string; readonly due: boolean } | null;
+  readonly payLink: string;
+  readonly writtenOff: { readonly on: string; readonly note: string } | null;
   readonly methods: readonly Option[];
   readonly today: string;
 };
@@ -304,19 +422,33 @@ export function invoiceDetail(deps: FinanceDeps, actorId: Id | null, invoiceId: 
   if (!invoice) return err("not-found");
   const today = deps.today();
   const edit = may(deps, actorId, "invoice.edit");
+  const refunds = deps.invoices.refunds(invoiceId);
   return ok({
     invoice: { ...invoiceRowView(invoice, today), note: invoice.note, draft: invoice.status === "draft" },
-    project: { id: invoice.projectId, name: invoice.projectName },
+    project: invoice.projectId === null ? null : { id: invoice.projectId, name: invoice.projectName },
+    client: { id: invoice.organizationId, name: invoice.clientName },
     clientName: invoice.clientName,
     lines: invoice.lines.map((line, index) => ({ key: String(index), description: line.description, amount: formatMoney(line.amount) })),
-    payments: deps.invoices.payments(invoiceId).map((payment) => ({ id: payment.id, on: payment.receivedOn, amount: formatMoney(payment.amount), methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference })),
+    payments: deps.invoices.payments(invoiceId).map((payment) => {
+      const back = refunds.filter((one) => one.paymentId === payment.id).reduce((sum, one) => sum + one.amount.minor, 0);
+      const left = payment.amount.minor - back;
+      return { id: payment.id, on: friendlyDay(payment.receivedOn, today), amount: formatMoney(payment.amount), method: payment.method, methodLabel: METHOD_LABELS[payment.method] ?? payment.method, reference: payment.reference, refunded: back > 0 ? `${formatMoney({ minor: back, currency: payment.amount.currency })} refunded` : "", refundablePlain: plain(left), refundable: left > 0 };
+    }),
+    refunds: refunds.map((one) => ({ id: one.id, on: friendlyDay(one.refundedOn, today), amount: formatMoney(one.amount), how: one.through === "platform" ? "Through the payment platform" : "By hand", reason: one.reason, reference: one.reference })),
     owedPlain: plain(invoice.total.minor - invoice.paidMinor),
     can: {
+      refund: may(deps, actorId, "payment.record"),
       addLine: edit && invoice.status === "draft",
       send: edit && invoice.status === "draft",
       void: edit && (invoice.status === "draft" || invoice.status === "sent") && invoice.paidMinor === 0,
       pay: invoice.status === "sent" && may(deps, actorId, "payment.record"),
+      promise: edit && invoice.status === "sent",
+      payLink: edit && (invoice.status === "draft" || invoice.status === "sent"),
+      writeOff: edit && invoice.status === "sent",
     },
+    promise: invoice.promisedOn ? { on: invoice.promisedOn, when: friendlyDay(invoice.promisedOn, today), note: invoice.promiseNote, due: invoice.status === "sent" && invoice.promisedOn <= today } : null,
+    payLink: invoice.payLink ?? "",
+    writtenOff: invoice.writtenOffOn ? { on: friendlyDay(invoice.writtenOffOn, today), note: invoice.writtenOffNote } : null,
     methods: options(METHOD_LABELS),
     today,
   });
@@ -364,7 +496,9 @@ export function invoiceDocument(deps: FinanceDeps, actorId: Id | null, invoiceId
 
 export type RecurringLine = {
   readonly id: string;
+  /** "" for one on the client alone. */
   readonly projectId: string;
+  readonly organizationId: string;
   readonly projectName: string;
   readonly clientName: string;
   readonly description: string;
@@ -381,7 +515,8 @@ export type RecurringLine = {
 function recurringLine(one: RecurringInvoice, projectName: string, clientName: string, today: string): RecurringLine {
   return {
     id: one.id,
-    projectId: one.projectId,
+    projectId: one.projectId ?? "",
+    organizationId: one.organizationId,
     projectName,
     clientName,
     description: one.description,
@@ -401,12 +536,15 @@ export type RecurringOverviewView = { readonly items: readonly RecurringLine[]; 
 /** Every active recurring invoice, and what they bring in a month and a year. Permission: `invoice.view`. */
 export function recurringOverview(deps: FinanceDeps, actorId: Id | null): Result<RecurringOverviewView, "forbidden"> {
   if (!may(deps, actorId, "invoice.view")) return err("forbidden");
-  const projects = new Map(deps.projects.list().map((project) => [project.id, project]));
+  const projects = new Map(deps.projects.list().map((project) => [project.id as string, project]));
   const active = deps.recurring.listActive();
   const today = deps.today();
   const monthly = active.reduce((sum, one) => sum + monthlyMinor(one), 0);
   return ok({
-    items: active.map((one) => recurringLine(one, projects.get(one.projectId)?.name ?? "A removed project", projects.get(one.projectId)?.clientName ?? "", today)),
+    items: active.map((one) => {
+      const project = one.projectId === null ? null : projects.get(one.projectId);
+      return recurringLine(one, one.projectId === null ? "" : (project?.name ?? "A removed project"), project?.clientName ?? deps.clients.get(one.organizationId)?.name ?? "", today);
+    }),
     monthly: formatMoney(usd(monthly)),
     yearly: formatMoney(usd(monthly * 12)),
   });
@@ -655,4 +793,198 @@ export async function syncFinanceSheet(deps: FinanceDeps, target: SheetTarget): 
     recordActivity(deps, { actorId: null, action: "finance.sheet-synced", recordType: "export", recordId: deps.newId(), context: { rows } });
   });
   return { rows };
+}
+
+/** What money asks of Potomac's people on Today: payments promised for today or before, still owed. `invoice.view`. */
+export type MoneyFollowUp = { readonly key: string; readonly text: string; readonly detail: string; readonly href: string; readonly action: string; readonly overdue: boolean; readonly at: string };
+
+export function moneyFollowUps(deps: FinanceDeps, actorId: Id | null): readonly MoneyFollowUp[] {
+  if (!may(deps, actorId, "invoice.view")) return [];
+  const today = deps.today();
+  const low = deps.billing.clientsWithBlocks().flatMap((organizationId): MoneyFollowUp[] => {
+    const blocks = deps.billing.blocksFor(organizationId);
+    const balance = prepaidBalance(blocks, deps.billing.minutesSince(organizationId, [...blocks].map((one) => one.boughtOn).sort()[0] as string));
+    if (!balance.low) return [];
+    const name = deps.clients.get(organizationId)?.name ?? "A client";
+    const left = balance.leftMinutes < 0 ? `${readableHours(-balance.leftMinutes)} over` : `${readableHours(balance.leftMinutes)} left`;
+    return [{ key: `prepaid-${organizationId}`, text: `${name}’s prepaid hours are running low`, detail: `${left} of ${readableHours(balance.boughtMinutes)} bought`, href: `/clients/${organizationId}#billing`, action: "Open", overdue: balance.leftMinutes < 0, at: today }];
+  });
+  return [...low, ...deps.invoices
+    .list()
+    .filter((one) => one.status === "sent" && one.promisedOn !== null && one.promisedOn <= today)
+    .map((one) => ({
+      key: `promise-${one.id}`,
+      text: `${one.clientName} promised to pay ${invoiceLabel(one.number)}`,
+      detail: `${formatMoney(usd(one.total.minor - one.paidMinor))} owed · promised for ${friendlyDay(one.promisedOn as string, today)}${one.promiseNote ? ` · “${one.promiseNote}”` : ""}`,
+      href: `/invoices/${one.id}#follow-up`,
+      action: "Follow up",
+      overdue: (one.promisedOn as string) < today,
+      at: one.promisedOn as string,
+    }))];
+}
+
+/** How clients pay, in Potomac's words, and whether this person may change it. `invoice.view`. */
+export function payInstructionsView(deps: FinanceDeps, actorId: Id | null): { readonly text: string; readonly canEdit: boolean } | null {
+  if (!may(deps, actorId, "invoice.view")) return null;
+  return { text: deps.billing.payInstructions(), canEdit: may(deps, actorId, "invoice.edit") };
+}
+
+/** The cash forecast looks this many weeks ahead, from the Monday of this week. */
+export const FORECAST_WEEKS = 13;
+
+export type ForecastItem = { readonly key: string; readonly on: string; readonly label: string; readonly amount: string; readonly kind: "invoice" | "overdue" | "renewal" | "recurring" | "cost"; readonly href: string };
+export type ForecastWeek = { readonly start: string; readonly label: string; readonly coming: string; readonly going: string; readonly net: string; readonly running: string; readonly negative: boolean; readonly items: readonly ForecastItem[] };
+export type ForecastView = { readonly weeks: readonly ForecastWeek[]; readonly totals: { readonly coming: string; readonly going: string; readonly net: string; readonly overdue: string }; readonly drafts: string };
+
+/**
+ * Money → Cash forecast: the next 13 weeks, week by week. Coming in: sent
+ * invoices by their due day (overdue ones in this week), renewals not billed
+ * yet by their pay-by day, and recurring invoices as they'll be made. Going
+ * out: what renewals cost Potomac on the day they renew. Expenses aren't
+ * planned in HQ, so they aren't here; drafts are shown apart. `finance.view`.
+ */
+export function cashForecast(deps: FinanceDeps, actorId: Id | null): Result<ForecastView, "forbidden"> {
+  if (!may(deps, actorId, "finance.view")) return err("forbidden");
+  const today = Temporal.PlainDate.from(deps.today());
+  const first = today.subtract({ days: today.dayOfWeek - 1 });
+  const last = first.add({ weeks: FORECAST_WEEKS }).subtract({ days: 1 });
+  const from = today.toString();
+  const to = last.toString();
+  const entries: { readonly on: string; readonly inMinor: number; readonly outMinor: number; readonly item: Omit<ForecastItem, "amount"> }[] = [];
+  const invoices = deps.invoices.list();
+  for (const one of invoices) {
+    if (one.status !== "sent") continue;
+    const owed = one.total.minor - one.paidMinor;
+    if (owed <= 0) continue;
+    const due = one.dueOn ?? from;
+    if (due > to) continue;
+    const late = due < from;
+    entries.push({ on: late ? from : due, inMinor: owed, outMinor: 0, item: { key: `i-${one.id}`, on: due, label: `${invoiceLabel(one.number)}, ${one.clientName}${late ? " (overdue)" : ""}`, kind: late ? "overdue" : "invoice", href: `/invoices/${one.id}` } });
+  }
+  for (const plan of deps.recurring.listActive()) {
+    let on = plan.nextOn;
+    for (let n = 0; n < 60 && on <= to && (plan.endsOn === null || on <= plan.endsOn); n++) {
+      const due = Temporal.PlainDate.from(on).add({ days: plan.dueDays }).toString();
+      if (due >= from && due <= to) {
+        const who = deps.clients.get(plan.organizationId)?.name ?? "";
+        entries.push({ on: due, inMinor: plan.amount.minor, outMinor: 0, item: { key: `r-${plan.id}-${on}`, on: due, label: `${plan.description}, ${who}`, kind: "recurring", href: plan.projectId ? `/projects/${plan.projectId}/money#recurring` : `/clients/${plan.organizationId}#billing` } });
+      }
+      on = nextAfter(on, plan.every, plan.anchorDay);
+    }
+  }
+  for (const line of deps.cashflow ? deps.cashflow(from, to) : []) {
+    entries.push({ on: line.on, inMinor: line.inMinor, outMinor: line.outMinor, item: { key: `n-${line.label}-${line.on}`, on: line.on, label: line.label, kind: line.outMinor > 0 ? "cost" : "renewal", href: `/clients/${line.organizationId}#renewals` } });
+  }
+  let running = 0;
+  const weeks: ForecastWeek[] = [];
+  for (let w = 0; w < FORECAST_WEEKS; w++) {
+    const start = first.add({ weeks: w });
+    const end = start.add({ days: 6 }).toString();
+    const inWeek = entries.filter((one) => one.on >= start.toString() && one.on <= end).sort((a, b) => a.on.localeCompare(b.on));
+    const coming = inWeek.reduce((sum, one) => sum + one.inMinor, 0);
+    const going = inWeek.reduce((sum, one) => sum + one.outMinor, 0);
+    running += coming - going;
+    weeks.push({
+      start: start.toString(),
+      label: `${w === 0 ? "This week" : w === 1 ? "Next week" : "Week of"} ${start.toLocaleString("en-US", { month: "short", day: "numeric" })}`,
+      coming: formatMoney(usd(coming)),
+      going: formatMoney(usd(going)),
+      net: coming - going < 0 ? `−${formatMoney(usd(going - coming))}` : formatMoney(usd(coming - going)),
+      running: running < 0 ? `−${formatMoney(usd(-running))}` : formatMoney(usd(running)),
+      negative: coming - going < 0,
+      items: inWeek.map((one) => ({ ...one.item, amount: formatMoney(usd(one.inMinor > 0 ? one.inMinor : one.outMinor)) })),
+    });
+  }
+  const coming = entries.reduce((sum, one) => sum + one.inMinor, 0);
+  const going = entries.reduce((sum, one) => sum + one.outMinor, 0);
+  const overdue = entries.filter((one) => one.item.kind === "overdue").reduce((sum, one) => sum + one.inMinor, 0);
+  const drafts = invoices.filter((one) => one.status === "draft").reduce((sum, one) => sum + one.total.minor, 0);
+  return ok({
+    weeks,
+    totals: { coming: formatMoney(usd(coming)), going: formatMoney(usd(going)), net: coming - going < 0 ? `−${formatMoney(usd(going - coming))}` : formatMoney(usd(coming - going)), overdue: formatMoney(usd(overdue)) },
+    drafts: formatMoney(usd(drafts)),
+  });
+}
+
+export type ClientProfitView = {
+  readonly year: number;
+  readonly years: readonly number[];
+  readonly upTo: string;
+  readonly rows: readonly {
+    readonly clientId: string;
+    readonly name: string;
+    readonly invoiced: string;
+    readonly received: string;
+    readonly costs: string;
+    readonly net: string;
+    readonly hours: string;
+    readonly perHour: string;
+    readonly negative: boolean;
+  }[];
+  readonly totals: { readonly received: string; readonly costs: string; readonly net: string; readonly hours: string; readonly perHour: string };
+};
+
+/**
+ * Each client's year (2026-11-26): what they paid, less expenses on their
+ * projects and what their renewals cost, against the hours worked for them.
+ * Cash basis, like the profit page. Demo clients are left out.
+ */
+export function profitPerClient(deps: FinanceDeps, actorId: Id | null, wanted?: string | null): Result<ClientProfitView, "forbidden"> {
+  if (!may(deps, actorId, "finance.view")) return err("forbidden");
+  const today = deps.today();
+  const thisYear = Number(today.slice(0, 4));
+  const year = /^\d{4}$/.test(wanted ?? "") && Number(wanted) >= thisYear - 9 && Number(wanted) <= thisYear ? Number(wanted) : thisYear;
+  const from = `${year}-01-01`;
+  const to = year === thisYear ? today : `${year}-12-31`;
+  const inYear = (on: string | null) => on !== null && on >= from && on <= to;
+  const orgOfProject = new Map(deps.projects.list().map((project) => [project.id as string, project.organizationId as string]));
+  const invoices = deps.invoices.list();
+  const orgOfInvoice = new Map(invoices.map((one) => [one.id as string, one.organizationId as string]));
+  const tallies = new Map<string, { invoiced: number; received: number; expenses: number; renewalCost: number; minutes: number }>();
+  const tally = (org: string | undefined) => {
+    if (!org) return null;
+    let found = tallies.get(org);
+    if (!found) tallies.set(org, (found = { invoiced: 0, received: 0, expenses: 0, renewalCost: 0, minutes: 0 }));
+    return found;
+  };
+  for (const one of invoices) if ((one.status === "sent" || one.status === "paid") && inYear(one.issuedOn)) tally(one.organizationId)!.invoiced += one.total.minor;
+  for (const one of deps.invoices.allPayments()) if (inYear(one.receivedOn)) {
+    const t = tally(orgOfInvoice.get(one.invoiceId));
+    if (t) t.received += one.amount.minor;
+  }
+  for (const one of deps.expenses.list({ from, to })) {
+    const t = tally(orgOfProject.get(one.projectId));
+    if (t) t.expenses += one.amount.minor;
+  }
+  for (const one of deps.time.list({ from, to }, null)) {
+    const t = tally(orgOfProject.get(one.projectId));
+    if (t && one.minutes !== null) t.minutes += one.minutes;
+  }
+  // A renewal is paid on its day: the whole year's count, as that money goes out this year either way.
+  for (const one of deps.cashflow?.(from, `${year}-12-31`) ?? []) {
+    const t = tally(one.organizationId);
+    if (t) t.renewalCost += one.outMinor;
+  }
+  for (const org of [...tallies.keys()]) if (deps.clients.get(org as Id)?.demo) tallies.delete(org);
+  const rows = profitByClient(tallies);
+  const money = (minor: number) => formatMoney(usd(minor));
+  const hours = (minutes: number) => (minutes === 0 ? "None logged" : `${(minutes / 60).toFixed(1).replace(/\.0$/, "")} h`);
+  const sum = rows.reduce((s, r) => ({ invoiced: s.invoiced + r.profit.invoiced, received: s.received + r.profit.received, costs: s.costs + r.profit.expenses + r.profit.renewalCost, net: s.net + r.profit.net, minutes: s.minutes + r.profit.minutes }), { invoiced: 0, received: 0, costs: 0, net: 0, minutes: 0 });
+  return ok({
+    year,
+    years: Array.from({ length: Math.min(10, thisYear - 2025) }, (_, n) => thisYear - n),
+    upTo: friendlyDay(to, today),
+    rows: rows.map(({ key, profit }) => ({
+      clientId: key,
+      name: deps.clients.get(key as Id)?.name ?? "A removed client",
+      invoiced: money(profit.invoiced),
+      received: money(profit.received),
+      costs: money(profit.expenses + profit.renewalCost),
+      net: money(profit.net),
+      hours: hours(profit.minutes),
+      perHour: profit.perHour === null ? "Not known" : money(profit.perHour),
+      negative: profit.net < 0,
+    })),
+    totals: { invoiced: money(sum.invoiced), received: money(sum.received), costs: money(sum.costs), net: money(sum.net), hours: hours(sum.minutes), perHour: sum.minutes > 0 ? money(Math.round((sum.net * 60) / sum.minutes)) : "Not known" },
+  });
 }

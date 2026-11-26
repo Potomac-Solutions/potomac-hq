@@ -9,6 +9,8 @@ export type RenewalStore = {
   listActive(): Renewal[];
   /** A client's active ones, soonest first. */
   listFor(organizationId: Id): Renewal[];
+  /** Records the client's answer for a term. */
+  answer(id: Id, answer: NonNullable<Renewal["answer"]>, at: string): void;
 };
 
 /** A client's name, from the CRM. */
@@ -26,7 +28,9 @@ export type RenewalBilling = {
   /** The client's projects an invoice can go on, newest first. */
   projectsFor(organizationId: Id): readonly { readonly id: Id; readonly name: string }[];
   /** Makes an invoice with one line on one of the client's projects, and sends it. */
-  send(actorId: Id | null, organizationId: Id, projectId: Id, line: { readonly description: string; readonly amount: Money; readonly dueOn: string }): Result<BilledInvoice, "forbidden" | "not-found">;
+  send(actorId: Id | null, organizationId: Id, projectId: Id | null, line: { readonly description: string; readonly amount: Money; readonly dueOn: string }): Result<BilledInvoice, "forbidden" | "not-found">;
+  /** One invoice with several lines, due on one day, sent: renewals billed together. */
+  sendTogether(actorId: Id | null, organizationId: Id, projectId: Id | null, lines: readonly { readonly description: string; readonly amount: Money }[], dueOn: string): Result<BilledInvoice, "forbidden" | "not-found">;
   invoice(id: Id): BilledInvoice | null;
   /** Whether the actor may bill: `invoice.edit`. */
   mayBill(actorId: Id | null): boolean;

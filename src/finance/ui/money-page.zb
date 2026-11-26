@@ -7,16 +7,17 @@
   import '../../shared/ui/zubra/status-badge.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
     const stop = context.guard()
     if (stop) return stop
     const view = context.money.overview()
     if (!view.ok) return context.forbidden()
     const recurring = context.money.recurring()
-    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Money', view: view.value, recurring: recurring.ok ? recurring.value : null, reminders: context.money.reminders(), lateFee: context.money.lateFee(), taxYears: context.money.taxYears(), lateWords: context.money.lateFee().words.toLowerCase(), pay: context.money.payInstructions(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} done="" problem="">
+<hq-money view={{ rows: [], totals: {}, canExport: false }} recurring={null} reminders={{ on: false, canEdit: false, email: false }} late-fee={{ words: 'Off', kind: 'off', amount: '', afterDays: 30, canEdit: false }} late-words="off" tax-years={[]} pay={null} done="" problem="">
   <div class="hq-page">
     <h1>Money</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -25,7 +26,7 @@
     </div>
     <section class="hq-panel" aria-labelledby="money-summary">
       <h2 id="money-summary">Revenue and margin, an operational estimate</h2>
-      <p><a href="/money/profit">Profit and loss by month</a>: money received against money spent.</p>
+      <p><a href="/money/forecast">Cash forecast</a>: money coming in and going out, the next 13 weeks. <a href="/money/invoices">Invoices</a>: who owes what, overdue and drafts. <a href="/money/profit">Profit and loss by month</a>: money received against money spent. <a href="/money/clients">Profit by client</a>: who’s worth the time.</p>
       <dl class="hq-facts">
         <dt>Budgets, every project</dt><dd>{view.totals.budget}</dd>
         <dt>Cost so far</dt><dd>{view.totals.cost}</dd>
@@ -42,7 +43,7 @@
           <zb-each items={recurring.items} as="plan" key={plan.id}>
             <tr>
               <td>{plan.description}</td>
-              <td><a href="/projects/{plan.projectId}/money#recurring">{plan.projectName}</a><span zb-if={plan.clientName} class="hq-muted"> · {plan.clientName}</span></td>
+              <td><a zb-if={plan.projectId} href="/projects/{plan.projectId}/money#recurring">{plan.projectName}</a><a zb-else href="/clients/{plan.organizationId}#billing">No project</a><span zb-if={plan.clientName} class="hq-muted"> · {plan.clientName}</span></td>
               <td>{plan.everyLabel}</td>
               <td><time datetime={plan.nextOn}>{plan.next}</time></td>
               <td class="hq-number">{plan.amount}</td>
@@ -59,6 +60,30 @@
       <form zb-if={reminders.canEdit} method="post" action="/money/reminders">
         <input type="hidden" name="on" value={reminders.on ? '0' : '1'}>
         <button class="hq-button secondary" type="submit">{reminders.on ? 'Turn reminders off' : 'Turn reminders on'}</button>
+      </form>
+    </section>
+    <section zb-if={taxYears.length > 0} class="hq-panel" id="tax-pack" aria-labelledby="money-tax-pack">
+      <h2 id="money-tax-pack">Year-end tax pack</h2>
+      <p>One zip for whoever does your taxes: money in and refunds, by client; expenses by category with their receipts; what was owed at the year’s end; what was written off. Cash basis.</p>
+      <ul class="hq-list">
+        <zb-each items={taxYears} as="year" key={year}><li><a href="/exports/tax-pack-{year}.zip" download>Taxes for {year}</a></li></zb-each>
+      </ul>
+      <p class="hq-small hq-muted">Card processing fees aren’t in HQ: download those from PayPal’s yearly statement. It’s a summary to hand over, not tax advice.</p>
+    </section>
+    <section class="hq-panel" id="late-fees" aria-labelledby="money-late-fees">
+      <h2 id="money-late-fees">Late fees: {lateWords}</h2>
+      <p>When set, an invoice that reaches the day gets one late fee, as its own invoice in the client’s portal, due two weeks later. Never on a late fee, never twice. An invoice already past that day when you save this isn’t charged: only ones that reach it afterwards. At two weeks late, whoever made the invoice also gets a to-do to call the client, fee or not.</p>
+      <p class="hq-muted">Only charge a late fee your agreement with the client mentions, and check what your state allows.</p>
+      <form zb-if={lateFee.canEdit} method="post" action="/money/late-fee" class="hq-form" data-spaced>
+        <fieldset class="hq-radios">
+          <legend>Late fee</legend>
+          <label><input type="radio" name="kind" value="off" checked={lateFee.kind === 'off'}> None</label>
+          <label><input type="radio" name="kind" value="percent" checked={lateFee.kind === 'percent'}> A percent of what’s still owed</label>
+          <label><input type="radio" name="kind" value="flat" checked={lateFee.kind === 'flat'}> A flat amount</label>
+        </fieldset>
+        <text-field label="How much" name="amount" value={lateFee.amount} inputmode="decimal" description="A percent like 1.5, or dollars like 25. Leave it empty for None."></text-field>
+        <text-field label="After this many days late" name="afterDays" value={String(lateFee.afterDays)} inputmode="numeric"></text-field>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
       </form>
     </section>
     <section class="hq-panel" aria-labelledby="money-projects">
@@ -91,6 +116,18 @@
         <li><a href="/exports/invoices.csv">Invoices (CSV)</a></li>
         <li><a href="/exports/payments.csv">Payments received (CSV)</a></li>
       </ul>
+    </section>
+    <section zb-if={pay} class="hq-panel" id="how-to-pay" aria-labelledby="money-how-to-pay">
+      <h2 id="money-how-to-pay">How clients pay</h2>
+      <p class="hq-muted">What clients read in their portal, receipts and statements, and on invoice reminders. Who checks are made out to, where to mail them, and any other way you take money, such as a bank transfer. Never put an account or card number here. Empty: checks or cash to Potomac Solutions.</p>
+      <form zb-if={pay.canEdit} method="post" action="/money/pay-instructions" class="hq-form">
+        <div class="hq-field">
+          <label for="pay-instructions">How to pay</label>
+          <textarea id="pay-instructions" name="instructions" rows="5" maxlength="2000">{pay.text}</textarea>
+        </div>
+        <div><button class="hq-button secondary" type="submit">Save</button></div>
+      </form>
+      <p zb-else class="hq-prose">{pay.text || 'Checks or cash to Potomac Solutions.'}</p>
     </section>
   </div>
 </hq-money>

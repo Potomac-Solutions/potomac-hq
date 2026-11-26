@@ -6,6 +6,7 @@
 -->
 <script>
   'use route /phone/:id/recap'
+  import '../../shared/ui/parts/model-pick.zb'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/breadcrumb-trail.zb'
   import '../../shared/ui/zubra/text-field.zb'
@@ -15,7 +16,7 @@
     if (stop) return stop
     const recap = context.crm.recap(params.id)
     if (recap === null) return notFound()
-    return { title: 'Recap email', recap: recap === 'no-email' ? null : recap, noEmail: recap === 'no-email', emailOn: context.crm.emailOn, ai: recap === 'no-email' ? null : context.ai.recap(params.id), aiState: context.ai.state('call-recap'), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Recap email', recap: recap === 'no-email' ? null : recap, noEmail: recap === 'no-email', emailOn: context.crm.emailOn, ai: recap === 'no-email' ? null : context.ai.recap(params.id), aiState: context.ai.state('call-recap'), aiModels: context.ai.models(), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -24,7 +25,7 @@
   .recap-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
   .recap-actions .hq-button { min-height: 3rem; }
 </style>
-<hq-call-recap recap={null} no-email={false} email-on={false} ai={null} ai-state={{ on: false, why: '' }} done="" problem="">
+<hq-call-recap ai-models={[]} recap={null} no-email={false} email-on={false} ai={null} ai-state={{ on: false, why: '' }} done="" problem="">
   <div class="recap">
     <breadcrumb-trail zb-if={recap} items={[{ label: 'Clients', href: '/clients' }, { label: recap.clientName, href: `/clients/${recap.clientId}` }, { label: 'Recap email', href: '' }]}></breadcrumb-trail>
     <h1>Recap email</h1>
@@ -54,8 +55,8 @@
     <form zb-if={recap && !recap.sentText && aiState.on} method="post" action="/phone/{recap.callId}/recap/ai" class="hq-panel hq-form">
       <h2>{ai ? 'Draft it again with AI' : 'Draft it with AI'}</h2>
       <p class="hq-muted hq-small">AI writes the email and the next steps from your notes. Nothing is sent until you press Send recap.</p>
-      <text-field label="Transcript (optional)" description="Paste one from your phone or another app. HQ doesn’t record calls." name="transcript" rows={6} maxlength={30000}></text-field>
-      <div><button class="hq-button secondary" type="submit">Draft with AI</button></div>
+      <text-field label="Transcript" description="Paste one from your phone or another app. HQ doesn’t record calls." name="transcript" rows={6} maxlength={30000}></text-field>
+      <div><model-pick models={aiModels} field-id="recap-model"></model-pick> <button class="hq-button secondary" type="submit">Draft with AI</button></div>
     </form>
     <p zb-if={recap && !recap.sentText && aiState.why} class="hq-muted hq-small">{aiState.why}</p>
   </div>

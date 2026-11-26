@@ -22,6 +22,8 @@ export function sqliteClientStore(db: Database): ClientStore {
   const insert = db.prepare(`insert into client_organization (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const update = db.prepare("update client_organization set name = ?, status = ?, size_tier = ?, website = ?, phone = ?, address = ?, demo = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${cols} from client_organization where id = ?`);
+  const billing = db.prepare("select billing_contact_id from client_organization where id = ?");
+  const setBilling = db.prepare("update client_organization set billing_contact_id = ?, updated_at = ? where id = ?");
   const list = db.prepare(
     `select c.id, c.name, c.status, c.size_tier, c.website, c.phone, c.address, c.demo,
             (select count(*) from opportunity o where o.organization_id = c.id and o.stage not in ('won', 'lost')) as open
@@ -41,6 +43,10 @@ export function sqliteClientStore(db: Database): ClientStore {
     },
     list() {
       return (list.all() as (ClientRow & { open: number })[]).map((r) => ({ ...toClient(r), openOpportunities: r.open }));
+    },
+    billingContact: (id) => ((billing.get(id) as { billing_contact_id: string | null } | undefined)?.billing_contact_id ?? null) as Id | null,
+    setBillingContact(id, contactId, at) {
+      setBilling.run(contactId, at, id);
     },
   };
 }

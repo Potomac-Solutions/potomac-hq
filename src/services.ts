@@ -6,18 +6,18 @@ import { sqliteCallGuideStore, sqliteCallScreenStore, sqliteClientFacts, sqliteC
 import type { CallDeps, CrmDeps, ImportDeps, TouchDeps } from "./crm/index.ts";
 import { formatWhenIn, sqliteActivityReader, sqliteAuditReader, sqliteSearchReader } from "./dashboard/adapters.ts";
 import type { AuditDeps, RecentActivityDeps, SearchDeps } from "./dashboard/index.ts";
-import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteRecurringStore, sqliteReminderStore, sqliteTimeStore } from "./finance/adapters.ts";
-import { addCreditToInvoice, applyDepositDraft, applyTaskMove, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
+import { renderInvoicePdf, sqliteChangeRequestStore, sqliteExpenseStore, sqliteFinanceStore, sqliteInvoiceStore, sqlitePhaseEstimates, sqliteBillingStore, sqliteRecurringStore, sqliteReminderStore, sqliteLateFeeStore, sqliteTimeStore } from "./finance/adapters.ts";
+import { addCreditToInvoice, applyDepositDraft, addLineToInvoice, applyTaskMove, createClientInvoice, createInvoice, invoiceLabel, logTime, sendInvoiceNow, type ClientEmails, type FinanceDeps, type LateDeps, type InvoiceDocument, type RemindersDeps } from "./finance/index.ts";
 import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapters.ts";
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
-import type { BilledInvoice, RenewalBilling, RenewalsDeps } from "./renewals/index.ts";
+import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
 import type { ReportsDeps } from "./client-reports/index.ts";
 import type { AutomationsDeps } from "./automations/index.ts";
-import type { ShowcaseDeps } from "./showcase/index.ts";
+import { mayWriteReview, type ShowcaseDeps } from "./showcase/index.ts";
 import type { ReferralCreditDeps } from "./referral-credit/index.ts";
 import type { DemosDeps } from "./demos/index.ts";
 import { sqliteDemoLinkStore, sqliteDemoStore } from "./demos/adapters.ts";
@@ -31,7 +31,7 @@ import { sqliteLeadStore } from "./leads/adapters.ts";
 import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import { setUpSite, type SitePublisher, type WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import { builderSpentThisMonth, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
+import { builderSpentThisMonth, versionZip, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
 import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore, sqlitePublishStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -50,6 +50,7 @@ import type { MorningDeps, TodayDeps } from "./today/index.ts";
 import { sqliteMorningLog } from "./today/adapters.ts";
 import { sqliteTodoStore } from "./todos/adapters.ts";
 import { linkedBusyCalendar, manageTokens, noBusyCalendar, outsideFetch, sqliteBookingLinkStore, sqliteBookingStore, sqliteCalendarLinkStore, sqliteScheduleInviteStore } from "./booking/adapters.ts";
+import { withRolePreview } from "./identity/adapters.ts";
 import { accountAdmin, createHqStaff, sqliteInviteStore, sqliteKitStore, sqliteRateLimit, sqliteRefusedLog, sqliteTwoFactorStore, sqlitePasskeyStore, passkeyCrypto, sqliteUserStore, totpCrypto, type Staff } from "./identity/adapters.ts";
 import { authorize, type RefusedDeps, type SessionDeps, type TwoFactorDeps } from "./identity/index.ts";
 import { sqliteArticleStore } from "./knowledge/adapters.ts";
@@ -60,9 +61,38 @@ import { createPortalAuth, sqliteCallStore, sqliteEventReader, sqliteClientUserS
 import type { PortalDeps } from "./portal/index.ts";
 import { renderProposalPdf, sqliteProposalStore } from "./proposals/adapters.ts";
 import type { ProposalDocument, ProposalsDeps } from "./proposals/index.ts";
-import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore } from "./projects/adapters.ts";
-import { moveTaskStatus, repeatAfterDone, type ProjectsDeps } from "./projects/index.ts";
-import { withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { sqliteBaselineStore, sqliteDeliverableStore, sqliteLabelStore, sqliteWorkStore, sqliteMilestoneStore, sqlitePhaseStore, sqliteProjectHistory, sqliteProjectLinkStore, sqliteProjectStore, sqliteTaskStore, sqliteTaskLinkStore, sqliteCommentStore, sqliteRepeatStore, sqliteCalendarFeedStore, sqliteShareStore, sqliteImportStore, sqliteRepeatTaker } from "./projects/adapters.ts";
+import { moveTaskStatus, repeatAfterDone, taskFromClient, type ProjectsDeps } from "./projects/index.ts";
+import { ceilingDollars, choosingModel, converseWith, featureState, isFeature, useProposalDraft, waitingDraft, waitingDrafts, withDraftOutcomes, type AiModel, type FeaturesDeps } from "./ai/index.ts";
+import { type AssistantActions, type AssistantDeps } from "./assistant/index.ts";
+import { sqliteAssistantStore } from "./assistant/adapters.ts";
+import { placeAt, PLACES, search, type PinsDeps, type Place, type WeeklyDeps } from "./dashboard/index.ts";
+import { sqlitePinStore, sqliteWeekFacts, sqliteWeeklySent } from "./dashboard/adapters.ts";
+import { sqliteAlertQueue, sqliteAlertSources, sqliteDeviceStore } from "./push/adapters.ts";
+import type { PushDeps } from "./push/index.ts";
+import type { RepliesDeps } from "./replies/index.ts";
+import { sqliteReplyStore } from "./replies/adapters.ts";
+import type { RequestsDeps } from "./requests/index.ts";
+import type { IntakeAnswers, IntakeDeps } from "./intake/index.ts";
+import type { FeedbackDeps } from "./feedback/index.ts";
+import type { HandoffDeps } from "./handoff/index.ts";
+import type { TextingDeps } from "./texting/index.ts";
+import type { AutopayDeps, SavedPay } from "./autopay/index.ts";
+import { sqliteAutopayStore } from "./autopay/adapters.ts";
+import { sqliteTextingStore } from "./texting/adapters.ts";
+import { sqliteHandoffFacts, sqliteLatestBuild } from "./handoff/adapters.ts";
+import { sqliteFeedbackStore } from "./feedback/adapters.ts";
+import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
+import { sqliteRequestLookups, sqliteRequestStore as sqliteClientRequestStore } from "./requests/adapters.ts";
+import { isQuiet } from "./notices/index.ts";
+import { followUpsDue } from "./crm/index.ts";
+import { sendFile as sendPortalFile, staffWaiting } from "./portal/index.ts";
+import { completeTodo, reopenTodo, todosDueFor } from "./todos/index.ts";
+import { quickAdd, quickAddPreview } from "./projects/index.ts";
+import { createClient, createOpportunity, setOpportunityFollowUp } from "./crm/index.ts";
+import { editProjectDetails } from "./projects/index.ts";
+import { createBookingLink, nextCalls } from "./booking/index.ts";
+import { recordCardPayment, runningTimer, stopTimer } from "./finance/index.ts";
 import { sqliteAiRecords, sqliteAiStore } from "./ai/adapters.ts";
 import { SERVICE_LABELS } from "./crm/domain/labels.ts";
 import { addChangeRequest, addExpense, EXPENSE_CATEGORIES } from "./finance/index.ts";
@@ -70,8 +100,28 @@ import { getReady, logTouch, moveOpportunity, recapFor } from "./crm/index.ts";
 import { addNote } from "./notes/index.ts";
 import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
-import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
-import type { Clock, Id } from "./shared/index.ts";
+import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database, type TextSender } from "./shared/adapters.ts";
+import { formatMoney, type Clock, type Id } from "./shared/index.ts";
+
+/** What a module's refusal means, in words the assistant passes on (decision 0015). */
+const ASSISTANT_PROBLEMS: Readonly<Record<string, string>> = {
+  forbidden: "You don't have permission to do that.",
+  "not-found": "That record doesn't exist, or you can't see it.",
+  "not-understood": "Quick add couldn't read that line.",
+  "project-closed": "That project isn't active.",
+  "person-not-found": "There's nobody in HQ by that name.",
+  "invalid-status": "That isn't a status a task can have.",
+  "note-missing": "Say what was said.",
+  "note-too-long": "The note is too long.",
+  "name-missing": "Give the client a name.",
+  "title-missing": "Give it a title.",
+  closed: "That deal is already won or lost.",
+  "not-running": "No timer is running.",
+  "opportunity-closed": "That deal is already won or lost.",
+  "invalid-date": "That isn't a date.",
+  "not-an-amount": "That isn't an amount.",
+  "project-not-active": "That project isn't active.",
+};
 
 /** "Due today" and the times people read are worked out here (docs/data-model.md). */
 export const BUSINESS_TIME_ZONE = "America/New_York";
@@ -93,7 +143,7 @@ export type Services = {
   readonly finance: FinanceDeps;
   readonly portal: PortalDeps;
   readonly booking: BookingDeps;
-  readonly invoiceReminders: RemindersDeps;
+  readonly invoiceReminders: LateDeps;
   readonly renewals: RenewalsDeps;
   /** Social media plans and posts (decision 0010). */
   readonly social: SocialDeps;
@@ -144,6 +194,30 @@ export type Services = {
   readonly morning: MorningDeps;
   /** AI assistance (decision 0012): settings, budget, and the drafts each feature writes. */
   readonly ai: FeaturesDeps;
+  /** The assistant on Home (decision 0015). */
+  readonly assistant: AssistantDeps;
+  /** The pages a person may open (decision 0015): the sidebar, search and the assistant read it. */
+  readonly placesFor: (actorId: Id | null) => readonly Place[];
+  /** Pins in the sidebar (decision 0015, follow-up). */
+  readonly pins: PinsDeps;
+  /** The weekly owner email (quality of life, 2026-11-25). */
+  readonly weekly: WeeklyDeps;
+  /** Phone alerts (quality of life, 2026-11-25). */
+  readonly push: PushDeps;
+  /** Saved replies (quality of life, 2026-11-25). */
+  readonly replies: RepliesDeps;
+  /** Client requests from the portal (2026-11-26). */
+  readonly requests: RequestsDeps;
+  /** The new-client intake (2026-11-26). */
+  readonly intake: IntakeDeps;
+  /** "How did we do?" (2026-11-26). */
+  readonly feedback: FeedbackDeps;
+  /** The handoff pack (2026-11-26). */
+  readonly handoff: HandoffDeps;
+  /** Text message reminders (2026-11-26). */
+  readonly texting: TextingDeps;
+  /** Automatic payment of plan invoices (2026-11-26). */
+  readonly autopay: AutopayDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -159,6 +233,10 @@ export type ServiceOptions = {
   /** Reads and commits to client sites' repositories. Without it, sites can't be set up or published. */
   readonly sitePublisher?: SitePublisher | null;
   readonly clock?: Clock;
+  /** Sends text messages (2026-11-26). Without it, the portal doesn't offer texts. */
+  readonly texts?: TextSender | null;
+  /** Saves a client's payment method and charges it for plan bills (2026-11-26). */
+  readonly savedPay?: SavedPay | null;
   /** Potomac's own website address, for its preview link. */
   readonly siteUrl?: string;
   readonly today?: () => string;
@@ -175,7 +253,8 @@ export type ServiceOptions = {
   /** The site builder's link to Claude. Without it, Claude can't be asked. */
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
-  readonly builderOwner?: string | null;
+  /** HQ_SITE_BUILDER_OWNER: one email or several. */
+  readonly builderOwner?: string | readonly string[] | null;
   /** Signs the site builder's preview addresses. Without it, a key made for this process. */
   readonly previewSecret?: string;
   /** Reads repositories for the site builder to rework. Without it, only addresses can be reworked. */
@@ -186,13 +265,18 @@ export type ServiceOptions = {
   readonly runLater?: (job: () => Promise<void>) => void;
   /** Claude, when HQ_ANTHROPIC_API_KEY is set; tests give a stand-in. Without it, AI is off. */
   readonly aiModel?: AiModel | null;
+  /** HQ's VAPID public key, when phone alerts are set up. */
+  readonly vapidPublicKey?: string | null;
 };
+
+const ownersOf = (owner: string | readonly string[] | null | undefined): readonly string[] => (owner == null ? [] : typeof owner === "string" ? [owner.toLowerCase()] : owner.map((one) => one.toLowerCase()));
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
   const clock = options.clock ?? systemClock;
   const today = options.today ?? (() => Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString());
   const formatWhen = formatWhenIn(BUSINESS_TIME_ZONE);
-  const users = sqliteUserStore(db);
+  // Admins can view HQ as a manager or member, read-only (quality of life, 2026-11-25).
+  const users = withRolePreview(db, sqliteUserStore(db));
   const twoFactor: TwoFactorDeps = { users, twoFactor: sqliteTwoFactorStore(db), totp: totpCrypto, passkeys: sqlitePasskeyStore(db), webauthn: passkeyCrypto, activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
   const staff = createHqStaff(db, { secure: options.secure ?? false, ...(options.passwordCost ? { passwordCost: options.passwordCost } : {}) });
   const session: SessionDeps = { users, invites: sqliteInviteStore(db), accounts: accountAdmin(staff, sqliteKitStore(db)), activityLog: sqliteActivityLog(db), transact: sqliteTransact(db), clock, newId };
@@ -234,8 +318,18 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const startOfDay = (day: string) => Temporal.PlainDate.from(day).toZonedDateTime(BUSINESS_TIME_ZONE).toInstant().toString();
   const audit: AuditDeps = { users, audit: sqliteAuditReader(db), formatWhen, startOfDay };
   const searchDeps: SearchDeps = { users, search: sqliteSearchReader(db) };
+  // A host's booked calls, for their calendar feed: two weeks back to three months ahead.
+  const callsHosted = db.prepare("select id, name, topic, starts_at, ends_at from booking where host_id = ? and status = 'booked' and starts_at >= ? and starts_at <= ? order by starts_at");
   const projects: ProjectsDeps = {
     ...session,
+    bookedCalls: (userId, base) => {
+      const now = Temporal.Instant.from(clock());
+      return callsHosted.all(userId, now.subtract({ hours: 14 * 24 }).toString(), now.add({ hours: 92 * 24 }).toString()).map((row) => {
+        const start = String(row["starts_at"]);
+        const day = Temporal.Instant.from(start).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toPlainDate().toString();
+        return { uid: `call-${String(row["id"])}@potomac-hq`, summary: `Call with ${String(row["name"])}`, description: [String(row["topic"] ?? ""), `Get ready in HQ: ${base}/get-ready/${String(row["id"])}`].filter(Boolean).join("\n"), url: `${base}/get-ready/${String(row["id"])}`, start: day, end: day, at: { start, end: String(row["ends_at"]) } };
+      });
+    },
     activityLog: eventLog,
     files: sqliteFileRecordStore(db),
     blobs: sqliteBlobStore(db),
@@ -262,8 +356,10 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     formatWhen,
     // Marking a task "working on" starts the timer, in the same transaction.
     onTaskMoved: (actorId, task, from) => applyTaskMove(finance, actorId, task, from),
+    // Undoing a finished repeat takes its untouched next one back (pre-staging, 2026-11-25).
+    removeUntouchedTask: sqliteRepeatTaker(db),
   };
-  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db) };
+  const finance: FinanceDeps = { ...projects, opportunities: crm.opportunities, clients: crm.clients, time: sqliteTimeStore(db), expenses: sqliteExpenseStore(db), finance: sqliteFinanceStore(db), invoices: sqliteInvoiceStore(db), recurring: sqliteRecurringStore(db), billing: sqliteBillingStore(db), phaseEstimates: sqlitePhaseEstimates(db), changes: sqliteChangeRequestStore(db), cashflow: (from, to) => renewalCashflow(renewals, from, to) };
   const notes: NotesDeps = { ...session, notes: sqliteNoteStore(db), formatWhen };
   const knowledge: KnowledgeDeps = { ...session, articles: sqliteArticleStore(db), today, formatWhen };
   const proposals: ProposalsDeps = {
@@ -320,7 +416,15 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     clientName: (id) => crm.clients.get(id)?.name ?? null,
     contactFor: (organizationId) => clientEmails(organizationId)[0] ?? null,
   };
-  const invoiceReminders: RemindersDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails };
+  // Bills go to the client's billing contact when one is set (decision 0017), otherwise the usual people.
+  const billingEmails: ClientEmails = (organizationId) => {
+    const id = crm.clients.billingContact(organizationId);
+    const contact = id ? crm.contacts.get(id) : null;
+    const email = contact?.email?.toLowerCase();
+    if (contact && email) return [{ name: contact.name, email, portal: portal.clientUsers.listFor(organizationId).some((one) => one.status === "active" && one.portalAccount !== null && one.email === email) }];
+    return clientEmails(organizationId);
+  };
+  const invoiceReminders: LateDeps = { ...finance, reminders: sqliteReminderStore(db), clientEmails: billingEmails, lateFees: sqliteLateFeeStore(db, BUSINESS_TIME_ZONE), makeTodo: (input) => taskFromClient(projects, input) };
   const todos: TodosDeps = {
     users,
     transact: sqliteTransact(db),
@@ -403,6 +507,19 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     pages: sqliteFreePageStore(db),
     rounds: sqliteRoundStore(db),
     clientName: (id) => crm.clients.get(id)?.name ?? null,
+    domainRenewalText: (organizationId, domain) => {
+      const found = renewals.renewals.listFor(organizationId).find((one) => one.active && one.name.toLowerCase() === domain);
+      if (!found) return "";
+      const on = Temporal.PlainDate.from(found.renewsOn).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const term = found.termMonths === 12 ? "a year" : found.termMonths === 1 ? "a month" : `every ${found.termMonths} months`;
+      return found.price ? `Your domain renews ${on}, ${formatMoney(found.price)} ${term}.` : `Your domain renews ${on}. We pay for it.`;
+    },
+    // A free page on the client's own domain: the domain goes on their renewals, yearly, ready to bill.
+    addDomainRenewal: (actorId, organizationId, input) => {
+      if (renewals.renewals.listFor(organizationId).some((one) => one.active && one.name.toLowerCase() === input.domain)) return { ok: true, value: "already-there" };
+      const added = addRenewal(renewals, actorId, organizationId, { kind: "domain", name: input.domain, renewsOn: input.renewsOn, termMonths: "12", cost: input.cost, price: input.price, note: "Added with the client's free landing page." });
+      return added.ok ? { ok: true, value: "added" } : { ok: false, error: added.error };
+    },
     peopleAt: (organizationId) => {
       const contacts = crm.contacts.listFor(organizationId);
       const portalUsers = portal.clientUsers.listFor(organizationId);
@@ -418,9 +535,26 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const renewalBilling: RenewalBilling = {
     projectsFor: (organizationId) => projectStore.listFor(organizationId).map((project) => ({ id: project.id, name: project.name })),
     send(actorId, organizationId, projectId, line) {
-      if (projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
-      const made = createInvoice(finance, actorId, projectId, { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn });
+      if (projectId !== null && projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const input = { kind: "other", description: line.description, amount: (line.amount.minor / 100).toFixed(2), dueOn: line.dueOn };
+      const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
       if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      const sent = sendInvoiceNow(finance, actorId, made.value.id);
+      if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
+      const row = billedOf(sent.value.id);
+      return row ? { ok: true, value: row } : { ok: false, error: "not-found" };
+    },
+    sendTogether(actorId, organizationId, projectId, lines, dueOn) {
+      const [first, ...rest] = lines;
+      if (!first) return { ok: false, error: "not-found" };
+      if (projectId !== null && projectStore.get(projectId)?.organizationId !== organizationId) return { ok: false, error: "not-found" };
+      const input = { kind: "other", description: first.description, amount: (first.amount.minor / 100).toFixed(2), dueOn };
+      const made = projectId === null ? createClientInvoice(finance, actorId, organizationId, input) : createInvoice(finance, actorId, projectId, input);
+      if (!made.ok) return { ok: false, error: made.error === "forbidden" ? "forbidden" : "not-found" };
+      for (const line of rest) {
+        const added = addLineToInvoice(finance, actorId, made.value.id, { description: line.description, amount: (line.amount.minor / 100).toFixed(2) });
+        if (!added.ok) return { ok: false, error: "not-found" };
+      }
       const sent = sendInvoiceNow(finance, actorId, made.value.id);
       if (!sent.ok) return { ok: false, error: sent.error === "forbidden" ? "forbidden" : "not-found" };
       const row = billedOf(sent.value.id);
@@ -454,11 +588,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       return { name: client.name, phone: client.phone, address: client.address, website: client.website, contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone, title: contact.title } : null };
     },
     clients: () => crm.clients.list().map((one) => ({ id: one.id, name: one.name })).sort((a, b) => a.name.localeCompare(b.name)),
-    ownerEmail: options.builderOwner ?? null,
+    ownerEmails: ownersOf(options.builderOwner),
     timeZone: BUSINESS_TIME_ZONE,
     runLater: options.runLater ?? ((job) => void job().catch((error: unknown) => console.error("Site builder: a request failed", error))),
     // The cap is shared with the AI drafts (Mikey, 2026-11-25): what they spent this month counts too.
     alsoSpent: () => aiStore.spentSince(startOfDay(`${today().slice(0, 7)}-01`)),
+    // The highest model anyone may pick for one request: Settings → AI sets it for both.
+    ceiling: () => ceilingDollars(aiStore.settings()),
   };
   const lastTouch = db.prepare("select max(t.happened_at) as at from touch t join opportunity o on o.organization_id = t.organization_id where o.id = ?");
   const demos: DemosDeps = {
@@ -529,7 +665,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const clientImport: ImportDeps = { ...crm, links: projects.links };
   const sources: SourceDeps = { ...invites, links: calendarLinks, outside, allowImport: sqliteRateLimit(db, { name: "availability-import", max: 10, windowMs: 60 * 60_000 }) };
   const links: LinkDeps = { ...booking, links: sqliteBookingLinkStore(db) };
-  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
+  const day: TodayDeps = { crm: touches, todos, booking, portal, projects, renewals, finance, social, monitor, freePages, clientReports, automations, showcase, demos, timeZone: BUSINESS_TIME_ZONE, today, clock };
   const morning: MorningDeps = { ...day, users, activityLog: sqliteActivityLog(db), newId, morning: sqliteMorningLog(db) };
   const notices: NoticesDeps = {
     users,
@@ -561,7 +697,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     monthStart: () => startOfDay(`${today().slice(0, 7)}-01`),
     ai: aiStore,
     model: options.aiModel ?? null,
-    ownerEmail: options.builderOwner ?? null,
+    ownerEmails: ownersOf(options.builderOwner),
     // One budget, shared with the site builder (Mikey, 2026-11-25): its cap, and what it has spent.
     sharedBudget: () => ({ capCents: builder.settings.get().capCents, builderSpent: builderSpentThisMonth(builder) }),
     records: sqliteAiRecords(db),
@@ -607,5 +743,294 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       expenseCategories: EXPENSE_CATEGORIES,
     },
   };
-  return { ai, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  // The pages a person may open (decision 0015). Each page still checks for itself.
+  const placesFor = (actorId: Id | null): readonly Place[] => {
+    if (actorId === null) return [];
+    const allows = (gate: string | undefined): boolean => {
+      if (!gate) return true;
+      if (gate.startsWith("perm:")) return authorize({ users }, actorId, gate.slice(5)).ok;
+      const manage = authorize({ users }, actorId, "ai.manage").ok;
+      if (gate === "ai:manage") return manage;
+      if (gate === "ai:drafts") return manage || waitingDrafts(ai, actorId, () => "").items.length > 0;
+      if (gate.startsWith("ai:")) return gate.slice(3).split("|").some((feature) => isFeature(feature) && featureState(ai, actorId, feature).on);
+      return false;
+    };
+    return PLACES.filter((place) => allows(place.gate));
+  };
+
+  // What the assistant may do (decision 0015), each through its own module.
+  const may = (actorId: Id, permission: string) => authorize({ users }, actorId, permission).ok;
+  const failed = (error: string) => ({ ok: false as const, error: ASSISTANT_PROBLEMS[error] ?? error });
+  const actions: AssistantActions = {
+    brief(actorId) {
+      const name = (users.get(actorId)?.name ?? "").split(" ")[0] ?? "";
+      const hour = Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).hour;
+      const hello = `${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"}${name ? `, ${name}` : ""}.`;
+      const waiting = staffWaiting(portal, actorId).items;
+      const follow = followUpsDue(crm, actorId, today());
+      const followUps = follow.ok ? follow.value.items : [];
+      const due = todosDueFor(todos, actorId);
+      const next = nextCalls(booking, actorId, 1)?.[0] ?? null;
+      const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+      const parts = [
+        ...(waiting.length ? [`[${count(waiting.length, "thing a client is waiting on", "things clients are waiting on")}](/#waiting-on-you)`] : []),
+        ...(followUps.length ? [`[${count(followUps.length, "follow-up", "follow-ups")} due](/today)`] : []),
+        ...(due.length ? [`[${count(due.length, "to-do", "to-dos")} due](/todos)`] : []),
+      ];
+      const first = waiting[0] ? `First up: ${waiting[0].text}.` : followUps[0] ? `First up: follow up on ${followUps[0].title} (${followUps[0].clientName}).` : due[0] ? `First up: ${due[0].title}.` : "";
+      const call = next ? ` Next call: ${next.who}, ${next.when}.` : "";
+      return parts.length ? `${hello} You have ${parts.join(", ")}. ${first}${call}` : `${hello} Nothing is waiting on you.${call}`;
+    },
+    find(actorId, query) {
+      const found = search(searchDeps, actorId, query, placesFor(actorId));
+      const idOf = (href: string) => /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/.exec(href)?.[1] ?? "";
+      return {
+        pages: found.pages.map((page) => ({ name: page.label, address: page.href, what: page.what })),
+        records: found.groups.flatMap((group) => group.hits.map((hit) => ({ kind: group.label, id: idOf(hit.href), name: hit.name, about: hit.context, status: hit.extra, address: hit.href }))),
+      };
+    },
+    due(actorId) {
+      const follow = followUpsDue(crm, actorId, today());
+      return {
+        clientsWaiting: staffWaiting(portal, actorId).items.map((item) => ({ what: item.text, detail: item.detail, address: item.href })),
+        followUps: follow.ok ? follow.value.items.map((item) => ({ deal: item.title, client: item.clientName, due: item.followUpText, overdue: item.overdue, address: `/opportunities/${item.id}` })) : [],
+        toDos: todosDueFor(todos, actorId).map((line) => ({ id: line.id, title: line.title, due: line.when, client: line.clientName, address: line.href })),
+      };
+    },
+    knowledge(actorId, query) {
+      if (!may(actorId, "knowledge.view")) return { articles: [] };
+      return { articles: ai.records.articles(query.split(/[^A-Za-z0-9]+/).filter(Boolean), 3).map((one) => ({ title: one.title, address: `/knowledge/${one.slug}`, text: one.body.slice(0, 1500) })) };
+    },
+    preview(actorId, line) {
+      const view = quickAddPreview(projects, actorId, { text: line, skip: [] });
+      if (!view.ok) return { canSave: false, says: "", problem: "You may not add tasks." };
+      const parts = view.value.parts.filter((part) => !part.problem).map((part) => part.says);
+      const problem = view.value.problem || view.value.parts.find((part) => part.problem)?.problem || "";
+      return { canSave: view.value.canSave, says: [`Add ${view.value.kind === "" ? "a to-do" : view.value.kind.toLowerCase()}: “${view.value.title}”`, ...parts].join(" · "), problem };
+    },
+    quickAdd(actorId, line) {
+      const added = quickAdd(projects, actorId, { text: line, skip: [] });
+      return added.ok ? { ok: true, value: { href: added.value.href } } : failed(added.error);
+    },
+    task(actorId, id) {
+      if (!may(actorId, "task.view")) return null;
+      const task = projects.tasks.get(id);
+      return task ? { title: task.title, status: task.status, done: task.status === "done", href: `/tasks/${task.id}` } : null;
+    },
+    moveTask(actorId, id, to) {
+      const moved = moveTaskStatus(projects, actorId, id, to);
+      return moved.ok || moved.error === "unchanged" ? { ok: true, value: { href: `/tasks/${id}` } } : failed(moved.error);
+    },
+    setDone(actorId, id, done) {
+      const changed = done ? completeTodo(todos, actorId, id) : reopenTodo(todos, actorId, id);
+      return changed.ok ? { ok: true, value: { href: `/tasks/${id}` } } : failed(changed.error);
+    },
+    record(actorId, on, id) {
+      if (on === "client") {
+        const client = may(actorId, "client.view") ? crm.clients.get(id) : null;
+        return client ? { name: client.name, href: `/clients/${client.id}` } : null;
+      }
+      if (on === "opportunity") {
+        const deal = may(actorId, "opportunity.view") ? crm.opportunities.get(id) : null;
+        return deal ? { name: `${deal.title} (${crm.clients.get(deal.organizationId)?.name ?? "a client"})`, href: `/opportunities/${deal.id}` } : null;
+      }
+      const project = may(actorId, "project.view") ? projectStore.get(id) : null;
+      return project ? { name: project.name, href: `/projects/${project.id}` } : null;
+    },
+    addNote(actorId, on, id, body) {
+      const recordType = on === "client" ? "client-organization" : on;
+      const added = addNote(notes, actorId, { recordType, recordId: id, body });
+      return added.ok ? { ok: true, value: { href: on === "client" ? `/clients/${id}` : `/${on === "opportunity" ? "opportunities" : "projects"}/${id}` } } : failed(added.error);
+    },
+    logContact(actorId, where, input) {
+      const logged = logTouch(touches, actorId, where, { kind: input.kind, outcome: input.outcome || null, note: input.note || null, followUpOn: input.followUpOn || null });
+      return logged.ok ? { ok: true, value: { href: "opportunityId" in where ? `/opportunities/${where.opportunityId}` : `/clients/${where.clientId}` } } : failed(logged.error);
+    },
+    addClient(actorId, input) {
+      const made = createClient(crm, actorId, { name: input.name, website: input.website || null, phone: input.phone || null, address: input.address || null });
+      return made.ok ? { ok: true, value: { href: `/clients/${made.value.id}` } } : failed(made.error);
+    },
+    openDeal(actorId, clientId, input) {
+      const made = createOpportunity(crm, actorId, clientId, { title: input.title, leadSource: input.leadSource, service: input.service || null, summary: input.summary || null });
+      return made.ok ? { ok: true, value: { href: `/opportunities/${made.value.id}` } } : failed(made.error);
+    },
+    deal(actorId, id) {
+      const deal = may(actorId, "opportunity.view") ? crm.opportunities.get(id) : null;
+      return deal ? { name: `${deal.title} (${crm.clients.get(deal.organizationId)?.name ?? "a client"})`, followUpOn: deal.followUpOn ?? "", open: deal.stage !== "won" && deal.stage !== "lost" } : null;
+    },
+    setFollowUp(actorId, id, on) {
+      const set = setOpportunityFollowUp(crm, actorId, id, on || null);
+      return set.ok ? { ok: true, value: { href: `/opportunities/${id}` } } : failed(set.error);
+    },
+    project(actorId, id) {
+      const project = may(actorId, "project.view") ? projectStore.get(id) : null;
+      return project ? { name: project.name, health: project.health } : null;
+    },
+    setHealth(actorId, id, health) {
+      const project = projectStore.get(id);
+      if (!project) return failed("not-found");
+      const edited = editProjectDetails(projects, actorId, id, { name: project.name, description: project.description, health, startOn: project.startOn, targetOn: project.targetOn });
+      return edited.ok ? { ok: true, value: { href: `/projects/${id}` } } : failed(edited.error);
+    },
+    timer(actorId) {
+      const running = runningTimer(finance, actorId);
+      return running.running ? `${running.label}, ${running.since}` : "";
+    },
+    stopTimer(actorId) {
+      const stopped = stopTimer(finance, actorId);
+      return stopped.ok ? { ok: true, value: { href: "/time" } } : failed(stopped.error);
+    },
+    bookingLink(actorId, input) {
+      const made = createBookingLink(links, actorId, input);
+      // The link's address is its key: it stays on the Calls page, not in the conversation or the log.
+      return made.ok ? { ok: true, value: { href: "/calls#links" } } : failed(made.error);
+    },
+    proposalDraftWaiting: (actorId, opportunityId) => waitingDraft(ai, actorId, "proposal-draft", opportunityId) !== null,
+    startProposal(actorId, opportunityId) {
+      const draft = waitingDraft(ai, actorId, "proposal-draft", opportunityId);
+      const started = draft ? useProposalDraft(ai, actorId, draft.id) : (() => {
+        const made = startProposal(proposals, actorId, opportunityId, {});
+        return made.ok ? { ok: true as const, value: made.value.id } : made;
+      })();
+      return started.ok ? { ok: true, value: { href: `/proposals/${started.value}` } } : failed(String(started.error));
+    },
+    draftInvoice(actorId, projectId, input) {
+      const made = createInvoice(finance, actorId, projectId, { kind: input.kind, description: input.description, amount: input.amount, dueOn: input.dueOn || null });
+      return made.ok ? { ok: true, value: { href: `/invoices/${made.value.id}` } } : failed(made.error);
+    },
+  };
+  // What a page is called, for pinning: a page's own name, or a record's.
+  const labelFor = (actorId: Id, href: string): string | null => {
+    const [path = "", query = ""] = href.split("?");
+    const places = placesFor(actorId);
+    const exact = places.find((place) => place.href === path);
+    if (exact) return query ? `${exact.label} (filtered)` : exact.label;
+    const id = /^\/(clients|opportunities|projects|tasks)\/([0-9a-f-]{36})(?:\/|$)/.exec(path);
+    if (id) {
+      const [, kind, recordId] = id as unknown as [string, string, Id];
+      if (kind === "tasks") return actions.task(actorId, recordId)?.title ?? null;
+      return actions.record(actorId, kind === "clients" ? "client" : kind === "opportunities" ? "opportunity" : "project", recordId)?.name ?? null;
+    }
+    const under = placeAt(places, path);
+    return under ? `${under.label}: ${path.split("/").filter(Boolean).slice(1).join(" ")}`.slice(0, 120) : null;
+  };
+  const pins: PinsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, pins: sqlitePinStore(db), labelFor };
+
+  const replies: RepliesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, replies: sqliteReplyStore(db) };
+  const requests: RequestsDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    requests: sqliteClientRequestStore(db),
+    ...sqliteRequestLookups(db),
+    makeTask: (input) => taskFromClient(projects, input),
+  };
+  const intake: IntakeDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    intakes: sqliteIntakeStore(db),
+    drafts: {
+      get: (clientUserId) => ((sqliteKitStore(db).get("intake-drafts", clientUserId) as { answers?: IntakeAnswers | null } | null)?.answers ?? null),
+      put: (clientUserId, answers) => void sqliteKitStore(db).write("intake-drafts", clientUserId, { answers }),
+    },
+    ...sqliteIntakeLookups(db),
+    saveUpload: (session, projectId, upload) => sendPortalFile(portal, session, projectId, upload),
+  };
+  const feedback: FeedbackDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    feedback: sqliteFeedbackStore(db),
+    clientName: sqliteRequestLookups(db).clientName,
+    clientUserName: sqliteIntakeLookups(db).clientUserName,
+    makeTodo: (input) => taskFromClient(projects, input),
+    mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
+  };
+  const texting: TextingDeps = { transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, texts: sqliteTextingStore(db), sender: options.texts ?? null };
+  const autopay: AutopayDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    publicUrl: (options.publicUrl ?? "").replace(/\/$/, ""),
+    autopay: sqliteAutopayStore(db),
+    saved: options.savedPay ?? null,
+    record: (invoiceId, input) => recordCardPayment(finance, invoiceId, input),
+    makeTodo: (input) => taskFromClient(projects, input),
+  };
+  const latestBuild = sqliteLatestBuild(db);
+  const handoff: HandoffDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    facts: sqliteHandoffFacts(db),
+    fileBytes: (fileId) => projects.blobs.get(fileId),
+    builtSite: (actorId, organizationId) => {
+      const latest = latestBuild(organizationId);
+      const zipped = latest ? versionZip(builder, actorId, latest.buildId, latest.number) : null;
+      return zipped?.ok ? zipped.value : null;
+    },
+  };
+  const noticePrefs = sqliteNoticeSettings(db);
+  const push: PushDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    devices: sqliteDeviceStore(db),
+    queue: sqliteAlertQueue(db),
+    sources: sqliteAlertSources(db),
+    publicKey: options.vapidPublicKey ?? null,
+    quietNow: (userId) => isQuiet(noticePrefs.preferencesOf(userId).quiet, Temporal.Instant.from(clock()).toZonedDateTimeISO(BUSINESS_TIME_ZONE).hour),
+    timeOf: (instant) => Temporal.Instant.from(instant).toZonedDateTimeISO(BUSINESS_TIME_ZONE).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
+  const weekFacts = sqliteWeekFacts(db);
+  const weekly: WeeklyDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    sentFor: sqliteWeeklySent(db),
+    facts(from, to, day) {
+      const shared = ai.sharedBudget();
+      const spent = ai.ai.spentSince(ai.monthStart()) + shared.builderSpent;
+      return { ...weekFacts(from, to, day), ai: `$${(spent / 1_000_000).toFixed(2)} of $${(shared.capCents / 100).toFixed(2)}` };
+    },
+  };
+
+  const assistant: AssistantDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    store: sqliteAssistantStore(db),
+    actions,
+    talk: async (actorId, pick, request) => {
+      const answer = await converseWith(choosingModel(ai, pick), actorId, request);
+      return answer.ok ? { ok: true, value: { blocks: answer.value.blocks } } : answer;
+    },
+    todayText: () => Temporal.PlainDate.from(today()).toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+    state: (actorId) => featureState(ai, actorId, "assistant"),
+  };
+
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

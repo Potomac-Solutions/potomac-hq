@@ -66,6 +66,7 @@ Nobody can edit or delete an activity event. There is no permission for it.
 | Create a client organization | `client.create` | Yes | Yes | Yes | No |
 | Edit a client organization | `client.edit` | Yes | Yes | Yes | No |
 | Change a client's status, or mark it a demo | `client.set-status` | Yes | Yes | Yes | No |
+| Merge a duplicate client into another | `client.set-status` and `opportunity.view-value` | Yes | Yes | No | No |
 | Create or edit a contact | `contact.edit` | Yes | Yes | Yes | No |
 
 ### Opportunities (v0.2)
@@ -193,7 +194,7 @@ for their own site and it takes effect at once
 
 ### The site builder
 
-Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the one person whose email is `HQ_SITE_BUILDER_OWNER`.
+Decided 2026-11-23 and 2026-11-25 (`docs/decisions/0010-site-builder.md`). Admins only, because asking Claude spends Potomac's money. Changing the model and the monthly cap is further limited to the admins whose emails are in `HQ_SITE_BUILDER_OWNER` (one, or several separated by commas).
 
 | Action | Permission key | Admin | Manager | Member | Client user |
 | --- | --- | --- | --- | --- | --- |

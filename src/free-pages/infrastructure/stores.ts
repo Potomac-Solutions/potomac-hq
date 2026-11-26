@@ -3,7 +3,7 @@ import type { FreePageStore, RoundStore } from "../application/ports.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-const PAGE = "id, organization_id, subdomain, status, repo_owner, repo_name, repo_branch, approved_at";
+const PAGE = "id, organization_id, subdomain, own_domain, status, repo_owner, repo_name, repo_branch, approved_at";
 const text = (value: unknown): string | null => (value === null || value === undefined ? null : String(value));
 
 function toPage(row: Record<string, unknown>): FreePage {
@@ -12,6 +12,7 @@ function toPage(row: Record<string, unknown>): FreePage {
     id: row["id"] as Id,
     organizationId: row["organization_id"] as Id,
     subdomain: text(row["subdomain"]),
+    ownDomain: text(row["own_domain"]),
     status: row["status"] as PageStatus,
     repo: owner ? { owner, name: String(row["repo_name"]), branch: String(row["repo_branch"]) } : null,
     approvedAt: text(row["approved_at"]),
@@ -22,20 +23,22 @@ export function sqliteFreePageStore(db: Database): FreePageStore {
   const get = db.prepare(`select ${PAGE} from free_page where id = ?`);
   const byOrg = db.prepare(`select ${PAGE} from free_page where organization_id = ?`);
   const bySub = db.prepare(`select ${PAGE} from free_page where subdomain = ?`);
+  const byDomain = db.prepare(`select ${PAGE} from free_page where own_domain = ?`);
   const list = db.prepare(`select ${PAGE} from free_page order by created_at desc`);
-  const insert = db.prepare(`insert into free_page (${PAGE}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const save = db.prepare("update free_page set subdomain = ?, status = ?, repo_owner = ?, repo_name = ?, repo_branch = ?, approved_at = ?, updated_at = ? where id = ?");
+  const insert = db.prepare(`insert into free_page (${PAGE}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const save = db.prepare("update free_page set subdomain = ?, own_domain = ?, status = ?, repo_owner = ?, repo_name = ?, repo_branch = ?, approved_at = ?, updated_at = ? where id = ?");
   const one = (row: Record<string, unknown> | undefined) => (row ? toPage(row) : null);
   return {
     get: (id) => one(get.get(id)),
     forOrganization: (organizationId) => one(byOrg.get(organizationId)),
     bySubdomain: (subdomain) => one(bySub.get(subdomain)),
+    byOwnDomain: (domain) => one(byDomain.get(domain)),
     list: () => list.all().map(toPage),
     insert(page, at) {
-      insert.run(page.id, page.organizationId, page.subdomain, page.status, page.repo?.owner ?? null, page.repo?.name ?? null, page.repo?.branch ?? null, page.approvedAt, at, at);
+      insert.run(page.id, page.organizationId, page.subdomain, page.ownDomain, page.status, page.repo?.owner ?? null, page.repo?.name ?? null, page.repo?.branch ?? null, page.approvedAt, at, at);
     },
     save(page, at) {
-      save.run(page.subdomain, page.status, page.repo?.owner ?? null, page.repo?.name ?? null, page.repo?.branch ?? null, page.approvedAt, at, page.id);
+      save.run(page.subdomain, page.ownDomain, page.status, page.repo?.owner ?? null, page.repo?.name ?? null, page.repo?.branch ?? null, page.approvedAt, at, page.id);
     },
   };
 }

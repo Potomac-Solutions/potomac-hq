@@ -4,15 +4,14 @@
 -->
 <script>
   'use route /portal/proposals/:id'
-  import { notFound } from '@zubra/router'
   import '../../shared/ui/zubra/alert-banner.zb'
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context, params }) {
     const stop = context.portal.guard()
     if (stop) return stop
     const view = context.portal.proposal(params.id)
-    if (!view.ok) return notFound()
-    return { title: view.value.document.title, view: view.value, done: context.notice.done, problem: context.notice.problem }
+    if (!view.ok) return context.portal.missing()
+    return { title: view.value.document.title, view: view.value, cardPay: context.cardPay.ready(), done: context.notice.done, problem: context.notice.problem }
   }
   const doc = view.document
 </script>
@@ -22,7 +21,7 @@
   .paper p { margin: 0.35rem 0; }
   .paper table { font-size: 0.95rem; }
 </style>
-<hq-portal-proposal view={{ document: { sections: [], lines: [], summary: {} } }} done="" problem="">
+<hq-portal-proposal view={{ document: { sections: [], lines: [], summary: {} } }} card-pay={{ on: false, test: false, label: '' }} done="" problem="">
   <div class="hq-page">
     <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
     <h1>{doc.title}</h1>
@@ -73,11 +72,13 @@
           <label class="hq-check"><input type="radio" name="decision" value="declined" required> I decline</label>
         </fieldset>
         <text-field label="Type your full name" name="typedName" autocomplete="name" required={true} description="Typing your name here is your signature on this answer. It is recorded with today’s date and this version."></text-field>
+        <label zb-if={cardPay.on && doc.summary.deposit} class="hq-check"><input type="checkbox" name="payNow" value="1" checked> If I accept, take me straight to pay the {doc.summary.deposit} deposit by card</label>
         <div><button class="hq-button portal-big" type="submit">Send my answer</button></div>
       </form>
       <div class="portal-pay" data-spaced>
         <h3>What happens next</h3>
-        <p>If you accept, Potomac Solutions sends an invoice<span zb-if={doc.summary.deposit}> for the {doc.summary.deposit} to start</span>. Work begins when it is paid, and you can follow it here.</p>
+        <p zb-if={cardPay.on && doc.summary.deposit}>If you accept, the invoice for the {doc.summary.deposit} to start is in your portal straight away, and you can pay it by card on {cardPay.test ? 'a test page' : cardPay.label + '’s secure page'} there and then, or later. Work begins when it is paid, and you can follow it here.</p>
+        <p zb-else>If you accept, Potomac Solutions sends an invoice<span zb-if={doc.summary.deposit}> for the {doc.summary.deposit} to start</span>. Work begins when it is paid, and you can follow it here.</p>
         <p>If you decline, nothing is owed. Not sure yet? Go back to your portal and send a message or ask for a call.</p>
       </div>
     </section>

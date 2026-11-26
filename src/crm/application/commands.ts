@@ -1,6 +1,7 @@
 // The CRM's changes. Each one checks permission first, makes its change and
 // writes its activity event in one transaction, and answers with a code.
 import { activateOnWin, changeClientStatus, newClient, type Client, type ClientError, type ClientInput } from "../domain/client.ts";
+import { sameBusiness } from "../domain/duplicates.ts";
 import { newContact, type Contact, type ContactError, type ContactInput } from "../domain/contact.ts";
 import {
   isService,
@@ -11,6 +12,7 @@ import {
   type Opportunity,
   type OpportunityError,
   type OpportunityInput,
+  type Stage,
   type StageError,
   type ValueError,
 } from "../domain/opportunity.ts";
@@ -46,7 +48,7 @@ export function createClient(deps: CrmDeps, actorId: Id | null, input: ClientInp
   });
 }
 
-export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id, to: string): Result<Client, Refused | "invalid-status" | "unchanged"> {
+export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id, to: string): Result<Client & { readonly from: Client["status"] }, Refused | "invalid-status" | "unchanged"> {
   if (!allowed(deps, actorId, "client.set-status")) return err("forbidden");
   return deps.transact(() => {
     const client = deps.clients.get(clientId);
@@ -55,7 +57,7 @@ export function setClientStatus(deps: CrmDeps, actorId: Id | null, clientId: Id,
     if (!changed.ok) return changed;
     deps.clients.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "client.status-changed", recordType: "client-organization", recordId: clientId, context: { from: client.status, to: changed.value.status } });
-    return ok(changed.value);
+    return ok({ ...changed.value, from: client.status });
   });
 }
 
@@ -90,6 +92,25 @@ export function addContact(deps: CrmDeps, actorId: Id | null, clientId: Id, inpu
   });
 }
 
+/**
+ * Who gets the client's bills: one of their contacts with an email, such as
+ * a bookkeeper. Invoices, reminders, receipts and statements go to them.
+ * Empty: the usual people again. `client.edit`.
+ */
+export function setBillingContact(deps: CrmDeps, actorId: Id | null, clientId: Id, contactId: string): Result<{ readonly contactId: Id | null }, Refused | "contact-not-at-client" | "contact-has-no-email"> {
+  if (!allowed(deps, actorId, "client.edit")) return err("forbidden");
+  return deps.transact(() => {
+    if (!deps.clients.get(clientId)) return err("not-found");
+    const wanted = contactId.trim();
+    const contact = wanted === "" ? null : deps.contacts.get(wanted as Id);
+    if (wanted !== "" && (!contact || contact.organizationId !== clientId)) return err("contact-not-at-client");
+    if (contact && !contact.email) return err("contact-has-no-email");
+    deps.clients.setBillingContact(clientId, contact?.id ?? null, deps.clock());
+    recordActivity(deps, { actorId, action: "client.billing-contact-set", recordType: "client", recordId: clientId, context: { contactId: contact?.id ?? null } });
+    return ok({ contactId: contact?.id ?? null });
+  });
+}
+
 export type CreateOpportunityError = Refused | OpportunityError | "contact-not-at-client";
 
 /** The actor owns the opportunity they create. Pricing and value are set separately. */
@@ -120,14 +141,15 @@ export function setOpportunityValue(
   actorId: Id | null,
   opportunityId: Id,
   input: { readonly pricing: string; readonly amount: string },
-): Result<Opportunity, Refused | ValueError | "not-an-amount" | "not-whole-minor-units" | "unknown-currency"> {
+): Result<Opportunity & { readonly previous: Opportunity }, Refused | ValueError | "not-an-amount" | "not-whole-minor-units" | "unknown-currency"> {
   if (!allowed(deps, actorId, "opportunity.set-value")) return err("forbidden");
   const amount = parseAmount(input.pricing === "free" && input.amount.trim() === "" ? "0" : input.amount, "USD");
   if (!amount.ok) return amount;
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    return applyOpportunityValue(deps, actorId, opportunity, input.pricing, amount.value);
+    const priced = applyOpportunityValue(deps, actorId, opportunity, input.pricing, amount.value);
+    return priced.ok ? ok({ ...priced.value, previous: opportunity }) : priced;
   });
 }
 
@@ -152,17 +174,24 @@ export function applyOpportunityValue(deps: CrmDeps, actorId: Id | null, opportu
 }
 
 /** Moving to won also makes the client active, recorded as its own event. */
-export function applyStageMove(deps: CrmDeps, actorId: Id | null, opportunity: Opportunity, input: { readonly to: string; readonly lostReason?: string | null }): Result<Opportunity, StageError> {
+export function applyStageMove(
+  deps: CrmDeps,
+  actorId: Id | null,
+  opportunity: Opportunity,
+  input: { readonly to: string; readonly lostReason?: string | null; readonly byHand?: boolean },
+): Result<Opportunity, StageError | "has-project"> {
   const at = deps.clock();
-  const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null });
+  const moved = moveStage(opportunity, input.to, { at, lostReason: input.lostReason ?? null, byHand: input.byHand === true });
   if (!moved.ok) return moved;
+  // A won deal that already became a project stays won: the project is the work now.
+  if (opportunity.stage === "won" && deps.projects.byOpportunity(opportunity.id)) return err("has-project");
   deps.opportunities.update(moved.value, at);
   recordActivity(deps, {
     actorId,
     action: "opportunity.stage-changed",
     recordType: "opportunity",
     recordId: opportunity.id,
-    context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}) },
+    context: { from: opportunity.stage, to: moved.value.stage, ...(moved.value.lostReason ? { lostReason: moved.value.lostReason } : {}), ...(opportunity.lostReason && !moved.value.lostReason ? { reopened: true } : {}) },
   });
   if (moved.value.stage === "won") {
     const client = deps.clients.get(opportunity.organizationId);
@@ -201,17 +230,21 @@ export function moveOpportunity(
   deps: CrmDeps,
   actorId: Id | null,
   opportunityId: Id,
-  input: { readonly to: string; readonly lostReason?: string | null },
-): Result<Opportunity, Refused | StageError> {
+  input: { readonly to: string; readonly lostReason?: string | null; readonly byHand?: boolean },
+): Result<Opportunity & { readonly from: Stage; readonly fromLostReason: string; readonly undoable: boolean }, Refused | StageError | "has-project"> {
   if (!allowed(deps, actorId, "opportunity.set-stage")) return err("forbidden");
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
     if (!opportunity) return err("not-found");
-    return applyStageMove(deps, actorId, opportunity, input);
+    const moved = applyStageMove(deps, actorId, opportunity, input);
+    if (!moved.ok) return moved;
+    // Undo is offered only when the reverse move would be allowed too (not back into lost: that needs a reason).
+    const undoable = moveStage(moved.value, opportunity.stage, { at: deps.clock(), byHand: true, lostReason: opportunity.lostReason }).ok;
+    return ok({ ...moved.value, from: opportunity.stage, fromLostReason: opportunity.lostReason ?? "", undoable });
   });
 }
 
-export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opportunityId: Id, on: string | null): Result<Opportunity, Refused | "closed" | "invalid-date"> {
+export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opportunityId: Id, on: string | null): Result<Opportunity & { readonly previous: Opportunity }, Refused | "closed" | "invalid-date"> {
   if (!allowed(deps, actorId, "opportunity.set-follow-up")) return err("forbidden");
   return deps.transact(() => {
     const opportunity = deps.opportunities.get(opportunityId);
@@ -220,7 +253,7 @@ export function setOpportunityFollowUp(deps: CrmDeps, actorId: Id | null, opport
     if (!changed.ok) return changed;
     deps.opportunities.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "opportunity.follow-up-set", recordType: "opportunity", recordId: opportunityId, context: { on: changed.value.followUpOn } });
-    return ok(changed.value);
+    return ok({ ...changed.value, previous: opportunity });
   });
 }
 
@@ -328,4 +361,55 @@ export function recordInquiry(deps: CrmDeps, ownerId: Id, input: InquiryInput): 
     recordActivity(deps, { actorId: null, action: "opportunity.inquiry-received", recordType: "opportunity", recordId: made.value.id, context: { clientId, known: known !== null } });
     return ok({ clientId, opportunityId: made.value.id, known: known !== null });
   });
+}
+
+// ---- Duplicates and merging (quality of life, 2026-11-25) ----------------
+
+/** Clients already in HQ whose names look like this one, for a warning before adding it. */
+export function possibleDuplicates(deps: CrmDeps, actorId: Id | null, name: string): readonly { readonly id: Id; readonly name: string }[] {
+  if (!allowed(deps, actorId, "client.view") || !name.trim()) return [];
+  return deps.clients
+    .list()
+    .filter((client) => !client.demo && !mergedAway(client) && sameBusiness(client.name, name))
+    .slice(0, 3)
+    .map((client) => ({ id: client.id, name: client.name }));
+}
+
+/** Moves everything of one client onto another. Infrastructure, inside the caller's transaction. Throws when it can't, so nothing is half done. */
+export type ClientMerger = (fromId: Id, intoId: Id) => void;
+
+/**
+ * Merges a duplicate client into the one to keep: its contacts, deals,
+ * projects and everything else move over, and it stays behind as a former
+ * client named "(merged)", so old links and the activity log still make
+ * sense. Permission: `client.set-status`.
+ */
+/** A client that was merged into another: kept as a former client so old links work. */
+export const mergedAway = (client: { readonly name: string; readonly status: string }): boolean => client.status === "former" && client.name.endsWith(" (merged)");
+
+export const mayMerge = (deps: CrmDeps, actorId: Id | null): boolean => allowed(deps, actorId, "client.set-status") && allowed(deps, actorId, "opportunity.view-value");
+
+export function mergeClients(deps: CrmDeps & { readonly merge: ClientMerger }, actorId: Id | null, fromId: Id, intoId: Id): Result<Client, Refused | "same-client" | "cant-merge" | "already-merged"> {
+  // Merging moves deals and invoices too, so it's for managers and admins:
+  // whoever may set a client's status and see what its work is worth.
+  if (!mayMerge(deps, actorId)) return err("forbidden");
+  if (fromId === intoId) return err("same-client");
+  const from = deps.clients.get(fromId);
+  const into = deps.clients.get(intoId);
+  if (!from || !into) return err("not-found");
+  // One already merged away has nothing left to move, and the one it went to is the one to merge.
+  if (mergedAway(from) || mergedAway(into)) return err("already-merged");
+  try {
+    return deps.transact(() => {
+      deps.merge(fromId, intoId);
+      const at = deps.clock();
+      deps.clients.update({ ...from, name: `${from.name} (merged)`.slice(0, 200), status: "former" }, at);
+      recordActivity(deps, { actorId, action: "client.merged", recordType: "client-organization", recordId: intoId, context: { fromId, fromName: from.name } });
+      // And on the one merged away, so its page can say where it went.
+      recordActivity(deps, { actorId, action: "client.merged-into", recordType: "client-organization", recordId: fromId, context: { intoId, intoName: into.name } });
+      return ok(into);
+    });
+  } catch {
+    return err("cant-merge");
+  }
 }
