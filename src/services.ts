@@ -31,7 +31,7 @@ import { sqliteLeadStore } from "./leads/adapters.ts";
 import { sqliteIssueStore, sqliteSendStore, sqliteSubscriberStore } from "./newsletter/adapters.ts";
 import { setUpSite, type SitePublisher, type WebsitesDeps } from "./websites/index.ts";
 import { sqliteSiteSettings, type PublicSiteDeps } from "./public-site/index.ts";
-import { builderSpentThisMonth, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
+import { builderSpentThisMonth, versionZip, type BuilderDeps, type Claude, type RepoReader, type SitePublishing } from "./builder/index.ts";
 import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStore, sqlitePublishStore } from "./builder/adapters.ts";
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
@@ -75,6 +75,8 @@ import { sqliteReplyStore } from "./replies/adapters.ts";
 import type { RequestsDeps } from "./requests/index.ts";
 import type { IntakeDeps } from "./intake/index.ts";
 import type { FeedbackDeps } from "./feedback/index.ts";
+import type { HandoffDeps } from "./handoff/index.ts";
+import { sqliteHandoffFacts, sqliteLatestBuild } from "./handoff/adapters.ts";
 import { sqliteFeedbackStore } from "./feedback/adapters.ts";
 import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
 import { sqliteRequestLookups, sqliteRequestStore as sqliteClientRequestStore } from "./requests/adapters.ts";
@@ -206,6 +208,8 @@ export type Services = {
   readonly intake: IntakeDeps;
   /** "How did we do?" (2026-11-26). */
   readonly feedback: FeedbackDeps;
+  /** The handoff pack (2026-11-26). */
+  readonly handoff: HandoffDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -936,6 +940,22 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     makeTodo: (input) => taskFromClient(projects, input),
     mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
   };
+  const latestBuild = sqliteLatestBuild(db);
+  const handoff: HandoffDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    today,
+    facts: sqliteHandoffFacts(db),
+    fileBytes: (fileId) => projects.blobs.get(fileId),
+    builtSite: (actorId, organizationId) => {
+      const latest = latestBuild(organizationId);
+      const zipped = latest ? versionZip(builder, actorId, latest.buildId, latest.number) : null;
+      return zipped?.ok ? zipped.value : null;
+    },
+  };
   const noticePrefs = sqliteNoticeSettings(db);
   const push: PushDeps = {
     users,
@@ -982,5 +1002,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

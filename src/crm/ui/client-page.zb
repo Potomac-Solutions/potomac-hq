@@ -540,6 +540,11 @@
     </section>
     </div>
     </div>
+    <details zb-if={view.can.setStatus} class="hq-panel" id="handoff">
+      <summary>Leaving us, or hosting their own site? <span class="hq-muted hq-small">A handoff pack</span></summary>
+      <p>One zip to give the client: what renews when and what it costs at the provider, their sites and where the code is, the files shared with them, their invoices, what they told us about the business, and next steps for moving the domain.</p>
+      <p><a class="hq-button secondary" href="/clients/{view.client.id}/handoff.zip" download>Download the handoff pack</a></p>
+    </details>
     <details zb-if={mergeChoices.length > 0 && !mergedInto} class="hq-panel" id="merge">
       <summary>Is this a duplicate? <span class="hq-muted hq-small">{mergeChoices.some((one) => one.same) ? 'Another client looks the same' : 'Merge it into another client'}</span></summary>
       <form method="post" action="/clients/{view.client.id}/merge" class="hq-form" data-spaced>

@@ -19,6 +19,7 @@ import { replyRoutes } from "./replies/api/reply-routes.ts";
 import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-routes.ts";
 import { intakeRoutes } from "./intake/api/intake-routes.ts";
 import { feedbackRoutes } from "./feedback/api/feedback-routes.ts";
+import { handoffDownloads } from "./handoff/api/handoff-routes.ts";
 import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
@@ -1859,6 +1860,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", noticeLinks({ notices: services.notices, actorOf }));
   downloads.route("/", financeDownloads({ finance: financeDeps, actorOf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.notFound((c) => c.text("Not found", 404));
+  downloads.route("/", handoffDownloads({ handoff: services.handoff, actorOf }));
   downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
   const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
@@ -1958,7 +1960,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     // The step before the payment platform: the page has a link, and this sends most browsers
     // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
     const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;
