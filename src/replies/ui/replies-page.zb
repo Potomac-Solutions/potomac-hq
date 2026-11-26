@@ -16,7 +16,6 @@
   }
 </script>
 <style>
-  .reply-body { width: 100%; min-height: 6rem; padding: 0.6rem; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .reply-list { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
   .reply-list details summary { cursor: pointer; font-weight: 600; }
   .reply-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
@@ -25,7 +24,7 @@
 <hq-replies items={[]} done="" problem="">
   <div class="hq-page">
     <h1>Saved replies</h1>
-    <p class="hq-muted">Write it once, use it again from <strong>Use a saved reply</strong> beside a message to a client. <code>{'{first name}'}</code>, <code>{'{client}'}</code>, <code>{'{project}'}</code> and <code>{'{me}'}</code> are filled in where it’s used.</p>
+    <p class="hq-muted">Write it once, use it again from <strong>Use a saved reply</strong> beside a message to a client. <code>{'{first name}'}</code>, <code>{'{client}'}</code>, <code>{'{project}'}</code> and <code>{'{me}'}</code> are filled in where it’s used. One with nothing to fill it stays as written, for you to finish.</p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -39,10 +38,14 @@
             <details>
               <summary>{reply.title}</summary>
               <form method="post" action="/replies/{reply.id}" class="hq-form" data-spaced>
-                <label for={'reply-title-' + reply.id}>Title</label>
-                <input id={'reply-title-' + reply.id} name="title" value={reply.title} required maxlength="80">
-                <label for={'reply-body-' + reply.id}>Reply</label>
-                <textarea id={'reply-body-' + reply.id} class="reply-body" name="body" required maxlength="5000">{reply.body}</textarea>
+                <div class="hq-field">
+                  <label for={'reply-title-' + reply.id}>Title</label>
+                  <input id={'reply-title-' + reply.id} name="title" value={reply.title} required maxlength="80">
+                </div>
+                <div class="hq-field">
+                  <label for={'reply-body-' + reply.id}>Reply</label>
+                  <textarea id={'reply-body-' + reply.id} name="body" rows="5" required maxlength="5000">{reply.body}</textarea>
+                </div>
                 <div class="reply-actions"><button class="hq-button" type="submit">Save<span class="sr-only">: {reply.title}</span></button></div>
               </form>
               <form method="post" action="/replies/{reply.id}/remove" data-spaced><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {reply.title}</span></button></form>
@@ -54,10 +57,14 @@
     <section class="hq-panel" aria-labelledby="replies-add">
       <h2 id="replies-add">Add one</h2>
       <form method="post" action="/replies" class="hq-form">
-        <label for="reply-title">Title</label>
-        <input id="reply-title" name="title" required maxlength="80" placeholder="Proof ready">
-        <label for="reply-body">Reply</label>
-        <textarea id="reply-body" class="reply-body" name="body" required maxlength="5000" placeholder={'Hi {first name}, the proof for {project} is ready in your portal. Let me know what you think! {me}'}></textarea>
+        <div class="hq-field">
+          <label for="reply-title">Title</label>
+          <input id="reply-title" name="title" required maxlength="80" placeholder="Proof ready">
+        </div>
+        <div class="hq-field">
+          <label for="reply-body">Reply</label>
+          <textarea id="reply-body" name="body" rows="5" required maxlength="5000" placeholder={'Hi {first name}, the proof for {project} is ready in your portal. Let me know what you think! {me}'}></textarea>
+        </div>
         <div><button class="hq-button" type="submit">Add</button></div>
       </form>
     </section>

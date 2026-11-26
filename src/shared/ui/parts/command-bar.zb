@@ -87,7 +87,7 @@
       const response = await fetch('/find.json?q=' + encodeURIComponent(text), { credentials: 'same-origin', headers: { accept: 'application/json' } })
       const body = response.ok ? await response.json() : { items: [], moves: [] }
       if (mine !== asked) return
-      const moves = (body.moves || []).map((one, index) => ({ kind: 'Move', label: one.label, href: '#move-' + index, move: one }))
+      const moves = (body.moves || []).map((one, index) => ({ kind: 'Action', label: one.label, href: '#move-' + index, move: one }))
       const keys = /^(keys?|keyboard|shortcuts?)/i.test(text.trim()) ? [{ kind: 'Action', label: 'Keyboard shortcuts', href: '#keys' }] : []
       // Kept from decision 0014's palette: quick add what's typed, and search for it.
       const typed = text.trim()
@@ -95,7 +95,8 @@
         ...(document.getElementById('hq-quick-text') ? [{ kind: 'Action', label: 'Quick add “' + typed + '”', href: '#add' }] : []),
         ...(typed.length > 1 ? [{ kind: 'Search', label: 'Search everything for “' + typed + '”', href: '/search?q=' + encodeURIComponent(typed) }] : []),
       ]
-      const found = [...moves, ...keys, ...(body.items || [])]
+      // Pages and records first, so Enter opens what was typed; moving a deal is a pick, never the default.
+      const found = [...keys, ...(body.items || []), ...moves]
       hits = found.length
       items = [...found, ...extras]
       // Enter opens the first real match; with none, it still asks the assistant.

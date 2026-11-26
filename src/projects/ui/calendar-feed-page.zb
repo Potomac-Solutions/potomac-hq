@@ -32,7 +32,7 @@
         <div class="hq-field">
           <label for="feed-filter">What it shows</label>
           <select id="feed-filter" name="filterId">
-            <option value="">My open tasks with due dates, and my projects' milestones</option>
+            <option value="">My open tasks with due dates, my projects' milestones, and calls booked with me</option>
             <zb-each items={view.filters} as="one" key={one.value}><option value={one.value} selected={one.on}>The saved filter “{one.label}”</option></zb-each>
           </select>
           <p zb-if={view.filters.length === 0} class="hq-muted hq-small">Save a filter on <a href="/work">All work</a> to follow it here instead.</p>

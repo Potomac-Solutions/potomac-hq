@@ -21,16 +21,17 @@
     if (stop) return stop
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
       <div><h1>{view.client.name}</h1></div>
       <div class="hq-head-actions"><status-badge zb-if={view.client.demo} variant="outline">Demo</status-badge><status-badge variant={view.client.status === 'active' ? 'success' : view.client.status === 'prospective' ? 'primary' : 'neutral'}>{view.client.statusLabel}</status-badge></div>
     </div>
+    <alert-banner zb-if={mergedInto} variant="info">This client was merged into <a href="/clients/{mergedInto.id}">{mergedInto.name}</a>. Everything it had is there now; this page is kept so old links still work.</alert-banner>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -511,15 +512,18 @@
     </section>
     </div>
     </div>
-    <details zb-if={mergeChoices.length > 0} class="hq-panel" id="merge">
+    <details zb-if={mergeChoices.length > 0 && !mergedInto} class="hq-panel" id="merge">
       <summary>Is this a duplicate? <span class="hq-muted hq-small">{mergeChoices.some((one) => one.same) ? 'Another client looks the same' : 'Merge it into another client'}</span></summary>
       <form method="post" action="/clients/{view.client.id}/merge" class="hq-form" data-spaced>
-        <p class="hq-small">Everything of <strong>{view.client.name}</strong> (contacts, deals, projects, invoices, notes and the rest) moves to the client you choose. This one stays as a former client named “(merged)”, so old links still work.</p>
-        <label for="merge-into">Merge it into</label>
-        <select id="merge-into" name="into" required>
-          <option value="">Choose a client…</option>
-          <zb-each items={mergeChoices} as="one" key={one.id}><option value={one.id}>{one.name}{one.same ? ' (looks the same)' : ''}</option></zb-each>
-        </select>
+        <p class="hq-small">Everything of <strong>{view.client.name}</strong> (contacts, deals, projects, invoices, notes and the rest) moves to the client you choose. This one stays as a former client named “(merged)”, with a link to the other, so old links still work.</p>
+        <div class="hq-field">
+          <label for="merge-into">Merge it into</label>
+          <select id="merge-into" name="into" required>
+            <option value="">Choose a client…</option>
+            <zb-each items={mergeChoices} as="one" key={one.id}><option value={one.id}>{one.name}{one.same ? ' (looks the same)' : ''}</option></zb-each>
+          </select>
+        </div>
+        <p class="hq-muted hq-small">A merge can’t be undone, so HQ asks once more before it does it.</p>
         <div><button class="hq-button secondary" type="submit">Merge them</button></div>
       </form>
     </details>

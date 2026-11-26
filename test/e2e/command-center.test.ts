@@ -69,7 +69,7 @@ test("hubs, Get HQ ready, and the assistant", async () => {
   assert.match(await text(page, "#chat"), /Add a to-do: “Send Grover the proof” · Due/);
   await assertAccessible(page, "a card waiting");
   await page.getByRole("button", { name: /^Do it/ }).click();
-  await page.getByText("Done: Add a to-do").waitFor();
+  await page.locator("#chat .chat-card.settled").getByText("Done", { exact: true }).waitFor();
   assert.equal(t.db.prepare("select count(*) as n from task where title = 'Send Grover the proof'").get()?.["n"], 1);
   await page.getByRole("link", { name: "Open it" }).click();
   await page.waitForURL((url) => url.pathname.startsWith("/tasks/"));
@@ -106,7 +106,7 @@ test("the command bar, the drawer on any page, pins and the phone's tab bar", as
   await page.keyboard.press("/");
   await bar.waitFor();
   await page.getByLabel("Go to a page or record, or ask the assistant").fill("booking hours");
-  await bar.getByRole("option", { name: /Calendar hours/ }).waitFor();
+  await bar.getByRole("option", { name: /Hours for calls/ }).waitFor();
   await assertAccessible(page, "the command bar");
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname === "/calls/hours");
@@ -115,7 +115,7 @@ test("the command bar, the drawer on any page, pins and the phone's tab bar", as
   await page.getByRole("button", { name: "Pin", exact: true }).click();
   await page.getByText("Pinned to your sidebar.").waitFor();
   await page.goto(t.origin + "/money");
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Calendar hours" }).waitFor();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Hours for calls" }).waitFor();
 
   // Ask, from any page: the drawer, sent with this page's address.
   await page.getByRole("link", { name: "Ask", exact: true }).click();

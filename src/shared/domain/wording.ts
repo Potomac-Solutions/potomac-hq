@@ -166,6 +166,7 @@ const WORDING: Readonly<Record<string, string>> = {
   "reply.changed": "changed a saved reply",
   "reply.removed": "removed a saved reply",
   "client.merged": "merged two clients",
+  "client.merged-into": "merged this client into another",
   "push.device-added": "turned on phone alerts on a device",
   "push.device-removed": "turned off phone alerts on a device",
   "user.preview-started": "started viewing HQ as another role",

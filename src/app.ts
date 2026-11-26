@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { createNotify } from "@potomac-solutions/kit/notify";
 import { crmRoutes } from "./crm/api/crm-routes.ts";
-import { mayMerge, possibleDuplicates, clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
+import { mayMerge, mergedAway, possibleDuplicates, clientDetail, followUpsDue, listClients, mayImport, opportunityDetail, pipeline, pipelineReport, SERVICE_OPTIONS, clientTouches, opportunityTouches, callScreen, openCall, callGuides, callsToMake, voicemailScript, comingUp, getReady, recapFor, type RecapView, type ComingUp, type GetReadyView, type CallScreen, type CallsToMakeView, type GuidesView, type ScriptView, type TouchesView } from "./crm/index.ts";
 import { auditDownloads } from "./dashboard/api/audit-routes.ts";
 import { auditHistory, cleanHref, navHubs, pinsFor, recentActivity, recordHistory, search, setupChecklist, sizeText, statusChecks, workloadLines, type NavHub, type Setup, type StatusCheck, type WorkloadLine } from "./dashboard/index.ts";
 import { findRoutes, navRoutes, type FindMove } from "./dashboard/api/nav-routes.ts";
@@ -277,6 +277,8 @@ export type PageContext = {
     openCall(): { readonly id: string; readonly clientName: string; readonly startedAt: string } | null;
     /** Clients this one could be merged into, ones that look the same first; empty for someone who may not merge. */
     mergeChoices(clientId: string): readonly { readonly id: string; readonly name: string; readonly same: boolean }[];
+    /** The client this one was merged into, when it was. */
+    mergedInto(clientId: string): { readonly id: string; readonly name: string } | null;
     opportunityTouches(id: string): TouchesView | null;
     inquiryServices(): readonly { readonly value: string; readonly label: string }[];
     listClients(status?: string, demo?: string): ReturnType<typeof listClients>;
@@ -383,6 +385,8 @@ export type PageContext = {
     proposal(id: string): ReturnType<typeof portalProposal>;
     /** Whether someone new can sign up to book a call. */
     readonly signUpOpen: boolean;
+    /** Whether HQ can email a sign-in link: email is set up. The portal's sign-in page offers it only then. */
+    readonly canEmailLink: boolean;
     /** What a one-time link is for, without using it. */
     link(token: string): { readonly valid: boolean; readonly token: string; readonly email: string; readonly name: string; readonly invite: boolean };
   };
@@ -554,7 +558,8 @@ export type PageContext = {
   /** Phone alerts: whether they're set up, the key a browser subscribes with, and this person's devices. */
   push(): DevicesView;
   /** Saved replies this person may use, and their first name for {me}. */
-  replies(): { readonly can: boolean; readonly items: readonly Reply[]; readonly me: string };
+  /** `clientId` names who the message is for, so {first name} can be their main contact's. */
+  replies(clientId?: string): { readonly can: boolean; readonly items: readonly Reply[]; readonly me: string; readonly firstName: string };
   /** The role an admin is viewing HQ as, read-only, or null. */
   readonly preview: { readonly role: string; readonly label: string } | null;
   /** Whether this person may view HQ as another role (an admin, not already previewing). */
@@ -833,6 +838,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
           approval: (token) => approvalView(portalDeps, approvals, token),
           signUpOpen: signUpOpen(),
+          canEmailLink: inviteMail !== null,
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
             const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
@@ -875,14 +881,22 @@ export async function createApp(config: AppConfig): Promise<App> {
             return view?.ok ? view.value : null;
           },
           openCall: () => openCall(services.calls, actor),
+          mergedInto: (clientId) => {
+            if (actor === null || !authorize(sessionDeps, actor, "client.view").ok) return null;
+            const self = crmDeps.clients.get(clientId as Id);
+            if (!self || !mergedAway(self)) return null;
+            const into = db.prepare("select json_extract(context, '$.intoId') as id from activity_event where action = 'client.merged-into' and record_type = 'client-organization' and record_id = ? order by occurred_at desc limit 1").get(clientId)?.["id"];
+            const kept = typeof into === "string" ? crmDeps.clients.get(into as Id) : null;
+            return kept ? { id: kept.id, name: kept.name } : null;
+          },
           mergeChoices: (clientId) => {
             if (!mayMerge(crmDeps, actor)) return [];
             const self = crmDeps.clients.get(clientId as Id);
-            if (!self) return [];
+            if (!self || mergedAway(self)) return [];
             const same = new Set(possibleDuplicates(crmDeps, actor, self.name).map((one) => one.id));
             return crmDeps.clients
               .list()
-              .filter((one) => one.id !== self.id && !one.demo && one.status !== "former")
+              .filter((one) => one.id !== self.id && !one.demo && one.status !== "former" && !mergedAway(one))
               .map((one) => ({ id: one.id, name: one.name, same: same.has(one.id) }))
               .sort((a, b) => Number(b.same) - Number(a.same) || a.name.localeCompare(b.name));
           },
@@ -1189,7 +1203,13 @@ export async function createApp(config: AppConfig): Promise<App> {
           return { items, here: items.some((pin) => pin.current), href: clean };
         },
         push: () => devicesFor(services.push, actor, services.formatWhen),
-        replies: () => ({ can: actor !== null && authorize(sessionDeps, actor, "contact.edit").ok, items: listReplies(services.replies, actor), me: (user?.name ?? "").split(" ")[0] ?? "" }),
+        replies: (clientId) => {
+          const can = actor !== null && authorize(sessionDeps, actor, "contact.edit").ok;
+          // The client's main contact, or their only one; with several and no main one, it's left to the writer.
+          const contacts = can && clientId ? crmDeps.contacts.listFor(clientId as Id) : [];
+          const who = contacts.find((one) => one.isPrimary) ?? (contacts.length === 1 ? contacts[0] : undefined);
+          return { can, items: listReplies(services.replies, actor), me: (user?.name ?? "").split(" ")[0] ?? "", firstName: (who?.name ?? "").trim().split(/\s+/)[0] ?? "" };
+        },
         preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
         canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
         workload: () => {
@@ -1779,7 +1799,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     }
     // A preview is for looking: every change is refused until it stops.
     if (inPreview && req.method !== "GET" && req.method !== "HEAD" && path !== "/staff/sign-out") {
-      return void sendHtml(res, 403, "Viewing as another role", problemPage({ title: "You're viewing HQ as another role", message: "Nothing can be changed while you do. Use Stop viewing at the top of the page, then try again." }));
+      return void sendHtml(res, 403, "Viewing as another role", problemPage({ title: "You're viewing HQ as another role", message: "Nothing can be changed while you’re viewing as someone else. Use Stop viewing at the top of the page, then try again." }));
     }
 
     if (path === "/staff" || path.startsWith("/staff/")) return handleStaff(req, res, url);

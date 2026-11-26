@@ -1,6 +1,7 @@
 // What each refusal code says to a person.
 const MESSAGES: Readonly<Record<string, string>> = {
   "same-client": "Choose a different client to merge it into.",
+  "already-merged": "One of those was already merged into another client. Open the one it went to and merge from there.",
   "cant-merge": "They couldn’t be merged automatically: something of one can’t move to the other (like a second free landing page). Nothing was changed.",
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",

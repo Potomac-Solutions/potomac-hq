@@ -9,13 +9,13 @@
   import '../../shared/ui/zubra/text-field.zb'
   export async function load({ context }) {
     if (context.portal.session) return redirect('/portal')
-    return { title: 'Sign in', signUp: context.portal.signUpOpen, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Sign in', signUp: context.portal.signUpOpen, emailLink: context.portal.canEmailLink, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   :host { display: block; max-width: 26rem; }
 </style>
-<hq-portal-sign-in sign-up={false} done="" problem="">
+<hq-portal-sign-in sign-up={false} email-link={false} done="" problem="">
   <div class="hq-page">
     <h1>Sign in to your client portal</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -27,13 +27,14 @@
       <text-field label="Password" name="password" type="password" autocomplete="current-password" required={true}></text-field>
       <div><button class="hq-button portal-big" type="submit">Sign in</button></div>
     </form>
-    <details class="hq-panel" open={false}>
+    <details zb-if={emailLink} class="hq-panel" open={false}>
       <summary>Forgot your password, or rather not type one?</summary>
       <form method="post" action="/portal/sign-in-link" class="hq-form" data-spaced>
         <text-field label="Send the link to" name="email" type="email" autocomplete="email" required={true} description="The address your portal uses. The link works once, for a week."></text-field>
         <div><button class="hq-button secondary" type="submit">Email me a link</button></div>
       </form>
     </details>
+    <p zb-if={!emailLink} class="hq-muted">Forgot your password? Call or write to Potomac Solutions, and we’ll send you a new link.</p>
     <p zb-if={signUp}>New here? <a href="/portal/sign-up">Sign up to book a call</a>.</p>
   </div>
 </hq-portal-sign-in>

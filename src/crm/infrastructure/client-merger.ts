@@ -14,7 +14,10 @@ export function sqliteClientMerger(db: Database): ClientMerger {
     // Names come from the schema itself, never from a person; checked anyway.
     .filter((one) => /^[a-z_]+$/.test(one.table) && /^[a-z_]+$/.test(one.column));
   const updates = pointers.map((one) => db.prepare(`update ${one.table} set ${one.column} = ? where ${one.column} = ?`));
+  // Notes point at what they're on by kind and id, with no foreign key, so the schema can't find them.
+  const notes = db.prepare("update note set record_id = ? where record_type = 'client-organization' and record_id = ?");
   return (fromId, intoId) => {
     for (const update of updates) update.run(intoId, fromId);
+    notes.run(intoId, fromId);
   };
 }

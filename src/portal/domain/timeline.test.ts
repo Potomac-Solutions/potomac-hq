@@ -22,6 +22,6 @@ test("waiting on you lists what to look over and answer first, each linking to i
   assert.deepEqual(timeline.yours.map((one) => [one.text, one.href]), [
     ["Look over “Home page design” and approve it or ask for changes", "#deliverables"],
     ["Answer the change “A second menu page”", "#changes"],
-    ["Step 1", "#pp-progress"],
+    ["Step 1", "#files"],
   ]);
 });

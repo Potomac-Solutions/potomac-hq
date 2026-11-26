@@ -30,7 +30,8 @@ export function portalTimeline(input: {
     yours: [
       ...input.toLookAt.map((one) => ({ key: `look-${one.id}`, text: `Look over “${one.title}” and approve it or ask for changes`, when: "", href: "#deliverables" })),
       ...input.toAnswer.map((one) => ({ key: `change-${one.id}`, text: `Answer the change “${one.title}”`, when: "", href: "#changes" })),
-      ...open.filter((step) => step.yours).map((step) => ({ ...line(step), text: step.name })),
+      // The client's own steps are mostly things to send, so they go to "Send us a file", as the portal's first page does.
+      ...open.filter((step) => step.yours).map((step) => ({ ...line(step), text: step.name, href: "#files" })),
     ],
   };
 }
