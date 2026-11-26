@@ -228,6 +228,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "payment.recorded": "recorded a payment",
   "payment.paid-by-card": "A client paid an invoice by card",
   "payment.refunded": "gave money back on an invoice",
+  "client.texts-on": "turned on text reminders",
+  "client.texts-off": "turned off text reminders",
   "client.handoff-pack": "made a client’s handoff pack",
   "finance.tax-pack": "downloaded a year’s tax pack",
   "late-fee.set": "changed the late fee",

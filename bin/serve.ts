@@ -27,6 +27,7 @@ import { contactFrom, createApp } from "../src/app.ts";
 import { BUSINESS_TIME_ZONE } from "../src/app.ts";
 import { googleSheetTarget, sheetConfigFrom } from "../src/finance/adapters.ts";
 import { approveQuietPosts } from "../src/social/index.ts";
+import { callReminderText, invoiceReminderText, textClient, textClientPerson } from "../src/texting/index.ts";
 import { runLateInvoices, runRecurringInvoices, sendInvoiceReminders, sendReceipts, sendStatements, syncFinanceSheet } from "../src/finance/index.ts";
 import { readDocuments } from "../src/knowledge/adapters.ts";
 import { seedKnowledge } from "../src/knowledge/index.ts";
@@ -56,7 +57,7 @@ import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
 import { claudeModel } from "../src/ai/adapters.ts";
-import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
+import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, textConfigFrom, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -78,6 +79,8 @@ const publicUrl = (process.env["HQ_PUBLIC_URL"] ?? `http://localhost:${port}`).r
 
 // Errors go to stderr as JSON, and to the alert address when one is set.
 const email = emailConfigFrom(process.env);
+// Text reminders (2026-11-26): off unless Twilio is set up. They go out with the email reminders.
+const texts = textConfigFrom(process.env);
 const alertTo = alertAddressFrom(process.env);
 if (alertTo && !email) {
   console.error("HQ_ALERT_EMAIL needs email set up: set HQ_BREVO_API_KEY and HQ_EMAIL_FROM.");
@@ -142,6 +145,7 @@ else console.log(cardPay ? (cardPay.platform === "test" ? "Card payments are in 
 const vapid = vapidFrom(process.env);
 const app = await createApp({
   db,
+  texts,
   backups: backupConfigFrom(process.env) !== null,
   cardPay: typeof cardPay === "string" ? null : cardPay,
   vapidPublicKey: vapid?.publicKey ?? null,
@@ -256,7 +260,10 @@ const stopInvoiceReminders = email
       async () => {
         const mail = async (message: { to: string; subject: string; body: string }) => "ok" in (await email.send({ channel: "email", ...message }));
         const options = { publicUrl, phone: contact.phone, address: contact.address };
-        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, options);
+        const texting = createServices(db, { texts }).texting;
+        const text = async (organizationId: Parameters<typeof textClient>[1], reminder: { label: string; owed: string; due: string; overdue: boolean }) => textClient(texting, organizationId, "invoice-reminder", invoiceReminderText({ ...reminder, portalUrl: `${publicUrl}/portal` }));
+        const result = await sendInvoiceReminders(createServices(db).invoiceReminders, mail, options, texts ? text : undefined);
+        if (result.texted > 0) console.log(`Invoice reminders: texted ${result.texted}.`);
         if (result.sent + result.failed + result.skipped > 0) console.log(`Invoice reminders: sent ${result.sent}, failed ${result.failed}, no one to send to ${result.skipped}.`);
         // Monthly statements (decision 0017): in the first week of a month, once a client.
         const statements = await sendStatements(createServices(db).invoiceReminders, mail, options);
@@ -473,7 +480,8 @@ if (email) {
   const timer = setInterval(() => {
     if (busy) return;
     busy = true;
-    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone })
+    const texting = createServices(db, { texts }).texting;
+    sendBookingReminders(bookingDeps, mail, { publicUrl, phone: contact.phone }, texts ? (clientUserId, when) => textClientPerson(texting, clientUserId, "call-reminder", callReminderText({ when, phone: contact.phone })) : undefined)
       .then((sent) => {
         if (sent.failed > 0) log(`Booking reminders: ${sent.failed} could not be emailed`);
       })

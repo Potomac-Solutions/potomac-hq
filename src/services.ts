@@ -76,6 +76,8 @@ import type { RequestsDeps } from "./requests/index.ts";
 import type { IntakeDeps } from "./intake/index.ts";
 import type { FeedbackDeps } from "./feedback/index.ts";
 import type { HandoffDeps } from "./handoff/index.ts";
+import type { TextingDeps } from "./texting/index.ts";
+import { sqliteTextingStore } from "./texting/adapters.ts";
 import { sqliteHandoffFacts, sqliteLatestBuild } from "./handoff/adapters.ts";
 import { sqliteFeedbackStore } from "./feedback/adapters.ts";
 import { sqliteIntakeLookups, sqliteIntakeStore } from "./intake/adapters.ts";
@@ -96,7 +98,7 @@ import { getReady, logTouch, moveOpportunity, recapFor } from "./crm/index.ts";
 import { addNote } from "./notes/index.ts";
 import { postProjectUpdate } from "./portal/index.ts";
 import { saveProposal, startProposal, TEMPLATES } from "./proposals/index.ts";
-import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database } from "./shared/adapters.ts";
+import { newId, sqliteActivityLog, sqliteTransact, systemClock, type Database, type TextSender } from "./shared/adapters.ts";
 import { formatMoney, type Clock, type Id } from "./shared/index.ts";
 
 /** What a module's refusal means, in words the assistant passes on (decision 0015). */
@@ -210,6 +212,8 @@ export type Services = {
   readonly feedback: FeedbackDeps;
   /** The handoff pack (2026-11-26). */
   readonly handoff: HandoffDeps;
+  /** Text message reminders (2026-11-26). */
+  readonly texting: TextingDeps;
   readonly renderInvoicePdf: (document: InvoiceDocument) => Uint8Array<ArrayBuffer>;
   readonly renderProposalPdf: (document: ProposalDocument) => Uint8Array<ArrayBuffer>;
   /** Today in the business time zone, YYYY-MM-DD. */
@@ -225,6 +229,8 @@ export type ServiceOptions = {
   /** Reads and commits to client sites' repositories. Without it, sites can't be set up or published. */
   readonly sitePublisher?: SitePublisher | null;
   readonly clock?: Clock;
+  /** Sends text messages (2026-11-26). Without it, the portal doesn't offer texts. */
+  readonly texts?: TextSender | null;
   /** Potomac's own website address, for its preview link. */
   readonly siteUrl?: string;
   readonly today?: () => string;
@@ -940,6 +946,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     makeTodo: (input) => taskFromClient(projects, input),
     mayReview: (organizationId) => mayWriteReview(showcase, organizationId),
   };
+  const texting: TextingDeps = { transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, texts: sqliteTextingStore(db), sender: options.texts ?? null };
   const latestBuild = sqliteLatestBuild(db);
   const handoff: HandoffDeps = {
     users,
@@ -1002,5 +1009,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }

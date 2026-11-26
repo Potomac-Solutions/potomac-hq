@@ -20,6 +20,8 @@ import { portalRequestRoutes, staffRequestRoutes } from "./requests/api/request-
 import { intakeRoutes } from "./intake/api/intake-routes.ts";
 import { feedbackRoutes } from "./feedback/api/feedback-routes.ts";
 import { handoffDownloads } from "./handoff/api/handoff-routes.ts";
+import { textingRoutes } from "./texting/api/texting-routes.ts";
+import { portalTexting, type PortalTexting } from "./texting/index.ts";
 import { feedbackWaiting, projectFeedback, type FeedbackView } from "./feedback/index.ts";
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
@@ -113,7 +115,7 @@ import { aiRoutes } from "./ai/api/ai-routes.ts";
 import { assistantRoutes } from "./assistant/api/assistant-routes.ts";
 import { chatView, type ChatView } from "./assistant/index.ts";
 import { aiSettingsView, callBrief, describeDraft, featureState, isFeature, lastAnswer, marketingQueue, modelOptions, waitingDraft, waitingDrafts, type AiModel, type AskDraft, type DraftsView, type FeatureState, type MailDraft, type MarketingLine, type ProposalDraft, type ReceiptDraft, type RecapDraft, type ScopeDraft, type TriageDraft, type UpdateDraft } from "./ai/index.ts";
-import { sqliteUndoStash, type Database, type EmailConfig } from "./shared/adapters.ts";
+import { sqliteUndoStash, type Database, type EmailConfig, type TextSender } from "./shared/adapters.ts";
 import { staticRoutes } from "./shared/api/static-routes.ts";
 import { err, parseId, readUndo, recordActivity, stashUndo, withMessage, type Id, type Result } from "./shared/index.ts";
 import { loadAssets, MANIFEST, themeLinks } from "./shared/ui/assets.ts";
@@ -164,6 +166,8 @@ export type AppConfig = {
   readonly siteArchive?: SiteArchive | null;
   /** Outbound email. Without it, "Forgot your password?" says to ask an administrator. */
   readonly email?: EmailConfig | null;
+  /** Sends text reminders (2026-11-26); the portal offers texts only when set. */
+  readonly texts?: TextSender | null;
   /** The site builder's link to Claude (decision 0010). Without it, Claude can't be asked. */
   readonly claude?: Claude | null;
   /** The email of the one person who may change the site builder's model and cap. */
@@ -391,6 +395,8 @@ export type PageContext = {
     calls(): ReturnType<typeof callsWaiting>;
   };
   /** "How did we do?" (2026-11-26). */
+  /** Text message reminders, for the portal (2026-11-26). */
+  readonly texts: { portal(): PortalTexting };
   readonly feedback: {
     /** The signed-in client's finished projects still to rate. */
     waiting(): readonly { readonly id: string; readonly name: string }[];
@@ -684,7 +690,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   const { db } = config;
 
-  const services = createServices(db, { emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
+  const services = createServices(db, { texts: config.texts ?? null, emailReady: Boolean(config.email), webhookKey: config.noticeSecret, ...(config.publicUrl ? { publicUrl: config.publicUrl } : {}), ...(config.formOrigins?.[0] ? { siteUrl: new URL(config.formOrigins[0]).origin } : {}), sitePublisher: config.sitePublisher ?? null, aiModel: config.ai ?? null, vapidPublicKey: config.vapidPublicKey ?? null, claude: config.claude ?? null, builderOwner: config.builderOwner ?? null, builderRepos: config.builderRepos ?? null, builderPublishing: config.builderPublishing ?? null, previewSecret: config.noticeSecret, ...(config.runLater ? { runLater: config.runLater } : { runLater: (job: () => Promise<void>) => void job().catch((error: unknown) => log("Site builder: a request failed", error)) }), secure: config.secure, ...(config.passwordCost ? { passwordCost: config.passwordCost } : {}), ...(config.busyCalendar ? { busyCalendar: config.busyCalendar } : {}), ...(config.outsideFetch ? { outsideFetch: config.outsideFetch } : {}) });
   const { session: sessionDeps, crm: crmDeps, dashboard: dashboardDeps, projects: projectsDeps, notes: notesDeps, proposals: proposalsDeps, finance: financeDeps, portal: portalDeps, today } = services;
   // Card payments (decision 0018): the kit's pay, on the platform the settings name.
   const cardStore = sqliteKitStore(db);
@@ -888,6 +894,7 @@ export async function createApp(config: AppConfig): Promise<App> {
           waiting: () => staffWaiting(portalDeps, actor),
           calls: () => callsWaiting(portalDeps, actor),
         },
+        texts: { portal: () => (client ? portalTexting(services.texting, client) : { available: false, on: false, phone: "" }) },
         feedback: {
           waiting: () => (client ? feedbackWaiting(services.feedback, client) : []),
           forProject: (projectId) => {
@@ -1506,6 +1513,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
   const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   forms.route("/", feedbackRoutes({ feedback: services.feedback, clientOf, sign: signNotice }));
+  forms.route("/", textingRoutes({ texting: services.texting, clientOf, sign: signNotice }));
   forms.route("/", intakeRoutes({ intake: services.intake, clientOf, sign: signNotice }));
   forms.route("/", portalRequestRoutes({ requests: services.requests, clientOf, sign: signNotice }));
   forms.route("/", staffRequestRoutes({ requests: services.requests, actorOf, sign: signNotice }));

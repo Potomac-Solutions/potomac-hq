@@ -7,4 +7,4 @@ export * from "./application/sources.ts";
 export * from "./application/links.ts";
 export { INVITE_STATUS_LABELS, type ScheduleInvite } from "./domain/invite.ts";
 export type { Booking } from "./domain/booking.ts";
-export { emailBookingChange, sendBookingReminders, type BookingChange, type BookingEmailOptions, type BookingMail } from "./application/emails.ts";
+export { emailBookingChange, sendBookingReminders, type BookingChange, type BookingEmailOptions, type BookingMail, type BookingText } from "./application/emails.ts";

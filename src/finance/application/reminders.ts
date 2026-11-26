@@ -14,6 +14,8 @@ import type { ClientEmails, ReminderStore } from "./ports.ts";
 export type RemindersDeps = FinanceDeps & { readonly reminders: ReminderStore; readonly clientEmails: ClientEmails };
 export type ReminderMail = (message: { readonly to: string; readonly subject: string; readonly body: string }) => Promise<boolean>;
 export type ReminderOptions = { readonly publicUrl: string; readonly phone: string; readonly address: string };
+/** Texts the reminder to those at the client who agreed to texts (2026-11-26). Answers how many it reached. */
+export type ReminderText = (organizationId: Id, reminder: { readonly label: string; readonly owed: string; readonly due: string; readonly overdue: boolean }) => Promise<number>;
 
 const allowed = (deps: FinanceDeps, actorId: Id | null, action: string): actorId is Id => actorId !== null && authorize(deps, actorId, action).ok;
 
@@ -62,9 +64,10 @@ export function invoiceReminders(deps: RemindersDeps, actorId: Id | null, invoic
 }
 
 /** Sends today's reminders. Answers how many went, and how many could not. */
-export async function sendInvoiceReminders(deps: RemindersDeps, mail: ReminderMail, options: ReminderOptions): Promise<{ readonly sent: number; readonly failed: number; readonly skipped: number }> {
-  if (!deps.reminders.on()) return { sent: 0, failed: 0, skipped: 0 };
+export async function sendInvoiceReminders(deps: RemindersDeps, mail: ReminderMail, options: ReminderOptions, text?: ReminderText): Promise<{ readonly sent: number; readonly failed: number; readonly skipped: number; readonly texted: number }> {
+  if (!deps.reminders.on()) return { sent: 0, failed: 0, skipped: 0, texted: 0 };
   const today = deps.today();
+  let texted = 0;
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -103,8 +106,12 @@ export async function sendInvoiceReminders(deps: RemindersDeps, mail: ReminderMa
         failed++;
       }
     }
+    if (text) {
+      const owed = formatMoney({ minor: invoice.total.minor - invoice.paidMinor, currency: invoice.total.currency });
+      texted += await text(invoice.organizationId, { label: invoiceLabel(invoice.number), owed, due: friendlyDay(invoice.dueOn as string, today), overdue: kind !== "soon" }).catch(() => 0);
+    }
   }
-  return { sent, failed, skipped };
+  return { sent, failed, skipped, texted };
 }
 
 /** Receipts look back this far, so turning emails on doesn't send old ones. */

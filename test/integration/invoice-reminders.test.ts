@@ -37,7 +37,7 @@ after(() => t.stop());
 
 test("off until turned on: nothing goes, and the pages say so", async () => {
   const sent: Sent[] = [];
-  assert.deepEqual(await runOn("2026-12-05", sent), { sent: 0, failed: 0, skipped: 0 });
+  assert.deepEqual(await runOn("2026-12-05", sent), { sent: 0, failed: 0, skipped: 0, texted: 0 });
   assert.match(textOf(await admin.page("/money")), /Invoice reminders: off When on, clients are emailed/);
   assert.match(textOf(await admin.page(`/invoices/${invoiceId}`)), /Reminders Reminders are off for every invoice\./);
   assert.equal(problemOf(await member.post("/money/reminders", { on: "1" })), "You don’t have permission to do that.");
@@ -48,14 +48,14 @@ test("off until turned on: nothing goes, and the pages say so", async () => {
 
 test("each step goes once, to the primary contact, saying what is owed and how to pay", async () => {
   const sent: Sent[] = [];
-  assert.deepEqual(await runOn("2026-11-30", sent), { sent: 0, failed: 0, skipped: 0 }, "four days before");
-  assert.deepEqual(await runOn("2026-12-01", sent), { sent: 1, failed: 0, skipped: 0 });
+  assert.deepEqual(await runOn("2026-11-30", sent), { sent: 0, failed: 0, skipped: 0, texted: 0 }, "four days before");
+  assert.deepEqual(await runOn("2026-12-01", sent), { sent: 1, failed: 0, skipped: 0, texted: 0 });
   assert.equal(sent[0]?.to, "bob@feed.example");
   assert.match(sent[0]?.subject ?? "", /^INV-0001 is due Fri, Dec 4/);
   assert.match(sent[0]?.body ?? "", /^Hi Bob,\n\nA reminder that invoice INV-0001 for Feed store website, \$1,200\.00, is due Fri, Dec 4/);
   assert.match(sent[0]?.body ?? "", /Mail it to: PO Box 12, Gormania, WV 26720/);
-  assert.deepEqual(await runOn("2026-12-01", sent), { sent: 0, failed: 0, skipped: 0 }, "never twice");
-  assert.deepEqual(await runOn("2026-12-05", sent), { sent: 1, failed: 0, skipped: 0 });
+  assert.deepEqual(await runOn("2026-12-01", sent), { sent: 0, failed: 0, skipped: 0, texted: 0 }, "never twice");
+  assert.deepEqual(await runOn("2026-12-05", sent), { sent: 1, failed: 0, skipped: 0, texted: 0 });
   assert.match(sent[1]?.subject ?? "", /was due/);
   assert.match(textOf(await admin.page(`/invoices/${invoiceId}`)), /Coming due: .*, to bob@feed\.example Due yesterday: /);
   assert.ok(actions(t.db).includes("invoice.reminder-sent"));
@@ -65,9 +65,9 @@ test("an invoice can be left out on its own; a paid one gets nothing", async () 
   assert.equal(doneOf(await admin.post(`/invoices/${invoiceId}/reminders`, { off: "1" })), "Saved.");
   assert.match(textOf(await admin.page(`/invoices/${invoiceId}`)), /No reminders for this invoice\./);
   const sent: Sent[] = [];
-  assert.deepEqual(await runOn("2026-12-11", sent), { sent: 0, failed: 0, skipped: 0 });
+  assert.deepEqual(await runOn("2026-12-11", sent), { sent: 0, failed: 0, skipped: 0, texted: 0 });
   await admin.post(`/invoices/${invoiceId}/reminders`, { off: "0" });
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   unwrap(finance.recordPayment(createServices(t.db, { today: () => "2026-12-10" }).finance, mikey, invoiceId, { amount: "1200", method: "check", on: "2026-12-10", reference: "1042" }));
-  assert.deepEqual(await runOn("2026-12-18", sent), { sent: 0, failed: 0, skipped: 0 });
+  assert.deepEqual(await runOn("2026-12-18", sent), { sent: 0, failed: 0, skipped: 0, texted: 0 });
 });

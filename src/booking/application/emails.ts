@@ -4,6 +4,7 @@
 import { whenText, type Booking } from "../domain/booking.ts";
 import { bookerEmail, hostEmail, type BookingEmailEvent, type Email } from "../domain/emails.ts";
 import type { BookingDeps } from "./booking.ts";
+import type { Id } from "../../shared/index.ts";
 
 export type BookingMail = (email: Email) => Promise<boolean>;
 export type BookingEmailOptions = {
@@ -54,7 +55,10 @@ export async function emailBookingChange(deps: BookingDeps, mail: BookingMail, o
  * hours that was booked well before then and has had none. Each is marked
  * before it is sent, so a run that stops halfway never sends one twice.
  */
-export async function sendBookingReminders(deps: BookingDeps, mail: BookingMail, options: BookingEmailOptions): Promise<{ readonly sent: number; readonly failed: number }> {
+/** Texts a client person their reminder, if they agreed to texts (2026-11-26). */
+export type BookingText = (clientUserId: Id, when: string) => Promise<boolean>;
+
+export async function sendBookingReminders(deps: BookingDeps, mail: BookingMail, options: BookingEmailOptions, text?: BookingText): Promise<{ readonly sent: number; readonly failed: number }> {
   const now = Temporal.Instant.from(deps.clock());
   const due = deps.transact(() => {
     const found = deps.bookings.dueReminders(now.toString(), now.add({ hours: 24 }).toString());
@@ -71,6 +75,7 @@ export async function sendBookingReminders(deps: BookingDeps, mail: BookingMail,
     } catch {
       failed++;
     }
+    if (text && booking.kind === "client" && booking.clientUserId) await text(booking.clientUserId, when).catch(() => false);
   }
   return { sent, failed };
 }
