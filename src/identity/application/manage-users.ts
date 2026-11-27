@@ -22,7 +22,7 @@ export type PeopleView = {
   readonly people: readonly PersonView[];
   readonly invites: readonly InviteView[];
   readonly roles: readonly { readonly key: string; readonly label: string }[];
-  readonly can: { readonly invite: boolean; readonly setStatus: boolean; readonly setRoles: boolean; readonly reset: boolean };
+  readonly can: { readonly invite: boolean; readonly setStatus: boolean; readonly setRoles: boolean; readonly reset: boolean; readonly remove: boolean };
 };
 
 const labels = (roles: readonly RoleKey[]) => roles.map((key) => ROLE_LABELS[key]).join(", ");
@@ -31,7 +31,7 @@ const labels = (roles: readonly RoleKey[]) => roles.map((key) => ROLE_LABELS[key
 export function listPeople(deps: ManageUsersDeps, actorId: Id | null, twoFactorOn: (id: Id) => boolean = () => false): Result<PeopleView, "forbidden"> {
   if (!authorize(deps, actorId, "user.view").ok) return err("forbidden");
   const may = (action: string) => authorize(deps, actorId, action).ok;
-  const can = { invite: may("user.invite"), setStatus: may("user.set-status"), setRoles: may("user.set-roles"), reset: may("user.reset") };
+  const can = { invite: may("user.invite"), setStatus: may("user.set-status"), setRoles: may("user.set-roles"), reset: may("user.reset"), remove: may("user.remove") };
   return ok({
     people: deps.users.list().map((user) => {
       const held = deps.users.rolesOf(user.id);

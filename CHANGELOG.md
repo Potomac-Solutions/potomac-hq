@@ -9,6 +9,17 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Remove a member from HQ** (decision 0025, migration 0094). On People,
+  an admin opens *Remove from HQ* for someone: the page lists their open
+  work (open deals, active projects, tasks and to-dos not done, upcoming
+  calls, the booking calendar, shared filters, a running timer) and who
+  takes it over, defaulting to the admin. Removing them ends their
+  sessions, retires their sign-in for good, deletes what was only theirs
+  (settings, two-factor and passkeys, calendar feed, private filters, pins,
+  assistant chats) and frees their email to be invited again. Their name
+  stays on everything they did, and the audit history can still be
+  filtered by them. Nobody removes themselves; the last active admin can't
+  be removed. New permission `user.remove` (admin).
 ## [0.20.0] - 2026-11-27
 
 - **Deleting a contact turns off their portal access at that client**

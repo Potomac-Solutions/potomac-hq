@@ -44,6 +44,7 @@ so that someone can see deal values without being an administrator.
 | Disable or re-enable a user | `user.set-status` | Yes | No | No | No |
 | Change a user's roles, or require two-factor sign-in of admins | `user.set-roles` | Yes | No | No | No |
 | Send a user a password reset link, or reset their two-factor sign-in | `user.reset` | Yes | No | No | No |
+| Remove a member from HQ, handing their open work to someone (decision 0025) | `user.remove` | Yes | No | No | No |
 | Turn own two-factor sign-in on or off | none | Yes | Yes | Yes | No |
 | Add or remove own passkeys | none | Yes | Yes | Yes | No |
 | Turn own morning email on or off | none | Yes | Yes | Yes | No |
@@ -255,6 +256,8 @@ sit on top of them:
 - HQ always has an admin who can sign in. The last active admin cannot be
   turned off or lose the admin role.
 - Nobody turns off their own account.
+- Nobody removes themselves, and the last active admin cannot be removed
+  (decision 0025).
 - Importing clients from a pasted list (Clients → Import) has no key of its
   own: it takes every key adding them by hand would (`client.create`,
   `contact.edit`, `opportunity.create`, `opportunity.set-value`,
