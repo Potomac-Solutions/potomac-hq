@@ -93,7 +93,7 @@
                 <form zb-else-if={portal.canManage && contact.email} method="post" action="/clients/{view.client.id}/portal-users" class="hq-inline">
                   <input type="hidden" name="name" value={contact.name}>
                   <input type="hidden" name="email" value={contact.email}>
-                  <button class="hq-button secondary hq-small" type="submit" aria-label="Invite {contact.name} to the portal">Invite to the portal</button>
+                  <button class="hq-button secondary hq-small" type="submit" aria-label="Invite to the portal: {contact.name}">Invite to the portal</button>
                 </form>
                 <span zb-else-if={!contact.email} class="hq-muted hq-small">Add an email to invite</span>
                 <span zb-else class="hq-muted hq-small">Not invited</span>
@@ -277,7 +277,7 @@
     </section>
     <section zb-if={portal.canView} class="hq-panel" id="portal" aria-labelledby="client-portal">
       <h2 id="client-portal">Client portal</h2>
-      <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet. To invite someone, press <a href="#contacts">Invite to the portal</a> beside them under Contacts.</p>
+      <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.<span zb-if={portal.canManage}> To invite someone, press <a href="#contacts">Invite to the portal</a> beside them under Contacts.</span></p>
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Person</th><th scope="col">Email</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>

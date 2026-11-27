@@ -23,9 +23,9 @@ after(() => t.stop());
 
 test("a contact with an email gets an invite button, and their status once invited", async () => {
   const first = await admin.page(`/clients/${clientId}`);
-  assert.match(first, /aria-label="Invite Stacy Roberts to the portal"/);
+  assert.match(first, /aria-label="Invite to the portal: Stacy Roberts"/);
   assert.match(first, /name="email" value="stacy@betterdays\.example"/);
-  assert.doesNotMatch(first, /aria-label="Invite Phone Only to the portal"/);
+  assert.doesNotMatch(first, /aria-label="Invite to the portal: Phone Only"/);
   assert.match(textOf(first), /Add an email to invite/);
 
   // The button sends the contact's own name and email to the usual invite.
@@ -34,7 +34,7 @@ test("a contact with an email gets an invite button, and their status once invit
   assert.match(await invited.text(), /Send this link to Stacy Roberts/);
 
   const then = await admin.page(`/clients/${clientId}`);
-  assert.doesNotMatch(then, /aria-label="Invite Stacy Roberts to the portal"/);
+  assert.doesNotMatch(then, /aria-label="Invite to the portal: Stacy Roberts"/);
   const row = /<tr>(?:(?!<\/tr>)[\s\S])*Stacy Roberts(?:(?!<\/tr>)[\s\S])*<\/tr>/.exec(then)?.[0] ?? "";
   assert.match(textOf(`<body>${row}`), /Invited, not signed in yet/);
 });

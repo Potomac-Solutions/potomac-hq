@@ -222,7 +222,7 @@ test("a member sees who has portal access but cannot invite or switch it", async
   const page = await member.page(`/clients/${clientId}`);
   assert.match(page, /Client portal/);
   assert.match(page, /ann@bakery\.example/);
-  assert.doesNotMatch(page, /Invite someone to the portal|New link|Turn access off/);
+  assert.doesNotMatch(page, /Invite someone who isn’t a contact|Invite to the portal|New link|Turn access off/);
   const refused = await member.post(`/clients/${clientId}/portal-users`, { name: "Eve", email: "eve@example.com" });
   assert.match(new URL(t.origin + (refused.headers.get("location") ?? "")).searchParams.get("problem") ?? "", /permission/);
   assert.match((await member.submit(`/projects/${projectId}/updates`, { body: "Sam here with an update." })).html, /Update posted\./);
