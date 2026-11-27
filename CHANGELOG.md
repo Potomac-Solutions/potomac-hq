@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-27
+
+- **View a client's portal**, read-only, for admins and managers (decision
+  0020). *View their portal* beside each person on a client's page opens
+  the portal as they see it, with a bar saying so and *Stop viewing*.
+  Nothing can be changed while it lasts, the client isn't told, and each
+  start and stop is in the activity log.
+
 ## [0.18.0] - 2026-11-26
 
 - A user-experience pass on the eleven extras, 2026-11-26
