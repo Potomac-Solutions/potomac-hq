@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-27
+
 - **Deleting a contact turns off their portal access at that client**
   (decisions 0022 and 0023). Before, a contact moved to the Trash could
   still sign in to that client's portal. Now their access there is turned
