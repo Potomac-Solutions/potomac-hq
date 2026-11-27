@@ -24,10 +24,11 @@
   const s = view.summary
   const id = view.project.id
 </script>
-<hq-project-money ai-models={[]} view={{ project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} receipt={null} receipt-state={{ on: false, why: '' }} done="" problem="">
+<hq-project-money ai-models={[]} view={{ company: false, project: {}, summary: { hours: {}, cost: {} }, phases: [], payment: {}, budgetForm: {}, expenses: [], entries: [], invoices: [], invoiceForm: {}, invoiceKinds: [], can: {}, categories: [], paymentStatuses: [] }} changes={null} receipt={null} receipt-state={{ on: false, why: '' }} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.project.name, href: `/projects/${id}` }, { label: 'Money', href: '' }]}></breadcrumb-trail>
     <h1>Money</h1>
+    <p zb-if={view.company} class="hq-muted">Company work: its time and expenses are the business’s own. There’s no client to bill, so time here isn’t billable.</p>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
@@ -42,7 +43,7 @@
 
     <section class="hq-panel" aria-labelledby="money-standing">
       <h2 id="money-standing">Estimate against actual, {view.period}</h2>
-      <alert-banner zb-if={view.warning && view.warning.level === 'watch'} variant="warning" heading="Worth watching">{view.warning.text}. Three quarters of the budget is used ahead of the work. Now is the time to talk to the client about scope, before it runs over.</alert-banner>
+      <alert-banner zb-if={view.warning && view.warning.level === 'watch'} variant="warning" heading="Worth watching">{view.warning.text}. Three quarters of the budget is used ahead of the work.<span zb-if={!view.company}> Now is the time to talk to the client about scope, before it runs over.</span></alert-banner>
       <alert-banner zb-if={view.warning && view.warning.level === 'over'} variant="danger" heading="Over budget">{view.warning.text}.</alert-banner>
       <table tabindex="0" class="hq-table">
         <thead><tr><th scope="col">Measure</th><th scope="col" class="hq-number">Budget</th><th scope="col" class="hq-number">Actual</th><th scope="col">Standing</th></tr></thead>
@@ -55,7 +56,7 @@
         <dt>Time, at the hourly rate</dt><dd>{s.timeCost}</dd>
         <dt>Expenses</dt><dd>{s.expenses}</dd>
         <dt>Billable hours</dt><dd>{s.billableHours}</dd>
-        <dt zb-if={s.margin}>Margin</dt><dd zb-if={s.margin}>{s.margin}<span zb-if={s.marginPercent}> ({s.marginPercent})</span> <status-badge zb-if={s.marginNegative} variant="danger">Losing money</status-badge></dd>
+        <dt zb-if={s.margin && !view.company}>Margin</dt><dd zb-if={s.margin && !view.company}>{s.margin}<span zb-if={s.marginPercent}> ({s.marginPercent})</span> <status-badge zb-if={s.marginNegative} variant="danger">Losing money</status-badge></dd>
       </dl>
       <p class="hq-muted hq-small" data-spaced>An operational estimate: the budget less time at the hourly rate and expenses. It is not the books.<span zb-if={view.fromProposal}> The budget is the accepted proposal’s.</span></p>
       <details zb-if={view.can.edit} class="hq-more">
@@ -82,7 +83,7 @@
       <p class="hq-muted hq-small" data-spaced>A phase’s estimate is its tasks’ estimates added up. Time counts for the phase of the task it was logged on.</p>
     </section>
 
-    <section class="hq-panel" aria-labelledby="money-payment">
+    <section zb-if={!view.company} class="hq-panel" aria-labelledby="money-payment">
       <h2 id="money-payment">Payment</h2>
       <p><strong>{view.payment.statusLabel}</strong><span zb-if={view.payment.invoiceRef}>. Invoice {view.payment.invoiceRef}</span></p>
       <form zb-if={view.can.edit} method="post" action="/projects/{id}/payment" class="hq-form-row">
@@ -97,7 +98,7 @@
       </form>
     </section>
 
-    <section zb-if={changes} class="hq-panel" id="changes" aria-labelledby="money-changes">
+    <section zb-if={changes && !view.company} class="hq-panel" id="changes" aria-labelledby="money-changes">
       <h2 id="money-changes">Change requests</h2>
       <p class="hq-muted">Work beyond what was agreed. Send one and the client approves or declines it in the portal. Approved, it raises the budget by its price and hours and drafts its invoice.</p>
       <ul zb-if={changes.items.length > 0} class="hq-links">
@@ -208,7 +209,7 @@
 
     <section class="hq-panel" id="expenses" aria-labelledby="money-expenses">
       <h2 id="money-expenses">Expenses</h2>
-      <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">Record what this job costs beyond time: hosting, software, a contractor.</empty-state>
+      <empty-state zb-if={view.expenses.length === 0} heading="No expenses yet">{view.company ? 'Record what this costs the business: exam fees, courses, filing fees. Each one is in the tax pack.' : 'Record what this job costs beyond time: hosting, software, a contractor.'}</empty-state>
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Day</th><th scope="col">Category</th><th scope="col" class="hq-number">Amount</th><th scope="col">Note</th><th scope="col">Receipt</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>

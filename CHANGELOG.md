@@ -16,7 +16,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   no deliverables or portal, and its time is never billable. The Board now
   shows everyone's to-dos beside every active project's tasks, so the whole
   company's work is on one board; a to-do moves only between To do and
-  Done. New permission `project.start` (admin and manager).
+  Done. New permission `project.start` (admin and manager). A company
+  project's Money tab keeps its expenses and time, without invoices, so
+  what company work costs is a business expense in the tax pack; two new
+  expense categories, **Training and certifications** and **Licenses,
+  permits and filing fees** (migration 0090).
 
 ## [0.19.0] - 2026-11-27
 

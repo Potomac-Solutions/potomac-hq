@@ -1,5 +1,6 @@
 // Decision 0021 over real HTTP: starting a company project from the Projects
-// page, its overview with no client panels, and the company board showing
+// page, its overview with no client panels, its Money tab with expenses but
+// no invoices, and the company board showing
 // its tasks and everyone's to-dos.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -16,7 +17,7 @@ before(async () => {
 });
 after(() => t.stop());
 
-test("an admin starts a company project from the Projects page; it has no client, money or portal panels", async () => {
+test("an admin starts a company project from the Projects page; it has no client or portal panels, and its Money tab keeps expenses but no invoices", async () => {
   assert.match(await admin.page("/projects"), /Start a company project/);
   assert.doesNotMatch(await member.page("/projects"), /Start a company project/);
 
@@ -31,7 +32,13 @@ test("an admin starts a company project from the Projects page; it has no client
   const page = await admin.page(`/projects/${id}`);
   assert.match(page, /<h1>Training and certifications<\/h1>/);
   assert.match(textOf(page), /Company work: Potomac’s own, with no client/);
-  assert.doesNotMatch(page, /href="\/projects\/[0-9a-f-]{36}\/money"/);
+  // Its Money tab is there for time and expenses, with nothing to bill.
+  assert.match(page, new RegExp(`href="/projects/${id}/money"`));
+  const money = await admin.page(`/projects/${id}/money`);
+  assert.match(textOf(money), /There’s no client to bill/);
+  assert.doesNotMatch(money, /id="money-invoices"/);
+  assert.doesNotMatch(money, /id="money-payment"/);
+  assert.match(money, /Training and certifications<\/option>/);
   assert.doesNotMatch(page, /id="project-deliverables"/);
   assert.doesNotMatch(page, /id="project-updates"/);
   assert.doesNotMatch(page, /The client has to do this one/);

@@ -40,7 +40,7 @@
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/tasks">Tasks</a>
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/board">Board</a>
       <a zb-if={view.can.viewTasks} href="/projects/{p.id}/timeline">Timeline</a>
-      <a zb-if={money && !view.company} href="/projects/{p.id}/money">Money</a>
+      <a zb-if={money} href="/projects/{p.id}/money">Money</a>
     </nav>
     <div class="hq-split facts-first">
     <div class="hq-rail">
