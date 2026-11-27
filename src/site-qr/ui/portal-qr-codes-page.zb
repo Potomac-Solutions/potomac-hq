@@ -1,0 +1,28 @@
+<!--
+  A client's QR codes, in their portal (decision 0023): make one for each
+  thing they print, download it, and see what each brought in.
+-->
+<script>
+  'use route /portal/qr-codes'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import './qr-codes-panel.zb'
+  export async function load({ context }) {
+    const stop = context.portal.guard()
+    if (stop) return stop
+    const view = context.siteQr.mine()
+    if (!view) return context.portal.missing()
+    return { title: 'QR codes', view, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-portal-qr-codes view={{ organizationName: '', base: '', sites: [], active: [], retired: [], canChange: false, full: false, script: '', lastHeard: '', totals: { scans: 0, recentScans: 0, taps: 0 } }} done="" problem="">
+  <div class="hq-page">
+    <p class="hq-crumbs"><a href="/portal">Back to your portal</a></p>
+    <h1>QR codes</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Put a QR code on your business cards, flyers or signs. Make a different one for each, and see here which ones people scan, and how many then called, texted or emailed you.</p>
+    <qr-codes-panel view={view} pictures="/portal/qr-codes" actions="/portal/qr-codes" staff={false}></qr-codes-panel>
+  </div>
+</hq-portal-qr-codes>

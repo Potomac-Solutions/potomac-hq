@@ -1,0 +1,32 @@
+<!--
+  A client's QR codes, for Potomac's people (decision 0023): the same as the
+  client sees in their portal, plus the script for their site and when HQ
+  last heard from it.
+-->
+<script>
+  'use route /clients/:id/qr-codes'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/breadcrumb-trail.zb'
+  import './qr-codes-panel.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.siteQr.forClient(params.id)
+    if (!view) return notFound()
+    if (!view.ok) return view.error === 'forbidden' ? context.forbidden() : notFound()
+    return { title: 'QR codes', id: params.id, view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<hq-client-qr-codes id="" view={{ organizationName: '', base: '', sites: [], active: [], retired: [], canChange: false, full: false, script: '', lastHeard: '', totals: { scans: 0, recentScans: 0, taps: 0 } }} done="" problem="">
+  <div class="hq-page">
+    <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.organizationName, href: '/clients/' + id }, { label: 'QR codes', href: '' }]}></breadcrumb-trail>
+    <h1>QR codes</h1>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Codes the client prints, each opening a page on their own website. Scans are counted by the script on their site, so a code works even when HQ doesn’t. The client makes and downloads these in their portal too.</p>
+    <qr-codes-panel view={view} pictures="/site-qr" actions="/site-qr" staff={true}></qr-codes-panel>
+  </div>
+</hq-client-qr-codes>

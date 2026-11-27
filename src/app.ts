@@ -72,6 +72,8 @@ import { creditInquiry, referralLinks } from "./referrals/index.ts";
 import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
 import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
+import { codesView, type CodesView } from "./site-qr/index.ts";
+import { siteQrDownloads, siteQrHookRoutes, siteQrPortalRoutes, siteQrStaffRoutes } from "./site-qr/api/site-qr-routes.ts";
 import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
 import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
 import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type PortalFreePage, type SiteArchive } from "./free-pages/index.ts";
@@ -538,6 +540,13 @@ export type PageContext = {
     all(): ReturnType<typeof allWebsites>;
     site(id: string, wider?: number): ReturnType<typeof staffWebsite>;
     forClient(id: string): ClientWebsiteView | null;
+  };
+  /** QR codes a client prints, counted from their own site (decision 0023). */
+  readonly siteQr: {
+    /** The signed-in client's codes, or null when signed out. */
+    mine(): CodesView | null;
+    /** A client's codes, for Potomac's people. */
+    forClient(id: string): ReturnType<typeof codesView> | null;
   };
   readonly monitor: {
     all(): ReturnType<typeof allSites>;
@@ -1164,6 +1173,16 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        siteQr: {
+          mine: () => {
+            const view = codesView(services.siteQr, { kind: "client", session: client }, `${(config.publicUrl ?? "").replace(/\/$/, "")}/hooks/site-qr`);
+            return view.ok ? view.value : null;
+          },
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? codesView(services.siteQr, { kind: "staff", actorId: actor, organizationId: parsed.value }, `${(config.publicUrl ?? "").replace(/\/$/, "")}/hooks/site-qr`) : null;
+          },
+        },
         demos: {
           list: () => demosList(services.demos, actor),
           forOpportunity: (id) => {
@@ -1748,6 +1767,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: signNotice }));
+  forms.route("/", siteQrPortalRoutes({ siteQr: services.siteQr, clientOf, sign: signNotice }));
+  forms.route("/", siteQrStaffRoutes({ siteQr: services.siteQr, actorOf, sign: signNotice }));
   forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: signNotice }));
   forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: signNotice }));
   forms.route("/", renewalPortalRoutes({ renewals: services.renewals, clientOf, sign: signNotice }));
@@ -1855,6 +1876,10 @@ export async function createApp(config: AppConfig): Promise<App> {
   );
   // n8n checking in (decision 0013, section 5): no cookie and no Origin, the token is the key.
   const allowCheckIn = sqliteRateLimit(db, { name: "automation-check-in", max: 120, windowMs: 60_000 });
+  // A client's site reporting a scan of one of their QR codes (decision 0023): no cookie, from any origin.
+  const allowSiteQr = sqliteRateLimit(db, { name: "site-qr-report", max: 60, windowMs: 60_000 });
+  const siteQrRepeat = sqliteRateLimit(db, { name: "site-qr-repeat", max: 1, windowMs: 30 * 60_000 });
+  web.route("/", siteQrHookRoutes({ siteQr: services.siteQr, addressOf: (incoming) => (incoming ? clientAddressOf(incoming as IncomingMessage) : ""), allow: allowSiteQr, firstInWindow: siteQrRepeat }));
   web.route("/", automationHookRoutes({ automations: services.automations, allow: (incoming) => allowCheckIn(clientAddressOf(incoming as never)) }));
   web.route("/", showcaseApiRoutes({ showcase: services.showcase, isSite: (token) => settingsForSite(services.publicSite, token) !== null, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
@@ -1885,6 +1910,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
   downloads.route("/", builderDownloads({ builder: services.builder, actorOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
+  downloads.route("/", siteQrDownloads({ siteQr: services.siteQr, clientOf, actorOf }));
   downloads.route("/", demoLinkRoutes({ demos: services.demos }));
   // The command bar also moves a deal it finds (decision 0014's palette, folded in).
   const dealMoves = (actor: Id, id: Id, title: string): readonly FindMove[] => {
@@ -1912,7 +1938,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", autopayPages({ autopay: services.autopay, clientOf, sign: signNotice, page: renderPage }));
   downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/hooks/site-qr" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
@@ -2066,7 +2092,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/qr-codes|site-qr)\/[0-9a-f-]{36}\/qr\.(svg|png)$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     // The step before the payment platform: the page has a link, and this sends most browsers
     // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
     const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;
