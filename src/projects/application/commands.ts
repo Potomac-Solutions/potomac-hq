@@ -5,7 +5,7 @@
 import type { Baseline } from "../domain/baseline.ts";
 import { isClientVisible, newDeliverable, shareDeliverable, unshareDeliverable, type Deliverable, type DeliverableError } from "../domain/deliverable.ts";
 import { assignMilestone, completeMilestone, newMilestone, newPhase, reopenMilestone, type Milestone, type Phase, type PlanError } from "../domain/plan.ts";
-import { changeProjectOwner, changeProjectStatus, editProject, type Project, type ProjectEdit, type ProjectEditError } from "../domain/project.ts";
+import { changeProjectOwner, changeProjectStatus, companyProject, editProject, type CompanyProjectError, type CompanyProjectInput, type Project, type ProjectEdit, type ProjectEditError } from "../domain/project.ts";
 import { editTask, moveTask, newTask, type Task, type TaskError, type TaskInput } from "../domain/task.ts";
 import { editLabel, labelChanges, newLabel, type Label, type LabelError, type LabelInput } from "../domain/label.ts";
 import { saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
@@ -123,6 +123,24 @@ export function setProjectOwner(deps: ProjectsDeps, actorId: Id | null, projectI
 }
 
 /** The project, if it exists and is still active. Closed projects take no new plan, tasks or deliverables. */
+/**
+ * Starts a company project: Potomac's own work, with no client, like
+ * training or the website (decision 0021). Whoever starts it owns it unless
+ * they pick someone else. Permission: `project.start`.
+ */
+export function startCompanyProject(deps: ProjectsDeps, actorId: Id | null, input: CompanyProjectInput & { readonly ownerId?: Id | null }): Result<Project, Refused | CompanyProjectError | "person-not-found"> {
+  if (!allowed(deps, actorId, "project.start")) return err("forbidden");
+  return deps.transact(() => {
+    const ownerId = input.ownerId ?? actorId;
+    if (!activeUser(deps, ownerId)) return err("person-not-found");
+    const made = companyProject({ id: deps.newId(), ownerId }, input);
+    if (!made.ok) return made;
+    deps.projects.insert(made.value, deps.clock());
+    recordActivity(deps, { actorId, action: "project.created", recordType: "project", recordId: made.value.id, context: { company: true, kind: made.value.kind, name: made.value.name, ownerId } });
+    return ok(made.value);
+  });
+}
+
 function openProject(deps: ProjectsDeps, projectId: Id): Result<Project, "not-found" | "project-closed"> {
   const project = deps.projects.get(projectId);
   if (!project) return err("not-found");
@@ -153,11 +171,13 @@ export function addMilestone(
   actorId: Id | null,
   projectId: Id,
   input: { readonly name: string; readonly dueOn?: string | null; readonly phaseId?: Id | null; readonly forClient?: boolean },
-): Result<Milestone, Refused | "project-closed" | "phase-not-in-project" | PlanError> {
+): Result<Milestone, Refused | "project-closed" | "phase-not-in-project" | "company-project" | PlanError> {
   if (!allowed(deps, actorId, "project.plan")) return err("forbidden");
   return deps.transact(() => {
     const project = openProject(deps, projectId);
     if (!project.ok) return project;
+    // There is no client to hand a company project's milestone to (decision 0021).
+    if (input.forClient && project.value.organizationId === null) return err("company-project");
     const phase = phaseOf(deps, projectId, input.phaseId);
     if (!phase.ok) return phase;
     const milestone = newMilestone(deps.newId(), projectId, { ...input, phaseId: phase.value });
@@ -188,11 +208,12 @@ export function setMilestoneDone(deps: ProjectsDeps, actorId: Id | null, milesto
 }
 
 /** Says a milestone is the client's to do, or takes that back. The portal lists the client's open ones as waiting on them. */
-export function setMilestoneForClient(deps: ProjectsDeps, actorId: Id | null, milestoneId: Id, forClient: boolean): Result<Milestone, Refused | "unchanged"> {
+export function setMilestoneForClient(deps: ProjectsDeps, actorId: Id | null, milestoneId: Id, forClient: boolean): Result<Milestone, Refused | "unchanged" | "company-project"> {
   if (!allowed(deps, actorId, "project.plan")) return err("forbidden");
   return deps.transact(() => {
     const milestone = deps.milestones.get(milestoneId);
     if (!milestone) return err("not-found");
+    if (forClient && deps.projects.get(milestone.projectId)?.organizationId === null) return err("company-project");
     const changed = assignMilestone(milestone, forClient);
     if (!changed.ok) return changed;
     deps.milestones.update(changed.value, deps.clock());
@@ -255,7 +276,7 @@ export function moveTaskStatus(
   actorId: Id | null,
   taskId: Id,
   to: string,
-): Result<MovedTask, Refused | "invalid-status" | "unchanged"> {
+): Result<MovedTask, Refused | "invalid-status" | "unchanged" | "todo-has-no-board"> {
   if (!allowed(deps, actorId, "task.edit")) return err("forbidden");
   return deps.transact(() => {
     const task = deps.tasks.get(taskId);

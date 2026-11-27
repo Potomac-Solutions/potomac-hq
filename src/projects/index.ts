@@ -1,6 +1,6 @@
 // Public entry for the projects module: a project's details, plan, tasks,
 // deliverables and history.
-export { changeProjectStatus, projectFromWon, PROJECT_HEALTHS, PROJECT_KINDS, PROJECT_STATUSES, type Project, type ProjectHealth, type ProjectKind, type ProjectStatus, type WonOpportunity } from "./domain/project.ts";
+export { changeProjectStatus, companyProject, isCompanyProject, projectFromWon, PROJECT_HEALTHS, PROJECT_KINDS, PROJECT_STATUSES, type Project, type ProjectHealth, type ProjectKind, type ProjectStatus, type WonOpportunity } from "./domain/project.ts";
 export { decideDeliverable, isClientVisible, type Deliverable, type DeliverableStatus } from "./domain/deliverable.ts";
 export { isMilestoneOverdue, milestoneProgress, nextMilestone, type Milestone, type Phase } from "./domain/plan.ts";
 export { formatHours, parseHours, type Task } from "./domain/task.ts";

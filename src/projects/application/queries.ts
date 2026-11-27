@@ -27,10 +27,19 @@ function milestoneView(milestone: Milestone, today: string, phaseName = ""): Mil
   return { id: milestone.id, name: milestone.name, dueOn: milestone.dueOn ?? "", dueText: milestone.dueOn ? dueText(milestone.dueOn, today) : "", doneText: milestone.doneOn ? friendlyDay(milestone.doneOn, today) : "", doneOn: milestone.doneOn ?? "", done: milestone.doneOn !== null, overdue: isMilestoneOverdue(milestone, today), phaseName, forClient: milestone.forClient };
 }
 
+/** What a company project shows where a client's name would be (decision 0021). */
+export const COMPANY_WORK = "Company work";
+const clientLabel = (project: { readonly organizationId: Id | null; readonly clientName: string }): string => (project.organizationId === null ? COMPANY_WORK : project.clientName);
+
 export type ProjectListView = {
   /** The status the list is filtered by, or "" for every project. */
   readonly status: string;
   readonly statuses: readonly Option[];
+  /** May start a company project, with its choices (decision 0021). */
+  readonly canStart: boolean;
+  readonly kinds: readonly Option[];
+  readonly people: readonly Option[];
+  readonly me: string;
   readonly projects: readonly {
     readonly id: string;
     readonly name: string;
@@ -44,6 +53,8 @@ export type ProjectListView = {
     readonly openTasks: number;
     /** Its client is a demo. */
     readonly demo: boolean;
+    /** Potomac's own work, with no client (decision 0021). */
+    readonly company: boolean;
     /** "Design signed off, due 2026-12-05", or "" when there is none. */
     readonly next: string;
     readonly nextOverdue: boolean;
@@ -56,9 +67,14 @@ export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { r
   const status = filter.status && (PROJECT_STATUSES as readonly string[]).includes(filter.status) ? filter.status : "";
   const today = deps.today();
   const open = deps.milestones.listOpen();
+  const canStart = may(deps, actorId, "project.start");
   return ok({
     status,
     statuses: options(STATUS_LABELS),
+    canStart,
+    kinds: canStart ? [{ value: "fixed", label: "Has an end: mark it completed when it's done" }, { value: "ongoing", label: "Ongoing: never completed, only cancelled" }] : [],
+    people: canStart ? people(deps) : [],
+    me: actorId ?? "",
     projects: deps.projects
       .list()
       .filter((project) => (status === "" || project.status === status) && !(filter.withoutDemos && project.demo))
@@ -67,8 +83,9 @@ export function listProjects(deps: ProjectsDeps, actorId: Id | null, filter: { r
         return {
           id: project.id,
           name: project.name,
-          clientName: project.clientName,
+          clientName: clientLabel(project),
           demo: project.demo,
+          company: project.organizationId === null,
           ownerName: project.ownerName,
           status: project.status,
           statusLabel: STATUS_LABELS[project.status] ?? project.status,
@@ -101,9 +118,12 @@ export type ProjectView = {
     readonly ongoing: boolean;
     readonly demo: boolean;
   };
+  /** Empty for a company project. */
   readonly clientId: string;
   readonly clientName: string;
   readonly opportunityId: string;
+  /** Potomac's own work, with no client (decision 0021). */
+  readonly company: boolean;
   readonly next: MilestoneView | null;
   readonly progress: { readonly done: number; readonly total: number };
   readonly phases: readonly { readonly id: string; readonly name: string }[];
@@ -196,9 +216,10 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
       ongoing: project.kind === "ongoing",
       demo: project.demo,
     },
-    clientId: project.organizationId,
-    clientName: project.clientName,
-    opportunityId: project.opportunityId,
+    clientId: project.organizationId ?? "",
+    clientName: clientLabel(project),
+    opportunityId: project.opportunityId ?? "",
+    company: project.organizationId === null,
     next: next ? milestoneView(next, today, phaseName(next.phaseId)) : null,
     progress: milestoneProgress(milestones),
     phases: phases.map((phase) => ({ id: phase.id, name: phase.name })),
@@ -224,7 +245,8 @@ export function projectOverview(deps: ProjectsDeps, actorId: Id | null, projectI
       setOwner: may(deps, actorId, "project.set-owner"),
       plan: may(deps, actorId, "project.plan") && active,
       viewTasks,
-      editDeliverables: editDeliverables && active,
+      // Deliverables are handed to a client; a company project has none (decision 0021).
+      editDeliverables: editDeliverables && active && project.organizationId !== null,
       download: may(deps, actorId, "file.download"),
     },
     healths: options(HEALTH_LABELS),
@@ -257,6 +279,8 @@ export type TaskCard = {
   readonly waiting: number;
   /** "Every week, from the due date", or empty. */
   readonly repeats: string;
+  /** A to-do, with no project: it moves only between to do and done (decision 0021). */
+  readonly todo: boolean;
 };
 
 /** A label as the screens draw it: its name, in its colour. */
@@ -283,7 +307,8 @@ function card(task: TaskRow, today: string, labels: readonly Label[] = [], links
     id: task.id,
     title: task.title,
     projectId: task.projectId ?? "",
-    projectName: task.projectName,
+    projectName: task.projectId === null ? "To-do" : task.projectName,
+    todo: task.projectId === null,
     assigneeName: task.assigneeName ?? "",
     status: task.status,
     statusLabel: TASK_STATUS_LABELS[task.status] ?? task.status,
@@ -487,6 +512,10 @@ export type BoardView = {
   readonly total: number;
   readonly canMove: boolean;
   readonly statuses: readonly Option[];
+  /** Where a to-do may go: to do and done. */
+  readonly todoStatuses: readonly Option[];
+  /** Whether to-dos are on it: the company board, not a project's (decision 0021). */
+  readonly withTodos: boolean;
   /** Where a move sends the browser back to. */
   readonly returnTo: string;
 };
@@ -505,7 +534,8 @@ export function board(deps: ProjectsDeps, actorId: Id | null, filter: { readonly
   const today = deps.today();
   const since = `${Temporal.PlainDate.from(today).subtract({ days: DONE_DAYS }).toString()}T00:00:00.000Z`;
   const mine = filter.mine === true;
-  const rows = (project ? deps.tasks.listFor(project.id).filter((task) => task.status !== "done" || (task.doneAt ?? "") >= since) : deps.tasks.listBoard(since)).filter(
+  // The company board is every active project's tasks and everyone's to-dos (decision 0021).
+  const rows = (project ? deps.tasks.listFor(project.id).filter((task) => task.status !== "done" || (task.doneAt ?? "") >= since) : [...deps.tasks.listBoard(since), ...deps.tasks.listTodosForBoard(since)]).filter(
     (task) => !mine || task.assigneeId === actorId,
   );
   const query = mine ? "?mine=1" : "";
@@ -524,6 +554,8 @@ export function board(deps: ProjectsDeps, actorId: Id | null, filter: { readonly
     total: rows.length,
     canMove: may(deps, actorId, "task.edit"),
     statuses: options(TASK_STATUS_LABELS),
+    todoStatuses: options(TASK_STATUS_LABELS).filter((option) => option.value === "todo" || option.value === "done"),
+    withTodos: project === null,
     returnTo: project ? `/projects/${project.id}/board${query}` : `/board${query}`,
   });
 }
@@ -595,7 +627,7 @@ export function projectHealthReport(deps: ProjectsDeps, actorId: Id | null): Res
       .filter((project) => project.health !== "on-track")
       .map((project) => {
         const next = nextMilestone(deps.milestones.listFor(project.id));
-        return { id: project.id, name: project.name, clientName: project.clientName, healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "" };
+        return { id: project.id, name: project.name, clientName: clientLabel(project), healthLabel: HEALTH_LABELS[project.health] ?? project.health, next: next ? (next.dueOn ? `${next.name}, due ${dueText(next.dueOn, today)}` : next.name) : "" };
       }),
   });
 }

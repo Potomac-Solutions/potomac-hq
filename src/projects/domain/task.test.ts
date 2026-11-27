@@ -79,8 +79,8 @@ test("tasks sort by priority, then due date, then title", () => {
 
 test("a to-do (a task without a project) is only to do or done", () => {
   const todo: Task = { ...task(), projectId: null };
-  assert.deepEqual(moveTask(todo, "doing", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
-  assert.deepEqual(moveTask(todo, "blocked", "2026-11-16T10:00:00.000Z"), { ok: false, error: "invalid-status" });
+  assert.deepEqual(moveTask(todo, "doing", "2026-11-16T10:00:00.000Z"), { ok: false, error: "todo-has-no-board" });
+  assert.deepEqual(moveTask(todo, "blocked", "2026-11-16T10:00:00.000Z"), { ok: false, error: "todo-has-no-board" });
   const done = moveTask(todo, "done", "2026-11-16T10:00:00.000Z");
   assert.ok(done.ok);
   assert.equal(done.value.doneAt, "2026-11-16T10:00:00.000Z");

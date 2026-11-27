@@ -99,10 +99,11 @@ export function editTask(task: Task, input: TaskInput): Result<Task, TaskError> 
 }
 
 /** Any status may follow any other, except that a to-do is only to do or done. Moving to done stamps the time; moving away clears it. */
-export function moveTask(task: Task, to: string, at: string): Result<Task, "invalid-status" | "unchanged"> {
+export function moveTask(task: Task, to: string, at: string): Result<Task, "invalid-status" | "unchanged" | "todo-has-no-board"> {
   if (!isTaskStatus(to)) return err("invalid-status");
-  // A to-do has no board: it is to do or done.
-  if (task.projectId === null && to !== "todo" && to !== "done") return err("invalid-status");
+  // A to-do is to do or done. It shows on the board (decision 0021), but
+  // only in those two columns: working on and blocked belong to a project.
+  if (task.projectId === null && to !== "todo" && to !== "done") return err("todo-has-no-board");
   if (to === task.status) return err("unchanged");
   return ok({ ...task, status: to, doneAt: to === "done" ? at : null });
 }

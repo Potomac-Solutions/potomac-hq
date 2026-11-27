@@ -35,6 +35,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "write-off-note-missing": "Say why it’s written off.",
   "write-off-note-too-long": "Keep the reason under 300 characters.",
   "too-long": "Keep it under 2,000 characters.",
+  "company-project": "A company project is Potomac’s own work. There’s no client to bill.",
   "project-needed": "A deposit or a balance goes on a project. Bill this as the full amount or something else.",
   "description-missing": "Enter what the line is for.",
   "description-too-long": "That description is too long.",

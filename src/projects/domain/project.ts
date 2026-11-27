@@ -15,8 +15,10 @@ export type ProjectHealth = (typeof PROJECT_HEALTHS)[number];
 
 export type Project = {
   readonly id: Id;
-  readonly organizationId: Id;
-  readonly opportunityId: Id;
+  /** The client, or null for a company project: Potomac's own work (decision 0021). */
+  readonly organizationId: Id | null;
+  /** The opportunity it was won from. Null exactly when the client is. */
+  readonly opportunityId: Id | null;
   readonly ownerId: Id;
   readonly name: string;
   readonly kind: ProjectKind;
@@ -59,6 +61,43 @@ export function projectFromWon(id: Id, opportunity: WonOpportunity): Result<Proj
     targetOn: null,
   });
 }
+
+/** A company project's details, as a person types them (decision 0021). */
+export type CompanyProjectInput = {
+  readonly name: string;
+  readonly kind: string;
+  readonly description?: string | null;
+};
+
+export type CompanyProjectError = "name-missing" | "name-too-long" | "description-too-long" | "invalid-kind";
+
+/**
+ * A company project is Potomac's own work, like training or the website:
+ * no client, no opportunity, nothing to bill. It starts active and on track.
+ */
+export function companyProject(ids: { readonly id: Id; readonly ownerId: Id }, input: CompanyProjectInput): Result<Project, CompanyProjectError> {
+  const name = requiredText(input.name, 200);
+  if (!name.ok) return err(name.error === "missing" ? "name-missing" : "name-too-long");
+  const description = optionalText(input.description, 5000);
+  if (!description.ok) return err("description-too-long");
+  if (!(PROJECT_KINDS as readonly string[]).includes(input.kind)) return err("invalid-kind");
+  return ok({
+    id: ids.id,
+    organizationId: null,
+    opportunityId: null,
+    ownerId: ids.ownerId,
+    name: name.value,
+    kind: input.kind as ProjectKind,
+    status: "active",
+    description: description.value ?? "",
+    health: "on-track",
+    startOn: null,
+    targetOn: null,
+  });
+}
+
+/** A company project belongs to Potomac, not a client. */
+export const isCompanyProject = (project: Pick<Project, "organizationId">): boolean => project.organizationId === null;
 
 /**
  * A fixed project ends completed or cancelled. An ongoing one is never

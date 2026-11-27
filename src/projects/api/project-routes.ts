@@ -52,6 +52,11 @@ export function projectRoutes(deps: ProjectRoutesDeps): Hono {
     estimate: f["estimate"] ?? null,
   });
 
+  post(
+    "/projects",
+    (actor, f) => projects.startCompanyProject(deps.projects, actor, { name: f["name"] ?? "", kind: f["kind"] ?? "", description: f["description"] ?? null, ownerId: optionalId(f["ownerId"]) }),
+    { done: (made) => project(made.id), back: () => "/projects#start", message: "Company project started. Add its tasks, and they show on the board." },
+  );
   post("/projects/:id/links", (actor, f, id) => projects.addProjectLink(deps.projects, actor, id as Id, { kind: f["kind"] ?? "", label: f["label"] ?? null, url: f["url"] ?? "", shared: f["shared"] === "1" }), {
     done: (_, id) => `${project(id)}#links`,
     back: (id) => `${project(id)}#links`,
