@@ -389,6 +389,19 @@ Once started, a company project is worked like any other: its name,
 status, owner, phases and tasks need the keys above. No client user ever
 sees one, since it belongs to no client.
 
+### QR codes a client prints (decision 0024)
+
+Decided 2026-11-27 by Mikey; the role split is a **Default** to confirm.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Make, rename, retire, bring back and remove a client's QR codes, download them, and copy the script for their site | `site-qr.manage` | Yes | Yes | Yes | No (makes, renames, retires and downloads their own client's codes, and sees their counts, in the portal) |
+
+Seeing a client's QR codes and their counts in HQ needs `client.view`. A
+scan or a tap is reported by a script on the client's own site, so the
+report needs no permission; HQ counts it only from that client's own site,
+for one of that client's codes.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in
@@ -414,6 +427,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | Mark the times they could do for a scheduling invite | It is for their organization and still open. Only Potomac’s free half hours can be picked |
 | Sign up, confirm their email, and book a call | Anyone, while sign-up to book is on and email is set up. They become a client user of a new prospective client |
 | Turn their own "something is waiting" emails off or on | Always. Only their own |
+| Make, rename, retire and download QR codes for their own site, and see what each brought in (decision 0024) | Their own client's only, on a site HQ has for that client |
 
 A client user never sees: another client, internal notes, tasks, time,
 expenses, budgets, costs, margins, an opportunity's value, the pipeline, an

@@ -601,6 +601,26 @@ Delivery → Landing pages, and each client's Free landing page
 zips the page's repository from GitHub with `HQ_GITHUB_TOKEN`, which needs
 read access to that repository too. Without the token there is no download.
 
+## Client QR codes
+
+A client's QR codes page in HQ (Clients → a client → QR codes), and the
+portal's QR codes (`docs/decisions/0024-client-qr-codes.md`). A code needs
+an address HQ has for the client's site: Website editing's site address, a
+watched site, or their free landing page.
+
+Before a client hands out cards, put the script from that page on their
+site, **once, in the shared layout** before `</body>`, so it is on every
+page a code opens. It posts to `HQ_PUBLIC_URL/hooks/site-qr`, so
+`HQ_PUBLIC_URL` must be HQ's real https address when you copy it; if HQ's
+address ever changes, copy it again. A site with a Content Security Policy
+needs `connect-src` to allow HQ's address, and either `'unsafe-inline'`
+scripts or the script saved as a file on the site. To check it: open one of
+the client's codes on a phone, then reload the QR codes page in HQ: "HQ
+last heard from their site" changes.
+
+The address takes 60 reports a minute from one network address, and counts
+a visit's scan of a code once in 30 minutes.
+
 ## Automations
 
 Delivery → Automations, and each client's Automations

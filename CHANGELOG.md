@@ -9,6 +9,19 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **QR codes a client prints, counted from their own site** (decision 0024,
+  migration 0093). In the portal, under **QR codes**, a client makes a code
+  for each thing they print (business cards, a flyer, a truck decal) and
+  downloads it as PNG or SVG. The code is an address on their own website,
+  `https://their-site/page?ref=code`, so a card keeps working when HQ is
+  down and after they move hosts. A small script on their site (shown on
+  the client's QR codes page in HQ) reports each scan and any tap to call,
+  text or email that follows; reports it couldn't send wait in the
+  visitor's browser for their next visit. The portal shows each code's
+  scans, last 30 days and all time. HQ counts a report only from that
+  client's own site, for that client's code, once a visit in 30 minutes,
+  and keeps only what and when. New permission `site-qr.manage` (every
+  role).
 - **Delete clients, contacts, deals, proposals and projects, into a Trash**
   (decision 0023, migration 0092). Admins only (`record.delete`). Each goes
   with everything that belongs to it; what only mentions it stays with the

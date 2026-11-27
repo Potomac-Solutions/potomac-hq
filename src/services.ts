@@ -38,6 +38,8 @@ import { previewTokens, sqliteBuilderSettings, sqliteBuildStore, sqliteImageStor
 import { siteTokens } from "./public-site/adapters.ts";
 import { countyAtlas, sqliteContentSiteStore, sqlitePhotoStore } from "./websites/adapters.ts";
 import { sqliteReferralStore, symbologyQr } from "./referrals/adapters.ts";
+import type { SiteQrDeps } from "./site-qr/index.ts";
+import { sqliteSiteQrStore, symbologyQrPictures } from "./site-qr/adapters.ts";
 import type { MonitorDeps } from "./monitor/index.ts";
 import { sqliteSiteStore } from "./monitor/adapters.ts";
 import { sqliteRenewalStore } from "./renewals/adapters.ts";
@@ -174,6 +176,8 @@ export type Services = {
   readonly trash: TrashDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
+  /** QR codes a client prints, counted from their own site (decision 0024). */
+  readonly siteQr: SiteQrDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
   readonly builder: BuilderDeps;
   readonly touches: TouchDeps;
@@ -531,6 +535,38 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     },
   };
   const websites: WebsitesDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, sites: sqliteContentSiteStore(db), photos: sqlitePhotoStore(db), counties: countyAtlas(), clientName: (id) => crm.clients.get(id)?.name ?? null, publisher: options.sitePublisher ?? null, timeZone: BUSINESS_TIME_ZONE, digest: (text) => sha256Hex(new TextEncoder().encode(text)), random: (length) => crypto.getRandomValues(new Uint8Array(length)) };
+  // A client's sites, wherever HQ has them: website content, site monitoring, the free landing page.
+  const freePageAddress = (page: { readonly subdomain: string | null; readonly ownDomain: string | null } | null) => (page?.ownDomain ? `https://${page.ownDomain}` : page?.subdomain ? `https://${page.subdomain}.potomac.solutions` : "");
+  const siteAddressesOf = (organizationId: Id): string[] =>
+    [websites.sites.forOrganization(organizationId)?.siteUrl ?? "", ...monitor.sites.listFor(organizationId).filter((one) => one.active).map((one) => one.url), freePageAddress(freePages.pages.forOrganization(organizationId))].filter((address) => address !== "");
+  const hostOf = (address: string) => {
+    try {
+      return new URL(address).hostname.toLowerCase().replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  };
+  const siteQr: SiteQrDeps = {
+    users,
+    transact: sqliteTransact(db),
+    activityLog: sqliteActivityLog(db),
+    clock,
+    newId,
+    formatWhen,
+    codes: sqliteSiteQrStore(db),
+    qr: symbologyQrPictures,
+    siteAddressesOf,
+    organizationsAt: (host) => {
+      const owners = [
+        ...websites.sites.list().map((one) => ({ organizationId: one.organizationId, url: one.siteUrl })),
+        ...monitor.sites.listActive().map((one) => ({ organizationId: one.organizationId, url: one.url })),
+        ...freePages.pages.list().map((one) => ({ organizationId: one.organizationId, url: freePageAddress(one) })),
+      ];
+      return [...new Set(owners.filter((one) => one.url !== "" && hostOf(one.url) === host).map((one) => one.organizationId))];
+    },
+    clientName: (id) => crm.clients.get(id)?.name ?? null,
+    random: (length) => crypto.getRandomValues(new Uint8Array(length)),
+  };
   // Renewals bill a client through finance: an invoice with one line on one of their projects, sent.
   const billedOf = (id: Id): BilledInvoice | null => {
     const row = finance.invoices.get(id);
@@ -1038,5 +1074,5 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
 
   // The Trash reads the schema once, so it is made after every migration has run.
   const trash: TrashDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, trash: sqliteTrash(db), demoClientIds: () => (db.prepare("select id from client_organization where demo = 1 order by name collate nocase").all() as { id: string }[]).map((row) => row.id) };
-  return { trash, ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  return { trash, ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, siteQr, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
