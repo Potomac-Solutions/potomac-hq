@@ -294,13 +294,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       if (!task) return null;
       const assignee = task.assigneeId ? users.get(task.assigneeId) : null;
       const project = task.projectId ? projectStore.get(task.projectId) : null;
-      const client = project ? crm.clients.get(project.organizationId) : null;
+      const client = project?.organizationId ? crm.clients.get(project.organizationId) : null;
       return { id: task.id, title: task.title, status: task.status, priority: task.priority, dueOn: task.dueOn, startOn: task.startOn, project: project ? { id: project.id, name: project.name, client: client?.name ?? null } : null, assignee: assignee ? { name: assignee.name, email: assignee.email } : null, url: `${base}/tasks/${task.id}` };
     },
     project(id) {
       const project = projectStore.get(id);
       if (!project) return null;
-      return { id: project.id, name: project.name, status: project.status, client: crm.clients.get(project.organizationId)?.name ?? null, startOn: project.startOn, targetOn: project.targetOn, url: `${base}/projects/${project.id}` };
+      return { id: project.id, name: project.name, status: project.status, client: project.organizationId ? (crm.clients.get(project.organizationId)?.name ?? null) : null, startOn: project.startOn, targetOn: project.targetOn, url: `${base}/projects/${project.id}` };
     },
   };
   // And an AI draft is marked used when what it was for is done by hand (decision 0012).

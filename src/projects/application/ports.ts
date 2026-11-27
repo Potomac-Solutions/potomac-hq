@@ -146,6 +146,8 @@ export type TaskStore = {
   listFor(projectId: Id): TaskRow[];
   /** Tasks of active projects: every open one, and those finished at or after `doneSince`. */
   listBoard(doneSince: string): TaskRow[];
+  /** To-dos (tasks with no project) for the company board: open ones, and those done since the day given (decision 0021). */
+  listTodosForBoard(doneSince: string): TaskRow[];
 };
 
 export type DeliverableRow = Deliverable & { readonly fileName: string; readonly fileSize: number };

@@ -106,5 +106,5 @@ test("a to-do has its own page, where it takes labels and can only be to do or d
   await mikey.post(`/tasks/${id}/labels`, { newLabel: "Hosting" });
   assert.match(await mikey.page("/todos"), /<li data-colour="[a-z]+">Hosting<\/li>/);
   const refused = await mikey.post(`/tasks/${id}/status`, { to: "doing" });
-  assert.match(new URL(t.origin + where(refused)).searchParams.get("problem") ?? "", /status/);
+  assert.match(new URL(t.origin + where(refused)).searchParams.get("problem") ?? "", /A to-do is to do or done/);
 });

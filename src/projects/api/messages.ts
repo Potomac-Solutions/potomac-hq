@@ -2,6 +2,8 @@
 const MESSAGES: Readonly<Record<string, string>> = {
   forbidden: "You don’t have permission to do that.",
   "not-found": "That record doesn’t exist.",
+  "company-project": "A company project is Potomac’s own work. There’s no client for that.",
+  "todo-has-no-board": "A to-do is to do or done. Put it in a project to mark it working on or blocked.",
   "nothing-picked": "Tick at least one task first.",
   "too-many": "Change at most 100 at once.",
   "invalid-action": "Choose what to do with them.",

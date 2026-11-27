@@ -38,9 +38,11 @@ function allowed(deps: FinanceDeps, actorId: Id | null, action: string): actorId
 export function logTime(deps: FinanceDeps, actorId: Id | null, where: { readonly projectId: Id; readonly taskId?: Id | null }, input: TimeInput): Result<TimeEntry, Refused | "task-not-in-project" | TimeError> {
   if (!allowed(deps, actorId, "time.log")) return err("forbidden");
   return deps.transact(() => {
-    if (!deps.projects.get(where.projectId)) return err("not-found");
+    const project = deps.projects.get(where.projectId);
+    if (!project) return err("not-found");
     if (where.taskId && deps.tasks.get(where.taskId)?.projectId !== where.projectId) return err("task-not-in-project");
-    const entry = logEntry({ id: deps.newId(), projectId: where.projectId, taskId: where.taskId ?? null, userId: actorId }, input, deps.today());
+    // Time on a company project is never billable: there is no client (decision 0021).
+    const entry = logEntry({ id: deps.newId(), projectId: where.projectId, taskId: where.taskId ?? null, userId: actorId }, project.organizationId === null ? { ...input, billable: false } : input, deps.today());
     if (!entry.ok) return entry;
     deps.time.insert(entry.value, deps.clock());
     recordActivity(deps, {
@@ -92,7 +94,8 @@ export function applyTaskMove(deps: FinanceDeps, actorId: Id, task: Task, from: 
   const other = deps.time.running(actorId);
   if (other) stop(deps, actorId, other);
   const at = deps.clock();
-  const entry = startEntry({ id: deps.newId(), projectId: task.projectId, taskId: task.id, userId: actorId }, at, deps.today());
+  const started = startEntry({ id: deps.newId(), projectId: task.projectId, taskId: task.id, userId: actorId }, at, deps.today());
+  const entry = deps.projects.get(task.projectId)?.organizationId === null ? { ...started, billable: false } : started;
   deps.time.insert(entry, at);
   recordActivity(deps, { actorId, action: "time.started", recordType: "time-entry", recordId: entry.id, context: { projectId: task.projectId, taskId: task.id } });
 }
@@ -186,11 +189,13 @@ export function setProjectPayment(deps: FinanceDeps, actorId: Id | null, project
   });
 }
 
-export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError> {
+export function createInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: InvoiceInput): Result<Invoice, Refused | InvoiceError | "company-project"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
     const project = deps.projects.get(projectId);
     if (!project) return err("not-found");
+    // A company project is Potomac's own work: there is no one to bill (decision 0021).
+    if (project.organizationId === null) return err("company-project");
     const invoice = newInvoice({ id: deps.newId(), organizationId: project.organizationId, projectId, number: deps.invoices.nextNumber(), createdBy: actorId }, input);
     if (!invoice.ok) return invoice;
     deps.invoices.insert(invoice.value, deps.clock());
@@ -309,7 +314,7 @@ export function applyDepositDraft(deps: FinanceDeps, actorId: Id | null, accepte
   if (!accepted.deposit || accepted.deposit.minor <= 0) return null;
   if (deps.invoices.listForProject(accepted.projectId).some((invoice) => invoice.kind === "deposit" && invoice.status !== "void")) return null;
   const project = deps.projects.get(accepted.projectId);
-  if (!project) return null;
+  if (!project || project.organizationId === null) return null;
   const amount = (accepted.deposit.minor / 100).toFixed(2);
   const invoice = newInvoice(
     { id: deps.newId(), organizationId: project.organizationId, projectId: accepted.projectId, number: deps.invoices.nextNumber(), createdBy: actorId ?? accepted.ownerId },
@@ -519,11 +524,12 @@ export function recordRefund(deps: FinanceDeps, actorId: Id | null, paymentId: I
 // ── Recurring invoices ────────────────────────────────────────────────────
 
 /** Sets up a charge that repeats on a project. Permission: `invoice.edit`. */
-export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError> {
+export function addRecurringInvoice(deps: FinanceDeps, actorId: Id | null, projectId: Id, input: RecurringInput): Result<RecurringInvoice, Refused | RecurringError | "company-project"> {
   if (!allowed(deps, actorId, "invoice.edit")) return err("forbidden");
   return deps.transact(() => {
     const project = deps.projects.get(projectId);
     if (!project) return err("not-found");
+    if (project.organizationId === null) return err("company-project");
     const made = newRecurring({ id: deps.newId(), organizationId: project.organizationId, projectId, createdBy: actorId }, input);
     if (!made.ok) return made;
     deps.recurring.insert(made.value, deps.clock());
