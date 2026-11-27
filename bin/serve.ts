@@ -57,6 +57,7 @@ import { builderGithub, builderOwnersFrom, claudeApi, claudeConfigFrom, githubSi
 import { failLostRequests } from "../src/builder/index.ts";
 import { githubArchive } from "../src/free-pages/adapters.ts";
 import { createServices } from "../src/services.ts";
+import { purgeExpiredTrash } from "../src/trash/index.ts";
 import { draftWeeklyUpdates, triageNewLeads, checkNewMessages, withDiagnosis } from "../src/ai/index.ts";
 import { claudeModel } from "../src/ai/adapters.ts";
 import { alertAddressFrom, applyRetention, backupConfigFrom, createMonitor, emailConfigFrom, newId, textConfigFrom, openDatabase, runBackup, scheduleDaily, sqliteActivityLog, sqliteTransact, systemClock } from "../src/shared/adapters.ts";
@@ -231,6 +232,9 @@ const stopRetention = scheduleDaily(
   async () => {
     const removed = applyRetention({ db, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock: systemClock, newId });
     console.log(`Retention: removed ${removed.sessions} expired sessions, ${removed.links} expired links, ${removed.invites} unused invites and ${removed.receipts} unused AI receipt drafts.`);
+    // The Trash keeps a deleted record 30 days (decision 0023).
+    const purged = purgeExpiredTrash(createServices(db).trash);
+    if (purged > 0) console.log(`Trash: purged ${purged} records deleted more than 30 days ago.`);
   },
   { zone: BUSINESS_TIME_ZONE, hour: 4, minute: 7, clock: systemClock, log, name: "retention run" },
 );

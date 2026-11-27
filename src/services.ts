@@ -12,6 +12,8 @@ import { sha256Hex, sqliteBlobStore, sqliteFileRecordStore } from "./files/adapt
 import type { BookingDeps, InviteDeps, BusyCalendar, OutsideFetch, SourceDeps, LinkDeps } from "./booking/index.ts";
 import { addRenewal, renewalCashflow, type BilledInvoice, type RenewalBilling, type RenewalsDeps } from "./renewals/index.ts";
 import type { ReferralsDeps } from "./referrals/index.ts";
+import type { TrashDeps } from "./trash/index.ts";
+import { sqliteTrash } from "./trash/adapters.ts";
 import type { NewsletterDeps } from "./newsletter/index.ts";
 import type { LeadsDeps } from "./leads/index.ts";
 import type { FreePagesDeps } from "./free-pages/index.ts";
@@ -168,6 +170,8 @@ export type Services = {
   readonly referralCredit: ReferralCreditDeps;
   /** The Lab's demos, sent to prospects, and who opened them (decision 0013, section 8). */
   readonly demos: DemosDeps;
+  /** Deleting into the Trash, putting back and purging (decision 0023). */
+  readonly trash: TrashDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
@@ -1032,5 +1036,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     state: (actorId) => featureState(ai, actorId, "assistant"),
   };
 
-  return { ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
+  // The Trash reads the schema once, so it is made after every migration has run.
+  const trash: TrashDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, formatWhen, trash: sqliteTrash(db), demoClientIds: () => (db.prepare("select id from client_organization where demo = 1 order by name collate nocase").all() as { id: string }[]).map((row) => row.id) };
+  return { trash, ai, assistant, placesFor, pins, weekly, push, replies, requests, intake, feedback, handoff, texting, autopay, notices, webhooks, publicSite, websites, builder, referrals, newsletter, leads, freePages, clientReports, automations, showcase, referralCredit, demos, booking, sources, links, clientImport, invoiceReminders, renewals, social, monitor, touches, calls, todos, day, morning, invites, session, twoFactor, refused: { users, refused: sqliteRefusedLog(db), clock, newId, formatWhen }, staff, crm, dashboard, audit, search: searchDeps, projects, notes, knowledge, proposals, finance, portal, renderInvoicePdf, renderProposalPdf, today, formatWhen };
 }
