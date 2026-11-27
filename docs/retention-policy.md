@@ -29,6 +29,7 @@ Each night at 4:07 AM Eastern, and whenever `npm run retention` is run:
 | One-time links (setup, invite, password reset) that expired or were used | 30 days after they stopped working | The same |
 | Invites to HQ that nobody used | 30 days | The link stopped working after 7 |
 | An AI receipt draft nobody used or discarded, and its picture (decision 0012) | 30 days, then discarded by HQ | Decided by Mikey 2026-11-25. A receipt that was used is kept with its expense, as a tax record |
+| A deleted client, contact, deal, proposal or project, with everything that went with it, in the Trash (decision 0023) | 30 days, then purged by HQ | Long enough to notice a mistake and put it back. An admin can purge sooner. A real client's payments and signed agreements can't be deleted at all |
 
 A run that removes something writes one activity event with the counts. A
 run that removes nothing writes none.

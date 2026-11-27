@@ -16,7 +16,7 @@
     if (stop) return stop
     const view = context.proposals.detail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.proposal.title, view: view.value, history: context.history('proposal', params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.proposal.title, view: view.value, history: context.history('proposal', params.id), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.proposal
 </script>
@@ -29,7 +29,7 @@
   .totals dt { color: var(--muted-foreground); }
   .totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 </style>
-<hq-proposal view={{ proposal: {}, opportunity: {}, client: {}, rows: [], summary: {}, versions: [], agreements: [], can: {}, pricings: [], kinds: [], methods: [], decision: null, project: null }} history={[]} done="" problem="">
+<hq-proposal view={{ proposal: {}, opportunity: {}, client: {}, rows: [], summary: {}, versions: [], agreements: [], can: {}, pricings: [], kinds: [], methods: [], decision: null, project: null }} history={[]} can-delete={false} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Proposals', href: '/proposals' }, { label: view.client.name, href: `/clients/${view.client.id}` }, { label: view.opportunity.title, href: `/opportunities/${view.opportunity.id}` }, { label: p.title, href: '' }]}></breadcrumb-trail>
     <h1>{p.title}</h1>
@@ -168,5 +168,10 @@
       </form>
     </section>
     <history-panel items={history}></history-panel>
+    <section zb-if={canDelete} class="hq-panel" aria-labelledby="proposal-delete">
+      <h2 id="proposal-delete">Delete this proposal</h2>
+      <p class="hq-muted hq-small">For a test or a mistake. It goes to the Trash with its versions, and can be put back for 30 days. The deal stays. A signed proposal at a real client stays.</p>
+      <p><a class="hq-button secondary" href="/delete?kind=proposal&ids={view.proposal.id}&back=/proposals">Delete proposal…</a></p>
+    </section>
   </div>
 </hq-proposal>

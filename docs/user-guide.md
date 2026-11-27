@@ -63,6 +63,23 @@ typing in.
 the last day that can still be put back, each with its own Undo, so a
 mistake you notice later can still be undone.
 
+## Deleting, and the Trash
+
+Admins can delete a client, a contact, a deal, a proposal or a project:
+*Delete…* at the bottom of its page, or *Delete* beside a contact. To clear
+out test data, tick rows on the Clients or Proposals list and choose
+*Delete the picked ones…*, or *Delete all demo clients…*.
+
+HQ first shows what each would take with it, and which it keeps. A real
+client's payments and signed agreements are never deleted: mark the client
+Former instead, or mark it a demo if it was only ever a test.
+
+A delete goes to the **Trash** (Company → Trash), with everything that went
+with it. *Undo* puts it back straight away; from the Trash, *Put back* does
+for 30 days, exactly as it was. After that it's deleted for good, or sooner
+with *Delete for good* or *Empty the Trash*. The activity log keeps a line
+for each.
+
 ## Getting around by keyboard
 
 - **Ctrl+K** (⌘K), or **Go to…** in the top bar: go to any page, client,

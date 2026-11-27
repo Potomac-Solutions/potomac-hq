@@ -1,0 +1,59 @@
+<!--
+  Asks before a delete (decision 0023): what each record would take with it,
+  which are kept because they hold real money records, and the button that
+  moves the rest to the Trash. Reached from a record's Delete link, or from a
+  list's ticked rows.
+-->
+<script>
+  'use route /delete'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, url }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const kind = url.searchParams.get('kind') ?? ''
+    const ids = url.searchParams.get('demo') === 'all' ? 'demo-clients' : url.searchParams.getAll('ids').flatMap((one) => one.split(','))
+    const back = url.searchParams.get('back') ?? ''
+    const safe = /^\/[a-z]/.test(back) && !back.includes('//') ? back : '/trash'
+    const view = context.trash.preview(kind, ids)
+    if (view === null) return context.forbidden()
+    if (!view.ok && view.error === 'forbidden') return context.forbidden()
+    return { title: 'Delete?', view: view.ok ? view.value : null, problem: view.ok ? '' : view.error === 'nothing' ? 'Nothing was ticked. Go back and tick the ones to delete.' : view.error === 'too-many' ? 'Delete up to 100 at a time.' : 'That’s already gone.', back: safe }
+  }
+</script>
+<style>
+  .delete-list { list-style: none; margin: 0; padding: 0; }
+  .delete-list > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+  .delete-list > li:first-child { border-top: 0; }
+  .delete-list p { margin: 0 0 0.25rem; overflow-wrap: anywhere; }
+  .delete-kept { color: var(--muted-foreground); }
+  .delete-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 1rem; }
+</style>
+<hq-delete view={null} problem="" back="/trash">
+  <div class="hq-page">
+    <h1 zb-if={view}>Delete {view.count === 1 ? 'this ' + view.kindLabel : view.count + ' ' + view.kindLabel + 's'}?</h1>
+    <h1 zb-else>Nothing to delete</h1>
+    <div zb-if={problem} class="hq-notices"><alert-banner variant="danger">{problem}</alert-banner></div>
+    <section zb-if={view} class="hq-panel" aria-labelledby="delete-what">
+      <h2 id="delete-what" class="sr-only">What goes</h2>
+      <ul class="delete-list">
+        <zb-each items={view.items} as="item" key={item.id}>
+          <li class={item.refused ? 'delete-kept' : ''}>
+            <p><strong>{item.label}</strong><span zb-if={item.clientName}>, at {item.clientName}</span></p>
+            <p zb-if={!item.refused} class="hq-small">Goes with it: {item.takes}.</p>
+            <p zb-else class="hq-small"><strong>Kept:</strong> {item.refused}</p>
+          </li>
+        </zb-each>
+      </ul>
+      <p zb-if={view.count > 0} class="hq-muted hq-small" data-spaced>It goes to the Trash, where an admin can put it back, exactly as it was, for 30 days. Then it’s deleted for good. The activity log keeps a line that it happened.</p>
+      <form zb-if={view.count > 0} method="post" action="/delete" class="delete-actions">
+        <input type="hidden" name="kind" value={view.kind}>
+        <input type="hidden" name="ids" value={view.ids}>
+        <input type="hidden" name="back" value={back}>
+        <button class="hq-button danger" type="submit">Move {view.count === 1 ? 'it' : 'them'} to the Trash</button>
+        <a class="hq-button secondary" href={back}>Cancel</a>
+      </form>
+      <p zb-else data-spaced><a class="hq-button secondary" href={back}>Go back</a></p>
+    </section>
+    <p zb-else><a class="hq-button secondary" href={back}>Go back</a></p>
+  </div>
+</hq-delete>

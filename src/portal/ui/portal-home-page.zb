@@ -20,12 +20,13 @@
     const automations = context.automations.mine()
     const review = context.showcase.mayWrite()
     const referrals = context.referralCredit.mine()
+    const qrCodes = context.siteQr.mine()
     // Changes Potomac sent back come first: the client is the one being waited on.
     const fixes = website && website.note ? [{ key: 'w-note', text: 'Your website changes need another look', detail: website.note, href: '/portal/website', action: 'Open' }] : []
     const autopay = context.autopay.portal()
     const auto = Object.fromEntries(autopay.bills.map((bill) => ['i-' + bill.invoiceId, bill]))
     const waiting = home.attention.filter((item) => !auto[item.key] || auto[item.key].state === 'retry' || auto[item.key].state === 'failed').map((item) => (auto[item.key] ? { ...item, detail: auto[item.key].words } : item))
-    return { title: 'Your portal', unhappy: context.feedback.unhappy(), auto: Object.fromEntries(autopay.bills.map((bill) => [bill.invoiceId, bill])), autopay, texts: context.texts.portal(), rate: context.feedback.waiting(), intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...waiting] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Your portal', unhappy: context.feedback.unhappy(), auto: Object.fromEntries(autopay.bills.map((bill) => [bill.invoiceId, bill])), autopay, texts: context.texts.portal(), rate: context.feedback.waiting(), intakeSent: context.intake.portal().sent, openAsks: context.requests.portal().items.filter((one) => one.open).length, cardPay: context.cardPay.ready(), landing, reports, automations, review, referrals, qrCodes: qrCodes && (qrCodes.sites.length > 0 || qrCodes.active.length > 0) ? qrCodes : null, renewals: context.renewals.mine(), website, social: context.social.mine(''), view: { ...home, attention: [...fixes, ...context.social.waitingOnMe(), ...picks, ...waiting] }, booking: context.booking.portal(), contact: context.portal.contact, emails: context.portal.notices, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
@@ -34,7 +35,7 @@
   .portal-rate-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .portal-rate-buttons .hq-button { min-width: 3rem; justify-content: center; }
 </style>
-<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" autopay={{ offered: false, on: false, label: "", platform: "", since: "", bills: [] }} auto={{}} unhappy={false} texts={{ available: false, on: false, phone: "" }} rate={[]} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
+<hq-portal-home view={{ attention: [], projects: [], latest: [], messageProjects: [], proposals: [], invoices: [], calls: [], payInstructions: '', paymentYears: [] }} card-pay={{ on: false, test: false, label: '' }} open-asks={0} intake-sent="" autopay={{ offered: false, on: false, label: "", platform: "", since: "", bills: [] }} auto={{}} unhappy={false} texts={{ available: false, on: false, phone: "" }} rate={[]} website={null} landing={null} reports={[]} automations={[]} review={false} referrals={null} qr-codes={null} social={null} renewals={[]} booking={{ open: false, calls: [] }} contact={{}} emails={false} done="" problem="">
   <div class="hq-page">
     <h1>{view.organizationName}</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -98,6 +99,12 @@
       <p><a class="hq-button portal-big" href="/portal/intake">Tell us about your business</a></p>
     </section>
 
+    <section zb-if={qrCodes} class="hq-panel" id="qr-codes" aria-labelledby="portal-qr-codes">
+      <h2 id="portal-qr-codes">QR codes for your cards and flyers</h2>
+      <p zb-if={qrCodes.active.length > 0}>{qrCodes.totals.recentScans} {qrCodes.totals.recentScans === 1 ? 'scan' : 'scans'} in the last 30 days, across {qrCodes.active.length} {qrCodes.active.length === 1 ? 'code' : 'codes'}.</p>
+      <p zb-else class="hq-muted">Make a QR code that opens your website, and see how many people scan it.</p>
+      <a class="hq-button portal-big" href="/portal/qr-codes">{qrCodes.active.length > 0 ? 'See your QR codes' : 'Make a QR code'}</a>
+    </section>
     <section zb-if={referrals && referrals.link} class="hq-panel" id="refer" aria-labelledby="portal-refer">
       <h2 id="portal-refer">Send a friend our way</h2>
       <p>Know a business that could use a hand? Share your link. When someone you send becomes a client and pays their first invoice, you get {referrals.creditEach} off your next one.</p>

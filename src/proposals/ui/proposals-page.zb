@@ -10,10 +10,10 @@
     if (stop) return stop
     const view = context.proposals.list()
     if (!view.ok) return context.forbidden()
-    return { title: 'Proposals', view: view.value, done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Proposals', view: view.value, canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-proposals view={{ proposals: [] }} done="" problem="">
+<hq-proposals view={{ proposals: [] }} can-delete={false} done="" problem="">
   <div class="hq-page">
     <h1>Proposals</h1>
     <div zb-if={done || problem} class="hq-notices">
@@ -24,10 +24,11 @@
       <h2 id="proposal-list" class="sr-only">Proposal list</h2>
       <empty-state zb-if={view.proposals.length === 0} heading="No proposals yet">Start one from an opportunity’s page, once you know what the client needs.</empty-state>
       <table tabindex="0" zb-else class="hq-table">
-        <thead><tr><th scope="col">Proposal</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
+        <thead><tr><th zb-if={canDelete} scope="col"><span class="sr-only">Pick</span></th><th scope="col">Proposal</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Version</th><th scope="col" class="hq-number">Price</th></tr></thead>
         <tbody>
           <zb-each items={view.proposals} as="proposal" key={proposal.id}>
             <tr>
+              <td zb-if={canDelete}><input type="checkbox" name="ids" value={proposal.id} form="proposals-delete" aria-label="Pick {proposal.title}, {proposal.clientName}"></td>
               <td><a href="/proposals/{proposal.id}">{proposal.title}</a></td>
               <td>{proposal.clientName}</td>
               <td>{proposal.statusLabel}</td>
@@ -37,6 +38,12 @@
           </zb-each>
         </tbody>
       </table>
+      <form zb-if={canDelete && view.proposals.length > 0} id="proposals-delete" method="get" action="/delete" class="hq-form-row" data-spaced>
+        <input type="hidden" name="kind" value="proposal">
+        <input type="hidden" name="back" value="/proposals">
+        <button class="hq-button secondary" type="submit">Delete the picked ones…</button>
+        <a class="hq-small" href="/trash">Trash</a>
+      </form>
     </section>
   </div>
 </hq-proposals>

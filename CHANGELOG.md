@@ -17,6 +17,27 @@ moves those lines under a version heading. See `docs/conventions.md`.
   photos, with any other sizes its `srcSet` names. A site without the list
   never shows the section. See the addition to decision 0003, including
   the order to roll it out to a site already set up.
+- **QR codes a client prints, counted from their own site** (decision 0024,
+  migration 0093). In the portal, under **QR codes**, a client makes a code
+  for each thing they print (business cards, a flyer, a truck decal) and
+  downloads it as PNG or SVG. The code is an address on their own website,
+  `https://their-site/page?ref=code`, so a card keeps working when HQ is
+  down and after they move hosts. A small script on their site (shown on
+  the client's QR codes page in HQ) reports each scan and any tap to call,
+  text or email that follows; reports it couldn't send wait in the
+  visitor's browser for their next visit. The portal shows each code's
+  scans, last 30 days and all time. HQ counts a report only from that
+  client's own site, for that client's code, once a visit in 30 minutes,
+  and keeps only what and when. New permission `site-qr.manage` (every
+  role).
+- **Delete clients, contacts, deals, proposals and projects, into a Trash**
+  (decision 0023, migration 0092). Admins only (`record.delete`). Each goes
+  with everything that belongs to it; what only mentions it stays with the
+  link cleared. A page first says what each would take, and Undo puts it
+  back at once. The Trash keeps it 30 days to put back exactly as it was,
+  then the nightly run purges it. A real client's payments and signed
+  agreements are kept; a demo client goes with everything. Ticks on the
+  Clients and Proposals lists, and *Delete all demo clients*.
 - **Company projects and the company board** (decision 0021, migration
   0089). Admins and managers start a *company project* from the Projects
   page: Potomac's own work, like training and certifications, with no
