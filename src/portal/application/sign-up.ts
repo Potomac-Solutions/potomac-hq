@@ -37,7 +37,10 @@ export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: Sign
   // Check the fields first, so nothing is made for a sign-up that will be refused.
   const draft = newClientUser({ id: deps.newId(), organizationId: deps.newId(), invitedBy: ownerId }, { name: input.name, email });
   if (!draft.ok) return err(draft.error === "invalid-email" ? "email-invalid" : draft.error === "name-too-long" ? "name-too-long" : "name-missing");
-  const token = await deps.auth.invite(email, draft.value.name);
+  // A sign-in left from clients that were deleted (decision 0023) is reused, with a link to set a new password.
+  const orphan = deps.auth.accountFor(email);
+  if (orphan !== null) await deps.auth.setDisabled(orphan, false);
+  const token = orphan !== null ? await deps.auth.resetLink(orphan) : await deps.auth.invite(email, draft.value.name);
   if (token === null) return ok(null);
   const prospect = recordSignUp(deps, ownerId, { ...input, email });
   if (!prospect.ok) return prospect;

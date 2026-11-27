@@ -90,6 +90,8 @@ export const PERMISSIONS = [
   "automation.manage",
   "review.manage",
   "demo.manage",
+  // The Trash (decision 0023)
+  "record.delete",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -107,6 +109,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "webhook.manage",
   "site.build",
   "ai.manage",
+  "record.delete",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

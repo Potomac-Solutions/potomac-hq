@@ -20,11 +20,11 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, feedback: context.feedback.forProject(params.id), notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: view.value.company ? { can: false, items: [], me: '', firstName: '' } : context.replies(view.value.clientId), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, feedback: context.feedback.forProject(params.id), notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: view.value.company ? { can: false, items: [], me: '', firstName: '' } : context.replies(view.value.clientId), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project feedback={null} ai-models={[]} view={{ company: false, project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} done="" problem="">
+<hq-project feedback={null} ai-models={[]} view={{ company: false, project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} can-delete={false} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={view.company ? [{ label: 'Projects', href: '/projects' }, { label: p.name, href: '' }] : [{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -332,5 +332,10 @@
     <notes-panel notes={notes}></notes-panel>
     </div>
     </div>
+    <section zb-if={canDelete} class="hq-panel" aria-labelledby="project-delete">
+      <h2 id="project-delete">Delete this project</h2>
+      <p class="hq-muted hq-small">For a test or a mistake. It goes to the Trash with its tasks, time, expenses, invoices, deliverables and files, and can be put back for 30 days. The client and the deal stay. A project with payments at a real client stays.</p>
+      <p><a class="hq-button secondary" href="/delete?kind=project&ids={view.project.id}&back=/projects">Delete project…</a></p>
+    </section>
   </div>
 </hq-project>

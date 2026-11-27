@@ -99,7 +99,10 @@ export async function inviteClientUser(deps: PortalDeps, actorId: Id | null, org
     });
     return ok({ user: joined, path: null });
   }
-  const token = await deps.auth.invite(user.value.email, user.value.name);
+  // Someone whose clients were all deleted still has their sign-in (decision 0023): they get a link to set a new password with it.
+  const orphan = deps.auth.accountFor(user.value.email);
+  if (orphan !== null) await deps.auth.setDisabled(orphan, false);
+  const token = orphan !== null ? await deps.auth.resetLink(orphan) : await deps.auth.invite(user.value.email, user.value.name);
   if (token === null) return err("already-invited");
   deps.transact(() => {
     deps.clientUsers.insert(user.value, deps.clock());

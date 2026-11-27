@@ -68,6 +68,7 @@ Nobody can edit or delete an activity event. There is no permission for it.
 | Change a client's status, or mark it a demo | `client.set-status` | Yes | Yes | Yes | No |
 | Merge a duplicate client into another | `client.set-status` and `opportunity.view-value` | Yes | Yes | No | No |
 | Create or edit a contact | `contact.edit` | Yes | Yes | Yes | No |
+| Delete a client, contact, deal, proposal or project into the Trash, put it back, or purge it (decision 0023) | `record.delete` | Yes | No | No | No |
 
 ### Opportunities (v0.2)
 
