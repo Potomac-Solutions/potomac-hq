@@ -172,7 +172,7 @@ export type Services = {
   readonly demos: DemosDeps;
   /** Website content: what a client may change on their own site, and publishing it. */
   readonly websites: WebsitesDeps;
-  /** QR codes a client prints, counted from their own site (decision 0023). */
+  /** QR codes a client prints, counted from their own site (decision 0024). */
   readonly siteQr: SiteQrDeps;
   /** The site builder: client websites made with Claude (decision 0010). */
   readonly builder: BuilderDeps;

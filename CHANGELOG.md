@@ -9,8 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
-- **QR codes a client prints, counted from their own site** (decision 0023,
-  migration 0092). In the portal, under **QR codes**, a client makes a code
+- **QR codes a client prints, counted from their own site** (decision 0024,
+  migration 0093). In the portal, under **QR codes**, a client makes a code
   for each thing they print (business cards, a flyer, a truck decal) and
   downloads it as PNG or SVG. The code is an address on their own website,
   `https://their-site/page?ref=code`, so a card keeps working when HQ is

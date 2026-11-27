@@ -1,4 +1,4 @@
-// Client QR codes (decision 0023): the forms, in the portal and in HQ; the
+// Client QR codes (decision 0024): the forms, in the portal and in HQ; the
 // pictures to download; and the address the script on a client's site
 // reports scans to.
 import { Hono } from "hono";

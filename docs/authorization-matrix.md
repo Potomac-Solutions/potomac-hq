@@ -388,7 +388,7 @@ Once started, a company project is worked like any other: its name,
 status, owner, phases and tasks need the keys above. No client user ever
 sees one, since it belongs to no client.
 
-### QR codes a client prints (decision 0023)
+### QR codes a client prints (decision 0024)
 
 Decided 2026-11-27 by Mikey; the role split is a **Default** to confirm.
 
@@ -426,7 +426,7 @@ never shared, answers "not found", the same as a record that does not exist.
 | Mark the times they could do for a scheduling invite | It is for their organization and still open. Only Potomac’s free half hours can be picked |
 | Sign up, confirm their email, and book a call | Anyone, while sign-up to book is on and email is set up. They become a client user of a new prospective client |
 | Turn their own "something is waiting" emails off or on | Always. Only their own |
-| Make, rename, retire and download QR codes for their own site, and see what each brought in (decision 0023) | Their own client's only, on a site HQ has for that client |
+| Make, rename, retire and download QR codes for their own site, and see what each brought in (decision 0024) | Their own client's only, on a site HQ has for that client |
 
 A client user never sees: another client, internal notes, tasks, time,
 expenses, budgets, costs, margins, an opportunity's value, the pipeline, an

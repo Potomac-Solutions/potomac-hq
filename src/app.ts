@@ -541,7 +541,7 @@ export type PageContext = {
     site(id: string, wider?: number): ReturnType<typeof staffWebsite>;
     forClient(id: string): ClientWebsiteView | null;
   };
-  /** QR codes a client prints, counted from their own site (decision 0023). */
+  /** QR codes a client prints, counted from their own site (decision 0024). */
   readonly siteQr: {
     /** The signed-in client's codes, or null when signed out. */
     mine(): CodesView | null;
@@ -1876,7 +1876,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   );
   // n8n checking in (decision 0013, section 5): no cookie and no Origin, the token is the key.
   const allowCheckIn = sqliteRateLimit(db, { name: "automation-check-in", max: 120, windowMs: 60_000 });
-  // A client's site reporting a scan of one of their QR codes (decision 0023): no cookie, from any origin.
+  // A client's site reporting a scan of one of their QR codes (decision 0024): no cookie, from any origin.
   const allowSiteQr = sqliteRateLimit(db, { name: "site-qr-report", max: 60, windowMs: 60_000 });
   const siteQrRepeat = sqliteRateLimit(db, { name: "site-qr-repeat", max: 1, windowMs: 30 * 60_000 });
   web.route("/", siteQrHookRoutes({ siteQr: services.siteQr, addressOf: (incoming) => (incoming ? clientAddressOf(incoming as IncomingMessage) : ""), allow: allowSiteQr, firstInWindow: siteQrRepeat }));

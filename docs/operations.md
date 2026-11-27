@@ -604,7 +604,7 @@ read access to that repository too. Without the token there is no download.
 ## Client QR codes
 
 A client's QR codes page in HQ (Clients → a client → QR codes), and the
-portal's QR codes (`docs/decisions/0023-client-qr-codes.md`). A code needs
+portal's QR codes (`docs/decisions/0024-client-qr-codes.md`). A code needs
 an address HQ has for the client's site: Website editing's site address, a
 watched site, or their free landing page.
 

@@ -1,4 +1,4 @@
-// Client QR codes over real HTTP (decision 0023): a client makes codes in the
+// Client QR codes over real HTTP (decision 0024): a client makes codes in the
 // portal for their own site, downloads them, and sees what their site's
 // script reported; Potomac's people see the same and the script. A report
 // counts only from that client's own site, for that client's code, once in

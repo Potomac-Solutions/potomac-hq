@@ -419,7 +419,7 @@ link, once.
   phone call, is not.
 - The success rate is inquiries over scans.
 
-## Client QR codes (decision 0023)
+## Client QR codes (decision 0024)
 
 A client's own codes, for their cards and flyers. Unlike referral links,
 these never pass through HQ: the code is an address on the client's site.

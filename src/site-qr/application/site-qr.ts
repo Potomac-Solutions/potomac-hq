@@ -1,4 +1,4 @@
-// QR codes a client prints, counted from their own site (decision 0023).
+// QR codes a client prints, counted from their own site (decision 0024).
 // A client makes them in the portal; Potomac's people make them on the
 // client in HQ with `site-qr.manage`. A scan never passes through HQ: the
 // script on the client's site reports it, and HQ counts it.

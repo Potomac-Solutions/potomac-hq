@@ -1,4 +1,4 @@
-# 0023. QR codes a client prints, counted from their own site
+# 0024. QR codes a client prints, counted from their own site
 
 Status: decided 2026-11-27 at Mikey's request, written as a client: "I want
 to be able to generate a QR code to put on my business cards or flyers with
@@ -92,7 +92,7 @@ marked **Default**: Claude's pick, to be confirmed or changed in review.
 
 ## Data
 
-- Migration 0092: `site_qr_code` (client, code, label, site, page, retired
+- Migration 0093: `site_qr_code` (client, code, label, site, page, retired
   or not, who made it) and `site_qr_event` (code, kind, when); and the new
   permission.
 - Events: `site-qr.created`, `site-qr.renamed`, `site-qr.retired`,

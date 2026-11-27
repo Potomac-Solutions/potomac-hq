@@ -1,4 +1,4 @@
-// QR pictures for a client's codes (decision 0023), drawn by symbology like
+// QR pictures for a client's codes (decision 0024), drawn by symbology like
 // referral links' are: an SVG, sharp at any size, and a PNG for print shops
 // that won't take one. The PNG is a plain black-and-white image, 1,200
 // pixels square or a little more, with a quiet zone of four modules.

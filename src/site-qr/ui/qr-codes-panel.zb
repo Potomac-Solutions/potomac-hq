@@ -1,5 +1,5 @@
 <!--
-  A client's QR codes (decision 0023): each one's picture and address on
+  A client's QR codes (decision 0024): each one's picture and address on
   their own site, what it brought in, and the forms to make, rename, retire
   and remove them. Used in the client's portal and on the client in HQ:
   `view.base` is where the forms post, `pictures` where the pictures are,

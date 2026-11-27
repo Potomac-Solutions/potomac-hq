@@ -1,4 +1,4 @@
-// Client QR codes in a real browser (decision 0023): a client makes a code on
+// Client QR codes in a real browser (decision 0024): a client makes a code on
 // their phone, in the portal, and its picture loads; their site reports a
 // scan; the client and Potomac see the count. Each screen is checked for
 // accessibility, light and dark.

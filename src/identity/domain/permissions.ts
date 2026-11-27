@@ -90,7 +90,7 @@ export const PERMISSIONS = [
   "automation.manage",
   "review.manage",
   "demo.manage",
-  // QR codes a client prints (decision 0023)
+  // QR codes a client prints (decision 0024)
   "site-qr.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

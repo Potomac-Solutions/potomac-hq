@@ -1,4 +1,4 @@
--- QR codes a client prints, counted from their own site (decision 0023). A
+-- QR codes a client prints, counted from their own site (decision 0024). A
 -- code is an address on the client's site, so a scan never passes through
 -- HQ; a script on the site reports scans and taps here.
 create table site_qr_code (

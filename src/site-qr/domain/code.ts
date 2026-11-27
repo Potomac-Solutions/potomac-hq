@@ -1,4 +1,4 @@
-// QR codes a client prints on business cards and flyers (decision 0023). A
+// QR codes a client prints on business cards and flyers (decision 0024). A
 // code is an address on the client's own site, `https://site/page?ref=code`,
 // so scanning it never passes through HQ: the card keeps working when HQ is
 // down, or after the client moves hosts. A small script on their site tells
