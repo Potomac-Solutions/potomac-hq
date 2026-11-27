@@ -2,8 +2,8 @@
 
 Status: decided 2026-11-27 at Mikey's request. He has test clients,
 contacts and proposals he wants to purge, and couldn't: nothing in HQ could
-be deleted. He chose each option below; choices he didn't make are marked
-**Default**: Claude's pick, to be confirmed or changed in review.
+be deleted. He chose each option below. The two choices he didn't make
+were Claude's picks, and he confirmed both on 2026-11-27.
 
 ## Decision
 
@@ -25,7 +25,7 @@ What only *mentions* a deleted record stays, with that link cleared: another
 client's deal it referred, a logged call with a contact, the client's
 billing contact. Restoring puts the link back.
 
-**Default:** invoices, tasks and other records aren't deleted one by one
+**Confirmed:** invoices, tasks and other records aren't deleted one by one
 here; they have their own void, archive and remove.
 
 ### 2. The Trash, then purge (Mikey's choice)
@@ -61,7 +61,7 @@ see the Trash.
   ones*, and *Delete all demo clients*.
 - Every delete first opens a page saying what each would take with it
   ("1 project, 14 tasks, 3 invoices and 40 other records") and which are
-  kept and why. Up to 100 at a time. **Default:** each record goes in its
+  kept and why. Up to 100 at a time. **Confirmed:** each record goes in its
   own transaction, so one that's refused doesn't hold up the rest.
 
 ### 6. How it works
