@@ -460,7 +460,7 @@ operational estimates.
 | --- | --- | --- |
 | `id` | id | |
 | `project_id` | id | Required |
-| `category` | `software`, `hosting`, `domain`, `contractor`, `hardware`, `travel`, `supplies`, `other` | Required |
+| `category` | `software`, `hosting`, `domain`, `contractor`, `hardware`, `travel`, `supplies`, `training`, `licenses`, `other` (the two from migration 0090) | Required |
 | `amount_minor`, `currency` | money | Above zero |
 | `spent_on` | date | Not in the future |
 | `note` | text | Optional |

@@ -117,3 +117,30 @@ test("a company project bills nothing: no invoices, no client milestones, and it
   assert.equal(running.billable, false);
   assert.equal(running.clientName, "Company work");
 });
+
+test("a company project's costs are business expenses: training and filing fees, in the expense list and the tax pack", () => {
+  const training = unwrap(projects.startCompanyProject(t.services.projects, mikey, { name: "Training and certifications", kind: "ongoing" }));
+  const setup = unwrap(projects.startCompanyProject(t.services.projects, mikey, { name: "Going live", kind: "fixed" }));
+
+  unwrap(finance.addExpense(t.services.finance, jayanti, training.id, { category: "training", amount: "300", on: TODAY, note: "AWS Solutions Architect exam" }));
+  unwrap(finance.addExpense(t.services.finance, mikey, setup.id, { category: "licenses", amount: "100", on: TODAY, note: "LLC articles of organization" }));
+
+  const listed = t.services.finance.expenses.list({ from: "2026-01-01", to: "2026-12-31" });
+  assert.deepEqual(
+    listed.map((e) => [e.projectName, e.clientName, e.category, e.amount.minor]).sort(),
+    [
+      ["Going live", "Company work", "licenses", 10000],
+      ["Training and certifications", "Company work", "training", 30000],
+    ],
+  );
+
+  const money = unwrap(finance.projectMoney(t.services.finance, mikey, training.id));
+  assert.equal(money.company, true);
+  assert.equal(money.can.viewInvoices, false);
+  assert.equal(money.can.addExpense, true);
+  assert.deepEqual(money.expenses.map((e) => e.categoryLabel), ["Training and certifications"]);
+  assert.ok(money.categories.some((c) => c.value === "licenses" && c.label === "Licenses, permits and filing fees"));
+
+  const pack = unwrap(finance.taxPack(t.services.finance, mikey, 2026));
+  assert.ok(pack.bytes.length > 0);
+});
