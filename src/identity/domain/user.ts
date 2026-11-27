@@ -13,7 +13,12 @@ export type User = {
   /** Stored lower-case. */
   readonly email: string;
   readonly status: UserStatus;
+  /** When they were removed from HQ (decision 0025). A removed user is also turned off. */
+  readonly removedAt?: string | null;
 };
+
+/** The email a removed user's row and sign-in account keep, so their real one can be invited again. */
+export const retiredEmail = (id: string): string => `removed-${id}@removed.invalid`;
 
 export type UserError = "invalid-name" | "invalid-email" | "invalid-staff-account";
 

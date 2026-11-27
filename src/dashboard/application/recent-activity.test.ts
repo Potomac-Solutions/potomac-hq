@@ -24,7 +24,7 @@ function deps(access: Access | null): RecentActivityDeps & { asked: { scope: str
     rolesOf: () => [],
     setRoles: () => {},
     setStatus: () => {},
-    activeAdminsOtherThan: () => 0,
+    activeAdminsOtherThan: () => 0, listEverybody: () => [], markRemoved: () => undefined,
   };
   const activity: ActivityReader = {
     forRecord: (recordType, recordId) => (recordType === "invoice" ? [{ id: id(3), occurredAt: "2026-11-15T03:00:00Z", action: "invoice.sent", actorName: "Mikey Nichols" }] : []),

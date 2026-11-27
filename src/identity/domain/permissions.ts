@@ -8,6 +8,8 @@ export const PERMISSIONS = [
   "user.set-status",
   "user.set-roles",
   "user.reset",
+  // Removing a member (decision 0025)
+  "user.remove",
   "dashboard.view",
   "activity.view",
   "activity.view-all",
@@ -102,6 +104,7 @@ export type RoleKey = (typeof ROLE_KEYS)[number];
 
 const ADMIN_ONLY: readonly Permission[] = [
   "user.invite",
+  "user.remove",
   "user.set-status",
   "user.set-roles",
   "user.reset",

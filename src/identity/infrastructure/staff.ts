@@ -89,6 +89,16 @@ export function accountAdmin(staff: Staff, store: KitStore): AccountAdmin {
       if (!by) return false;
       return Boolean((await staff.setRoles({ account: by.account }, staffAccount, admin ? ["owner", "staff"] : ["staff"])).ok);
     },
+    // The kit has no way to delete an account (decision 0025), so this
+    // retires it in its own store: off, its sessions ended, no password that
+    // can ever match, and an email nobody has, so the real one is free.
+    async retire(staffAccount, email) {
+      // No account means nothing can sign in as them: already retired.
+      if (!store.get("accounts", staffAccount)) return true;
+      await store.write("accounts", staffAccount, { disabled: true, roles: ["staff"], email, hash: "", retiredAt: Date.now() });
+      await staff.endSessions(staffAccount);
+      return true;
+    },
     // The kit has no way to take back a link, so this marks it used, as the
     // kit does when a link is accepted. The kit refuses a used link.
     spendInviteLinks(email) {

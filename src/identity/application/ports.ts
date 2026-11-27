@@ -15,8 +15,12 @@ export type UserStore = {
   /** The user who signs in with this kit staff account, or null. */
   findByStaffAccount(staffAccount: string): User | null;
   get(userId: Id): User | null;
-  /** Every user, by name. */
+  /** Every user not removed from HQ, by name. */
   list(): User[];
+  /** Every user ever, removed ones too, by name: for naming who did past work. */
+  listEverybody(): User[];
+  /** Marks a user removed: turned off, no roles, and this email in place of theirs (decision 0025). */
+  markRemoved(userId: Id, email: string, at: string): void;
   /** The theme a user chose, or "system" if they never chose. */
   themeOf(userId: Id): Theme;
   setTheme(userId: Id, theme: Theme, at: string): void;
@@ -58,6 +62,32 @@ export type AccountAdmin = {
   setAdmin(staffAccount: string, admin: boolean): Promise<boolean>;
   /** Spends every unused invite link for this email, so none of them makes an account. Answers how many. */
   spendInviteLinks(email: string): number;
+  /**
+   * Retires an account for good (decision 0025): off, every session ended,
+   * no password, and this email in place of its own. False if refused.
+   */
+  retire(staffAccount: string, email: string): Promise<boolean>;
+};
+
+/** Someone's open work, by kind: what is handed over when they are removed (decision 0025). */
+export type OpenWork = {
+  readonly deals: number;
+  readonly projects: number;
+  readonly tasks: number;
+  readonly todos: number;
+  readonly calls: number;
+  readonly bookingHost: boolean;
+  readonly sharedFilters: number;
+  readonly timers: number;
+};
+
+/** The records a member has across HQ, for removing them. */
+export type MemberRecords = {
+  openWork(userId: Id, now: string): OpenWork;
+  /** Moves their open work to someone else and stops their running timers. Answers what moved. */
+  handOver(from: Id, to: Id, now: string): OpenWork;
+  /** Deletes what was only theirs: settings, sign-in factors, feeds, pins, chats and the like. */
+  forget(userId: Id): void;
 };
 
 /** True if this key may make another attempt now. */

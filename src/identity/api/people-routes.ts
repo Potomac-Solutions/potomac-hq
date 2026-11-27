@@ -1,12 +1,14 @@
 // The forms on the People page: invite, withdraw an invite, change roles,
-// switch someone off or on, and make them a new link.
+// switch someone off or on, make them a new link, and remove them from HQ.
 import { Hono } from "hono";
 import { inviteUser, issueUserLink, setUserRoles, setUserStatus, withdrawInvite, type ManageUsersDeps, type UserLink } from "../application/manage-users.ts";
+import { removeMember, type RemoveMemberDeps } from "../application/remove-member.ts";
 import { ROLE_KEYS } from "../application/roles.ts";
 import { formPosts, parseId, readForm, withMessage, type Id } from "../../shared/index.ts";
 
 export type PeopleRoutesDeps = {
   readonly people: ManageUsersDeps;
+  readonly removal: RemoveMemberDeps;
   readonly actorOf: (cookieHeader: string) => Id | null;
   readonly sign: (location: string) => string;
   /** The address people use, for links: https://hq.potomac.solutions */
@@ -26,7 +28,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "already-a-user": "Someone with that email already has an account.",
   "already-invited": "That email already has an invite. Withdraw it to send a new one.",
   "last-admin": "HQ needs an admin who can sign in. Make someone else an admin first.",
-  yourself: "You can’t turn off your own account.",
+  yourself: "You can’t turn off or remove your own account.",
+  "no-one-to-take-over": "Choose who takes over their work. It must be someone active in HQ.",
   "turned-off": "Their account is turned off. Turn it on first.",
   refused: "That change was refused. Try again.",
 };
@@ -64,6 +67,14 @@ export function peopleRoutes(deps: PeopleRoutesDeps): Hono {
 
   post("/people/:id/roles", (actor, form, id) => setUserRoles(deps.people, actor, id as Id, rolesIn(form)), { done: () => HOME, back: () => HOME, message: "Roles saved." });
   post("/people/:id/status", (actor, form, id) => setUserStatus(deps.people, actor, id as Id, form["on"] === "1"), { done: () => HOME, back: () => HOME, message: "Saved. Someone who is turned off is signed out at once." });
+  post("/people/:id/remove", async (actor, form, id) => {
+    const taker = parseId(form["taker"] ?? "");
+    return removeMember(deps.removal, actor, id as Id, taker.ok ? taker.value : null);
+  }, {
+    done: () => HOME,
+    back: (id) => (id ? `/people/${id}/remove` : HOME),
+    message: (made) => `${made.name} was removed from HQ. Their open work is now ${made.takerName}’s; their name stays on past work.`,
+  });
   post("/invites/:id/withdraw", (actor, _form, id) => withdrawInvite(deps.people, actor, id as Id), { done: () => HOME, back: () => HOME, message: "Invite withdrawn." });
   return app;
 }

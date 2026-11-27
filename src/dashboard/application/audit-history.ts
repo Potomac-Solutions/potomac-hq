@@ -73,7 +73,7 @@ export function auditHistory(deps: AuditDeps, actorId: Id | null, raw: Raw): Res
     next: page < pages ? address(page + 1) : "",
     filter: { actor: query.actor, recordType: query.recordType, action: query.action, from: query.from, to: query.to },
     filtered: Boolean(query.actor || query.recordType || query.action || query.from || query.to),
-    people: [...deps.users.list().map((user) => ({ value: user.id as string, label: user.name })), { value: "none", label: "Nobody signed in to HQ (a client, or HQ itself)" }],
+    people: [...deps.users.listEverybody().map((user) => ({ value: user.id as string, label: user.removedAt ? `${user.name} (removed)` : user.name })), { value: "none", label: "Nobody signed in to HQ (a client, or HQ itself)" }],
     recordTypes: deps.audit.recordTypes(),
     exportHref: address(1).replace("/activity", "/activity.csv"),
   });
