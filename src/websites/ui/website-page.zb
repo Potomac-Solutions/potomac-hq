@@ -69,7 +69,7 @@
       </div>
     </section>
 
-    <site-editor zb-if={view.hasGallery} view={view} base="/websites/{view.siteId}" photos="/websites/photos"></site-editor>
+    <site-editor zb-if={view.hasGallery} view={view} base="/websites/{view.siteId}" photos="/websites/photos" pairs-at="/websites/before-after"></site-editor>
 
     <section class="hq-panel" id="site" aria-labelledby="ws-site">
       <h2 id="ws-site">Where it lives</h2>

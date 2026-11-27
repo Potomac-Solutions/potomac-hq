@@ -94,10 +94,10 @@ shape. The page code reads the file and decides how it looks.
 
 ## What was not built
 
-- **Before and after pairs, hours, services and prices.** Before and after
-  photos need two sizes of each image. Hours are also in the site's
+- **Hours, services and prices.** Hours are also in the site's
   search-engine data, in a structured form, and the two must change
-  together.
+  together. (Before and after pairs were here too; they were added on
+  2026-11-27, below.)
 - **A preview of the site with the changes.** The person publishing sees
   the list of changes and each photo, not the page.
 - **Undoing a publish from HQ.** Revert the commit on GitHub, then "Read
@@ -127,3 +127,44 @@ shape. The page code reads the file and decides how it looks.
   nothing in it that HQ's portal does not already have.
 - **Clients commit to GitHub themselves.** They would need accounts and to
   learn it.
+
+## Added 2026-11-27: before and after pairs
+
+At Mikey's request ("the nu-finish site has a before and after gallery that
+is more important to allow the users of that site access to so they can
+update on their own", then "lets do it all at once"). Built by Claude.
+
+A site that shows before-and-after pairs keeps them in its content file:
+
+```json
+"beforeAfter": [
+  {
+    "id": "…", "title": "Ford F-250 Super Duty", "caption": "Front bumper and fender",
+    "before": { "id": "…", "src": "/gallery/f250-before.webp", "alt": "…", "srcSet": "…" },
+    "after":  { "id": "…", "src": "/gallery/f250-after.webp",  "alt": "…" }
+  }
+]
+```
+
+- **Only a site whose file has `beforeAfter`** shows the section in the
+  portal and in HQ. A site without it gains none. An empty list is a site
+  with the section and no pairs in it: the page hides the section.
+- **What stood in the way was sizes.** It no longer does: a pair's photo
+  needs only `src`. A site may name other sizes in `srcSet`, which HQ
+  carries through. A pair HQ adds has one size, shrunk in the browser like
+  any photo (both photos at once); the page shows it at every width.
+- A pair is added with **both photos and its words together**, or not at
+  all. Its title, what was done, and what each photo shows can be changed;
+  pairs can be moved and removed. Unlike the gallery, the last pair can
+  go. Up to 20.
+- **Removing a pair, once published, removes its photos** from the
+  repository, and the other sizes its `srcSet` names, if they are there.
+- A pair's photos are kept in `content_photo` like the gallery's.
+
+**Rolling it out to a site that already has HQ set up:** HQ only knows the
+pairs once it has read the file with them. Until "Read the site again" is
+used, HQ's own copy of the file has no `beforeAfter`, and a publish or a
+status change from HQ would write the file without it. So: merge the
+site's change, then "Read the site again" at once, before anything else is
+saved for that site.
+

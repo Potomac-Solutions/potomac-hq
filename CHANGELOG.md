@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Before and after on client websites.** A site whose content file has
+  a `beforeAfter` list gets a Before and after section in the portal and
+  on its page in HQ: add a pair with both photos and its words at once
+  (each photo shrunk in the browser), change the words, reorder, and
+  remove. Publishing commits the new photos and removes a removed pair's
+  photos, with any other sizes its `srcSet` names. A site without the list
+  never shows the section. See the addition to decision 0003, including
+  the order to roll it out to a site already set up.
 - **Company projects and the company board** (decision 0021, migration
   0089). Admins and managers start a *company project* from the Projects
   page: Potomac's own work, like training and certifications, with no

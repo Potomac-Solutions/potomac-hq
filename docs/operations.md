@@ -326,7 +326,8 @@ email.
 
 ## Site content
 
-Clients change their own site's photos, notice and reviews in the portal,
+Clients change their own site's photos, notice and reviews (and, on a
+site that shows them, before-and-after pairs) in the portal,
 and HQ commits what you publish to the site's repository
 (`docs/decisions/0003-site-content.md`). It needs one variable:
 
