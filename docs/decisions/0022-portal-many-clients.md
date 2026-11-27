@@ -22,7 +22,7 @@ they are listed as a contact**. The choices he didn't make are marked
 - A client user is still one person's access at one client, and never
   moves. One email may now have a client user at several clients, and all
   of them share **one portal account**: one email, one password.
-- An email is unique **within a client**, not across them. Migration 0090
+- An email is unique **within a client**, not across them. Migration 0091
   rebuilds `client_user` to say so, keeping every row and every link to it.
 
 ### 2. A second client only where they are a contact

@@ -1,4 +1,4 @@
-// Migration 0090 (decision 0022) on a database with portal people in it: the
+// Migration 0091 (decision 0022) on a database with portal people in it: the
 // client_user table is rebuilt so one email may hold access at more than one
 // client, every person keeps their row, and what points at them still finds it.
 import assert from "node:assert/strict";
@@ -18,7 +18,7 @@ test("portal people are kept, and an email may be at two clients but only once a
   try {
     migrate(
       db,
-      all.filter((m) => m.version <= 89),
+      all.filter((m) => m.version <= 90),
       () => at,
     );
     const run = (sql: string, ...values: (string | number | null)[]) => db.prepare(sql).run(...values);
@@ -32,7 +32,7 @@ test("portal people are kept, and an email may be at two clients but only once a
 
     assert.deepEqual(
       migrate(db, all, () => at).map((m) => m.version),
-      all.filter((m) => m.version > 89).map((m) => m.version),
+      all.filter((m) => m.version > 90).map((m) => m.version),
     );
 
     const kept = db.prepare("select id, organization_id, portal_account, name, email, status, notices from client_user").all();
