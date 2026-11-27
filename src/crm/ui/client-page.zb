@@ -25,10 +25,10 @@
     // Each contact's portal sign-in, matched by email (both are kept in lower case).
     const signIns = new Map(portal.users.map((person) => [person.email, person]))
     const reach = Object.fromEntries(view.value.contacts.map((contact) => [contact.id, (contact.email && signIns.get(contact.email)) || null]))
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal, reach, invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), intake: context.intake.forClient(params.id), autopay: context.autopay.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal, reach, invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), intake: context.intake.forClient(params.id), autopay: context.autopay.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} reach={{}} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} intake={null} autopay={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} reach={{}} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} intake={null} autopay={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} can-delete={false} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -84,7 +84,7 @@
         <tbody>
           <zb-each items={view.contacts} as="contact" key={contact.id}>
             <tr>
-              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge></td>
+              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge> <a zb-if={canDelete} class="hq-small" href="/delete?kind=contact&ids={contact.id}&back=/clients/{view.client.id}%23contacts" aria-label="Delete {contact.name}">Delete</a></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
               <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a> <form zb-if={contact.phone && touches && touches.canLog} method="post" action="/phone" class="hq-inline"><input type="hidden" name="contactId" value={contact.id}><button class="hq-button secondary hq-small" type="submit" aria-label="Start a call with {contact.name}">Start a call</button></form></td>
@@ -594,6 +594,11 @@
         <div><button class="hq-button secondary" type="submit">Merge them</button></div>
       </form>
     </details>
+    <section zb-if={canDelete} class="hq-panel" aria-labelledby="client-delete">
+      <h2 id="client-delete">Delete this client</h2>
+      <p class="hq-muted hq-small">For a test or a mistake. It goes to the Trash with its contacts, deals, proposals, projects, invoices, files and portal people, and can be put back for 30 days. A real client with payments or signed agreements stays: mark it Former instead.</p>
+      <p><a class="hq-button secondary" href="/delete?kind=client&ids={view.client.id}&back=/clients">Delete client…</a></p>
+    </section>
     <history-panel items={history}></history-panel>
   </div>
 </hq-client>

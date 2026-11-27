@@ -1,0 +1,57 @@
+<!--
+  The Trash (decision 0023): what was deleted, with what went with it, for 30
+  days. Put back, or delete for good. Admins only.
+-->
+<script>
+  'use route /trash'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  import '../../shared/ui/zubra/empty-state.zb'
+  export async function load({ context }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.trash.view()
+    if (!view.ok) return context.forbidden()
+    return { title: 'Trash', view: view.value, done: context.notice.done, problem: context.notice.problem }
+  }
+</script>
+<style>
+  .trash-list { list-style: none; margin: 0; padding: 0; }
+  .trash-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem 1rem; align-items: start; padding: 0.85rem 0; border-top: 1px solid var(--border); }
+  .trash-list > li:first-child { border-top: 0; }
+  .trash-list p { margin: 0 0 0.25rem; overflow-wrap: anywhere; }
+  .trash-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .trash-actions form { margin: 0; }
+  @media (max-width: 34rem) { .trash-list > li { grid-template-columns: minmax(0, 1fr); } }
+</style>
+<hq-trash view={{ items: [] }} done="" problem="">
+  <div class="hq-page">
+    <div class="hq-head">
+      <div><h1>Trash</h1></div>
+      <form zb-if={view.items.length > 0} method="post" action="/trash/empty" class="hq-head-actions"><button class="hq-button secondary" type="submit">Empty the Trash</button></form>
+    </div>
+    <div zb-if={done || problem} class="hq-notices">
+      <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
+      <alert-banner zb-if={done} variant="success">{done}</alert-banner>
+    </div>
+    <p class="hq-muted">Deleted clients, contacts, deals, proposals and projects stay here for 30 days, with everything that went with them. Put one back and it’s exactly as it was. After 30 days it’s deleted for good.</p>
+    <section class="hq-panel" aria-labelledby="trash-list">
+      <h2 id="trash-list" class="sr-only">Deleted</h2>
+      <empty-state zb-if={view.items.length === 0} heading="The Trash is empty">What you delete waits here for 30 days.</empty-state>
+      <ul zb-else class="trash-list">
+        <zb-each items={view.items} as="item" key={item.id}>
+          <li>
+            <div>
+              <p><strong>{item.label}</strong> <span class="hq-muted hq-small">{item.kindLabel}<span zb-if={item.clientName}>, at {item.clientName}</span></span></p>
+              <p class="hq-small">With it: {item.takes}.</p>
+              <p class="hq-muted hq-small">Deleted {item.when}<span zb-if={item.by}> by {item.by}</span>. {item.daysLeft === 1 ? '1 day' : item.daysLeft + ' days'} left.</p>
+            </div>
+            <div class="trash-actions">
+              <form method="post" action="/trash/restore"><input type="hidden" name="ids" value={item.id}><button class="hq-button secondary small" type="submit" aria-label="Put back: {item.label}">Put back</button></form>
+              <form method="post" action="/trash/purge"><input type="hidden" name="ids" value={item.id}><button class="hq-button secondary small" type="submit" aria-label="Delete for good: {item.label}">Delete for good</button></form>
+            </div>
+          </li>
+        </zb-each>
+      </ul>
+    </section>
+  </div>
+</hq-trash>

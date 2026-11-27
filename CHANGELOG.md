@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Delete clients, contacts, deals, proposals and projects, into a Trash**
+  (decision 0023, migration 0092). Admins only (`record.delete`). Each goes
+  with everything that belongs to it; what only mentions it stays with the
+  link cleared. A page first says what each would take, and Undo puts it
+  back at once. The Trash keeps it 30 days to put back exactly as it was,
+  then the nightly run purges it. A real client's payments and signed
+  agreements are kept; a demo client goes with everything. Ticks on the
+  Clients and Proposals lists, and *Delete all demo clients*.
 - **Company projects and the company board** (decision 0021, migration
   0089). Admins and managers start a *company project* from the Projects
   page: Potomac's own work, like training and certifications, with no
