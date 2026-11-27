@@ -10,17 +10,22 @@
 // AI drafts and files point at what they're on by kind and id, with no
 // foreign key, and go with it too.
 //
+// A contact's portal access is matched by email, with no foreign key. It
+// isn't deleted with them (their messages and approvals stay), but turned
+// off at that client, and on again on restore (decisions 0022 and 0023).
+//
 // Each delete is one transaction. Foreign keys are checked when it commits,
 // so if anything still pointed at a deleted row the whole delete is undone.
 import type { Database } from "../../shared/adapters.ts";
-import type { TrashKind } from "../domain/trash.ts";
+import { ACCESS_OFF, type TrashKind } from "../domain/trash.ts";
 import type { TrashEngine, TrashLine, TrashPlanRow } from "../application/ports.ts";
 
 type Value = string | number | bigint | null | Uint8Array;
 type Row = Record<string, Value>;
 type Edge = { readonly child: string; readonly column: string; readonly to: string; readonly cascade: boolean };
 type Saved = { readonly table: string; readonly row: Row };
-type Cleared = { readonly table: string; readonly key: Row; readonly column: string; readonly value: Value };
+/** A link cleared, or a column switched to `to` (empty when not given), and what it was. */
+type Cleared = { readonly table: string; readonly key: Row; readonly column: string; readonly value: Value; readonly to?: Value };
 type Snapshot = { readonly rows: readonly Saved[]; readonly cleared: readonly Cleared[] };
 
 const ROOT_TABLE: Readonly<Record<TrashKind, string>> = { client: "client_organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project" };
@@ -166,12 +171,26 @@ function build(db: Database): TrashEngine {
       seen.add(text);
       cleared.push({ table: one.table, key: keyOf(one.table, one.row), column: one.column, value: one.row[one.column] ?? null });
     }
+    cleared.push(...accessOff(kind, root));
     return { rows, cleared };
   }
 
-  const counts = (rows: Iterable<Saved>): Record<string, number> => {
+  // Someone may use the portal at a client only where they are listed as a
+  // contact (decision 0022). When the last contact there with their email
+  // goes, their access there is turned off; their other clients stay open.
+  function accessOff(kind: TrashKind, root: Row): Cleared[] {
+    if (kind !== "contact" || typeof root["email"] !== "string" || !columns.has("client_user")) return [];
+    const listed = db.prepare("select count(*) as n from contact where organization_id = ? and email = ? and id <> ?").get(root["organization_id"] as string, root["email"], root["id"] as string) as { n: number };
+    if (Number(listed.n) > 0) return [];
+    const users = db.prepare(`${select("client_user")} where organization_id = ? and email = ? and status <> 'disabled'`).all(root["organization_id"] as string, root["email"]) as Row[];
+    return users.map((user) => ({ table: "client_user", key: keyOf("client_user", user), column: "status", value: user["status"] ?? null, to: "disabled" }));
+  }
+
+  const counts = (rows: Iterable<Saved>, cleared: readonly Cleared[] = []): Record<string, number> => {
     const out: Record<string, number> = {};
     for (const one of rows) out[one.table] = (out[one.table] ?? 0) + 1;
+    const off = cleared.filter((one) => one.table === "client_user" && one.column === "status").length;
+    if (off > 0) out[ACCESS_OFF] = off;
     return out;
   };
   const where = (key: Row) => Object.keys(key).map((column) => `${column === "rowid" ? "rowid" : ident(column)} = ?`).join(" and ");
@@ -192,7 +211,7 @@ function build(db: Database): TrashEngine {
     if (!found) return null;
     const root = [...found.rows.values()][0]?.row as Row;
     const facts = describe(kind, root);
-    return { kind, id, label: facts.label, clientName: facts.clientName, demo: facts.demo, counts: counts(found.rows.values()) };
+    return { kind, id, label: facts.label, clientName: facts.clientName, demo: facts.demo, counts: counts(found.rows.values(), found.cleared) };
   };
 
   // The record's name, and the client it's at, read from its own row.
@@ -217,13 +236,13 @@ function build(db: Database): TrashEngine {
       if (!found) return null;
       const root = [...found.rows.values()][0]?.row as Row;
       const facts = describe(kind, root);
-      const summary = counts(found.rows.values());
+      const summary = counts(found.rows.values(), found.cleared);
       const snapshot: Snapshot = {
         rows: [...found.rows.values()].map((one) => ({ table: one.table, row: encodeRow(Object.fromEntries(Object.entries(one.row).filter(([column]) => column !== "__rowid"))) as Row })),
-        cleared: found.cleared.map((one) => ({ ...one, key: encodeRow(one.key) as Row, value: encode(one.value) as Value })),
+        cleared: found.cleared.map((one) => ({ ...one, key: encodeRow(one.key) as Row, value: encode(one.value) as Value, ...(one.to !== undefined ? { to: encode(one.to) as Value } : {}) })),
       };
       locked(() => {
-        for (const one of found.cleared) db.prepare(`update ${ident(one.table)} set ${ident(one.column)} = null where ${where(one.key)}`).run(...(Object.values(one.key) as never[]));
+        for (const one of found.cleared) db.prepare(`update ${ident(one.table)} set ${ident(one.column)} = ? where ${where(one.key)}`).run((one.to ?? null) as never, ...(Object.values(one.key) as never[]));
         // Children first reads better in a trace; deferred keys make the order not matter.
         for (const one of [...found.rows.values()].reverse()) {
           const key = keyOf(one.table, one.row);
@@ -237,7 +256,7 @@ function build(db: Database): TrashEngine {
     restore(trashId) {
       const found = db.prepare("select snapshot from trash where id = ?").get(trashId) as { snapshot: string } | undefined;
       if (!found) return "not-found";
-      const snapshot = JSON.parse(found.snapshot) as { rows: { table: string; row: Record<string, unknown> }[]; cleared: { table: string; key: Record<string, unknown>; column: string; value: unknown }[] };
+      const snapshot = JSON.parse(found.snapshot) as { rows: { table: string; row: Record<string, unknown> }[]; cleared: { table: string; key: Record<string, unknown>; column: string; value: unknown; to?: unknown }[] };
       db.exec("savepoint trash_restore");
       try {
         locked(() => {
@@ -247,10 +266,11 @@ function build(db: Database): TrashEngine {
             const row = Object.entries(decodeRow(one.row)).filter(([column]) => known.has(column));
             db.prepare(`insert into ${ident(one.table)} (${row.map(([column]) => ident(column)).join(", ")}) values (${row.map(() => "?").join(", ")})`).run(...(row.map(([, value]) => value) as never[]));
           }
-          // A cleared link goes back only where the row is still there and nothing has been put in its place.
+          // A cleared link goes back only where the row is still there and nothing has been put in its place;
+          // switched-off access only while it is still off.
           for (const one of snapshot.cleared) {
             const key = decodeRow(one.key);
-            db.prepare(`update ${ident(one.table)} set ${ident(one.column)} = ? where ${where(key)} and ${ident(one.column)} is null`).run(decode(one.value) as never, ...(Object.values(key) as never[]));
+            db.prepare(`update ${ident(one.table)} set ${ident(one.column)} = ? where ${where(key)} and ${ident(one.column)} is ?`).run(decode(one.value) as never, ...(Object.values(key) as never[]), (one.to === undefined ? null : decode(one.to)) as never);
           }
         });
         db.exec("release trash_restore");

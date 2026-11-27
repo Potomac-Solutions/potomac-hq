@@ -85,6 +85,10 @@ they are listed as a contact**. The choices he didn't make are marked
 - **Merging two clients where the same person has access at both** is
   refused, since the merged client would hold them twice. Turn one off and
   ask for a fix if it comes up.
-- **Removing a contact doesn't take portal access away.** Contacts can't be
-  removed in HQ today; when they can, this rule should follow.
+- **Removing a contact takes their portal access there away.** Since the
+  Trash (decision 0023), deleting the last contact at a client with
+  someone's email turns that person's access at the client off; their
+  other clients stay open, and putting the contact back turns it on again.
+  Contacts can't be edited in HQ yet; when they can, changing an email
+  should follow the same rule.
 - **A person's name** is kept per client, as given at each invite.
