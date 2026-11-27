@@ -52,6 +52,6 @@
       </div>
     </section>
 
-    <site-editor zb-if={view.hasGallery} view={view} base="/portal/website" photos="/portal/website/photos"></site-editor>
+    <site-editor zb-if={view.hasGallery} view={view} base="/portal/website" photos="/portal/website/photos" pairs-at="/portal/website/before-after"></site-editor>
   </div>
 </hq-portal-website>

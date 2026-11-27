@@ -705,6 +705,9 @@ const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
+/** A before-and-after pair: two photos in one form. */
+const PAIR_PATHS = /^\/(portal\/website|websites\/[0-9a-f-]{36})\/before-after$/;
+const MAX_PAIR_FORM_BYTES = 2 * MAX_PHOTO_BYTES + 64 * 1024;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import|phone\/[0-9a-f-]{36}\/recap\/ai)$/;
@@ -2097,10 +2100,11 @@ export async function createApp(config: AppConfig): Promise<App> {
       // so the size limit cannot be walked around with a streamed body.
       const length = req.headers["content-length"] === undefined ? Number.NaN : Number(req.headers["content-length"]);
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
-      const photo = type === "multipart/form-data" && PHOTO_PATHS.test(path);
+      const pair = type === "multipart/form-data" && PAIR_PATHS.test(path);
+      const photo = pair || (type === "multipart/form-data" && PHOTO_PATHS.test(path));
       const upload = photo || (type === "multipart/form-data" && UPLOAD_PATHS.test(path));
       if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      const limit = photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
+      const limit = pair ? MAX_PAIR_FORM_BYTES : photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
       if (!(length >= 0 && length <= limit)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }

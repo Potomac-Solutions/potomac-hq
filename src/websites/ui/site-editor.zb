@@ -1,11 +1,13 @@
 <!--
-  The photos, notice and reviews of one website, with the forms that change
-  them. Used in the client's portal and on the site's page in HQ: `base` is
+  The photos, before-and-after pairs, notice and reviews of one website,
+  with the forms that change them. Before and after shows only on a site
+  that has the section. Used in the client's portal and on the site's page in HQ: `base` is
   where the site's own forms post ("/portal/website" or "/websites/<id>")
-  and `photos` is where its photos live ("/portal/website/photos" or
-  "/websites/photos").
+  `photos` is where its photos live ("/portal/website/photos" or
+  "/websites/photos"), and `pairsAt` is where a before-and-after pair's
+  forms post ("/portal/website/before-after" or "/websites/before-after").
 
-  Before a new photo is sent it is shrunk in the browser to 1,600 pixels on
+  Before a new photo is sent (each of a pair's two) it is shrunk in the browser to 1,600 pixels on
   its long side and saved as a JPEG: a phone's photo is far too big for a
   web page, and this also drops where and when it was taken. Without
   scripts the photo is sent as it is, and HQ refuses one that is too big.
@@ -16,15 +18,9 @@
 
   const LONG_SIDE = 1600
 
-  async function shrink(event) {
-    const form = event.currentTarget
-    const input = form.querySelector('input[type=file]')
-    const file = input && input.files && input.files[0]
-    // Nothing to shrink, or a browser that can't: send the form as it is.
-    if (!file || form.dataset.ready === 'yes' || !window.createImageBitmap || !window.DataTransfer || !form.reportValidity()) return
-    event.preventDefault()
-    const button = form.querySelector('button[type=submit]')
-    if (button) button.disabled = true
+  async function shrinkOne(input) {
+    const file = input.files && input.files[0]
+    if (!file) return
     try {
       const picture = await createImageBitmap(file, { imageOrientation: 'from-image' })
       const scale = Math.min(1, LONG_SIDE / Math.max(picture.width, picture.height))
@@ -45,6 +41,17 @@
     } catch {
       // Not a picture the browser can read. HQ says so when it arrives.
     }
+  }
+
+  async function shrink(event) {
+    const form = event.currentTarget
+    const inputs = [...form.querySelectorAll('input[type=file]')]
+    // Nothing to shrink, or a browser that can't: send the form as it is.
+    if (!inputs.some((input) => input.files && input.files[0]) || form.dataset.ready === 'yes' || !window.createImageBitmap || !window.DataTransfer || !form.reportValidity()) return
+    event.preventDefault()
+    const button = form.querySelector('button[type=submit]')
+    if (button) button.disabled = true
+    for (const input of inputs) await shrinkOne(input)
     form.dataset.ready = 'yes'
     if (button) button.disabled = false
     form.submit()
@@ -59,13 +66,18 @@
   .se-thumb { width: 10rem; height: 7.5rem; object-fit: cover; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--muted); }
   .se-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
   .se-actions form { margin: 0; }
+  .se-pair-photos { display: grid; grid-template-columns: repeat(2, 10rem); gap: 0.5rem; }
+  .se-pair-photos figure { margin: 0; }
+  .se-pair-photos figcaption { font-size: 0.8rem; color: var(--muted-foreground); }
+  .se-pairs > li { grid-template-columns: 20.5rem minmax(0, 1fr); }
   .se-reviews { list-style: none; margin: 0; padding: 0; }
   .se-reviews > li { padding: 0.75rem 0; border-top: 1px solid var(--border); }
   .se-reviews > li:first-child { border-top: 0; }
   .se-reviews form { margin: 0.5rem 0 0; }
-  @media (max-width: 34rem) { .se-photos > li { grid-template-columns: minmax(0, 1fr); } .se-thumb { width: 100%; height: auto; aspect-ratio: 4 / 3; } }
+  @media (max-width: 48rem) { .se-pairs > li { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 34rem) { .se-photos > li { grid-template-columns: minmax(0, 1fr); } .se-thumb { width: 100%; height: auto; aspect-ratio: 4 / 3; } .se-pair-photos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
-<site-editor view={{ siteId: "", photos: [], reviews: [], changes: [], limits: {}, notice: "", photoRule: "", canAddPhoto: false, canRemovePhoto: false, canAddReview: false }} base="" photos="">
+<site-editor view={{ siteId: "", photos: [], reviews: [], changes: [], limits: {}, notice: "", photoRule: "", canAddPhoto: false, canRemovePhoto: false, canAddReview: false, hasPairs: false, pairs: [], canAddPair: false, maxPairs: 0 }} base="" photos="" pairs-at="">
   <section class="hq-panel" id="photos" aria-labelledby="se-photos-heading">
     <h2 id="se-photos-heading">Photos</h2>
     <p class="hq-muted">The gallery, in the order it shows. The first photo is shown largest.</p>
@@ -111,6 +123,64 @@
         <div><button class="hq-button portal-big" type="submit">Add photo</button></div>
       </form>
       <p zb-else class="hq-muted">The gallery is full. Remove a photo to add another.</p>
+    </div>
+  </section>
+
+  <section zb-if={view.hasPairs} class="hq-panel" id="before-after" aria-labelledby="se-pairs-heading">
+    <h2 id="se-pairs-heading">Before and after</h2>
+    <p class="hq-muted">The same job photographed before and after, in the order they show. The first is shown largest. With none, the section is hidden on the website.</p>
+    <ol zb-if={view.pairs.length > 0} class="se-photos se-pairs">
+      <zb-each items={view.pairs} as="pair" key={pair.id}>
+        <li>
+          <div class="se-pair-photos">
+            <figure><img class="se-thumb" src="{photos}/{pair.beforeId}" alt={pair.beforeAlt} width="160" height="120" loading="lazy"><figcaption>Before</figcaption></figure>
+            <figure><img class="se-thumb" src="{photos}/{pair.afterId}" alt={pair.afterAlt} width="160" height="120" loading="lazy"><figcaption>After</figcaption></figure>
+          </div>
+          <div>
+            <p><strong>{pair.position}. {pair.title}</strong> <status-badge zb-if={pair.isNew} variant="warning">New</status-badge></p>
+            <p zb-if={pair.caption}>{pair.caption}</p>
+            <div class="se-actions">
+              <form zb-if={!pair.first} method="post" action="{pairsAt}/{pair.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="first"><button class="hq-button secondary" type="submit">Make first<span class="sr-only">: {pair.title}</span></button></form>
+              <form zb-if={!pair.first} method="post" action="{pairsAt}/{pair.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="up"><button class="hq-button secondary" type="submit">Move up<span class="sr-only">: {pair.title}</span></button></form>
+              <form zb-if={!pair.last} method="post" action="{pairsAt}/{pair.id}/move"><input type="hidden" name="siteId" value={view.siteId}><input type="hidden" name="to" value="down"><button class="hq-button secondary" type="submit">Move down<span class="sr-only">: {pair.title}</span></button></form>
+              <form method="post" action="{pairsAt}/{pair.id}/remove"><input type="hidden" name="siteId" value={view.siteId}><button class="hq-button secondary" type="submit">Remove<span class="sr-only">: {pair.title}</span></button></form>
+            </div>
+            <details>
+              <summary>Change the words<span class="sr-only">: {pair.title}</span></summary>
+              <form method="post" action="{pairsAt}/{pair.id}" class="hq-form">
+                <input type="hidden" name="siteId" value={view.siteId}>
+                <text-field label="Title" name="title" value={pair.title} required={true} maxlength={view.limits.title} description="What it is, like the vehicle."></text-field>
+                <text-field label="What was done" name="caption" value={pair.caption} maxlength={view.limits.caption}></text-field>
+                <text-field label="What the before photo shows" name="beforeAlt" value={pair.beforeAlt} required={true} maxlength={view.limits.alt} description="Read aloud to someone who can’t see the photo."></text-field>
+                <text-field label="What the after photo shows" name="afterAlt" value={pair.afterAlt} required={true} maxlength={view.limits.alt}></text-field>
+                <div><button class="hq-button" type="submit">Save<span class="sr-only">: {pair.title}</span></button></div>
+              </form>
+            </details>
+          </div>
+        </li>
+      </zb-each>
+    </ol>
+    <p zb-else class="hq-muted">None yet.</p>
+
+    <div id="add-pair" data-spaced>
+      <h3>Add a before and after</h3>
+      <form zb-if={view.canAddPair} method="post" action="{base}/before-after" enctype="multipart/form-data" class="hq-form" onsubmit={shrink}>
+        <div class="hq-field">
+          <label for="se-before">Before photo</label>
+          <input id="se-before" name="before" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="se-pair-rule">
+        </div>
+        <div class="hq-field">
+          <label for="se-after">After photo</label>
+          <input id="se-after" name="after" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="se-pair-rule">
+          <p id="se-pair-rule" class="hq-muted hq-small">{view.photoRule} Landscape photos taken from the same spot look best: each is shown in the same 4:3 frame.</p>
+        </div>
+        <text-field label="Title" name="title" required={true} maxlength={view.limits.title} description="What it is. Like: Ford F-250 Super Duty"></text-field>
+        <text-field label="What was done" name="caption" maxlength={view.limits.caption} description="Like: Front bumper, fender and headlight"></text-field>
+        <text-field label="What the before photo shows" name="beforeAlt" required={true} maxlength={view.limits.alt} description="Read aloud to someone who can’t see the photo. Like: A black pickup with its front bumper torn away"></text-field>
+        <text-field label="What the after photo shows" name="afterAlt" required={true} maxlength={view.limits.alt} description="Like: The same pickup with a straight bumper and new headlight"></text-field>
+        <div><button class="hq-button portal-big" type="submit">Add before and after</button></div>
+      </form>
+      <p zb-else class="hq-muted">The site holds up to {view.maxPairs}. Remove one to add another.</p>
     </div>
   </section>
 

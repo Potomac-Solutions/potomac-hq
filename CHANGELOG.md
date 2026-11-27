@@ -9,6 +9,14 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Before and after on client websites.** A site whose content file has
+  a `beforeAfter` list gets a Before and after section in the portal and
+  on its page in HQ: add a pair with both photos and its words at once
+  (each photo shrunk in the browser), change the words, reorder, and
+  remove. Publishing commits the new photos and removes a removed pair's
+  photos, with any other sizes its `srcSet` names. A site without the list
+  never shows the section. See the addition to decision 0003, including
+  the order to roll it out to a site already set up.
 - **QR codes a client prints, counted from their own site** (decision 0024,
   migration 0093). In the portal, under **QR codes**, a client makes a code
   for each thing they print (business cards, a flyer, a truck decal) and

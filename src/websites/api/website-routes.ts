@@ -25,6 +25,13 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "last-photo": "The gallery needs at least one photo. Add another before removing this one.",
   "no-such-photo": "That photo isn’t in the gallery any more.",
   "no-such-review": "That review isn’t there any more.",
+  "before-alt-missing": "Say what the before photo shows, for someone who can’t see it.",
+  "before-alt-too-long": "Keep what the before photo shows under 200 characters.",
+  "after-alt-missing": "Say what the after photo shows, for someone who can’t see it.",
+  "after-alt-too-long": "Keep what the after photo shows under 200 characters.",
+  "too-many-pairs": "The site holds up to 20 before and afters. Remove one first.",
+  "no-such-pair": "That before and after isn’t there any more.",
+  "no-pairs": "This website doesn’t show before and after photos.",
   unchanged: "Nothing changed.",
   "photo-missing": "Choose a photo first.",
   "photo-too-large": "That photo is too big for a web page. Try again in a current browser, which shrinks it for you, or send a smaller copy.",
@@ -73,6 +80,13 @@ const MESSAGES: Readonly<Record<string, string>> = {
 const messageFor = (code: string): string => MESSAGES[code] ?? "That didn’t work. Try again.";
 
 const photoInput = (f: FormFields, files: FormFiles) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "", bytes: files["photo"]?.bytes ?? null });
+const pairWords = (f: FormFields) => ({ title: f["title"] ?? "", caption: f["caption"] ?? "", beforeAlt: f["beforeAlt"] ?? "", afterAlt: f["afterAlt"] ?? "" });
+const pairInput = (f: FormFields, files: FormFiles) => ({ ...pairWords(f), before: files["before"]?.bytes ?? null, after: files["after"]?.bytes ?? null });
+/** The site a staff change to a pair is on: a pair's address names the pair, and the form names its site. */
+const siteOf = (f: FormFields): Id | null => {
+  const id = parseId(f["siteId"] ?? "");
+  return id.ok ? id.value : null;
+};
 const words = (f: FormFields) => ({ title: f["title"] ?? "", alt: f["alt"] ?? "", caption: f["caption"] ?? "" });
 const status = (f: FormFields) => ({ mode: f["mode"] ?? "", opensOn: f["opensOn"] ?? "", opensTime: f["opensTime"] ?? "", message: f["message"] ?? "" });
 /** The service area form: the map's areas when scripts ran, or the ticked counties when they didn't. */
@@ -107,6 +121,11 @@ export function websiteStaffRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/websites/photos/:id", (actor, f, id) => websites.editPhoto(deps.websites, staff(actor), id as Id, words(f)), { done: (site) => page(site, "photos"), back: backToSite, message: "Saved." });
   post("/websites/photos/:id/remove", (actor, _f, id) => websites.removePhoto(deps.websites, staff(actor), id as Id), { done: (site) => page(site, "photos"), back: backToSite, message: "Photo removed." });
   post("/websites/photos/:id/move", (actor, f, id) => websites.movePhoto(deps.websites, staff(actor), id as Id, f["to"] ?? ""), { done: (site) => page(site, "photos"), back: backToSite, message: "Moved." });
+  const backToPairs = (_: Id | null, f: FormFields) => (parseId(f["siteId"] ?? "").ok ? `/websites/${f["siteId"]}#before-after` : "/websites");
+  post("/websites/:id/before-after", (actor, f, id, files) => websites.addPair(deps.websites, staff(actor), id as Id, pairInput(f, files)), { done: (site) => page(site, "before-after"), back: back("add-pair"), message: "Before and after added. It goes on the site when you publish." });
+  post("/websites/before-after/:id", (actor, f, id) => websites.editPair(deps.websites, staff(actor), siteOf(f), id as Id, pairWords(f)), { done: (site) => page(site, "before-after"), back: backToPairs, message: "Saved." });
+  post("/websites/before-after/:id/remove", (actor, f, id) => websites.removePair(deps.websites, staff(actor), siteOf(f), id as Id), { done: (site) => page(site, "before-after"), back: backToPairs, message: "Before and after removed." });
+  post("/websites/before-after/:id/move", (actor, f, id) => websites.movePair(deps.websites, staff(actor), siteOf(f), id as Id, f["to"] ?? ""), { done: (site) => page(site, "before-after"), back: backToPairs, message: "Moved." });
   post("/websites/:id/notice", (actor, f, id) => websites.setNotice(deps.websites, staff(actor), id as Id, f["notice"] ?? ""), { done: (site) => page(site, "notice"), back: back("notice"), message: "Saved." });
   post("/websites/:id/reviews", (actor, f, id) => websites.addReview(deps.websites, staff(actor), id as Id, { quote: f["quote"] ?? "", by: f["by"] ?? "" }), { done: (site) => page(site, "reviews"), back: back("reviews"), message: "Review added." });
   post("/websites/:id/reviews/remove", (actor, f, id) => websites.removeReview(deps.websites, staff(actor), id as Id, indexOf(f)), { done: (site) => page(site, "reviews"), back: back("reviews"), message: "Review removed." });
@@ -132,6 +151,10 @@ export function websitePortalRoutes(deps: WebsiteRoutesDeps): Hono {
   post("/portal/website/photos/:id", (session, f, id) => websites.editPhoto(deps.websites, client(session), id as Id, words(f)), { done: at("photos"), back: at("photos"), message: `Saved.${NOT_ON_SITE}` });
   post("/portal/website/photos/:id/remove", (session, _f, id) => websites.removePhoto(deps.websites, client(session), id as Id), { done: at("photos"), back: at("photos"), message: `Photo removed.${NOT_ON_SITE}` });
   post("/portal/website/photos/:id/move", (session, f, id) => websites.movePhoto(deps.websites, client(session), id as Id, f["to"] ?? ""), { done: at("photos"), back: at("photos"), message: `Moved.${NOT_ON_SITE}` });
+  post("/portal/website/before-after", (session, f, _id, files) => websites.addPair(deps.websites, client(session), null, pairInput(f, files)), { done: at("before-after"), back: at("add-pair"), message: `Before and after added.${NOT_ON_SITE}` });
+  post("/portal/website/before-after/:id", (session, f, id) => websites.editPair(deps.websites, client(session), null, id as Id, pairWords(f)), { done: at("before-after"), back: at("before-after"), message: `Saved.${NOT_ON_SITE}` });
+  post("/portal/website/before-after/:id/remove", (session, _f, id) => websites.removePair(deps.websites, client(session), null, id as Id), { done: at("before-after"), back: at("before-after"), message: `Before and after removed.${NOT_ON_SITE}` });
+  post("/portal/website/before-after/:id/move", (session, f, id) => websites.movePair(deps.websites, client(session), null, id as Id, f["to"] ?? ""), { done: at("before-after"), back: at("before-after"), message: `Moved.${NOT_ON_SITE}` });
   post("/portal/website/notice", (session, f) => websites.setNotice(deps.websites, client(session), null, f["notice"] ?? ""), { done: at("notice"), back: at("notice"), message: `Saved.${NOT_ON_SITE}` });
   post("/portal/website/reviews", (session, f) => websites.addReview(deps.websites, client(session), null, { quote: f["quote"] ?? "", by: f["by"] ?? "" }), { done: at("reviews"), back: at("reviews"), message: `Review added.${NOT_ON_SITE}` });
   post("/portal/website/reviews/remove", (session, f) => websites.removeReview(deps.websites, client(session), null, indexOf(f)), { done: at("reviews"), back: at("reviews"), message: `Review removed.${NOT_ON_SITE}` });

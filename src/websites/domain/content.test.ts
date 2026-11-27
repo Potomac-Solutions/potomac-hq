@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { changesBetween, hasGallery, isPhotoSrc, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, type SiteContent } from "./content.ts";
+import { changesBetween, hasGallery, hasPairs, isPhotoSrc, otherSizes, photosOf, readContent, sameContent, withNotice, withoutPair, withoutPhoto, withoutReview, withPair, withPairMoved, withPairWords, withPhoto, withPhotoIds, withPhotoMoved, withPhotoWords, withReview, writeContent, type SiteContent } from "./content.ts";
 
 const id = (n: number) => `0190a000-0000-7000-8000-${String(n).padStart(12, "0")}` as Id;
 let next = 100;
@@ -126,4 +126,85 @@ test("a file with no gallery is a site with nothing but its status and service a
   assert.deepEqual(readContent("[]", () => "x" as Id), { ok: false, error: "content-invalid" });
   assert.deepEqual(readContent(JSON.stringify({ serviceArea: { areas: [] }, notice: "Hi" }), () => "x" as Id), { ok: false, error: "content-invalid" }, "a notice needs the gallery that comes with it");
   assert.ok(readContent(JSON.stringify({ launch: { mode: "live" } }), () => "x" as Id).ok, "a status alone is enough");
+});
+
+// ── Before and after ─────────────────────────────────────────────────────
+
+const PAIRS_FILE = JSON.stringify({
+  notice: "",
+  gallery: [{ src: "/gallery/booth.webp", alt: "A clean paint booth", title: "Paint Booth" }],
+  beforeAfter: [
+    {
+      title: "Ford F-250",
+      caption: "Front bumper",
+      before: { src: "/gallery/before-after/f250-before-1600.webp", srcSet: "/gallery/before-after/f250-before-480.webp 480w, /gallery/before-after/f250-before-1600.webp 1600w", alt: "A crushed bumper" },
+      after: { id: id(7), src: "/gallery/before-after/f250-after-1600.webp", alt: "A straight bumper", focus: "50% 40%" },
+    },
+  ],
+});
+const readPairs = (): SiteContent => value(readContent(PAIRS_FILE, newId));
+const ids = (n: number) => ({ id: id(n), before: { id: id(n + 1), src: `/gallery/hq-${n}a.jpg` }, after: { id: id(n + 2), src: `/gallery/hq-${n}b.jpg` } });
+const WORDS = { title: "Subaru WRX", caption: "Front bumper and fender", beforeAlt: "A scraped bumper", afterAlt: "A clean bumper" };
+
+test("a site's before and afters are read with ids, keep what HQ doesn't know, and write back unchanged", () => {
+  const content = readPairs();
+  assert.equal(hasPairs(content), true);
+  const pair = content.pairs?.[0];
+  assert.equal(pair?.title, "Ford F-250");
+  assert.equal(pair?.after.id, id(7));
+  assert.match(pair?.before.id ?? "", /^0190a000-/);
+  assert.deepEqual(pair?.after.extra, { focus: "50% 40%" });
+  assert.deepEqual(photosOf(content).map((photo) => photo.src), ["/gallery/booth.webp", "/gallery/before-after/f250-before-1600.webp", "/gallery/before-after/f250-after-1600.webp"]);
+  const written = writeContent(content);
+  assert.equal((JSON.parse(written) as { beforeAfter: { before: { srcSet: string } }[] }).beforeAfter[0]?.before.srcSet.startsWith("/gallery/before-after/f250-before-480.webp"), true);
+  assert.ok(sameContent(value(readContent(written, newId)), content));
+});
+
+test("a site with no before and after section has none, and its file gains none", () => {
+  const content = read();
+  assert.equal(hasPairs(content), false);
+  assert.equal("beforeAfter" in JSON.parse(writeContent(content)), false);
+  assert.deepEqual(withPair(content, ids(300), WORDS), { ok: false, error: "no-pairs" });
+});
+
+test("a before and after that isn't the shape HQ reads is refused", () => {
+  const gallery = [{ src: "/gallery/a.webp" }];
+  for (const beforeAfter of [{}, [{ title: "x" }], [{ before: { src: "/b.webp" } }], [{ before: { src: "/b.webp" }, after: { src: "/b.webp" } }], [{ before: { src: "/gallery/a.webp" }, after: { src: "/c.webp" } }], [{ before: { src: "../b.webp" }, after: { src: "/c.webp" } }]]) {
+    assert.deepEqual(readContent(JSON.stringify({ gallery, beforeAfter }), newId), { ok: false, error: "content-invalid" }, JSON.stringify(beforeAfter));
+  }
+  assert.ok(readContent(JSON.stringify({ gallery, beforeAfter: [] }), newId).ok, "an empty list is a site with the section and none in it");
+});
+
+test("a before and after needs a title and what each photo shows; it can be changed, moved and removed, even the last", () => {
+  const content = readPairs();
+  assert.deepEqual(withPair(content, ids(300), { ...WORDS, title: " " }), { ok: false, error: "title-missing" });
+  assert.deepEqual(withPair(content, ids(300), { ...WORDS, beforeAlt: "" }), { ok: false, error: "before-alt-missing" });
+  assert.deepEqual(withPair(content, ids(300), { ...WORDS, afterAlt: "x".repeat(201) }), { ok: false, error: "after-alt-too-long" });
+  const added = value(withPair(content, ids(300), WORDS));
+  assert.deepEqual(added.pairs?.map((pair) => pair.title), ["Ford F-250", "Subaru WRX"]);
+  assert.deepEqual(changesBetween(content, added), ["New before and after: Subaru WRX"]);
+  const moved = value(withPairMoved(added, id(300), "first"));
+  assert.deepEqual(changesBetween(added, moved), ["Before and after put in a new order"]);
+  assert.deepEqual(withPairMoved(moved, id(300), "up"), { ok: false, error: "unchanged" });
+  const reworded = value(withPairWords(moved, id(300), { ...WORDS, afterAlt: "A clean, matched bumper" }));
+  assert.equal(reworded.pairs?.[0]?.after.alt, "A clean, matched bumper");
+  assert.deepEqual(withPairWords(reworded, id(300), { ...WORDS, afterAlt: "A clean, matched bumper" }), { ok: false, error: "unchanged" });
+  assert.deepEqual(withPairWords(reworded, id(999), WORDS), { ok: false, error: "no-such-pair" });
+  const first = reworded.pairs?.[1]?.id as Id;
+  const none = value(withoutPair(value(withoutPair(reworded, id(300))), first));
+  assert.deepEqual(none.pairs, []);
+  assert.deepEqual(JSON.parse(writeContent(none)).beforeAfter, []);
+  assert.deepEqual(changesBetween(content, none), ["Before and after removed: Ford F-250"]);
+});
+
+test("a pair's other sizes come from its srcSet, never its own file or a path outside the site", () => {
+  const pair = readPairs().pairs?.[0];
+  assert.deepEqual(otherSizes(pair!.before), ["/gallery/before-after/f250-before-480.webp"]);
+  assert.deepEqual(otherSizes(pair!.after), []);
+  assert.deepEqual(otherSizes({ ...pair!.before, extra: { srcSet: "../x.webp 1w, //evil.example/a.jpg 2w" } }), []);
+});
+
+test("every photo's id can be renamed, the pairs' sides included", () => {
+  const renamed = withPhotoIds(readPairs(), () => id(500));
+  assert.deepEqual([...new Set(photosOf(renamed).map((photo) => photo.id))], [id(500)]);
 });
