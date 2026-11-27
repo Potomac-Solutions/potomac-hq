@@ -9,12 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
-- **Decision 0026: the site builder writes Zubra.** A build can be a Zubra
+- **Decision 0026: Zubra from the site builder.** A build can be a Zubra
   starter (Claude writes the words and the look as JSON for components HQ
-  ships, the first made from the Tressler's Garage site) or, for admins, Zubra
-  from scratch (Claude writes the components, checked by the compiler with one
-  repair call, previewed in the browser). HQ never runs component code Claude
-  wrote. Plain builds stay. Docs only; the slices follow.
+  ships, the first made from the Tressler's Garage site). An admin can
+  **Convert to Zubra** a published plain build: one call, checked by the
+  compiler with one repair, opened as a pull request whose CI builds it and
+  compares it with the plain pages. HQ never runs component code Claude
+  wrote. Docs only; the slices follow.
 - **Remove a member from HQ** (decision 0025, migration 0094). On People,
   an admin opens *Remove from HQ* for someone: the page lists their open
   work (open deals, active projects, tasks and to-dos not done, upcoming
