@@ -17,6 +17,10 @@ Claude in the order under "Slices", one pull request into `staging` each.
 Later on Nov 25 Mikey approved every choice marked **Default** ("I approve
 them all so far"). They stand as decided.
 
+Changed by decision 0026 (Mikey, 2026-11-27): a build can also be a Zubra
+site, from a starter HQ ships or, for admins, written from scratch. Plain
+builds below are unchanged.
+
 ## Context
 
 Potomac gives every business a free landing page and builds paid sites
