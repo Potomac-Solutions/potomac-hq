@@ -74,6 +74,8 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // Company projects (decision 0021)
+  "project.start",
   // The site builder (decision 0010)
   "site.build",
   // Social media (decision 0011)
@@ -132,6 +134,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "site.publish",
   "label.manage",
   "project.share",
+  "project.start",
   "newsletter.manage",
   "client-report.send",
   "automation.manage",

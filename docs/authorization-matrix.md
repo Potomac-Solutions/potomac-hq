@@ -376,6 +376,18 @@ Lead triage, the weekly updates and the site-down diagnosis also run by
 themselves, when they're turned on. HQ is then the actor, as it is for an
 inquiry, and the drafts wait for a person.
 
+### Company projects (decision 0021)
+
+Decided 2026-11-27 by Mikey; the role split is a **Default** to confirm.
+
+| Action | Permission key | Admin | Manager | Member | Client user |
+| --- | --- | --- | --- | --- | --- |
+| Start a company project (Potomac's own work, no client) | `project.start` | Yes | Yes | No | No |
+
+Once started, a company project is worked like any other: its name,
+status, owner, phases and tasks need the keys above. No client user ever
+sees one, since it belongs to no client.
+
 ## Client users
 
 A client user holds none of the permissions above, and no role. They sign in
