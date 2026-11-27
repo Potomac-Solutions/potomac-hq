@@ -3,7 +3,7 @@
 // (`record.delete`). Each record goes in its own transaction, so one that
 // can't go doesn't hold up the rest of a bulk delete.
 export { isTrashKind } from "../domain/trash.ts";
-import { countOf, daysLeft, isTrashKind, describeCounts, KIND_LABELS, mayDelete, MAX_AT_ONCE, moneyReason, purgeDue, type TrashKind } from "../domain/trash.ts";
+import { countOf, daysLeft, isTrashKind, describeCounts, KIND_LABELS, mayDelete, MAX_AT_ONCE, moneyReason, purgeDue, rowsIn, type TrashKind } from "../domain/trash.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
 import { err, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
 import type { TrashEngine } from "./ports.ts";
@@ -77,7 +77,7 @@ export function deleteRecords(deps: TrashDeps, actorId: Id | null, kind: string,
         const trashId = deps.newId();
         const moved = deps.trash.moveToTrash(kind, id, { id: trashId, by: actorId, at: deps.clock() });
         if (!moved) return "missing" as const;
-        const rows = Object.values(moved.counts).reduce((sum, n) => sum + n, 0);
+        const rows = rowsIn(moved.counts);
         recordActivity(deps, { actorId, action: `${RECORD_TYPE[kind]}.trashed`, recordType: RECORD_TYPE[kind], recordId: id as Id, context: { trashId, label: moved.label, rows } });
         return trashId;
       });
