@@ -110,14 +110,16 @@ export function openFile(deps: FilesDeps, actorId: Id | null, fileId: Id): Resul
  * own organization and be marked visible to them. A file that fails either
  * test is "not found": the answer never says it exists.
  */
-export function openFileForClient(deps: FilesDeps, client: { readonly clientUserId: Id; readonly organizationId: Id } | null, fileId: Id): Result<OpenedFile, "not-found"> {
+export function openFileForClient(deps: FilesDeps, client: { readonly clientUserId: Id; readonly organizationId: Id; readonly previewedBy?: Id } | null, fileId: Id): Result<OpenedFile, "not-found"> {
   if (client === null) return err("not-found");
   return deps.transact(() => {
     const record = deps.files.get(fileId);
     if (!record || record.organizationId !== client.organizationId || !record.clientVisible) return err("not-found");
     const body = deps.blobs.get(fileId);
     if (!body) return err("not-found");
-    recordActivity(deps, { actorId: null, action: "file.downloaded", recordType: "file", recordId: fileId, context: { name: record.name, by: "client", clientUserId: client.clientUserId } });
+    // In a preview of their portal (decision 0020) it was someone at Potomac who opened it, not the client.
+    if (client.previewedBy) recordActivity(deps, { actorId: client.previewedBy, action: "file.downloaded", recordType: "file", recordId: fileId, context: { name: record.name, by: "portal-preview", clientUserId: client.clientUserId } });
+    else recordActivity(deps, { actorId: null, action: "file.downloaded", recordType: "file", recordId: fileId, context: { name: record.name, by: "client", clientUserId: client.clientUserId } });
     return ok({ record, body });
   });
 }

@@ -23,7 +23,17 @@ export type ClientUser = {
  * else to decide whose records to show: the organization always comes from
  * the session, never from the address or a form.
  */
-export type ClientSession = { readonly clientUserId: Id; readonly organizationId: Id; readonly name: string };
+export type ClientSession = {
+  readonly clientUserId: Id;
+  readonly organizationId: Id;
+  readonly name: string;
+  /**
+   * Set when this is not the client but someone at Potomac looking at their
+   * portal (decision 0020): the HQ user's id. Nothing can be changed in one,
+   * and what it opens is logged as that user's, never as the client's.
+   */
+  readonly previewedBy?: Id;
+};
 
 export type InviteError = "name-missing" | "name-too-long" | "invalid-email";
 

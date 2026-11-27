@@ -1,7 +1,7 @@
 // What HQ's own users do about the portal: invite a client, turn their access
 // off, post an update for them to read, and answer a call request. Each one
 // checks permission first and writes its activity event.
-import { answerCall, newClientUser, newUpdate, setAccess, type CallRequest, type ClientUser, type InviteError, type ProjectUpdate } from "../domain/client-user.ts";
+import { answerCall, newClientUser, newUpdate, setAccess, type CallRequest, type ClientSession, type ClientUser, type InviteError, type ProjectUpdate } from "../domain/client-user.ts";
 import { CLIENT_UPLOAD, formatSize } from "../../files/index.ts";
 import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
@@ -26,6 +26,44 @@ function allowed(deps: PortalDeps, actorId: Id | null, action: string): actorId 
   return actorId !== null && authorize(deps, actorId, action).ok;
 }
 const may = (deps: PortalDeps, actorId: Id | null, action: string): boolean => actorId !== null && authorize(deps, actorId, action).ok;
+
+/**
+ * Seeing a client person's portal as they see it (decision 0020), read-only,
+ * for an admin or manager checking a feature or helping on a call. The client
+ * is not told. Answers the session to show the portal with, or null when this
+ * person may not or the client person can't be previewed. Asked on every
+ * request, so taking someone's access away ends their previews at once.
+ */
+export function previewSession(deps: PortalDeps, actorId: Id | null, clientUserId: Id): ClientSession | null {
+  if (!may(deps, actorId, "portal.manage") || !may(deps, actorId, "client.view")) return null;
+  const user = deps.clientUsers.get(clientUserId);
+  // Someone invited but not signed in yet can be previewed: that is how to check a portal before they first see it.
+  if (!user || user.status === "disabled") return null;
+  return { clientUserId: user.id, organizationId: user.organizationId, name: user.name, previewedBy: actorId as Id };
+}
+
+/** Starts a preview of a client person's portal, and logs it. */
+export function startPortalPreview(deps: PortalDeps, actorId: Id | null, clientUserId: Id): Result<ClientSession, Refused | "access-off"> {
+  if (!allowed(deps, actorId, "portal.manage") || !may(deps, actorId, "client.view")) return err("forbidden");
+  const user = deps.clientUsers.get(clientUserId);
+  if (!user) return err("not-found");
+  if (user.status === "disabled") return err("access-off");
+  deps.transact(() => recordActivity(deps, { actorId, action: "client-user.portal-preview-started", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId } }));
+  return ok({ clientUserId: user.id, organizationId: user.organizationId, name: user.name, previewedBy: actorId });
+}
+
+/** Ends a preview, and logs it. Anyone may stop their own; there is nothing to refuse. */
+export function stopPortalPreview(deps: PortalDeps, actorId: Id | null, clientUserId: Id | null): void {
+  const user = clientUserId ? deps.clientUsers.get(clientUserId) : null;
+  if (actorId === null || !user) return;
+  deps.transact(() => recordActivity(deps, { actorId, action: "client-user.portal-preview-stopped", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId } }));
+}
+
+/** What the portal's banner says during a preview: whose portal, at which client. */
+export function previewBanner(deps: PortalDeps, session: ClientSession | null): { readonly name: string; readonly clientName: string; readonly clientId: Id } | null {
+  if (!session?.previewedBy) return null;
+  return { name: session.name, clientName: deps.clients.get(session.organizationId)?.name ?? "", clientId: session.organizationId };
+}
 
 /** A one-time link for a client: the address they open to choose their password. */
 export type PortalLink = { readonly user: ClientUser; readonly path: string };

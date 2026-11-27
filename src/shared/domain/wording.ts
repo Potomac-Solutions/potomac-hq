@@ -257,6 +257,8 @@ const WORDING: Readonly<Record<string, string>> = {
   "client-user.signed-out": "A client signed out of the portal",
   "client-user.password-set": "A client set their portal password",
   "client-user.reset-link-issued": "issued a client a new portal link",
+  "client-user.portal-preview-started": "started viewing a client’s portal, read-only",
+  "client-user.portal-preview-stopped": "stopped viewing a client’s portal",
   "project.message-received": "A client sent a message",
   "call.requested": "A client asked for a call",
   "booking.made": "A call was booked",

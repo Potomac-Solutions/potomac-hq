@@ -272,6 +272,10 @@
               <td>{person.email}</td>
               <td>{person.statusLabel}</td>
               <td>
+                <form zb-if={portal.canManage && person.status !== "disabled"} method="post" action="/portal-preview" class="hq-inline">
+                  <input type="hidden" name="clientUserId" value={person.id}>
+                  <button class="hq-button secondary small" type="submit" aria-label="View {person.name}’s portal, read-only">View their portal</button>
+                </form>
                 <form zb-if={portal.canManage && person.status !== "disabled"} method="post" action="/portal-users/{person.id}/link" class="hq-inline">
                   <input type="hidden" name="organizationId" value={view.client.id}>
                   <button class="hq-button secondary small" type="submit" aria-label="Send a new link to {person.name}">New link</button>
