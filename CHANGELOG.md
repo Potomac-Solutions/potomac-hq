@@ -9,6 +9,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Company projects and the company board** (decision 0021, migration
+  0089). Admins and managers start a *company project* from the Projects
+  page: Potomac's own work, like training and certifications, with no
+  client. It's planned and worked like any project, but bills nothing, has
+  no deliverables or portal, and its time is never billable. The Board now
+  shows everyone's to-dos beside every active project's tasks, so the whole
+  company's work is on one board; a to-do moves only between To do and
+  Done. New permission `project.start` (admin and manager).
+
 ## [0.19.0] - 2026-11-27
 
 - **View a client's portal**, read-only, for admins and managers (decision

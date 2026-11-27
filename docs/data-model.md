@@ -143,8 +143,8 @@ milestones and tasks.
 | Field | Type | Rule |
 | --- | --- | --- |
 | `id` | id | |
-| `organization_id` | id | Required. Copied from the opportunity |
-| `opportunity_id` | id | Required and unique: one project per opportunity |
+| `organization_id` | id | Copied from the opportunity. Empty for a company project (decision 0021) |
+| `opportunity_id` | id | Unique: one project per opportunity. Empty exactly when `organization_id` is |
 | `owner_id` | User id | Required |
 | `name` | text | Required |
 | `kind` | `fixed` or `ongoing` | `ongoing` when the opportunity's pricing is `monthly` or `yearly`, otherwise `fixed` |
@@ -152,7 +152,10 @@ milestones and tasks.
 
 ### Project rules
 
-- A project is created only by converting a `won` opportunity.
+- A client project is created only by converting a `won` opportunity.
+- A company project (decision 0021) is Potomac's own work: started by an
+  admin or manager, with no client and no opportunity. It is never billed,
+  has no deliverables and is never seen in a portal.
 - An opportunity can be converted once.
 - A `fixed` project ends as `completed` or `cancelled`.
 - An `ongoing` project never becomes `completed`. It stays `active` until it

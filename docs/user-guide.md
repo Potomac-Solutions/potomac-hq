@@ -120,6 +120,17 @@ leave a page with something typed and not saved, it asks first.
   internal and the client never sees them.
 - Set the project's **health** honestly. It is what the dashboard and the
   reports show.
+- **Company projects** are Potomac's own work, with no client: training
+  and certifications, the website, HQ itself. Start one from the Projects
+  page (admins and managers). It has phases, milestones, tasks and a board
+  like any project, but no money, deliverables or portal, and its time is
+  never billable.
+- The **company board** (Board, in the sidebar) is the whole business at a
+  glance: every active project's tasks, company projects included, and
+  everyone's to-dos. *Show only mine* narrows it to what's assigned to you.
+  Give someone a task by choosing them as its assignee: they get a notice.
+  A to-do moves only between To do and Done; put it in a project to mark it
+  working on or blocked.
 
 ## Time and money
 
