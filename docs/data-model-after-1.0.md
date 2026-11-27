@@ -418,6 +418,25 @@ link, once.
   ignored. **Only inquiries are credited**: a call booked at `/book`, or a
   phone call, is not.
 - The success rate is inquiries over scans.
+
+## Client QR codes (decision 0023)
+
+A client's own codes, for their cards and flyers. Unlike referral links,
+these never pass through HQ: the code is an address on the client's site.
+
+| Table | Holds |
+| --- | --- |
+| `site_qr_code` | The client, the code (the `ref` in the address, unique within a client), a label, the site's origin and the page on it, whether it's retired, and who made it: an HQ user or a client user, never both |
+| `site_qr_event` | One row a report from the client's site: the code, the kind (`scan`, `call`, `text` or `email`), when it happened (as the browser said, within a week) and when HQ got it. Nothing about the person |
+
+- The code, the site and the page are printed, so only the label and
+  retired can change. A code with any event can't be removed, only retired.
+- The sites a code may point at are the client's website address (Website
+  content), their active monitored sites and their free landing page. A
+  report counts only when its Origin's host is one of the reporting
+  client's sites.
+- Events: `site-qr.created`, `site-qr.renamed`, `site-qr.retired`,
+  `site-qr.restored`, `site-qr.removed`. A report writes none.
 - **QR codes are drawn by symbology** (`@journey-to-code/symbology`, pinned
   to an exact version), behind a `QrMaker` port with one adapter. Its Rust
   encoder ships as WebAssembly inside the package, so nothing is fetched.
