@@ -72,6 +72,10 @@ import { creditInquiry, referralLinks } from "./referrals/index.ts";
 import { allWebsites, clientWebsite, portalWebsite, staffWebsite, MAX_PHOTO_BYTES, type ClientWebsiteView, type SitePublisher } from "./websites/index.ts";
 import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./websites/api/website-routes.ts";
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
+import { codesView, type CodesView } from "./site-qr/index.ts";
+import { siteQrDownloads, siteQrHookRoutes, siteQrPortalRoutes, siteQrStaffRoutes } from "./site-qr/api/site-qr-routes.ts";
+import { isTrashKind, mayDeleteRecords, previewDelete, trashView } from "./trash/index.ts";
+import { trashRoutes } from "./trash/api/trash-routes.ts";
 import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
 import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
 import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type PortalFreePage, type SiteArchive } from "./free-pages/index.ts";
@@ -104,7 +108,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, portalNext, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientActivity, clientFiles, clientSession, previewBanner, previewSession, startPortalPreview, stopPortalPreview, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, chooseClient, clientActivity, clientChoices, clientFiles, clientSession, previewBanner, previewSession, startPortalPreview, stopPortalPreview, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
@@ -434,6 +438,8 @@ export type PageContext = {
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** The clients this person can switch between (decision 0022); empty when there's only the one. */
+    readonly clients: readonly { readonly id: string; readonly name: string; readonly current: boolean }[];
     /** Set when someone at Potomac is viewing this client person's portal, read-only (decision 0020). */
     readonly preview: { readonly name: string; readonly clientName: string; readonly clientId: string } | null;
     /** What an approval link from an email opens (quality of life, 2026-11-25). */
@@ -464,6 +470,13 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** The Trash (decision 0023): what a delete would take, and what's in it. Admins only. */
+  readonly trash: {
+    /** Whether this person may delete records. */
+    readonly can: boolean;
+    preview(kind: string, ids: readonly string[] | "demo-clients"): ReturnType<typeof previewDelete> | null;
+    view(): ReturnType<typeof trashView>;
+  };
   /** The Lab's demos, and who opened them (decision 0013, section 8). */
   readonly demos: {
     list(): ReturnType<typeof demosList>;
@@ -536,6 +549,13 @@ export type PageContext = {
     all(): ReturnType<typeof allWebsites>;
     site(id: string, wider?: number): ReturnType<typeof staffWebsite>;
     forClient(id: string): ClientWebsiteView | null;
+  };
+  /** QR codes a client prints, counted from their own site (decision 0024). */
+  readonly siteQr: {
+    /** The signed-in client's codes, or null when signed out. */
+    mine(): CodesView | null;
+    /** A client's codes, for Potomac's people. */
+    forClient(id: string): ReturnType<typeof codesView> | null;
   };
   readonly monitor: {
     all(): ReturnType<typeof allSites>;
@@ -685,6 +705,9 @@ const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
 const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
+/** A before-and-after pair: two photos in one form. */
+const PAIR_PATHS = /^\/(portal\/website|websites\/[0-9a-f-]{36})\/before-after$/;
+const MAX_PAIR_FORM_BYTES = 2 * MAX_PHOTO_BYTES + 64 * 1024;
 const MAX_PHOTO_FORM_BYTES = MAX_PHOTO_BYTES + 64 * 1024;
 // Forms with long text in them: a proposal's sections, and an article.
 const LONG_FORM_PATHS = /^\/(proposals\/[0-9a-f-]{36}|knowledge|articles\/[0-9a-f-]{36}|clients\/import|phone\/[0-9a-f-]{36}\/recap\/ai)$/;
@@ -744,7 +767,12 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   // Which client a request is from. In a preview of a client person's portal
   // (decision 0020) it is that person, whatever portal cookie the browser has.
-  const clientOf = (cookieHeader: string) => portalPreviewing() ?? clientSession(portalDeps, cookieHeader);
+  // Someone with access at more than one client (decision 0022) works at one at a time.
+  // The cookie only names which; clientSession honours it only if their sign-in opens that client.
+  const PORTAL_CLIENT_COOKIE = config.secure ? "__Host-hq-portal-client" : "hq-portal-client";
+  const chosenClientOf = (cookieHeader: string): string | null => new RegExp(`(?:^|;\\s*)${PORTAL_CLIENT_COOKIE}=([0-9a-f-]{36})(?:;|$)`).exec(cookieHeader)?.[1] ?? null;
+  const portalClientCookie = (clientUserId: string) => `${PORTAL_CLIENT_COOKIE}=${clientUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}${config.secure ? "; Secure" : ""}`;
+  const clientOf = (cookieHeader: string) => portalPreviewing() ?? clientSession(portalDeps, cookieHeader, chosenClientOf(cookieHeader));
 
   // Undo (decision 0014): a page's `undo` is kept in the database and the
   // address carries only its token, then the messages are signed as before.
@@ -955,6 +983,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         portal: {
           session: client ? { name: client.name } : null,
+          clients: clientChoices(portalDeps, request.headers.get("cookie") ?? "", client),
           preview: previewBanner(portalDeps, client),
           contact,
           notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
@@ -977,8 +1006,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           missing: () => show("portal/ui/portal-missing", { title: "Not found" }, { status: 404 }),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
-            const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
-            return found && user && user.status !== "disabled" ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
+            const user = found ? (portalDeps.clientUsers.allByEmail(found.email).find((one) => one.status !== "disabled") ?? null) : null;
+            return found && user ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
           },
         },
         signedIn: who !== null && !pending,
@@ -1156,6 +1185,21 @@ export async function createApp(config: AppConfig): Promise<App> {
           },
         },
         referrals: { list: () => referralLinks(services.referrals, actor, (config.publicUrl ?? "").replace(/\/$/, "")) },
+        siteQr: {
+          mine: () => {
+            const view = codesView(services.siteQr, { kind: "client", session: client }, `${(config.publicUrl ?? "").replace(/\/$/, "")}/hooks/site-qr`);
+            return view.ok ? view.value : null;
+          },
+          forClient: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? codesView(services.siteQr, { kind: "staff", actorId: actor, organizationId: parsed.value }, `${(config.publicUrl ?? "").replace(/\/$/, "")}/hooks/site-qr`) : null;
+          },
+        },
+        trash: {
+          can: mayDeleteRecords(services.trash, actor),
+          preview: (kind, ids) => (isTrashKind(kind) ? previewDelete(services.trash, actor, kind, ids) : null),
+          view: () => trashView(services.trash, actor),
+        },
         demos: {
           list: () => demosList(services.demos, actor),
           forOpportunity: (id) => {
@@ -1617,6 +1661,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     clientPortalRoutes({
       portal: portalDeps,
       clientOf,
+      chooseClient: (cookieHeader, clientUserId) => {
+        const chosen = chooseClient(portalDeps, cookieHeader, clientUserId);
+        return chosen.ok ? { name: chosen.value.name, cookie: portalClientCookie(chosen.value.id) } : null;
+      },
       sign: signNotice,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),
@@ -1736,6 +1784,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", websiteStaffRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
   forms.route("/", websitePortalRoutes({ websites: services.websites, actorOf, clientOf, sign: signNotice }));
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: signNotice }));
+  forms.route("/", siteQrPortalRoutes({ siteQr: services.siteQr, clientOf, sign: signNotice }));
+  forms.route("/", siteQrStaffRoutes({ siteQr: services.siteQr, actorOf, sign: signNotice }));
+  forms.route("/", trashRoutes({ trash: services.trash, actorOf, sign: signNotice }));
   forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: signNotice }));
   forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: signNotice }));
   forms.route("/", renewalPortalRoutes({ renewals: services.renewals, clientOf, sign: signNotice }));
@@ -1843,6 +1894,10 @@ export async function createApp(config: AppConfig): Promise<App> {
   );
   // n8n checking in (decision 0013, section 5): no cookie and no Origin, the token is the key.
   const allowCheckIn = sqliteRateLimit(db, { name: "automation-check-in", max: 120, windowMs: 60_000 });
+  // A client's site reporting a scan of one of their QR codes (decision 0024): no cookie, from any origin.
+  const allowSiteQr = sqliteRateLimit(db, { name: "site-qr-report", max: 60, windowMs: 60_000 });
+  const siteQrRepeat = sqliteRateLimit(db, { name: "site-qr-repeat", max: 1, windowMs: 30 * 60_000 });
+  web.route("/", siteQrHookRoutes({ siteQr: services.siteQr, addressOf: (incoming) => (incoming ? clientAddressOf(incoming as IncomingMessage) : ""), allow: allowSiteQr, firstInWindow: siteQrRepeat }));
   web.route("/", automationHookRoutes({ automations: services.automations, allow: (incoming) => allowCheckIn(clientAddressOf(incoming as never)) }));
   web.route("/", showcaseApiRoutes({ showcase: services.showcase, isSite: (token) => settingsForSite(services.publicSite, token) !== null, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
   web.route("/", siteApiRoutes({ website: services.publicSite, allow: (incoming) => allowSiteApi(clientAddressOf(incoming as never)) }));
@@ -1873,6 +1928,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", websiteDownloads({ websites: services.websites, actorOf, clientOf }));
   downloads.route("/", builderDownloads({ builder: services.builder, actorOf }));
   downloads.route("/", referralDownloads({ referrals: services.referrals, actorOf, publicUrl }));
+  downloads.route("/", siteQrDownloads({ siteQr: services.siteQr, clientOf, actorOf }));
   downloads.route("/", demoLinkRoutes({ demos: services.demos }));
   // The command bar also moves a deal it finds (decision 0014's palette, folded in).
   const dealMoves = (actor: Id, id: Id, title: string): readonly FindMove[] => {
@@ -1900,7 +1956,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", autopayPages({ autopay: services.autopay, clientOf, sign: signNotice, page: renderPage }));
   downloads.route("/", cardPayPages({ cardPay: cardPayDeps, clientOf, sign: signNotice, test: cardKit?.test ?? null }));
   const handleDownloads = getRequestListener(downloads.fetch);
-  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
+  const isStatic = (path: string) => path === "/manifest.webmanifest" || path === "/sw.js" || path === "/api/site/settings" || path === "/api/site/booking" || path === "/api/site/newsletter" || path === "/api/site/showcase" || path.startsWith("/api/site/showcase/files/") || path === "/river/one-click" || path.startsWith("/hooks/automations/") || path === "/hooks/site-qr" || path === "/healthz" || path === "/favicon.ico" || path.startsWith("/assets/");
 
   function badRequest(res: ServerResponse): void {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
@@ -2044,17 +2100,18 @@ export async function createApp(config: AppConfig): Promise<App> {
       // so the size limit cannot be walked around with a streamed body.
       const length = req.headers["content-length"] === undefined ? Number.NaN : Number(req.headers["content-length"]);
       if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
-      const photo = type === "multipart/form-data" && PHOTO_PATHS.test(path);
+      const pair = type === "multipart/form-data" && PAIR_PATHS.test(path);
+      const photo = pair || (type === "multipart/form-data" && PHOTO_PATHS.test(path));
       const upload = photo || (type === "multipart/form-data" && UPLOAD_PATHS.test(path));
       if (type !== "application/x-www-form-urlencoded" && !upload) return void sendHtml(res, 415, "Not a form", problemPage({ title: "Not a form", message: "This address only accepts form posts." }));
-      const limit = photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
+      const limit = pair ? MAX_PAIR_FORM_BYTES : photo ? MAX_PHOTO_FORM_BYTES : upload ? MAX_UPLOAD_BYTES : LONG_FORM_PATHS.test(path) ? MAX_LONG_FORM_BYTES : MAX_FORM_BYTES;
       if (!(length >= 0 && length <= limit)) return void sendHtml(res, 413, "Too much data", problemPage({ title: "Too much data", message: "That form was too large." }));
       return void (await handleForms(req, res));
     }
 
     // Pages show who is signed in, so they are never stored by a browser or proxy.
     res.setHeader("cache-control", "no-store");
-    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
+    if (path.startsWith("/files/") || path.startsWith("/portal/files/") || path.startsWith("/exports/") || path === "/activity.csv" || path === "/work.csv" || path === "/find.json" || /^\/clients\/[0-9a-f-]{36}\/handoff\.zip$/.test(path) || /^\/portal\/autopay\/(go|done|cancelled)$/.test(path) || path === "/pay/test" || /^\/portal\/invoices\/[0-9a-f-]{36}\/(paid|not-paid|pay\/frame)$/.test(path) || path === "/portal/landing-page.zip" || path === "/portal/payments.csv" || /^\/case-study-shots\/[0-9a-f-]{36}$/.test(path) || /^\/clients\/[0-9a-f-]{36}\/landing-page\.zip$/.test(path) || /^\/s\/[A-Za-z0-9_-]{43}\/files\/[0-9a-f-]{36}$/.test(path) || /^\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(path) || /^\/notices\/[0-9a-f-]{36}$/.test(path) || path === "/settings/two-factor/qr.svg" || path === "/settings/two-factor/app" || path.startsWith("/r/") || path.startsWith("/d/") || path.startsWith("/websites/photos/") || path.startsWith("/builder/preview/") || /^\/builder\/[0-9a-f-]{36}\/(versions\/\d{1,6}\/site\.zip|images\/[0-9a-f-]{36})$/.test(path) || path.startsWith("/portal/website/photos/") || /^\/referrals\/[^/]+\/qr\.svg$/.test(path) || /^\/(portal\/qr-codes|site-qr)\/[0-9a-f-]{36}\/qr\.(svg|png)$/.test(path) || /^\/(portal\/)?calls\/[^/]+\.ics$/.test(path) || path === "/book/manage/call.ics" || /^\/(portal\/)?(invoices|proposals)\/[^/]+\/pdf$/.test(path) || /^\/proposals\/[^/]+\/versions\/[^/]+\/pdf$/.test(path)) return void (await handleDownloads(req, res));
     // The step before the payment platform: the page has a link, and this sends most browsers
     // straight on. A redirect can't: the button was a form, and HQ's forms may only go to HQ.
     const paying = req.method === "GET" ? /^\/portal\/invoices\/([0-9a-f-]{36})\/pay$/.exec(path) : null;

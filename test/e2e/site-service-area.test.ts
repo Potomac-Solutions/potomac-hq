@@ -54,10 +54,10 @@ test("the owner changes where he goes, on the map, and the site has it at once",
     await assertAccessible(staff, `a site with a service area (${colorScheme})`);
   }
   await staff.goto(`${t.origin}/clients/${client.id}`);
-  await staff.getByText("Invite someone to the portal").click();
+  await staff.getByText("Invite someone who isn’t a contact").click();
   await staff.getByLabel("Their name").fill("Stacy Roberts");
   await staff.getByLabel("Their email").fill("stacy@betterdays.example");
-  await staff.getByRole("button", { name: "Invite" }).click();
+  await staff.getByRole("button", { name: "Invite to the portal", exact: true }).click();
   const link = await staff.getByLabel(/link/i).first().inputValue();
 
   // Stacy, on his phone.

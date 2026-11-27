@@ -130,15 +130,18 @@ export function httpClient(origin: string) {
     /** Posts, follows the redirect, and returns the page and where it landed. */
     submit: async (path: string, fields: Record<string, string>) => follow(await post(path, fields), path),
     /** Posts a form with one file. */
-    async upload(path: string, fields: Record<string, string>, file: { field: string; name: string; bytes: Uint8Array; type?: string }, headers: Record<string, string> = { origin }) {
+    /** Posts a form with one file, or several in their own fields. */
+    async upload(path: string, fields: Record<string, string>, file: UploadFile | readonly UploadFile[], headers: Record<string, string> = { origin }) {
       const form = new FormData();
       for (const [key, value] of Object.entries(fields)) form.set(key, value);
-      form.set(file.field, new File([new Uint8Array(file.bytes)], file.name, { type: file.type ?? "application/octet-stream" }));
+      for (const one of Array.isArray(file) ? file : [file]) form.set(one.field, new File([new Uint8Array(one.bytes)], one.name, { type: one.type ?? "application/octet-stream" }));
       return request(path, { method: "POST", headers, body: form });
     },
     follow,
   };
 }
+
+export type UploadFile = { readonly field: string; readonly name: string; readonly bytes: Uint8Array; readonly type?: string };
 
 export type TestApp = TestDb & { readonly app: App; readonly origin: string; readonly server: Server; stop(): Promise<void> };
 

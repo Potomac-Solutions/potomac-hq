@@ -269,7 +269,7 @@ test("the two sign-ins are separate: a client's password opens nothing in HQ, an
 test("turning a client's access off ends their session at once, and their link stops working", async () => {
   const carol = await clientSignedIn(t, admin, a.clientId, "Carol Baker", "carol@bakery.example");
   assert.equal((await carol.get("/portal")).status, 200);
-  const user = t.services.portal.clientUsers.byEmail("carol@bakery.example");
+  const user = t.services.portal.clientUsers.allByEmail("carol@bakery.example")[0];
   assert.ok(user);
   const off = await admin.submit(`/portal-users/${user.id}/access`, { on: "0", organizationId: a.clientId });
   assert.match(off.html, /Access turned off\. They are signed out\./);

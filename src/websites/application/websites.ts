@@ -1,4 +1,5 @@
-// A client's website content: the gallery, a notice and reviews, changed by
+// A client's website content: the gallery, a notice, reviews and
+// before-and-after pairs, changed by
 // the client in the portal or by Potomac in HQ, checked by Potomac, then
 // committed to the site's repository so the site rebuilds with it.
 //
@@ -6,7 +7,7 @@
 // wait until someone with `site.publish` publishes them. Two things are the
 // exception and take effect at once, as one commit each: whether the site is
 // open (decision 0004) and where the business goes (decision 0005).
-import { changesBetween, hasGallery, isMove, readContent, sameContent, withNotice, withoutPhoto, withoutReview, withPhoto, withPhotoMoved, withPhotoWords, withReview, writeContent, LIMITS, MAX_PHOTOS, MAX_REVIEWS, type ContentError, type SiteContent } from "../domain/content.ts";
+import { changesBetween, hasGallery, hasPairs, isMove, otherSizes, photosOf, readContent, sameContent, withNotice, withoutPair, withoutPhoto, withoutReview, withPair, withPairMoved, withPairWords, withPhoto, withPhotoIds, withPhotoMoved, withPhotoWords, withReview, writeContent, LIMITS, MAX_PAIRS, MAX_PHOTOS, MAX_REVIEWS, type ContentError, type PairWords, type SiteContent } from "../domain/content.ts";
 import { cleanSiteAddress, describeLaunch, isOpen, launchBlock, launchFrom, opensFields, previewLink, readLaunch, type Launch, type LaunchError, type LaunchInput } from "../domain/launch.ts";
 import { checkPhoto, contentTypeOf, photoFileName, MAX_PHOTO_BYTES, type PhotoError } from "../domain/photo.ts";
 import { areaNames, frameFor, MAX_AREAS, MAX_NAME, pathOf, project, readServiceArea, sameServiceArea, serviceAreaBlock, serviceAreaFrom, viewFor, type AreaError, type Frame, type ServiceArea } from "../domain/service-area.ts";
@@ -117,9 +118,9 @@ async function readSite(deps: WebsitesDeps, setup: Pick<ContentSite, "repo" | "c
     const owner = deps.photos.get(id)?.siteId;
     return owner !== undefined && owner !== siteId;
   };
-  const content = { ok: true as const, value: { ...read.value, gallery: read.value.gallery.map((photo) => (taken(photo.id) ? { ...photo, id: deps.newId() } : photo)) } };
+  const content = { ok: true as const, value: withPhotoIds(read.value, (id) => (taken(id) ? deps.newId() : id)) };
   const photos: { id: Id; path: string; body: Uint8Array }[] = [];
-  for (const photo of content.value.gallery) {
+  for (const photo of photosOf(content.value)) {
     const path = repoPathFor(setup.photoDir, photo.src);
     const body = await deps.publisher.read(setup.repo, path);
     if (!body.ok) return err(body.error === "repo-missing" ? "photo-unreadable" : body.error);
@@ -232,9 +233,46 @@ export function removeReview(deps: WebsitesDeps, editor: Editor, siteId: Id | nu
   });
 }
 
+// ── Before and after ─────────────────────────────────────────────────────
+
+export type NewPair = PairWords & { readonly before: Uint8Array | null; readonly after: Uint8Array | null };
+
+/** Adds a before-and-after pair: two photos and their words, together or not at all. */
+export function addPair(deps: WebsitesDeps, editor: Editor, siteId: Id | null, input: NewPair) {
+  return change(deps, editor, siteId, "site-content.pair-added", (content, site) => {
+    if (!hasPairs(content)) return err("no-pairs");
+    const beforeKind = checkPhoto(input.before);
+    if (!beforeKind.ok || !input.before) return err(beforeKind.ok ? "photo-missing" : beforeKind.error);
+    const afterKind = checkPhoto(input.after);
+    if (!afterKind.ok || !input.after) return err(afterKind.ok ? "photo-missing" : afterKind.error);
+    const before = { id: deps.newId(), kind: beforeKind.value, bytes: input.before };
+    const after = { id: deps.newId(), kind: afterKind.value, bytes: input.after };
+    const id = deps.newId();
+    const next = withPair(content, { id, before: { id: before.id, src: srcFor(site.photoDir, photoFileName(before.id, before.kind)) }, after: { id: after.id, src: srcFor(site.photoDir, photoFileName(after.id, after.kind)) } }, input);
+    if (!next.ok) return next;
+    for (const photo of [before, after]) deps.photos.put({ id: photo.id, siteId: site.id, path: `${site.photoDir}/${photoFileName(photo.id, photo.kind)}`, contentType: photo.kind.contentType, inRepo: false }, photo.bytes, deps.clock());
+    return ok({ content: next.value, context: { pairId: id, sizeBytes: input.before.length + input.after.length } });
+  });
+}
+
+/**
+ * Runs a change on a pair. A client's site is their own; one of Potomac's
+ * people names the site. A pair that isn't on that site is "no such pair".
+ */
+function onPair(deps: WebsitesDeps, editor: Editor, siteId: Id | null, pairId: Id, action: string, make: (content: SiteContent) => Result<SiteContent, ContentError>) {
+  return change(deps, editor, editor.kind === "client" ? null : siteId, action, (content) => {
+    const next = make(content);
+    return next.ok ? ok({ content: next.value, context: { pairId } }) : next;
+  });
+}
+
+export const editPair = (deps: WebsitesDeps, editor: Editor, siteId: Id | null, pairId: Id, input: PairWords) => onPair(deps, editor, siteId, pairId, "site-content.pair-changed", (content) => withPairWords(content, pairId, input));
+export const removePair = (deps: WebsitesDeps, editor: Editor, siteId: Id | null, pairId: Id) => onPair(deps, editor, siteId, pairId, "site-content.pair-removed", (content) => withoutPair(content, pairId));
+export const movePair = (deps: WebsitesDeps, editor: Editor, siteId: Id | null, pairId: Id, move: string) => onPair(deps, editor, siteId, pairId, "site-content.pairs-reordered", (content) => (isMove(move) ? withPairMoved(content, pairId, move) : err("unchanged")));
+
 /** Photos uploaded for changes that are no longer waiting: not in the repository, and not in what is. */
 function dropUnused(deps: WebsitesDeps, site: ContentSite): void {
-  const used = new Set([...site.published.gallery, ...(site.draft?.gallery ?? [])].map((photo) => photo.id));
+  const used = new Set([...photosOf(site.published), ...(site.draft ? photosOf(site.draft) : [])].map((photo) => photo.id));
   for (const photo of deps.photos.listFor(site.id)) if (!photo.inRepo && !used.has(photo.id)) deps.photos.remove(photo.id);
 }
 
@@ -302,7 +340,7 @@ export async function publishChanges(deps: WebsitesDeps, actorId: Id | null, sit
     const stored = new Map(deps.photos.listFor(site.id).map((photo) => [photo.id, photo]));
     const write: { path: string; bytes: Uint8Array }[] = [{ path: site.contentPath, bytes: fileFor(deps, site, draft) }];
     const added: StoredPhoto[] = [];
-    for (const photo of draft.gallery) {
+    for (const photo of photosOf(draft)) {
       const one = stored.get(photo.id);
       const body = one && !one.inRepo ? deps.photos.body(one.id) : null;
       if (!one || (!one.inRepo && !body)) return err("photo-lost");
@@ -311,11 +349,20 @@ export async function publishChanges(deps: WebsitesDeps, actorId: Id | null, sit
         added.push(one);
       }
     }
-    const keep = new Set(draft.gallery.map((photo) => photo.id));
+    const keep = new Set(photosOf(draft).map((photo) => photo.id));
     const gone = [...stored.values()].filter((photo) => photo.inRepo && !keep.has(photo.id));
+    // A removed pair's photos may have other sizes on the site, named in their srcSet. They go too, if they are there.
+    const kept = new Set([...photosOf(draft).map((photo) => photo.src), ...(draft.pairs ?? []).flatMap((pair) => [...otherSizes(pair.before), ...otherSizes(pair.after)])]);
+    const removedPairs = (site.published.pairs ?? []).filter((pair) => !draft.pairs?.some((one) => one.id === pair.id));
+    const sizes: string[] = [];
+    for (const src of new Set(removedPairs.flatMap((pair) => [...otherSizes(pair.before), ...otherSizes(pair.after)]))) {
+      if (kept.has(src)) continue;
+      const path = repoPathFor(site.photoDir, src);
+      if ((await deps.publisher.read(site.repo, path)).ok) sizes.push(path);
+    }
     const changes = changesBetween(site.published, draft);
     const message = `Update site content\n\n${changes.map((one) => `- ${one}`).join("\n")}\n\nPublished from Potomac HQ.`;
-    const committed = await deps.publisher.commit(site.repo, { message, write, remove: gone.map((photo) => photo.path) });
+    const committed = await deps.publisher.commit(site.repo, { message, write, remove: [...gone.map((photo) => photo.path), ...sizes.filter((path) => !gone.some((photo) => photo.path === path))] });
     if (!committed.ok) return committed;
     return deps.transact(() => {
       // The commit is made. Whatever else changed while it was, record what is now on the site.
@@ -556,6 +603,8 @@ function serviceAreaView(deps: WebsitesDeps, area: ServiceArea, wider: number): 
   };
 }
 
+export type PairLine = { readonly id: string; readonly title: string; readonly caption: string; readonly beforeId: string; readonly beforeAlt: string; readonly afterId: string; readonly afterAlt: string; readonly isNew: boolean; readonly first: boolean; readonly last: boolean; readonly position: number };
+
 export type PhotoLine = { readonly id: string; readonly title: string; readonly alt: string; readonly caption: string; readonly isNew: boolean; readonly first: boolean; readonly last: boolean; readonly position: number };
 
 export type EditorView = {
@@ -567,6 +616,11 @@ export type EditorView = {
   readonly notice: string;
   readonly reviews: readonly { readonly index: number; readonly quote: string; readonly by: string }[];
   readonly canAddReview: boolean;
+  /** True when the site shows before-and-after pairs. */
+  readonly hasPairs: boolean;
+  readonly pairs: readonly PairLine[];
+  readonly canAddPair: boolean;
+  readonly maxPairs: number;
   /** What is waiting, as sentences. Empty when the page shows what is on the site. */
   readonly changes: readonly string[];
   readonly state: "none" | "editing" | "submitted";
@@ -587,6 +641,7 @@ export type EditorView = {
 function editorView(deps: WebsitesDeps, site: ContentSite, wider = 0): EditorView {
   const content = working(site);
   const live = new Set(site.published.gallery.map((photo) => photo.id));
+  const livePairs = new Set((site.published.pairs ?? []).map((pair) => pair.id));
   return {
     siteId: site.id,
     name: site.name,
@@ -596,6 +651,10 @@ function editorView(deps: WebsitesDeps, site: ContentSite, wider = 0): EditorVie
     notice: content.notice,
     reviews: content.reviews.map((review, index) => ({ index, quote: review.quote, by: review.by })),
     canAddReview: content.reviews.length < MAX_REVIEWS,
+    hasPairs: hasPairs(content),
+    pairs: (content.pairs ?? []).map((pair, index, all) => ({ id: pair.id, title: pair.title, caption: pair.caption, beforeId: pair.before.id, beforeAlt: pair.before.alt, afterId: pair.after.id, afterAlt: pair.after.alt, isNew: !livePairs.has(pair.id), first: index === 0, last: index === all.length - 1, position: index + 1 })),
+    canAddPair: (content.pairs?.length ?? 0) < MAX_PAIRS,
+    maxPairs: MAX_PAIRS,
     changes: site.draft ? changesBetween(site.published, site.draft) : [],
     state: site.draftState,
     sent: site.draftState === "submitted" && site.submittedAt ? `Sent by ${site.submittedBy ?? "the client"}, ${deps.formatWhen(site.submittedAt)}` : "",

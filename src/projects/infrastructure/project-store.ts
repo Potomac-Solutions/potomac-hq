@@ -19,8 +19,8 @@ const maybe = (row: Row, key: string) => (row[key] ?? null) as string | null;
 
 const toProject = (r: Row): Project => ({
   id: text(r, "id") as Id,
-  organizationId: text(r, "organization_id") as Id,
-  opportunityId: text(r, "opportunity_id") as Id,
+  organizationId: maybe(r, "organization_id") as Id | null,
+  opportunityId: maybe(r, "opportunity_id") as Id | null,
   ownerId: text(r, "owner_id") as Id,
   name: text(r, "name"),
   kind: text(r, "kind") as ProjectKind,
@@ -39,10 +39,10 @@ export function sqliteProjectStore(db: Database): ProjectStore {
   const byOpportunity = db.prepare(`select ${columns} from project where opportunity_id = ?`);
   const listFor = db.prepare(`select ${columns} from project where organization_id = ? order by created_at desc, rowid desc`);
   const list = db.prepare(
-    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, c.name as client_name, c.demo as client_demo, u.name as owner_name,
+    `select ${columns.split(", ").map((c) => `p.${c}`).join(", ")}, coalesce(c.name, '') as client_name, coalesce(c.demo, 0) as client_demo, u.name as owner_name,
             (select count(*) from task t where t.project_id = p.id and t.status <> 'done') as open_tasks
        from project p
-       join client_organization c on c.id = p.organization_id
+       left join client_organization c on c.id = p.organization_id
        join user u on u.id = p.owner_id
       order by p.created_at desc, p.rowid desc`,
   );
@@ -161,6 +161,8 @@ export function sqliteTaskStore(db: Database): TaskStore {
        from task t left join project p on p.id = t.project_id left join user u on u.id = t.assignee_id where t.id = ?`);
   const listFor = db.prepare(`${joined} where t.project_id = ? order by t.rowid`);
   const listBoard = db.prepare(`${joined} where p.status = 'active' and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
+  const listTodos = db.prepare(`select ${columns.split(", ").map((c) => `t.${c}`).join(", ")}, '' as project_name, u.name as assignee_name
+       from task t left join user u on u.id = t.assignee_id where t.project_id is null and (t.status <> 'done' or t.done_at >= ?) order by t.rowid`);
   const row = (r: Row): TaskRow => ({ ...toTask(r), projectName: text(r, "project_name"), assigneeName: maybe(r, "assignee_name") });
   return {
     insert(t, at, origin = {}) {
@@ -182,6 +184,9 @@ export function sqliteTaskStore(db: Database): TaskStore {
     },
     listBoard(doneSince) {
       return (listBoard.all(doneSince) as Row[]).map(row);
+    },
+    listTodosForBoard(doneSince) {
+      return (listTodos.all(doneSince) as Row[]).map(row);
     },
   };
 }

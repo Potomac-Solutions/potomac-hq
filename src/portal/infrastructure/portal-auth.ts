@@ -54,6 +54,10 @@ export function createPortalAuth(store: KitStore, options: { secure: boolean; pa
       const made = await staff.invite(await system(), { email, name, roles: ["client"] });
       return made.ok ? made.token : null;
     },
+    accountFor(email) {
+      const clean = email.trim().toLowerCase();
+      return clean === SYSTEM_EMAIL ? null : (staff.list().find((one) => one.email === clean)?.account ?? null);
+    },
     async resetLink(account) {
       const made = await staff.resetLink(await system(), account);
       return made.ok ? made.token : null;

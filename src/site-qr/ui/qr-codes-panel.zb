@@ -1,0 +1,108 @@
+<!--
+  A client's QR codes (decision 0024): each one's picture and address on
+  their own site, what it brought in, and the forms to make, rename, retire
+  and remove them. Used in the client's portal and on the client in HQ:
+  `view.base` is where the forms post, `pictures` where the pictures are,
+  and `actions` where a code's own forms go.
+-->
+<script>
+  import '../../shared/ui/zubra/empty-state.zb'
+  import '../../shared/ui/zubra/select-field.zb'
+  import '../../shared/ui/zubra/text-field.zb'
+</script>
+<style>
+  :host { display: block; }
+  .qr-list { list-style: none; margin: 0; padding: 0; }
+  .qr-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem 1.25rem; padding: 1rem 0; border-top: 1px solid var(--border); }
+  .qr-list > li:first-child { border-top: 0; }
+  .qr-list p { margin: 0 0 0.3rem; overflow-wrap: anywhere; }
+  .qr-picture img { width: 8rem; height: 8rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: #fff; }
+  .qr-address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; user-select: all; }
+  .qr-counts { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin: 0.25rem 0 0.4rem; padding: 0; list-style: none; }
+  .qr-counts strong { font-size: 1.1rem; }
+  .qr-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+  .qr-actions form { margin: 0; }
+  .qr-script { white-space: pre; overflow-x: auto; font-size: 0.8rem; max-height: 16rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--surface-muted, transparent); user-select: all; }
+  @media (max-width: 34rem) { .qr-list > li { grid-template-columns: minmax(0, 1fr); } }
+</style>
+<qr-codes-panel view={{ organizationName: '', base: '', sites: [], active: [], retired: [], canChange: false, full: false, script: '', lastHeard: '', totals: { scans: 0, recentScans: 0, taps: 0 } }} pictures="" actions="" staff={false}>
+  <p zb-if={view.sites.length === 0} class="hq-muted">{staff ? 'HQ has no website address for this client yet. Add one under Website editing, site monitoring or the free landing page, then make a code.' : 'We don’t have your website’s address yet. Ask us to add it, and you can make QR codes for it here.'}</p>
+
+  <section zb-if={view.active.length > 0} class="hq-panel" aria-labelledby="qr-all">
+    <h2 id="qr-all">{view.totals.scans} {view.totals.scans === 1 ? 'scan' : 'scans'}, {view.totals.recentScans} in the last 30 days</h2>
+    <p zb-if={view.totals.taps > 0} class="hq-muted">{view.totals.taps} {view.totals.taps === 1 ? 'person' : 'people'} tapped to call, text or email after scanning.</p>
+    <ul class="qr-list">
+      <zb-each items={view.active} as="code" key={code.id}>
+        <li id="code-{code.code}">
+          <div>
+            <p><strong>{code.label}</strong></p>
+            <p class="qr-address">{code.address}</p>
+            <ul class="qr-counts hq-small">
+              <li><strong>{code.scans}</strong> {code.scans === 1 ? 'scan' : 'scans'}</li>
+              <li>{code.recentScans} in the last 30 days</li>
+              <li zb-if={code.calls > 0}>{code.calls} {code.calls === 1 ? 'call' : 'calls'}</li>
+              <li zb-if={code.texts > 0}>{code.texts} {code.texts === 1 ? 'text' : 'texts'}</li>
+              <li zb-if={code.emails > 0}>{code.emails} {code.emails === 1 ? 'email' : 'emails'}</li>
+            </ul>
+            <p class="hq-small hq-muted">{code.lastScan ? 'Last scanned ' + code.lastScan : 'Not scanned yet'}</p>
+            <div class="qr-actions">
+              <a zb-if={code.scannable} class="hq-button secondary portal-big" href="{pictures}/{code.id}/qr.png?download=1">Download PNG<span class="sr-only">: {code.label}</span></a>
+              <a zb-if={code.scannable} class="hq-button secondary portal-big" href="{pictures}/{code.id}/qr.svg?download=1">Download SVG<span class="sr-only">: {code.label}</span></a>
+            </div>
+            <details zb-if={view.canChange} class="hq-more">
+              <summary>Rename or retire<span class="sr-only">: {code.label}</span></summary>
+              <form method="post" action="{actions}/{code.id}/rename" class="hq-form">
+                <text-field label="What it’s printed on" name="label" value={code.label} required={true} maxlength={120}></text-field>
+                <div><button class="hq-button" type="submit">Save<span class="sr-only">: {code.label}</span></button></div>
+              </form>
+              <div class="qr-actions">
+                <form zb-if={code.removable} method="post" action="{actions}/{code.id}/remove"><button class="hq-button secondary" type="submit">Remove<span class="sr-only">: {code.label}</span></button></form>
+                <form zb-else method="post" action="{actions}/{code.id}/retire"><button class="hq-button secondary" type="submit">Retire<span class="sr-only">: {code.label}</span></button></form>
+              </div>
+            </details>
+          </div>
+          <div zb-if={code.scannable} class="qr-picture">
+            <img src="{pictures}/{code.id}/qr.svg" alt="QR code for {code.address}" width="128" height="128">
+          </div>
+        </li>
+      </zb-each>
+    </ul>
+  </section>
+  <empty-state zb-if={view.active.length === 0 && view.sites.length > 0} heading="No QR codes yet">Make one below for each thing you print, so you can tell which brings people in.</empty-state>
+
+  <section zb-if={view.canChange && view.sites.length > 0} class="hq-panel" id="add" aria-labelledby="qr-add">
+    <h2 id="qr-add">Make a QR code</h2>
+    <p class="hq-muted">The code opens your own website, so it keeps working even when this portal is down, and if you ever move your website. What it opens can’t be changed once it’s printed.</p>
+    <p zb-if={view.full} class="hq-muted">You have 100 codes, the most there can be. Remove one nobody has scanned to make room.</p>
+    <form zb-else method="post" action={view.base} class="hq-form">
+      <text-field label="What it’s printed on" name="label" required={true} maxlength={120} description="Like: Business cards, spring 2027"></text-field>
+      <select-field zb-if={view.sites.length > 1} label="Which website" name="site" options={view.sites.map((site) => ({ value: site, label: site }))} required={true}></select-field>
+      <text-field label="Which page" name="page" value="/" maxlength={120} description="/ is the home page. Or a page like /services."></text-field>
+      <text-field label="Code" name="code" maxlength={32} description="Shows up in the address, like card or flyer-feed-store. Leave it empty and we make one up."></text-field>
+      <div><button class="hq-button portal-big" type="submit">Make QR code</button></div>
+    </form>
+  </section>
+
+  <section zb-if={view.retired.length > 0} class="hq-panel" aria-labelledby="qr-retired">
+    <h2 id="qr-retired">Retired</h2>
+    <p class="hq-muted">Still counted if someone scans an old card.</p>
+    <ul class="qr-list">
+      <zb-each items={view.retired} as="code" key={code.id}>
+        <li id="code-{code.code}">
+          <div>
+            <p><strong>{code.label}</strong> <span class="hq-small hq-muted">{code.scans} {code.scans === 1 ? 'scan' : 'scans'}{code.lastScan ? ', last ' + code.lastScan : ''}</span></p>
+            <p class="qr-address hq-small">{code.address}</p>
+            <form zb-if={view.canChange} method="post" action="{actions}/{code.id}/restore"><button class="hq-button secondary" type="submit">Bring back<span class="sr-only">: {code.label}</span></button></form>
+          </div>
+        </li>
+      </zb-each>
+    </ul>
+  </section>
+
+  <section zb-if={staff && view.script} class="hq-panel" id="script" aria-labelledby="qr-script">
+    <h2 id="qr-script">The script for their website</h2>
+    <p>{view.lastHeard ? 'HQ last heard from their site ' + view.lastHeard + '.' : 'HQ hasn’t heard from their site yet.'}</p>
+    <p class="hq-muted">Put this once in the site’s shared layout, just before the closing body tag, so it is on every page a code opens. It loads nothing and the site works the same without it. It counts a scan, takes the code out of the address bar, and counts a tap to call, text or email in the same visit. If HQ can’t be reached, the visitor’s browser keeps the count and sends it on their next visit.</p>
+    <pre class="qr-script" tabindex="0" role="region" aria-label="The script to copy"><code>{view.script}</code></pre>
+  </section>
+</qr-codes-panel>

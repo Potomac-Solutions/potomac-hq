@@ -13,14 +13,14 @@
     if (stop) return stop
     const view = context.crm.listClients(url.searchParams.get('status') ?? '', url.searchParams.get('kind') ?? '')
     if (!view.ok) return context.forbidden()
-    return { title: 'Clients', view: view.value, importer: context.crm.canImport(), done: context.notice.done, problem: context.notice.problem }
+    return { title: 'Clients', view: view.value, importer: context.crm.canImport(), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
 <style>
   .hq-same { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-left: 0.25rem solid var(--warning); border-radius: var(--radius); }
   .hq-same p { margin: 0; }
 </style>
-<hq-clients view={{ clients: [], canCreate: false, sizeTiers: [], statuses: [], status: "", kind: "", demoCount: 0 }} importer={false} done="" problem="">
+<hq-clients view={{ clients: [], canCreate: false, sizeTiers: [], statuses: [], status: "", kind: "", demoCount: 0 }} importer={false} can-delete={false} done="" problem="">
   <div class="hq-page">
     <div class="hq-head">
       <div><h1>Clients</h1></div>
@@ -54,13 +54,20 @@
       <empty-state zb-if={view.clients.length === 0 && !view.status} heading="No clients yet">Add the first one below.</empty-state>
       <p zb-else-if={view.clients.length === 0} class="hq-muted">No clients match.</p>
       <table tabindex="0" zb-else class="hq-table">
-        <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Size</th><th scope="col">Open opportunities</th></tr></thead>
+        <thead><tr><th zb-if={canDelete} scope="col"><span class="sr-only">Pick</span></th><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Size</th><th scope="col">Open opportunities</th></tr></thead>
         <tbody>
           <zb-each items={view.clients} as="client" key={client.id}>
-            <tr><td><a href="/clients/{client.id}">{client.name}</a> <status-badge zb-if={client.demo} variant="outline">Demo</status-badge></td><td>{client.statusLabel}</td><td>{client.sizeTierLabel}</td><td>{client.openOpportunities}</td></tr>
+            <tr><td zb-if={canDelete}><input type="checkbox" name="ids" value={client.id} form="clients-delete" aria-label="Pick {client.name}"></td><td><a href="/clients/{client.id}">{client.name}</a> <status-badge zb-if={client.demo} variant="outline">Demo</status-badge></td><td>{client.statusLabel}</td><td>{client.sizeTierLabel}</td><td>{client.openOpportunities}</td></tr>
           </zb-each>
         </tbody>
       </table>
+      <form zb-if={canDelete && view.clients.length > 0} id="clients-delete" method="get" action="/delete" class="hq-form-row" data-spaced>
+        <input type="hidden" name="kind" value="client">
+        <input type="hidden" name="back" value="/clients">
+        <button class="hq-button secondary" type="submit">Delete the picked ones…</button>
+        <a zb-if={view.demoCount > 0} class="hq-button secondary" href="/delete?kind=client&demo=all&back=/clients">Delete all demo clients…</a>
+        <a class="hq-small" href="/trash">Trash</a>
+      </form>
     </section>
     <section zb-if={view.canCreate} class="hq-panel" aria-labelledby="new-client">
       <h2 id="new-client">Add a client</h2>

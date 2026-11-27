@@ -138,7 +138,7 @@ export function hoursThisWeek(deps: FinanceDeps, actorId: Id | null): Result<Hou
 function measure(deps: FinanceDeps, project: Project, today: string) {
   const finance = deps.finance.get(project.id) ?? defaultFinance(project.id);
   const baseline = deps.baselines.get(project.id);
-  const pricing = baseline?.pricing ?? deps.opportunities.get(project.opportunityId)?.pricing ?? null;
+  const pricing = baseline?.pricing ?? (project.opportunityId ? deps.opportunities.get(project.opportunityId)?.pricing ?? null : null);
   const period = budgetPeriod(project.kind === "ongoing" ? pricing : "fixed", today);
   // An hourly proposal's "total" is its estimate of hours × rate, so it is a budget too.
   const budget: Budget = { amount: finance.budget ?? baseline?.amount ?? null, minutes: finance.budgetMinutes ?? (baseline && baseline.minutes > 0 ? baseline.minutes : null) };
@@ -168,6 +168,8 @@ function summaryOf(budget: Budget, time: { minutes: number; billableMinutes: num
 
 export type ProjectMoneyView = {
   readonly project: { readonly id: string; readonly name: string; readonly active: boolean };
+  /** Potomac's own work (decision 0021): its time and expenses, with nothing to bill. */
+  readonly company: boolean;
   readonly period: string;
   readonly fromProposal: boolean;
   readonly summary: ReturnType<typeof summaryOf>;
@@ -207,6 +209,7 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
   const rows = [...phases.map((phase) => phaseRow(phase.id, phase.name)), phaseRow(null, phases.length > 0 ? "No phase" : "All work")];
   return ok({
     project: { id: project.id, name: project.name, active: project.status === "active" },
+    company: project.organizationId === null,
     period: m.period.label,
     fromProposal: m.fromProposal,
     summary: summaryOf(m.budget, m.time, m.expenses, m.standing),
@@ -234,8 +237,9 @@ export function projectMoney(deps: FinanceDeps, actorId: Id | null, projectId: I
     recurring: may(deps, actorId, "invoice.view") ? deps.recurring.listForProject(projectId).map((one) => recurringLine(one, project.name, "", today)) : [],
     everyOptions: options(EVERY_LABELS),
     can: {
-      viewInvoices: may(deps, actorId, "invoice.view"),
-      editInvoices: may(deps, actorId, "invoice.edit"),
+      // A company project has no one to bill (decision 0021).
+      viewInvoices: project.organizationId !== null && may(deps, actorId, "invoice.view"),
+      editInvoices: project.organizationId !== null && may(deps, actorId, "invoice.edit"),
       edit: may(deps, actorId, "finance.edit"),
       addExpense: may(deps, actorId, "expense.edit"),
       export: may(deps, actorId, "finance.export"),

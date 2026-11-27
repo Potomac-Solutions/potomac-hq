@@ -9,6 +9,69 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-27
+
+- **Deleting a contact turns off their portal access at that client**
+  (decisions 0022 and 0023). Before, a contact moved to the Trash could
+  still sign in to that client's portal. Now their access there is turned
+  off when the last contact at the client with their email goes, and turned
+  back on when the contact is put back. Their access at other clients isn't
+  touched. The page that asks first, and the Trash, say so.
+- **Before and after on client websites.** A site whose content file has
+  a `beforeAfter` list gets a Before and after section in the portal and
+  on its page in HQ: add a pair with both photos and its words at once
+  (each photo shrunk in the browser), change the words, reorder, and
+  remove. Publishing commits the new photos and removes a removed pair's
+  photos, with any other sizes its `srcSet` names. A site without the list
+  never shows the section. See the addition to decision 0003, including
+  the order to roll it out to a site already set up.
+- **QR codes a client prints, counted from their own site** (decision 0024,
+  migration 0093). In the portal, under **QR codes**, a client makes a code
+  for each thing they print (business cards, a flyer, a truck decal) and
+  downloads it as PNG or SVG. The code is an address on their own website,
+  `https://their-site/page?ref=code`, so a card keeps working when HQ is
+  down and after they move hosts. A small script on their site (shown on
+  the client's QR codes page in HQ) reports each scan and any tap to call,
+  text or email that follows; reports it couldn't send wait in the
+  visitor's browser for their next visit. The portal shows each code's
+  scans, last 30 days and all time. HQ counts a report only from that
+  client's own site, for that client's code, once a visit in 30 minutes,
+  and keeps only what and when. New permission `site-qr.manage` (every
+  role).
+- **Delete clients, contacts, deals, proposals and projects, into a Trash**
+  (decision 0023, migration 0092). Admins only (`record.delete`). Each goes
+  with everything that belongs to it; what only mentions it stays with the
+  link cleared. A page first says what each would take, and Undo puts it
+  back at once. The Trash keeps it 30 days to put back exactly as it was,
+  then the nightly run purges it. A real client's payments and signed
+  agreements are kept; a demo client goes with everything. Ticks on the
+  Clients and Proposals lists, and *Delete all demo clients*.
+- **Company projects and the company board** (decision 0021, migration
+  0089). Admins and managers start a *company project* from the Projects
+  page: Potomac's own work, like training and certifications, with no
+  client. It's planned and worked like any project, but bills nothing, has
+  no deliverables or portal, and its time is never billable. The Board now
+  shows everyone's to-dos beside every active project's tasks, so the whole
+  company's work is on one board; a to-do moves only between To do and
+  Done. New permission `project.start` (admin and manager). A company
+  project's Money tab keeps its expenses and time, without invoices, so
+  what company work costs is a business expense in the tax pack; two new
+  expense categories, **Training and certifications** and **Licenses,
+  permits and filing fees** (migration 0090).
+- **Invite a contact to the portal from their row.** On a client's page,
+  Contacts has a Portal column: *Invite to the portal* beside anyone with
+  an email, or where they stand once invited (invited, has access, access
+  turned off), matched by email. The old form stays, renamed "Invite
+  someone who isn't a contact".
+- **One person, more than one client, in the portal** (decision 0022,
+  migration 0091). The same email can have portal access at several
+  clients, with one password, but a second client only where they are
+  listed under that client's Contacts; a matching email alone never joins
+  two clients. The portal shows one client at a time, with a *Showing*
+  menu to switch, checked on every request. Turning access off at one
+  client leaves their others open; their sign-in closes only when none is
+  left.
+
 ## [0.19.0] - 2026-11-27
 
 - **View a client's portal**, read-only, for admins and managers (decision

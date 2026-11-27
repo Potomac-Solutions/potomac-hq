@@ -66,10 +66,10 @@ test("a client changes their own site, and Potomac publishes it", async () => {
   await staff.getByRole("heading", { name: "Nothing is waiting" }).waitFor();
   await assertAccessible(staff, "a site with nothing waiting");
   await staff.goto(`${t.origin}/clients/${client.id}`);
-  await staff.getByText("Invite someone to the portal").click();
+  await staff.getByText("Invite someone who isn’t a contact").click();
   await staff.getByLabel("Their name").fill("Dana Groves");
   await staff.getByLabel("Their email").fill("dana@nufinish.example");
-  await staff.getByRole("button", { name: "Invite" }).click();
+  await staff.getByRole("button", { name: "Invite to the portal", exact: true }).click();
   const link = await staff.getByLabel(/link/i).first().inputValue();
 
   // Dana, on her phone.

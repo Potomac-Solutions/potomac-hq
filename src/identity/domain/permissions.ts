@@ -74,6 +74,8 @@ export const PERMISSIONS = [
   "label.manage",
   "project.share",
   "webhook.manage",
+  // Company projects (decision 0021)
+  "project.start",
   // The site builder (decision 0010)
   "site.build",
   // Social media (decision 0011)
@@ -88,6 +90,10 @@ export const PERMISSIONS = [
   "automation.manage",
   "review.manage",
   "demo.manage",
+  // QR codes a client prints (decision 0024)
+  "site-qr.manage",
+  // The Trash (decision 0023)
+  "record.delete",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -105,6 +111,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "webhook.manage",
   "site.build",
   "ai.manage",
+  "record.delete",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [
@@ -132,6 +139,7 @@ const MANAGER_AND_UP: readonly Permission[] = [
   "site.publish",
   "label.manage",
   "project.share",
+  "project.start",
   "newsletter.manage",
   "client-report.send",
   "automation.manage",

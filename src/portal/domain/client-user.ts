@@ -1,5 +1,8 @@
 // Someone at a client who signs in to the portal (roadmap v0.6). Separate
-// from an HQ user, and tied to exactly one client organization, for good.
+// from an HQ user. Each client user is one person's access at exactly one
+// client organization, for good. One person may hold access at more than one
+// client, each its own client user, all signing in with the same portal
+// account (decision 0022); a session is always at one of them.
 import { optionalEmail, optionalText, requiredText } from "../../shared/domain/fields.ts";
 import type { Id } from "../../shared/domain/id.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
@@ -61,6 +64,34 @@ export function setAccess(user: ClientUser, on: boolean): Result<ClientUser, "un
 export function sessionFor(user: ClientUser | null): ClientSession | null {
   return user && user.status === "active" ? { clientUserId: user.id, organizationId: user.organizationId, name: user.name } : null;
 }
+
+/**
+ * Which of one person's clients a session is at (decision 0022): the one they
+ * chose, if it is theirs and their access there is on, otherwise the first
+ * they have access at. A choice that isn't theirs is ignored, never obeyed.
+ */
+export function sessionAmong(users: readonly ClientUser[], chosen: string | null): ClientSession | null {
+  const open = users.filter((user) => user.status === "active");
+  return sessionFor(open.find((user) => user.id === chosen) ?? open[0] ?? null);
+}
+
+/**
+ * Whether an email may be given access at one more client (decision 0022).
+ * Someone new to the portal may be invited anywhere. Someone who already has
+ * access somewhere is given another client only where they are listed as a
+ * contact: a matching email alone never joins two clients. The answer carries
+ * the portal account they already sign in with, if any, so the new access
+ * uses the same password.
+ */
+export function mayAddClient(existing: readonly ClientUser[], organizationId: Id, isContactThere: boolean): Result<{ readonly account: string | null }, "already-invited" | "not-a-contact"> {
+  if (existing.some((user) => user.organizationId === organizationId)) return err("already-invited");
+  if (existing.length === 0) return ok({ account: null });
+  if (!isContactThere) return err("not-a-contact");
+  return ok({ account: existing.find((user) => user.portalAccount !== null)?.portalAccount ?? null });
+}
+
+/** Whether a portal account still opens any client, so its sign-in should stay on. */
+export const opensAnyClient = (users: readonly ClientUser[]): boolean => users.some((user) => user.status === "active");
 
 export type ProjectUpdate = {
   readonly id: Id;

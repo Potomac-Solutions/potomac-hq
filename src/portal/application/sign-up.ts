@@ -24,9 +24,11 @@ export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: Sign
     if (match.disabled || !match.email) return ok(null);
     if (match.email !== email) return signUpForPortal(deps, ownerId, { name: match.name, email: match.email });
   }
-  const existing = deps.clientUsers.byEmail(email);
-  if (existing) {
-    if (existing.status === "disabled") return ok(null);
+  const known = deps.clientUsers.allByEmail(email);
+  if (known.length > 0) {
+    // Someone at one or more clients already: a link to their one sign-in, unless every client has turned them off.
+    const existing = known.find((one) => one.status !== "disabled");
+    if (!existing) return ok(null);
     const token = existing.portalAccount === null ? await deps.auth.invite(existing.email, existing.name) : await deps.auth.resetLink(existing.portalAccount);
     if (token === null) return ok(null);
     deps.transact(() => recordActivity(deps, { actorId: null, action: "client-user.sign-up-again", recordType: "client-user", recordId: existing.id, context: { organizationId: existing.organizationId } }));
@@ -35,7 +37,10 @@ export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: Sign
   // Check the fields first, so nothing is made for a sign-up that will be refused.
   const draft = newClientUser({ id: deps.newId(), organizationId: deps.newId(), invitedBy: ownerId }, { name: input.name, email });
   if (!draft.ok) return err(draft.error === "invalid-email" ? "email-invalid" : draft.error === "name-too-long" ? "name-too-long" : "name-missing");
-  const token = await deps.auth.invite(email, draft.value.name);
+  // A sign-in left from clients that were deleted (decision 0023) is reused, with a link to set a new password.
+  const orphan = deps.auth.accountFor(email);
+  if (orphan !== null) await deps.auth.setDisabled(orphan, false);
+  const token = orphan !== null ? await deps.auth.resetLink(orphan) : await deps.auth.invite(email, draft.value.name);
   if (token === null) return ok(null);
   const prospect = recordSignUp(deps, ownerId, { ...input, email });
   if (!prospect.ok) return prospect;

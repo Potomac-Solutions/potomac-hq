@@ -63,6 +63,27 @@ typing in.
 the last day that can still be put back, each with its own Undo, so a
 mistake you notice later can still be undone.
 
+## Deleting, and the Trash
+
+Admins can delete a client, a contact, a deal, a proposal or a project:
+*Delete…* at the bottom of its page, or *Delete* beside a contact. To clear
+out test data, tick rows on the Clients or Proposals list and choose
+*Delete the picked ones…*, or *Delete all demo clients…*.
+
+HQ first shows what each would take with it, and which it keeps. A real
+client's payments and signed agreements are never deleted: mark the client
+Former instead, or mark it a demo if it was only ever a test.
+
+Deleting a contact also turns off their portal access at that client, since
+someone sees a client in the portal only where they're listed as a contact.
+Their other clients stay open. Putting the contact back turns it on again.
+
+A delete goes to the **Trash** (Company → Trash), with everything that went
+with it. *Undo* puts it back straight away; from the Trash, *Put back* does
+for 30 days, exactly as it was. After that it's deleted for good, or sooner
+with *Delete for good* or *Empty the Trash*. The activity log keeps a line
+for each.
+
 ## Getting around by keyboard
 
 - **Ctrl+K** (⌘K), or **Go to…** in the top bar: go to any page, client,
@@ -120,6 +141,17 @@ leave a page with something typed and not saved, it asks first.
   internal and the client never sees them.
 - Set the project's **health** honestly. It is what the dashboard and the
   reports show.
+- **Company projects** are Potomac's own work, with no client: training
+  and certifications, the website, HQ itself. Start one from the Projects
+  page (admins and managers). It has phases, milestones, tasks and a board
+  like any project, but no money, deliverables or portal, and its time is
+  never billable.
+- The **company board** (Board, in the sidebar) is the whole business at a
+  glance: every active project's tasks, company projects included, and
+  everyone's to-dos. *Show only mine* narrows it to what's assigned to you.
+  Give someone a task by choosing them as its assignee: they get a notice.
+  A to-do moves only between To do and Done; put it in a project to mark it
+  working on or blocked.
 
 ## Time and money
 
@@ -150,10 +182,23 @@ leave a page with something typed and not saved, it asks first.
 
 ## The client portal
 
-On a client's page, "Invite someone to the portal". They get a link, choose
+On a client's page, under Contacts, press "Invite to the portal" beside the
+person (they need an email address). The Portal column then shows where
+they stand: invited, has access, or access turned off. For someone who
+isn't a contact, use "Invite someone who isn't a contact" under Client
+portal. The client is the one whose page you're on, and that never
+changes. They get a link, choose
 a password, and see only their own organization's projects, shared
 deliverables, shared proposals and sent invoices. They can approve work,
 accept a proposal by typing their name, send a message and ask for a call.
+**Someone at more than one client**, like a bookkeeper or an owner of two
+businesses: invite them at each client from their row under Contacts. HQ
+gives a second client only to someone listed as a contact there. They keep
+one email and password, the new client shows in their portal straight
+away, and a *Showing* menu at the top switches between them; each page
+shows one client's work only. Turning their access off at one client
+leaves the others open.
+
 What a client does in the portal shows on your dashboard under "From your
 clients", and the project's owner is emailed if email is set up.
 Call requests show on your dashboard, with the number to call back on if

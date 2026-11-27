@@ -19,12 +19,17 @@
   export async function load({ context, params }) {
     const stop = context.guard()
     if (stop) return stop
+    const qr = context.siteQr.forClient(params.id)
     const view = context.crm.clientDetail(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal: context.portalAdmin.access(params.id), invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), intake: context.intake.forClient(params.id), autopay: context.autopay.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), done: context.notice.done, problem: context.notice.problem }
+    const portal = context.portalAdmin.access(params.id)
+    // Each contact's portal sign-in, matched by email (both are kept in lower case).
+    const signIns = new Map(portal.users.map((person) => [person.email, person]))
+    const reach = Object.fromEntries(view.value.contacts.map((contact) => [contact.id, (contact.email && signIns.get(contact.email)) || null]))
+    return { title: view.value.client.name, view: view.value, notes: context.notes.list('client-organization', params.id), portal, reach, invites: context.booking.clientInvites(params.id), minDay: context.today, renewals: context.renewals.forClient(params.id), social: context.social.summary(params.id), touches: context.crm.clientTouches(params.id), todos: context.todos.atClient(params.id), sites: context.monitor.forClient(params.id), website: context.websites.forClient(params.id), freePage: context.freePages.forClient(params.id), qrCodes: qr && qr.ok ? qr.value : null, automations: context.automations.forClient(params.id), showcase: context.showcase.forClient(params.id).ok, referrals: context.referralCredit.forClient(params.id), asks: context.requests.forClient(params.id), intake: context.intake.forClient(params.id), autopay: context.autopay.forClient(params.id), invoices: context.money.forClient(params.id), history: context.history('client-organization', params.id), mergeChoices: context.crm.mergeChoices(params.id), mergedInto: context.crm.mergedInto(params.id), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} renewals={null} social={null} sites={null} website={null} free-page={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} intake={null} autopay={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} done="" problem="">
+<hq-client view={{ client: {}, contacts: [], opportunities: [], can: {}, statuses: [], services: [], leadSources: [] }} notes={{ items: [] }} portal={{ users: [], calls: [] }} reach={{}} renewals={null} social={null} sites={null} website={null} free-page={null} qr-codes={null} automations={null} showcase={false} referrals={null} asks={{ can: false, canDecline: false, items: [] }} intake={null} autopay={null} invoices={null} touches={null} todos={null} invites={[]} min-day="" history={[]} merge-choices={[]} merged-into={null} can-delete={false} done="" problem="">
   <div class="hq-page">
     <breadcrumb-trail items={[{ label: 'Clients', href: '/clients' }, { label: view.client.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
@@ -76,18 +81,29 @@
       <h2 id="client-contacts">Contacts</h2>
       <empty-state zb-if={view.contacts.length === 0} heading="No contacts yet">Add the person you talk to.</empty-state>
       <table zb-else class="hq-table hq-stack">
-        <thead><tr><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Phone</th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th><th scope="col">Phone</th><th zb-if={portal.canView} scope="col">Portal</th></tr></thead>
         <tbody>
           <zb-each items={view.contacts} as="contact" key={contact.id}>
             <tr>
-              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge></td>
+              <td>{contact.name} <status-badge zb-if={contact.isPrimary}>Primary</status-badge> <status-badge zb-if={contact.isBilling} variant="primary">Gets the bills</status-badge> <a zb-if={canDelete} class="hq-small" href="/delete?kind=contact&ids={contact.id}&back=/clients/{view.client.id}%23contacts" aria-label="Delete {contact.name}">Delete</a></td>
               <td>{contact.title}</td>
               <td><a zb-if={contact.email} href="mailto:{contact.email}">{contact.email}</a></td>
               <td><a zb-if={contact.phone} href="tel:{contact.phone}" class="hq-nowrap">{contact.phone}</a> <form zb-if={contact.phone && touches && touches.canLog} method="post" action="/phone" class="hq-inline"><input type="hidden" name="contactId" value={contact.id}><button class="hq-button secondary hq-small" type="submit" aria-label="Start a call with {contact.name}">Start a call</button></form></td>
+              <td zb-if={portal.canView}>
+                <status-badge zb-if={reach[contact.id]} variant={reach[contact.id] && reach[contact.id].status === 'active' ? 'success' : reach[contact.id] && reach[contact.id].status === 'disabled' ? 'warning' : 'neutral'}>{reach[contact.id] ? reach[contact.id].statusLabel : ''}</status-badge>
+                <form zb-else-if={portal.canManage && contact.email} method="post" action="/clients/{view.client.id}/portal-users" class="hq-inline">
+                  <input type="hidden" name="name" value={contact.name}>
+                  <input type="hidden" name="email" value={contact.email}>
+                  <button class="hq-button secondary hq-small" type="submit" aria-label="Invite to the portal: {contact.name}">Invite to the portal</button>
+                </form>
+                <span zb-else-if={!contact.email} class="hq-muted hq-small">Add an email to invite</span>
+                <span zb-else class="hq-muted hq-small">Not invited</span>
+              </td>
             </tr>
           </zb-each>
         </tbody>
       </table>
+      <p zb-if={portal.canManage && view.contacts.length > 0} class="hq-muted hq-small">“Invite to the portal” gives them a one-time link to choose a password: emailed to them, or shown to you to send if email isn’t set up. They then see only this client’s projects, proposals and invoices. Manage their sign-in under <a href="#portal">Client portal</a>.</p>
       <form zb-if={view.can.setBilling && view.contacts.length > 0} method="post" action="/clients/{view.client.id}/billing-contact" class="hq-form-row" data-spaced>
         <div class="hq-field">
           <label for="billing-contact">Who gets the bills</label>
@@ -188,6 +204,12 @@
       <p class="hq-muted">Ask them for a review, and write the story of what we built for the Work page.</p>
       <p><a href="/clients/{view.client.id}/showcase">Open reviews and case study</a></p>
     </section>
+    <section zb-if={qrCodes} class="hq-panel" id="qr-codes" aria-labelledby="client-qr-codes">
+      <h2 id="client-qr-codes">QR codes</h2>
+      <p zb-if={qrCodes.active.length + qrCodes.retired.length > 0}><strong>{qrCodes.active.length} {qrCodes.active.length === 1 ? 'code' : 'codes'}</strong>, {qrCodes.totals.scans} {qrCodes.totals.scans === 1 ? 'scan' : 'scans'} ({qrCodes.totals.recentScans} in the last 30 days)</p>
+      <p zb-else class="hq-muted">Codes for their cards and flyers that open their own website.</p>
+      <p><a href="/clients/{view.client.id}/qr-codes">Open QR codes</a></p>
+    </section>
     <section zb-if={freePage} class="hq-panel" id="landing-page" aria-labelledby="client-landing-page">
       <h2 id="client-landing-page">Free landing page</h2>
       <p zb-if={freePage.exists}><strong>{freePage.statusLabel}</strong><span zb-if={freePage.address}> · {freePage.address}</span><br><span class="hq-small hq-muted">{freePage.used}</span></p>
@@ -262,7 +284,7 @@
     </section>
     <section zb-if={portal.canView} class="hq-panel" id="portal" aria-labelledby="client-portal">
       <h2 id="client-portal">Client portal</h2>
-      <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.</p>
+      <p zb-if={portal.users.length === 0} class="hq-muted">Nobody at this client has been invited yet.<span zb-if={portal.canManage}> To invite someone, press <a href="#contacts">Invite to the portal</a> beside them under Contacts.</span></p>
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Person</th><th scope="col">Email</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
@@ -320,10 +342,10 @@
         </form>
       </details>
       <details zb-if={portal.canManage} class="hq-more">
-        <summary>Invite someone to the portal</summary>
+        <summary>Invite someone who isn’t a contact</summary>
         <form method="post" action="/clients/{view.client.id}/portal-users" class="hq-form">
           <text-field label="Their name" name="name" required={true} autocomplete="off"></text-field>
-          <text-field label="Their email" name="email" type="email" required={true} autocomplete="off" description="They get a one-time link to choose a password. They will see only this client’s projects."></text-field>
+          <text-field label="Their email" name="email" type="email" required={true} autocomplete="off" description="They get a one-time link to choose a password. They will see only this client’s projects. Someone you’ll talk to often? Add them as a contact instead and invite them from there."></text-field>
           <div><button class="hq-button" type="submit">Invite to the portal</button></div>
         </form>
       </details>
@@ -579,6 +601,11 @@
         <div><button class="hq-button secondary" type="submit">Merge them</button></div>
       </form>
     </details>
+    <section zb-if={canDelete} class="hq-panel" aria-labelledby="client-delete">
+      <h2 id="client-delete">Delete this client</h2>
+      <p class="hq-muted hq-small">For a test or a mistake. It goes to the Trash with its contacts, deals, proposals, projects, invoices, files and portal people, and can be put back for 30 days. A real client with payments or signed agreements stays: mark it Former instead.</p>
+      <p><a class="hq-button secondary" href="/delete?kind=client&ids={view.client.id}&back=/clients">Delete client…</a></p>
+    </section>
     <history-panel items={history}></history-panel>
   </div>
 </hq-client>

@@ -32,10 +32,10 @@ export function sqliteTimeStore(db: Database): TimeStore {
   const update = db.prepare("update time_entry set worked_on = ?, minutes = ?, note = ?, billable = ?, updated_at = ? where id = ?");
   const get = db.prepare(`select ${cols} from time_entry where id = ? and removed_at is null`);
   const remove = db.prepare("update time_entry set removed_at = ?, updated_at = ? where id = ? and removed_at is null");
-  const joined = `select ${cols.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, k.title as task_title, u.name as user_name, c.name as client_name
+  const joined = `select ${cols.split(", ").map((c) => `t.${c}`).join(", ")}, p.name as project_name, k.title as task_title, u.name as user_name, coalesce(c.name, 'Company work') as client_name
        from time_entry t
        join project p on p.id = t.project_id
-       join client_organization c on c.id = p.organization_id
+       left join client_organization c on c.id = p.organization_id
        join user u on u.id = t.user_id
        left join task k on k.id = t.task_id
       where t.removed_at is null`;
@@ -112,10 +112,10 @@ export function sqliteExpenseStore(db: Database): ExpenseStore {
   const insert = db.prepare(`insert into expense (${cols}, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const get = db.prepare(`select ${cols} from expense where id = ? and removed_at is null`);
   const remove = db.prepare("update expense set removed_at = ? where id = ? and removed_at is null");
-  const joined = `select ${cols.split(", ").map((c) => `e.${c}`).join(", ")}, p.name as project_name, c.name as client_name, f.name as receipt_name, u.name as recorded_by_name
+  const joined = `select ${cols.split(", ").map((c) => `e.${c}`).join(", ")}, p.name as project_name, coalesce(c.name, 'Company work') as client_name, f.name as receipt_name, u.name as recorded_by_name
        from expense e
        join project p on p.id = e.project_id
-       join client_organization c on c.id = p.organization_id
+       left join client_organization c on c.id = p.organization_id
        join user u on u.id = e.recorded_by
        left join file f on f.id = e.receipt_file_id
       where e.removed_at is null`;

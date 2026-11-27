@@ -20,15 +20,15 @@
     if (stop) return stop
     const view = context.projects.overview(params.id)
     if (!view.ok) return view.error === 'not-found' ? notFound() : context.forbidden()
-    return { title: view.value.project.name, view: view.value, feedback: context.feedback.forProject(params.id), notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: context.replies(view.value.clientId), done: context.notice.done, problem: context.notice.problem }
+    return { title: view.value.project.name, view: view.value, feedback: context.feedback.forProject(params.id), notes: context.notes.list('project', params.id), updates: context.portalAdmin.updates(params.id), sent: context.portalAdmin.files(params.id), links: context.projects.links(params.id), shares: context.projects.shares(params.id), money: context.can.money, ai: context.ai.project(params.id), aiModels: context.ai.models(), aiStates: { update: context.ai.state('weekly-update'), caseStudy: context.ai.state('case-study'), posts: context.ai.state('social-posts') }, replies: view.value.company ? { can: false, items: [], me: '', firstName: '' } : context.replies(view.value.clientId), canDelete: context.trash.can, done: context.notice.done, problem: context.notice.problem }
   }
   const p = view.project
 </script>
-<hq-project feedback={null} ai-models={[]} view={{ project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} done="" problem="">
+<hq-project feedback={null} ai-models={[]} view={{ company: false, project: {}, can: {}, phases: [], milestones: [], taskCounts: [], deliverables: [], history: [], healths: [], people: [], next: null, progress: {}, baseline: null }} notes={{ items: [] }} updates={{ items: [] }} sent={{ items: [] }} links={null} shares={{ canShare: false, links: [] }} money={false} ai={{ scope: [], update: null }} ai-states={{ update: { on: false, why: '' }, caseStudy: { on: false, why: '' }, posts: { on: false, why: '' } }} replies={{ items: [], me: '', firstName: '' }} can-delete={false} done="" problem="">
   <div class="hq-page">
-    <breadcrumb-trail items={[{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
+    <breadcrumb-trail items={view.company ? [{ label: 'Projects', href: '/projects' }, { label: p.name, href: '' }] : [{ label: 'Projects', href: '/projects' }, { label: view.clientName, href: `/clients/${view.clientId}` }, { label: 'Opportunity', href: `/opportunities/${view.opportunityId}` }, { label: p.name, href: '' }]}></breadcrumb-trail>
     <div class="hq-head">
-      <div><h1>{p.name}</h1><p><a href="/clients/{view.clientId}">{view.clientName}</a></p></div>
+      <div><h1>{p.name}</h1><p zb-if={view.company} class="hq-muted">Company work: Potomac’s own, with no client</p><p zb-else><a href="/clients/{view.clientId}">{view.clientName}</a></p></div>
       <div class="hq-head-actions"><status-badge zb-if={p.demo} variant="outline">Demo</status-badge><status-badge variant="outline">{p.statusLabel}</status-badge><status-badge variant={p.health === 'on-track' ? 'success' : p.health === 'at-risk' ? 'warning' : p.health === 'off-track' ? 'danger' : 'neutral'} dot={true}>{p.healthLabel}</status-badge></div>
     </div>
     <div zb-if={done || problem} class="hq-notices">
@@ -44,7 +44,7 @@
     </nav>
     <div class="hq-split facts-first">
     <div class="hq-rail">
-    <section zb-if={feedback} class="hq-panel" id="feedback" aria-labelledby="project-feedback">
+    <section zb-if={feedback && !view.company} class="hq-panel" id="feedback" aria-labelledby="project-feedback">
       <h2 id="project-feedback">How the client rated it</h2>
       <p><strong>{feedback.score} of 5, {feedback.words.toLowerCase()}</strong>, from {feedback.by || 'the client'}, {feedback.when}.</p>
       <p zb-if={feedback.note}>“{feedback.note}”</p>
@@ -114,11 +114,11 @@
     </section>
     <section zb-if={links} class="hq-panel" id="links" aria-labelledby="project-links">
       <h2 id="project-links">Links</h2>
-      <p zb-if={links.items.length === 0} class="hq-muted">Where the work lives: the staging and live sites, the designs, the code. Shared ones show in the client’s portal.</p>
+      <p zb-if={links.items.length === 0} class="hq-muted">Where the work lives: the staging and live sites, the designs, the code.<span zb-if={!view.company}> Shared ones show in the client’s portal.</span></p>
       <ul zb-else class="hq-links">
         <zb-each items={links.items} as="link" key={link.id}>
           <li>
-            <span><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}<span zb-if={link.name !== link.kindLabel}> · {link.kindLabel}</span> · {link.shared ? 'In the portal' : 'Potomac only'}</span></span>
+            <span><a href={link.url} rel="noopener noreferrer" target="_blank">{link.name}<span class="sr-only"> (opens in a new tab)</span></a> <span class="hq-muted hq-small">{link.host}<span zb-if={link.name !== link.kindLabel}> · {link.kindLabel}</span><span zb-if={!view.company}> · {link.shared ? 'In the portal' : 'Potomac only'}</span></span></span>
             <form zb-if={links.canEdit} method="post" action="/project-links/{link.id}/remove"><button class="hq-button secondary small" type="submit">Remove<span class="sr-only">: {link.name}</span></button></form>
           </li>
         </zb-each>
@@ -135,7 +135,7 @@
             <label for="link-label">Its own name (optional)</label>
             <input id="link-label" name="label" type="text" maxlength="80" placeholder="Menu mock-ups">
           </div>
-          <div class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
+          <div zb-if={!view.company} class="hq-check"><input id="link-shared" name="shared" type="checkbox" value="1" checked><label for="link-shared">Show it to the client in the portal</label></div>
           <div><button class="hq-button" type="submit">Add link</button></div>
         </form>
       </details>
@@ -201,13 +201,13 @@
       <h2 id="project-plan">Plan</h2>
       <p zb-if={view.progress.total > 0} class="hq-muted">{view.progress.done} of {view.progress.total} milestones done.</p>
       <p zb-if={view.phases.length > 0}>Phases: <zb-each items={view.phases} as="phase" key={phase.id}><status-badge>{phase.name}</status-badge> </zb-each></p>
-      <empty-state zb-if={view.milestones.length === 0} heading="No milestones yet">Add the points you and the client will check the work against.</empty-state>
+      <empty-state zb-if={view.milestones.length === 0} heading="No milestones yet">{view.company ? 'Add the points you’ll check the work against, like each exam passed.' : 'Add the points you and the client will check the work against.'}</empty-state>
       <table tabindex="0" zb-else class="hq-table">
         <thead><tr><th scope="col">Milestone</th><th scope="col">Phase</th><th scope="col">Due</th><th scope="col">Done</th><th scope="col"><span class="sr-only">Change</span></th></tr></thead>
         <tbody>
           <zb-each items={view.milestones} as="milestone" key={milestone.id}>
             <tr>
-              <td>{milestone.name} <status-badge zb-if={milestone.forClient}>Client’s to do</status-badge></td>
+              <td>{milestone.name} <status-badge zb-if={milestone.forClient && !view.company}>Client’s to do</status-badge></td>
               <td>{milestone.phaseName}</td>
               <td><time zb-if={milestone.dueOn} datetime={milestone.dueOn}>{milestone.dueText}</time> <status-badge zb-if={milestone.overdue} variant="danger">Overdue</status-badge></td>
               <td><time zb-if={milestone.doneOn} datetime={milestone.doneOn}>{milestone.doneText}</time></td>
@@ -217,7 +217,7 @@
                   <input type="hidden" name="done" value={milestone.done ? "0" : "1"}>
                   <button class="hq-button secondary small" type="submit" aria-label="{milestone.done ? 'Reopen' : 'Mark done'}: {milestone.name}">{milestone.done ? "Reopen" : "Mark done"}</button>
                 </form>
-                <form zb-if={view.can.plan && !milestone.done} method="post" action="/milestones/{milestone.id}/for-client" class="hq-inline">
+                <form zb-if={view.can.plan && !milestone.done && !view.company} method="post" action="/milestones/{milestone.id}/for-client" class="hq-inline">
                   <input type="hidden" name="projectId" value={p.id}>
                   <input type="hidden" name="forClient" value={milestone.forClient ? "0" : "1"}>
                   <button class="hq-button secondary small" type="submit" aria-label="{milestone.forClient ? 'Make it ours to do' : 'Make it the client’s to do'}: {milestone.name}">{milestone.forClient ? "Ours to do" : "Client’s to do"}</button>
@@ -239,7 +239,7 @@
               <zb-each items={view.phases} as="phase" key={phase.id}><option value={phase.id}>{phase.name}</option></zb-each>
             </select>
           </div>
-          <label class="hq-check"><input type="checkbox" name="forClient" value="1"> The client has to do this one <span class="hq-muted">(like sending photos). Their portal lists it under “waiting on you”.</span></label>
+          <label zb-if={!view.company} class="hq-check"><input type="checkbox" name="forClient" value="1"> The client has to do this one <span class="hq-muted">(like sending photos). Their portal lists it under “waiting on you”.</span></label>
           <div><button class="hq-button" type="submit">Add milestone</button></div>
         </form>
       </details>
@@ -258,7 +258,7 @@
       </ul>
       <p><a href="/projects/{p.id}/tasks">See the list</a> · <a href="/projects/{p.id}/board">See the board</a></p>
     </section>
-    <section class="hq-panel" id="deliverables" aria-labelledby="project-deliverables">
+    <section zb-if={!view.company} class="hq-panel" id="deliverables" aria-labelledby="project-deliverables">
       <h2 id="project-deliverables">Deliverables</h2>
       <empty-state zb-if={view.deliverables.length === 0} heading="No deliverables yet">Upload what you hand over: designs, documents, exports.</empty-state>
       <table tabindex="0" zb-else class="hq-table">
@@ -298,8 +298,8 @@
         </form>
       </details>
     </section>
-    <ai-project-panel models={aiModels} ai={ai} states={aiStates} project-id={p.id} active={p.status === 'active'}></ai-project-panel>
-    <section zb-if={updates.canView} class="hq-panel" id="updates" aria-labelledby="project-updates">
+    <ai-project-panel zb-if={!view.company} models={aiModels} ai={ai} states={aiStates} project-id={p.id} active={p.status === 'active'}></ai-project-panel>
+    <section zb-if={updates.canView && !view.company} class="hq-panel" id="updates" aria-labelledby="project-updates">
       <h2 id="project-updates">Updates for the client</h2>
       <p class="hq-muted hq-small">What you post here, the client reads in the portal. Their messages come back here. Notes, below, stay inside HQ.</p>
       <p zb-if={updates.items.length === 0} class="hq-muted" data-spaced>No updates or messages yet.</p>
@@ -320,7 +320,7 @@
         <div><button class="hq-button" type="submit">Post update</button></div>
       </form>
     </section>
-    <section zb-if={sent.canView && sent.items.length > 0} class="hq-panel" id="client-files" aria-labelledby="project-client-files">
+    <section zb-if={sent.canView && sent.items.length > 0 && !view.company} class="hq-panel" id="client-files" aria-labelledby="project-client-files">
       <h2 id="project-client-files">Files from the client</h2>
       <p class="hq-muted hq-small">Sent in through the portal. Each was checked for its type and size like any upload. Open one only if you were expecting it.</p>
       <ul class="hq-list">
@@ -332,5 +332,10 @@
     <notes-panel notes={notes}></notes-panel>
     </div>
     </div>
+    <section zb-if={canDelete} class="hq-panel" aria-labelledby="project-delete">
+      <h2 id="project-delete">Delete this project</h2>
+      <p class="hq-muted hq-small">For a test or a mistake. It goes to the Trash with its tasks, time, expenses, invoices, deliverables and files, and can be put back for 30 days. The client and the deal stay. A project with payments at a real client stays.</p>
+      <p><a class="hq-button secondary" href="/delete?kind=project&ids={view.project.id}&back=/projects">Delete project…</a></p>
+    </section>
   </div>
 </hq-project>

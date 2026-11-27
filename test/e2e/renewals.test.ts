@@ -71,10 +71,10 @@ test("bill a client for their domain from their page, and they see it in their p
   await page.getByText("Billed. The invoice is in the client’s portal").waitFor();
   await page.getByText(/INV-0001 sent\. The client pays by/).waitFor();
 
-  await page.getByText("Invite someone to the portal").click();
+  await page.getByText("Invite someone who isn’t a contact").click();
   await page.getByLabel("Their name").fill("Stacy Roberts");
   await page.getByLabel("Their email").fill("stacy@betterdays.example");
-  await page.getByRole("button", { name: "Invite" }).click();
+  await page.getByRole("button", { name: "Invite to the portal", exact: true }).click();
   const link = await page.getByLabel(/link/i).first().inputValue();
   const stacy = await (await browser.newContext({ viewport: { width: 390, height: 800 } })).newPage();
   await stacy.goto(new URL(link, t.origin).href);

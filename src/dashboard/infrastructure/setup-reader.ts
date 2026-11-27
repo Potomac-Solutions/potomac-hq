@@ -55,7 +55,8 @@ export function sqliteWorkload(db: Database): (today: string, monday: string, su
 
 /** Last week's figures for the weekly owner email, demo clients left out. Dates are YYYY-MM-DD; `to` is included. */
 export function sqliteWeekFacts(db: Database): (from: string, to: string, today: string) => Omit<import("../domain/weekly.ts").WeekFacts, "ai"> {
-  const real = "p.organization_id in (select id from client_organization where demo = 0)";
+  // A company project (no client, decision 0021) is real work too.
+  const real = "(p.organization_id is null or p.organization_id in (select id from client_organization where demo = 0))";
   // Every invoice counts, on a project or on the client alone; refunds are money going back out.
   const realInvoice = "i.organization_id in (select id from client_organization where demo = 0)";
   const moneyIn = db.prepare(

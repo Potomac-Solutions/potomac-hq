@@ -19,7 +19,7 @@ const KINDS: Readonly<Record<SearchKind, { readonly from: string; readonly hayst
     order: "k.name",
   },
   opportunities: { from: "opportunity o join client_organization c on c.id = o.organization_id", haystack: "o.title || ' ' || c.name", name: "o.title", context: "c.name", extra: "o.stage", href: "'/opportunities/' || o.id", order: "o.title" },
-  projects: { from: "project p join client_organization c on c.id = p.organization_id", haystack: "p.name || ' ' || c.name", name: "p.name", context: "c.name", extra: "p.status", href: "'/projects/' || p.id", order: "p.name" },
+  projects: { from: "project p left join client_organization c on c.id = p.organization_id", haystack: "p.name || ' ' || coalesce(c.name, 'Company work')", name: "p.name", context: "coalesce(c.name, 'Company work')", extra: "p.status", href: "'/projects/' || p.id", order: "p.name" },
   tasks: { from: "task t join project p on p.id = t.project_id", haystack: "t.title || ' ' || t.description", name: "t.title", context: "p.name", extra: "t.status", href: "'/tasks/' || t.id", order: "t.title" },
   proposals: {
     from: "proposal r join opportunity o on o.id = r.opportunity_id join client_organization c on c.id = o.organization_id",

@@ -5,8 +5,12 @@ export type ClientUserStore = {
   insert(user: ClientUser, at: string): void;
   update(user: ClientUser, at: string): void;
   get(id: Id): ClientUser | null;
-  byEmail(email: string): ClientUser | null;
-  byPortalAccount(account: string): ClientUser | null;
+  /** This person's access at one client, if any (decision 0022: an email is unique within a client, not across them). */
+  atClient(organizationId: Id, email: string): ClientUser | null;
+  /** Every client this email has access at, invited, active or turned off, oldest first. */
+  allByEmail(email: string): ClientUser[];
+  /** Every client one portal account signs in to, oldest first. */
+  allByAccount(account: string): ClientUser[];
   listFor(organizationId: Id): ClientUser[];
   /** Whether this person is emailed when something is waiting for them. */
   wantsNotices(id: Id): boolean;
@@ -72,6 +76,8 @@ export type PortalAuth = {
   invite(email: string, name: string): Promise<string | null>;
   /** A one-time link token to set a new password. Null if there is no such account. */
   resetLink(account: string): Promise<string | null>;
+  /** The portal account an email already signs in with, if any: kept when every client it opened was deleted (decision 0023). */
+  accountFor(email: string): string | null;
   /** What a link is for, without using it. */
   peek(token: string): { readonly kind: "invite" | "reset"; readonly email: string } | null;
   /** Uses a link: sets the password and signs the person in. */
