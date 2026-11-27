@@ -29,7 +29,7 @@ import { feedbackWaiting, lastRatingLow, projectFeedback, type FeedbackView } fr
 import { clientIntake, portalIntake, type IntakeForm, type IntakeSummary } from "./intake/index.ts";
 import { clientRequests, portalRequests, type RequestView } from "./requests/index.ts";
 import { listReplies, type Reply } from "./replies/index.ts";
-import { approvalTokens } from "./portal/adapters.ts";
+import { approvalTokens, portalPreviewing, runPortalPreview } from "./portal/adapters.ts";
 import { approvalView, type ApprovalView } from "./portal/index.ts";
 import { devicesFor, type DevicesView } from "./push/index.ts";
 import { cardPayPages, cardPayRoutes } from "./cardpay/api/card-pay-routes.ts";
@@ -104,7 +104,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, portalNext, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientActivity, clientFiles, clientSession, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, clientActivity, clientFiles, clientSession, previewBanner, previewSession, startPortalPreview, stopPortalPreview, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
@@ -434,6 +434,8 @@ export type PageContext = {
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** Set when someone at Potomac is viewing this client person's portal, read-only (decision 0020). */
+    readonly preview: { readonly name: string; readonly clientName: string; readonly clientId: string } | null;
     /** What an approval link from an email opens (quality of life, 2026-11-25). */
     approval(token: string): ApprovalView;
     /** How to reach Potomac. Shown on every portal page, signed in or not. */
@@ -630,6 +632,8 @@ export type PageContext = {
   readonly preview: { readonly role: string; readonly label: string } | null;
   /** Whether this person may view HQ as another role (an admin, not already previewing). */
   readonly canPreview: boolean;
+  /** The client person whose portal this person is viewing, read-only (decision 0020), or null. */
+  readonly portalPreview: { readonly name: string; readonly clientName: string; readonly clientId: string } | null;
   /** System status, for admins; null for anyone else. */
   status(): { readonly checks: readonly StatusCheck[]; readonly errors: readonly { readonly when: string; readonly message: string }[]; readonly version: string; readonly started: string; readonly database: string; readonly migrations: string } | null;
   /** Get HQ ready (decision 0015): for admins, what's left to set up; null for anyone else. */
@@ -737,6 +741,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     noticeSecret: config.noticeSecret,
     render: (res, title, body) => sendHtml(res, 200, title, body),
   });
+
+  // Which client a request is from. In a preview of a client person's portal
+  // (decision 0020) it is that person, whatever portal cookie the browser has.
+  const clientOf = (cookieHeader: string) => portalPreviewing() ?? clientSession(portalDeps, cookieHeader);
 
   // Undo (decision 0014): a page's `undo` is kept in the database and the
   // address carries only its token, then the messages are signed as before.
@@ -878,7 +886,7 @@ export async function createApp(config: AppConfig): Promise<App> {
       const signIn = { problem: notice.problem, done: notice.done, needsOwner: staff.needsOwner(), emailEnabled: Boolean(config.email) };
       const forbidden = () => show("identity/ui/no-access", { title: "No access" }, { status: 403 });
       const date = today();
-      const client = clientSession(portalDeps, request.headers.get("cookie") ?? "");
+      const client = clientOf(request.headers.get("cookie") ?? "");
       const pending = user !== null && secondStepDue(user.id, request.headers.get("cookie") ?? "");
       // Past the password and any code, but an admin who must turn on two-factor
       // sign-in first: Settings only, to do that.
@@ -947,6 +955,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         portal: {
           session: client ? { name: client.name } : null,
+          preview: previewBanner(portalDeps, client),
           contact,
           notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
           // The sign-in form in the page's place, told which page it was so signing in goes on to it.
@@ -1341,7 +1350,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           return { can, items: listReplies(services.replies, actor), me: (user?.name ?? "").split(" ")[0] ?? "", firstName: (who?.name ?? "").trim().split(/\s+/)[0] ?? "" };
         },
         preview: previewing() ? { role: previewing()?.role ?? "", label: previewing()?.role === "manager" ? "a manager" : "a member" } : null,
-        canPreview: !previewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
+        canPreview: !previewing() && !portalPreviewing() && actor !== null && authorize(sessionDeps, actor, "user.set-roles").ok,
+        portalPreview: previewBanner(portalDeps, portalPreviewing()),
         workload: () => {
           if (actor === null || !authorize(sessionDeps, actor, "report.view").ok) return null;
           const day = Temporal.PlainDate.from(date);
@@ -1529,7 +1539,6 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", proposalRoutes({ proposals: proposalsDeps, actorOf, sign: signNotice }));
   forms.route("/", financeRoutes({ finance: financeDeps, reminders: services.invoiceReminders, actorOf, sign: signNotice }));
   forms.route("/", refundRoutes({ cardPay: cardPayDeps, finance: financeDeps, actorOf, sign: signNotice }));
-  const clientOf = (cookieHeader: string) => clientSession(portalDeps, cookieHeader);
   forms.route("/", feedbackRoutes({ feedback: services.feedback, clientOf, sign: signNotice }));
   forms.route("/", autopayRoutes({ autopay: services.autopay, clientOf, actorOf, sign: signNotice }));
   forms.route("/", textingRoutes({ texting: services.texting, clientOf, sign: signNotice }));
@@ -1854,7 +1863,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const handleWeb = getRequestListener(web.fetch);
   // Downloads. Each one is authorized by the file service.
   const downloads = new Hono();
-  downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader) }));
+  downloads.route("/", fileRoutes({ files: projectsDeps, actorOf, clientOf }));
   downloads.route("/", publicBooking);
   downloads.route("/", bookingPortalDownloads({ booking: services.booking, bookerOf, sign: signNotice }));
   downloads.route("/", bookingStaffDownloads({ booking: services.booking, actorOf, sign: signNotice, canSee: (actor) => actor !== null && authorize(sessionDeps, actor, "call.respond").ok }));
@@ -1879,7 +1888,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   downloads.route("/", findRoutes({ find: (actor, q) => search(services.search, actor, q, services.placesFor(actor)), actorOf, moves: dealMoves }));
   downloads.route("/", showcaseDownloads({ showcase: services.showcase, actorOf }));
   downloads.route("/", freePageDownloads({ freePages: services.freePages, actorOf, clientOf, archive: config.siteArchive ?? null }));
-  downloads.route("/", portalDownloads({ portal: portalDeps, clientOf: (cookieHeader) => clientSession(portalDeps, cookieHeader), renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
+  downloads.route("/", portalDownloads({ portal: portalDeps, clientOf, renderProposalPdf: services.renderProposalPdf, renderInvoicePdf: services.renderInvoicePdf }));
   downloads.route("/", proposalDownloads({ proposals: proposalsDeps, actorOf, renderPdf: services.renderProposalPdf }));
   downloads.route("/", workDownloads({ projects: projectsDeps, actorOf }));
   downloads.route("/", shareFiles({ projects: projectsDeps }));
@@ -1911,15 +1920,45 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
   const previewCookie = (value: string, maxAge: number) => `${PREVIEW_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secure ? "; Secure" : ""}`;
 
+  // Viewing a client person's portal (decision 0020). Like the role preview,
+  // the cookie only names who; whether to honour it is decided on every
+  // request from the HQ user's real access, so taking their access away, or
+  // turning the client person's off, ends it at once.
+  const PORTAL_PREVIEW_COOKIE = config.secure ? "__Host-hq-portal-preview" : "hq-portal-preview";
+  const portalPreviewOf = (req: IncomingMessage) => {
+    const cookieHeader = req.headers.cookie ?? "";
+    const named = new RegExp(`(?:^|;\\s*)${PORTAL_PREVIEW_COOKIE}=([0-9a-f-]{36})(?:;|$)`).exec(cookieHeader)?.[1];
+    const id = named ? parseId(named) : null;
+    return id?.ok ? previewSession(portalDeps, actorOf(cookieHeader), id.value) : null;
+  };
+  const portalPreviewCookie = (value: string, maxAge: number) => `${PORTAL_PREVIEW_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secure ? "; Secure" : ""}`;
+  // What a client can set off just by opening an address: going to the payment platform, or coming back from it.
+  const PORTAL_SIDE_EFFECTS = /^\/portal\/(invoices\/[0-9a-f-]{36}\/(pay|pay\/frame|paid|not-paid)|autopay\/(go|done))$/;
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // Starting or stopping a preview is decided on the person's real access.
     const bare = (req.url ?? "").split("?")[0];
-    const preview = bare === "/preview" || bare === "/preview/stop" ? null : previewOf(req);
-    if (preview === null) return handleRequest(req, res, false);
-    return runPreviewing(preview.userId, preview.role, () => handleRequest(req, res, true));
+    const choosing = bare === "/preview" || bare === "/preview/stop" || bare === "/portal-preview" || bare === "/portal-preview/stop";
+    const preview = previewOf(req);
+    // Starting a view of a client's portal is refused from inside a role preview, so it is told about one.
+    if (choosing) return handleRequest(req, res, preview && bare?.startsWith("/portal-preview") ? "role" : null);
+    const portalPreview = portalPreviewOf(req);
+    if (portalPreview !== null) return runPortalPreview(portalPreview, () => handleRequest(req, res, "portal"));
+    if (preview === null) return handleRequest(req, res, null);
+    return runPreviewing(preview.userId, preview.role, () => handleRequest(req, res, "role"));
   }
 
-  async function handleRequest(req: IncomingMessage, res: ServerResponse, inPreview: boolean): Promise<void> {
+  async function readSmallForm(req: IncomingMessage): Promise<URLSearchParams> {
+    const body = await new Promise<string>((resolve) => {
+      let text = "";
+      req.on("data", (chunk: Buffer) => (text.length < 200 ? (text += chunk.toString("utf8")) : undefined));
+      req.on("end", () => resolve(text));
+    });
+    return new URLSearchParams(body);
+  }
+
+  async function handleRequest(req: IncomingMessage, res: ServerResponse, viewing: "role" | "portal" | null): Promise<void> {
+    const inPreview = viewing !== null;
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (config.secure) res.setHeader("strict-transport-security", "max-age=31536000");
     // Every address HQ serves starts with one slash. Anything else ("//...",
@@ -1947,7 +1986,34 @@ export async function createApp(config: AppConfig): Promise<App> {
       res.writeHead(303, { location: path === "/preview" ? "/" : "/people", "set-cookie": path === "/preview" ? previewCookie(role, 4 * 3600) : previewCookie("", 0), "cache-control": "no-store" });
       return void res.end();
     }
+    // Starting and stopping a view of a client person's portal (decision 0020): an admin's or manager's choice, from the client's page.
+    if (req.method === "POST" && (path === "/portal-preview" || path === "/portal-preview/stop")) {
+      if (!sameSite(req)) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: "That form did not come from Potomac HQ." }));
+      const form = await readSmallForm(req);
+      const actor = actorOf(req.headers.cookie ?? "");
+      if (path === "/portal-preview/stop") {
+        const was = new RegExp(`(?:^|;\\s*)${PORTAL_PREVIEW_COOKIE}=([0-9a-f-]{36})(?:;|$)`).exec(req.headers.cookie ?? "")?.[1];
+        const wasId = was ? parseId(was) : null;
+        const clientUser = wasId?.ok ? portalDeps.clientUsers.get(wasId.value) : null;
+        stopPortalPreview(portalDeps, actor, clientUser?.id ?? null);
+        res.writeHead(303, { location: clientUser ? `/clients/${clientUser.organizationId}#portal` : "/clients", "set-cookie": portalPreviewCookie("", 0), "cache-control": "no-store" });
+        return void res.end();
+      }
+      const id = parseId(form.get("clientUserId") ?? "");
+      // Not from inside a role preview: that is for seeing HQ as a role, and would mix the two.
+      const started = id.ok && viewing === null ? startPortalPreview(portalDeps, actor, id.value) : null;
+      if (!started?.ok) return void sendHtml(res, 403, "Refused", problemPage({ title: "Refused", message: started && !started.ok && started.error === "access-off" ? "This person’s portal access is turned off. Turn it on to view their portal." : "Only an admin or manager can view a client’s portal, and not while viewing HQ as another role." }));
+      res.writeHead(303, { location: "/portal", "set-cookie": portalPreviewCookie(id.ok ? id.value : "", 4 * 3600), "cache-control": "no-store" });
+      return void res.end();
+    }
+    // A client's portal, viewed from HQ: what would start a payment can't be opened either.
+    if (viewing === "portal" && PORTAL_SIDE_EFFECTS.test(path)) {
+      return void sendHtml(res, 403, "Viewing a client’s portal", problemPage({ title: "You’re viewing a client’s portal", message: "Paying and setting up automatic payment can’t be started while you’re viewing as someone else. Use Stop viewing at the top of the page." }));
+    }
     // A preview is for looking: every change is refused until it stops.
+    if (viewing === "portal" && req.method !== "GET" && req.method !== "HEAD" && path !== "/staff/sign-out") {
+      return void sendHtml(res, 403, "Viewing a client’s portal", problemPage({ title: "You’re viewing a client’s portal", message: "Nothing can be changed while you’re viewing as someone else. Use Stop viewing at the top of the page, then try again." }));
+    }
     if (inPreview && req.method !== "GET" && req.method !== "HEAD" && path !== "/staff/sign-out") {
       return void sendHtml(res, 403, "Viewing as another role", problemPage({ title: "You're viewing HQ as another role", message: "Nothing can be changed while you’re viewing as someone else. Use Stop viewing at the top of the page, then try again." }));
     }

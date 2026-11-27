@@ -570,6 +570,9 @@ Stacy Friday", "log a call with Nu-Finish, they want the map bigger",
 - Admins: **System status** under Company; **View as a manager / member** on
   People (read-only, Stop viewing at the top); and a **weekly email** on
   Mondays.
+- Admins and managers: **View their portal** beside each person under
+  *Client portal* on a client's page, to see the portal as they do
+  (read-only, Stop viewing at the top; the client isn't told).
 - Clients: *Email me a link* on the portal's sign-in page, and *Approve it*
   straight from the email when work is shared with them.
 - **Saved replies** under Clients: write it once, then *Use a saved reply*

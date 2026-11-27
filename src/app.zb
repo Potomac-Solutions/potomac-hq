@@ -43,7 +43,7 @@
     const join = (href, add) => href + (href.includes('?') ? '&' : '?') + add
     const askHref = path === '/' ? '/#chat' : join(here, 'chat=open') + '#assistant'
     // The default title. A page's own title replaces it.
-    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', preview: context.user ? context.preview : null, groups, aiDrafts, draftHub, pins, here, askOn, chat, askHref, closeHref: here, atHome: path === '/', searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready, undo: context.user ? context.notice.undo : null, undoText: context.notice.undoLabel }
+    return { title: 'Potomac HQ', who: context.user ? context.user.name : '', preview: context.user ? context.preview : null, portalPreview: context.user ? context.portalPreview : null, groups, aiDrafts, draftHub, pins, here, askOn, chat, askHref, closeHref: here, atHome: path === '/', searching: path === '/search', adding: can.add && path !== '/add', bell: context.user ? context.bell.unread() : 0, atNotices: path === '/notices', onCall, ready, undo: context.user ? context.notice.undo : null, undoText: context.notice.undoLabel }
   }
 
   let menu = false
@@ -246,7 +246,7 @@
     .hq-main { padding: 1.25rem 1rem 3rem; }
   }
 </style>
-<hq-app who="" preview={null} groups={[]} ai-drafts={0} draft-hub="" pins={{ items: [], here: false, href: '/' }} here="/" ask-on={false} chat={null} ask-href="/" close-href="/" at-home={false} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null} undo={null} undo-text="">
+<hq-app who="" preview={null} portal-preview={null} groups={[]} ai-drafts={0} draft-hub="" pins={{ items: [], here: false, href: '/' }} here="/" ask-on={false} chat={null} ask-href="/" close-href="/" at-home={false} searching={false} adding={false} bell={0} at-notices={false} on-call={null} ready={null} undo={null} undo-text="">
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={who} class="hq-shell">
     <aside class="hq-side" class:open={menu}>
@@ -294,6 +294,10 @@
       <div zb-if={preview} class="hq-preview" role="status">
         <span>You’re viewing HQ as {preview.label}. Nothing can be changed until you stop.</span>
         <form method="post" action="/preview/stop"><button class="hq-account-action" type="submit">Stop viewing</button></form>
+      </div>
+      <div zb-if={portalPreview} class="hq-preview" role="status">
+        <span>You’re viewing <a href="/portal">{portalPreview.name}’s portal</a> at {portalPreview.clientName}. Nothing can be changed in HQ either until you stop.</span>
+        <form method="post" action="/portal-preview/stop"><button class="hq-account-action" type="submit">Stop viewing</button></form>
       </div>
       <header class="hq-top">
         <form zb-if={!searching} method="get" action="/search" role="search" class="hq-find">
