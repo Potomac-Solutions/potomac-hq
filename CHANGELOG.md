@@ -17,6 +17,11 @@ moves those lines under a version heading. See `docs/conventions.md`.
   shows everyone's to-dos beside every active project's tasks, so the whole
   company's work is on one board; a to-do moves only between To do and
   Done. New permission `project.start` (admin and manager).
+- **Invite a contact to the portal from their row.** On a client's page,
+  Contacts has a Portal column: *Invite to the portal* beside anyone with
+  an email, or where they stand once invited (invited, has access, access
+  turned off), matched by email. The old form stays, renamed "Invite
+  someone who isn't a contact". No migration.
 
 ## [0.19.0] - 2026-11-27
 

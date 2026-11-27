@@ -161,7 +161,12 @@ leave a page with something typed and not saved, it asks first.
 
 ## The client portal
 
-On a client's page, "Invite someone to the portal". They get a link, choose
+On a client's page, under Contacts, press "Invite to the portal" beside the
+person (they need an email address). The Portal column then shows where
+they stand: invited, has access, or access turned off. For someone who
+isn't a contact, use "Invite someone who isn't a contact" under Client
+portal. The client is the one whose page you're on, and that never
+changes. They get a link, choose
 a password, and see only their own organization's projects, shared
 deliverables, shared proposals and sent invoices. They can approve work,
 accept a proposal by typing their name, send a message and ask for a call.
