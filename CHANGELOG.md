@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-27
+
 - **Before and after on client websites.** A site whose content file has
   a `beforeAfter` list gets a Before and after section in the portal and
   on its page in HQ: add a pair with both photos and its words at once
