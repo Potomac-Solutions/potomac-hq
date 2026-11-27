@@ -21,7 +21,15 @@ moves those lines under a version heading. See `docs/conventions.md`.
   Contacts has a Portal column: *Invite to the portal* beside anyone with
   an email, or where they stand once invited (invited, has access, access
   turned off), matched by email. The old form stays, renamed "Invite
-  someone who isn't a contact". No migration.
+  someone who isn't a contact".
+- **One person, more than one client, in the portal** (decision 0022,
+  migration 0090). The same email can have portal access at several
+  clients, with one password, but a second client only where they are
+  listed under that client's Contacts; a matching email alone never joins
+  two clients. The portal shows one client at a time, with a *Showing*
+  menu to switch, checked on every request. Turning access off at one
+  client leaves their others open; their sign-in closes only when none is
+  left.
 
 ## [0.19.0] - 2026-11-27
 

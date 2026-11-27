@@ -51,10 +51,10 @@ test("a month of posts: planned, written, sent, approved in the portal, put up",
 
   // The client's portal.
   await staff.goto(`${t.origin}/clients/${client.id}`);
-  await staff.getByText("Invite someone to the portal").click();
+  await staff.getByText("Invite someone who isn’t a contact").click();
   await staff.getByLabel("Their name").fill("Pat Farmer");
   await staff.getByLabel("Their email").fill("pat@farm.example");
-  await staff.getByRole("button", { name: "Invite" }).click();
+  await staff.getByRole("button", { name: "Invite to the portal", exact: true }).click();
   const link = await staff.getByLabel(/link/i).first().inputValue();
   const pat = await (await browser.newContext()).newPage();
   const patProblems = watch(pat);

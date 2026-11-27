@@ -17,7 +17,8 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "name-missing": "Enter their name.",
   "name-too-long": "That name is too long.",
   "invalid-email": "Enter an email address, like name@example.com.",
-  "already-invited": "Someone with that email already has a portal invite or account.",
+  "already-invited": "Someone with that email already has a portal invite or account at this client.",
+  "not-a-contact": "That email already uses the portal at another client. To give them this one too, add them under Contacts here first, then invite them from their row.",
   "access-off": "Their access is turned off. Turn it on before sending a link.",
   unchanged: "Nothing changed.",
   "message-empty": "Write the message first.",
@@ -89,7 +90,12 @@ export function staffPortalRoutes(deps: StaffPortalRoutesDeps): Hono {
     if (!id.ok) return c.redirect(deps.sign(withMessage("/clients", "problem", messageFor("not-found"))), 303);
     const made = await staff.inviteClientUser(deps.portal, deps.actorOf(c.req.header("cookie") ?? ""), id.value, { name: fields["name"] ?? "", email: fields["email"] ?? "" });
     if (!made.ok) return c.redirect(deps.sign(withMessage(made.error === "not-found" ? "/clients" : clientPage(id.value), "problem", messageFor(made.error))), 303);
-    return deliver(c, made.value);
+    // Already in the portal at another client (decision 0022): no new link, the same sign-in.
+    if (made.value.path === null) {
+      const said = made.value.user.status === "active" ? `${made.value.user.name} already signs in to the portal, so this client is in their portal now, with the same password.` : `${made.value.user.name} already has an invite from another client. When they use it, this client opens too.`;
+      return c.redirect(deps.sign(withMessage(clientPage(id.value), "done", said)), 303);
+    }
+    return deliver(c, { user: made.value.user, path: made.value.path });
   });
 
   app.post("/portal-users/:id/link", async (c) => {
@@ -107,7 +113,10 @@ export function staffPortalRoutes(deps: StaffPortalRoutesDeps): Hono {
     const back = clientPage(parseId(fields["organizationId"] ?? "").ok ? (fields["organizationId"] as string) : null);
     const changed = id.ok ? await staff.setClientAccess(deps.portal, deps.actorOf(c.req.header("cookie") ?? ""), id.value, fields["on"] === "1") : null;
     if (!changed || !changed.ok) return c.redirect(deps.sign(withMessage(back, "problem", messageFor(changed ? changed.error : "not-found"))), 303);
-    return c.redirect(deps.sign(withMessage(clientPage(changed.value.organizationId), "done", changed.value.status === "disabled" ? "Access turned off. They are signed out." : "Access turned on.")), 303);
+    const account = changed.value.portalAccount;
+    const stillOpen = account !== null && deps.portal.clientUsers.allByAccount(account).some((one) => one.status === "active");
+    const said = changed.value.status !== "disabled" ? "Access turned on." : stillOpen ? "Access turned off at this client. They still see the other clients they have access at." : "Access turned off. They are signed out.";
+    return c.redirect(deps.sign(withMessage(clientPage(changed.value.organizationId), "done", said)), 303);
   });
 
   post("/projects/:id/updates", (actor, f, id) => staff.postProjectUpdate(deps.portal, actor, id as Id, f["body"] ?? ""), {
@@ -127,6 +136,8 @@ export type ClientPortalRoutesDeps = {
   readonly portal: staff.PortalDeps;
   /** The client a Cookie header is signed in as, or null. */
   readonly clientOf: (cookieHeader: string) => ClientSession | null;
+  /** Switches the portal to another of this person's clients (decision 0022): the cookie to set, or null if it isn't theirs. */
+  readonly chooseClient?: (cookieHeader: string, clientUserId: string) => { readonly name: string; readonly cookie: string } | null;
   readonly sign: (location: string) => string;
   /** The address the request came from, for the sign-in limit. */
   readonly addressOf: (incoming: unknown) => string;
@@ -228,6 +239,19 @@ export function clientPortalRoutes(deps: ClientPortalRoutesDeps): Hono<{ Binding
     if (made.value) await up.mail({ email: made.value.email, name: made.value.name }, `${up.publicUrl}${made.value.path}`, made.value.kind);
     // The same answer whether the email was new, known or turned off: nothing here says which.
     return to(c, "/portal/sign-up", "done", `Check your email at ${email}. We sent a link to confirm it and choose your password. Then you can book.`);
+  });
+
+  // Someone with access at more than one client picks which one the portal shows (decision 0022).
+  app.post("/portal/client", async (c) => {
+    const { fields } = await readForm(c);
+    const cookieHeader = c.req.header("cookie") ?? "";
+    const session = deps.clientOf(cookieHeader);
+    if (!session) return to(c, "/portal/sign-in", "problem", "Sign in first.");
+    if (session.previewedBy) return to(c, "/portal", "problem", "Nothing can be changed while viewing someone’s portal.");
+    const chosen = deps.chooseClient ? deps.chooseClient(cookieHeader, fields["clientUserId"] ?? "") : null;
+    if (!chosen) return to(c, "/portal", "problem", "That business isn’t one you can see.");
+    c.header("set-cookie", chosen.cookie);
+    return to(c, "/portal", "done", `Now showing ${chosen.name}.`);
   });
 
   app.post("/portal/sign-out", async (c) => {

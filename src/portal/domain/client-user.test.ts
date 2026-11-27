@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Id } from "../../shared/domain/id.ts";
-import { activate, answerCall, newCallRequest, newClientUser, newUpdate, sessionFor, setAccess } from "./client-user.ts";
+import { activate, answerCall, mayAddClient, newCallRequest, newClientUser, newUpdate, opensAnyClient, sessionAmong, sessionFor, setAccess, type ClientUser } from "./client-user.ts";
 
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}` as Id;
 const ids = { id: id(1), organizationId: id(2), invitedBy: id(3) };
@@ -66,4 +66,34 @@ test("a call is asked for, then confirmed with a time or declined", () => {
   const declined = answerCall(asked.value, { answer: "declined", confirmedFor: "ignored", reply: "Out that week." }, id(3));
   assert.ok(declined.ok);
   assert.equal(declined.value.confirmedFor, null);
+});
+
+// Decision 0022: one person, more than one client.
+const at = (n: number, organization: number, status: ClientUser["status"], account: string | null = "a1"): ClientUser => ({ id: id(n), organizationId: id(organization), portalAccount: account, name: "Stacy", email: "stacy@example.com", status, invitedBy: id(9) });
+
+test("a session is at the client chosen, only if it is theirs and on", () => {
+  const towing = at(4, 5, "active");
+  const collision = at(6, 7, "active");
+  const off = at(8, 2, "disabled");
+  assert.equal(sessionAmong([towing, collision], id(6))?.organizationId, id(7));
+  assert.equal(sessionAmong([towing, collision], null)?.organizationId, id(5), "with no choice, the first");
+  assert.equal(sessionAmong([towing, collision], id(1))?.organizationId, id(5), "a choice that isn't theirs is ignored");
+  assert.equal(sessionAmong([towing, off], id(8))?.organizationId, id(5), "a client whose access is off can't be chosen");
+  assert.equal(sessionAmong([off], id(8)), null);
+  assert.equal(sessionAmong([], null), null);
+  assert.equal(sessionAmong([at(3, 2, "invited", null)], id(3)), null, "an invite not yet used opens nothing");
+});
+
+test("someone already in the portal gets another client only where they are a contact", () => {
+  assert.deepEqual(mayAddClient([], id(5), false), { ok: true, value: { account: null } }, "someone new may be invited anywhere");
+  assert.deepEqual(mayAddClient([at(4, 5, "active")], id(5), true), { ok: false, error: "already-invited" });
+  assert.deepEqual(mayAddClient([at(4, 5, "active")], id(7), false), { ok: false, error: "not-a-contact" });
+  assert.deepEqual(mayAddClient([at(4, 5, "active")], id(7), true), { ok: true, value: { account: "a1" } }, "the same sign-in");
+  assert.deepEqual(mayAddClient([at(4, 5, "invited", null)], id(7), true), { ok: true, value: { account: null } });
+  assert.deepEqual(mayAddClient([at(4, 5, "disabled")], id(7), false), { ok: false, error: "not-a-contact" }, "access turned off still counts as being in the portal");
+});
+
+test("a sign-in stays on while any client is open", () => {
+  assert.equal(opensAnyClient([at(4, 5, "disabled"), at(6, 7, "active")]), true);
+  assert.equal(opensAnyClient([at(4, 5, "disabled"), at(6, 7, "invited", null)]), false);
 });

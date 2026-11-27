@@ -49,10 +49,10 @@ test("a client, from the invite to an accepted proposal", async () => {
   // Potomac invites Ann from the client's page and is shown her link.
   await staff.goto(`${t.origin}/clients/${client.id}`);
   await assertAccessible(staff, "a client with nobody invited to the portal");
-  await staff.getByText("Invite someone to the portal").click();
+  await staff.getByText("Invite someone who isn’t a contact").click();
   await staff.getByLabel("Their name").fill("Ann Baker");
   await staff.getByLabel("Their email").fill("ann@bakery.example");
-  await staff.getByRole("button", { name: "Invite" }).click();
+  await staff.getByRole("button", { name: "Invite to the portal", exact: true }).click();
   await staff.getByText("Send this link to Ann Baker").waitFor();
   await assertAccessible(staff, "the one-time link");
   const link = await staff.getByLabel(/link/i).first().inputValue();

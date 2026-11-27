@@ -61,7 +61,8 @@ export async function bookFromWebsite(deps: WebsiteBookingDeps, ownerId: Id, inp
 
   const made = await signUpForPortal(deps.portal, ownerId, { name: input.name, email, phone: input.phone, business: input.business ?? null });
   if (!made.ok) return made;
-  const user = deps.portal.clientUsers.byEmail(email);
+  // Someone new a moment ago, so this email is at exactly the one client the sign-up made.
+  const user = deps.portal.clientUsers.allByEmail(email)[0] ?? null;
   if (!made.value || !user) return err("closed");
   // The dashboard, not the booking page: the call is already booked.
   const link = { ...made.value, path: made.value.path.replace("&next=book", "") };

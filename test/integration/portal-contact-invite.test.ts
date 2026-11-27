@@ -16,8 +16,8 @@ before(async () => {
   await admin.get("/");
   const mikey = t.db.prepare("select id from user where email = 'mikey@example.com'").get()?.["id"] as Id;
   clientId = unwrap(crm.createClient(t.services.crm, mikey, { name: "Better Days Towing", sizeTier: "small" })).id;
-  unwrap(crm.addContact(t.services.crm, mikey, clientId, { name: "Stacy Roberts", email: "Stacy@BetterDays.example", isPrimary: true }));
-  unwrap(crm.addContact(t.services.crm, mikey, clientId, { name: "Phone Only", phone: "301-555-0100" }));
+  unwrap(crm.addContact(t.services.crm, mikey, clientId as Id, { name: "Stacy Roberts", email: "Stacy@BetterDays.example", isPrimary: true }));
+  unwrap(crm.addContact(t.services.crm, mikey, clientId as Id, { name: "Phone Only", phone: "301-555-0100" }));
 });
 after(() => t.stop());
 

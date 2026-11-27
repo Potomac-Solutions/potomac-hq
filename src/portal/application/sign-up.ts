@@ -24,9 +24,11 @@ export async function signUpForPortal(deps: PortalDeps, ownerId: Id, input: Sign
     if (match.disabled || !match.email) return ok(null);
     if (match.email !== email) return signUpForPortal(deps, ownerId, { name: match.name, email: match.email });
   }
-  const existing = deps.clientUsers.byEmail(email);
-  if (existing) {
-    if (existing.status === "disabled") return ok(null);
+  const known = deps.clientUsers.allByEmail(email);
+  if (known.length > 0) {
+    // Someone at one or more clients already: a link to their one sign-in, unless every client has turned them off.
+    const existing = known.find((one) => one.status !== "disabled");
+    if (!existing) return ok(null);
     const token = existing.portalAccount === null ? await deps.auth.invite(existing.email, existing.name) : await deps.auth.resetLink(existing.portalAccount);
     if (token === null) return ok(null);
     deps.transact(() => recordActivity(deps, { actorId: null, action: "client-user.sign-up-again", recordType: "client-user", recordId: existing.id, context: { organizationId: existing.organizationId } }));

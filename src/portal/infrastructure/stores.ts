@@ -22,10 +22,10 @@ export function sqliteClientUserStore(db: Database): ClientUserStore {
   const insert = db.prepare(`insert into client_user (${cols}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   // The organization is not in this list: a client user never moves to another client.
   const update = db.prepare("update client_user set portal_account = ?, name = ?, status = ?, updated_at = ? where id = ?");
-  const one = (where: string) => db.prepare(`select ${cols} from client_user where ${where} = ?`);
-  const get = one("id");
-  const byEmail = one("email");
-  const byAccount = one("portal_account");
+  const get = db.prepare(`select ${cols} from client_user where id = ?`);
+  const atClient = db.prepare(`select ${cols} from client_user where organization_id = ? and email = ?`);
+  const allByEmail = db.prepare(`select ${cols} from client_user where email = ? order by created_at, rowid`);
+  const allByAccount = db.prepare(`select ${cols} from client_user where portal_account = ? order by created_at, rowid`);
   const listFor = db.prepare(`select ${cols} from client_user where organization_id = ? order by name collate nocase`);
   const read = (r: Row | undefined) => (r ? toUser(r) : null);
   const notices = db.prepare("select notices from client_user where id = ?");
@@ -44,8 +44,9 @@ export function sqliteClientUserStore(db: Database): ClientUserStore {
       update.run(u.portalAccount, u.name, u.status, at, u.id);
     },
     get: (id) => read(get.get(id) as Row | undefined),
-    byEmail: (email) => read(byEmail.get(email) as Row | undefined),
-    byPortalAccount: (account) => read(byAccount.get(account) as Row | undefined),
+    atClient: (organizationId, email) => read(atClient.get(organizationId, email.trim().toLowerCase()) as Row | undefined),
+    allByEmail: (email) => (allByEmail.all(email.trim().toLowerCase()) as Row[]).map(toUser),
+    allByAccount: (account) => (allByAccount.all(account) as Row[]).map(toUser),
     listFor: (organizationId) => (listFor.all(organizationId) as Row[]).map(toUser),
   };
 }

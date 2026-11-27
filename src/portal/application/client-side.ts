@@ -7,7 +7,7 @@
 // Anything else is "not-found", which says nothing about whether it exists.
 // test/integration/portal-isolation.test.ts tries every one of these as
 // client A against client B's records.
-import { newCallRequest, newUpdate, sessionFor, type CallRequest, type ClientSession, type ProjectUpdate } from "../domain/client-user.ts";
+import { newCallRequest, newUpdate, sessionAmong, sessionFor, type CallRequest, type ClientSession, type ProjectUpdate } from "../domain/client-user.ts";
 import { activate } from "../domain/client-user.ts";
 
 export type { ClientSession };
@@ -24,9 +24,35 @@ import { portalTimeline, type Timeline } from "../domain/timeline.ts";
 /** What an invoice is for, as the client reads it: its project, or for a charge with none, its first line ("Domain name, one year"). */
 const forWhat = (invoice: { readonly projectName: string; readonly lines: readonly { readonly description: string }[] }): string => invoice.projectName || invoice.lines[0]?.description || "Your account";
 
-export function clientSession(deps: PortalDeps, cookieHeader: string): ClientSession | null {
+export function clientSession(deps: PortalDeps, cookieHeader: string, chosen: string | null = null): ClientSession | null {
   const who = deps.auth.session(cookieHeader);
-  return who ? sessionFor(deps.clientUsers.byPortalAccount(who.account)) : null;
+  return who ? sessionAmong(deps.clientUsers.allByAccount(who.account), chosen) : null;
+}
+
+/** One client a signed-in person can switch the portal to (decision 0022). */
+export type ClientChoice = { readonly id: string; readonly name: string; readonly current: boolean };
+
+/** Every client this sign-in opens, by name, with the one the session is at marked. Empty when there's only the one. */
+export function clientChoices(deps: PortalDeps, cookieHeader: string, session: ClientSession | null): readonly ClientChoice[] {
+  const who = session && !session.previewedBy ? deps.auth.session(cookieHeader) : null;
+  if (!who || !session) return [];
+  const open = deps.clientUsers.allByAccount(who.account).filter((user) => user.status === "active");
+  if (open.length < 2) return [];
+  return open
+    .map((user) => ({ id: user.id, name: deps.clients.get(user.organizationId)?.name ?? "Your business", current: user.id === session.clientUserId }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Switching the portal to another of this person's clients. Answers the
+ * client user to remember in the browser, only if this sign-in opens it.
+ */
+export function chooseClient(deps: PortalDeps, cookieHeader: string, clientUserId: string): Result<{ readonly id: Id; readonly name: string }, "not-found"> {
+  const who = deps.auth.session(cookieHeader);
+  const user = who ? deps.clientUsers.allByAccount(who.account).find((one) => one.id === clientUserId && one.status === "active") : undefined;
+  if (!user) return err("not-found");
+  deps.transact(() => recordActivity(deps, { actorId: null, action: "client-user.switched-client", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId } }));
+  return ok({ id: user.id, name: deps.clients.get(user.organizationId)?.name ?? "Your business" });
 }
 
 export async function signInClient(deps: PortalDeps, input: { readonly email: string; readonly password: string; readonly client: string }): Promise<Result<{ cookie: string }, "wrong" | "locked">> {
@@ -56,14 +82,17 @@ export async function signOutClient(deps: PortalDeps, cookieHeader: string): Pro
 /** Uses a one-time link: the person chooses their password and is signed in. An invite also makes their access active. */
 export async function acceptPortalLink(deps: PortalDeps, token: string, form: { readonly name: string; readonly password: string }): Promise<{ ok: true; cookie: string } | { ok: false; message: string }> {
   const link = deps.auth.peek(token);
-  const user = link ? deps.clientUsers.byEmail(link.email) : null;
-  // The link must be for someone HQ invited, whose access has not been turned off.
-  if (!link || !user || user.status === "disabled") return { ok: false, message: "That link has expired or been used. Ask Potomac Solutions for a new one." };
+  const people = link ? deps.clientUsers.allByEmail(link.email).filter((one) => one.status !== "disabled") : [];
+  const user = people[0];
+  // The link must be for someone HQ invited, whose access somewhere has not been turned off.
+  if (!link || !user) return { ok: false, message: "That link has expired or been used. Ask Potomac Solutions for a new one." };
   const result = await deps.auth.accept(token, { name: form.name || user.name, password: form.password });
   if (!result.ok) return result;
   deps.transact(() => {
-    if (user.status === "invited") {
-      const active = activate(user, result.account, form.name);
+    // One password for every client this email was invited at (decision 0022).
+    for (const one of people) {
+      if (one.status !== "invited") continue;
+      const active = activate(one, result.account, form.name);
       if (active.ok) deps.clientUsers.update(active.value, deps.clock());
     }
     recordActivity(deps, { actorId: null, action: "client-user.password-set", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId, by: link.kind } });
@@ -470,8 +499,8 @@ export function requestCall(deps: PortalDeps, session: ClientSession, input: { r
  */
 export async function emailSignInLink(deps: PortalDeps, typed: string, mail: (to: { readonly email: string; readonly name: string }, token: string) => Promise<boolean>): Promise<Result<true, never>> {
   const email = typed.trim().toLowerCase();
-  const user = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? deps.clientUsers.byEmail(email) : null;
-  if (!user || user.status === "disabled") return ok(true as const);
+  const user = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? (deps.clientUsers.allByEmail(email).find((one) => one.status !== "disabled") ?? null) : null;
+  if (!user) return ok(true as const);
   const token = user.portalAccount === null ? await deps.auth.invite(user.email, user.name) : await deps.auth.resetLink(user.portalAccount);
   if (token === null) return ok(true as const);
   deps.transact(() => {
