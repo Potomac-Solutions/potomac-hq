@@ -7,6 +7,8 @@ export const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   hardware: "Hardware",
   travel: "Travel",
   supplies: "Supplies",
+  training: "Training and certifications",
+  licenses: "Licenses, permits and filing fees",
   other: "Other",
 };
 

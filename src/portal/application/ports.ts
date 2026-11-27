@@ -5,8 +5,12 @@ export type ClientUserStore = {
   insert(user: ClientUser, at: string): void;
   update(user: ClientUser, at: string): void;
   get(id: Id): ClientUser | null;
-  byEmail(email: string): ClientUser | null;
-  byPortalAccount(account: string): ClientUser | null;
+  /** This person's access at one client, if any (decision 0022: an email is unique within a client, not across them). */
+  atClient(organizationId: Id, email: string): ClientUser | null;
+  /** Every client this email has access at, invited, active or turned off, oldest first. */
+  allByEmail(email: string): ClientUser[];
+  /** Every client one portal account signs in to, oldest first. */
+  allByAccount(account: string): ClientUser[];
   listFor(organizationId: Id): ClientUser[];
   /** Whether this person is emailed when something is waiting for them. */
   wantsNotices(id: Id): boolean;

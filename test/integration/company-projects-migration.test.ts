@@ -28,6 +28,7 @@ test("client projects are kept, a company project may have neither client nor op
     run("insert into project (id, organization_id, opportunity_id, owner_id, name, kind, status, description, health, start_on, created_at, updated_at) values ('p1', 'c1', 'o1', 'u1', 'Better Days website', 'fixed', 'active', 'Rebuild.', 'at-risk', '2026-11-20', ?, ?)", at, at);
     run("insert into task (id, project_id, title, assignee_id, priority, status, created_at, updated_at) values ('t1', 'p1', 'Send the proof', 'u1', 'high', 'todo', ?, ?)", at, at);
     run("insert into time_entry (id, project_id, task_id, user_id, worked_on, minutes, created_at, updated_at) values ('e1', 'p1', 't1', 'u1', '2026-11-20', 45, ?, ?)", at, at);
+    run("insert into expense (id, project_id, category, amount_minor, spent_on, recorded_by, created_at) values ('x1', 'p1', 'hosting', 1200, '2026-11-20', 'u1', ?)", at);
 
     assert.deepEqual(
       migrate(db, all, () => at).map((m) => m.version),
@@ -46,6 +47,12 @@ test("client projects are kept, a company project may have neither client nor op
     run("insert into project (id, organization_id, opportunity_id, owner_id, name, kind, status, created_at, updated_at) values ('p2', null, null, 'u1', 'Training', 'ongoing', 'active', ?, ?)", at, at);
     assert.throws(() => run("insert into project (id, organization_id, opportunity_id, owner_id, name, kind, status, created_at, updated_at) values ('p3', 'c1', null, 'u1', 'Half', 'fixed', 'active', ?, ?)", at, at), /CHECK/);
     assert.throws(() => run("insert into project (id, organization_id, opportunity_id, owner_id, name, kind, status, created_at, updated_at) values ('p4', 'c1', 'o1', 'u1', 'Twice', 'fixed', 'active', ?, ?)", at, at), /UNIQUE/);
+
+    // Migration 0090: the expense table keeps its rows and takes the two new categories.
+    run("insert into expense (id, project_id, category, amount_minor, spent_on, recorded_by, created_at) values ('x2', 'p2', 'training', 30000, '2026-11-27', 'u1', ?)", at);
+    run("insert into expense (id, project_id, category, amount_minor, spent_on, recorded_by, created_at) values ('x3', 'p2', 'licenses', 10000, '2026-11-27', 'u1', ?)", at);
+    assert.deepEqual(db.prepare("select id, category from expense order by id").all().map((r) => [r["id"], r["category"]]), [["x1", "hosting"], ["x2", "training"], ["x3", "licenses"]]);
+    assert.throws(() => run("insert into expense (id, project_id, category, amount_minor, spent_on, recorded_by, created_at) values ('x4', 'p2', 'snacks', 100, '2026-11-27', 'u1', ?)", at), /CHECK/);
 
     const granted = db.prepare("select r.key from role_permission p join role r on r.id = p.role_id where p.permission = 'project.start' order by r.key").all().map((r) => r["key"]);
     assert.deepEqual(granted, ["admin", "manager"]);

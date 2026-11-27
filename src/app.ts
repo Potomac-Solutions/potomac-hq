@@ -104,7 +104,7 @@ import { knowledgeRoutes } from "./knowledge/api/knowledge-routes.ts";
 import { articleDetail, articleRevision, listArticles } from "./knowledge/index.ts";
 import { noteRoutes } from "./notes/api/note-routes.ts";
 import { clientPortalRoutes, portalDownloads, portalNext, staffPortalRoutes } from "./portal/api/portal-routes.ts";
-import { callsWaiting, clientActivity, clientFiles, clientSession, previewBanner, previewSession, startPortalPreview, stopPortalPreview, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
+import { callsWaiting, chooseClient, clientActivity, clientChoices, clientFiles, clientSession, previewBanner, previewSession, startPortalPreview, stopPortalPreview, staffWaiting, portalAccess, portalHome, portalProject, portalProposal, projectUpdates } from "./portal/index.ts";
 import { linkPage } from "./portal/ui/views.ts";
 import { siteBookingRoutes } from "./portal/api/site-booking-routes.ts";
 import { listNotes } from "./notes/index.ts";
@@ -434,6 +434,8 @@ export type PageContext = {
   /** The client portal. Everything here is for the signed-in client's own organization. */
   readonly portal: {
     readonly session: { readonly name: string } | null;
+    /** The clients this person can switch between (decision 0022); empty when there's only the one. */
+    readonly clients: readonly { readonly id: string; readonly name: string; readonly current: boolean }[];
     /** Set when someone at Potomac is viewing this client person's portal, read-only (decision 0020). */
     readonly preview: { readonly name: string; readonly clientName: string; readonly clientId: string } | null;
     /** What an approval link from an email opens (quality of life, 2026-11-25). */
@@ -744,7 +746,12 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   // Which client a request is from. In a preview of a client person's portal
   // (decision 0020) it is that person, whatever portal cookie the browser has.
-  const clientOf = (cookieHeader: string) => portalPreviewing() ?? clientSession(portalDeps, cookieHeader);
+  // Someone with access at more than one client (decision 0022) works at one at a time.
+  // The cookie only names which; clientSession honours it only if their sign-in opens that client.
+  const PORTAL_CLIENT_COOKIE = config.secure ? "__Host-hq-portal-client" : "hq-portal-client";
+  const chosenClientOf = (cookieHeader: string): string | null => new RegExp(`(?:^|;\\s*)${PORTAL_CLIENT_COOKIE}=([0-9a-f-]{36})(?:;|$)`).exec(cookieHeader)?.[1] ?? null;
+  const portalClientCookie = (clientUserId: string) => `${PORTAL_CLIENT_COOKIE}=${clientUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}${config.secure ? "; Secure" : ""}`;
+  const clientOf = (cookieHeader: string) => portalPreviewing() ?? clientSession(portalDeps, cookieHeader, chosenClientOf(cookieHeader));
 
   // Undo (decision 0014): a page's `undo` is kept in the database and the
   // address carries only its token, then the messages are signed as before.
@@ -955,6 +962,7 @@ export async function createApp(config: AppConfig): Promise<App> {
         },
         portal: {
           session: client ? { name: client.name } : null,
+          clients: clientChoices(portalDeps, request.headers.get("cookie") ?? "", client),
           preview: previewBanner(portalDeps, client),
           contact,
           notices: config.clientNotices === true && config.email !== undefined && config.email !== null,
@@ -977,8 +985,8 @@ export async function createApp(config: AppConfig): Promise<App> {
           missing: () => show("portal/ui/portal-missing", { title: "Not found" }, { status: 404 }),
           link: (token) => {
             const found = /^[A-Za-z0-9_-]{43}$/.test(token) ? portalDeps.auth.peek(token) : null;
-            const user = found ? portalDeps.clientUsers.byEmail(found.email) : null;
-            return found && user && user.status !== "disabled" ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
+            const user = found ? (portalDeps.clientUsers.allByEmail(found.email).find((one) => one.status !== "disabled") ?? null) : null;
+            return found && user ? { valid: true, token, email: found.email, name: user.name, invite: found.kind === "invite" } : { valid: false, token: "", email: "", name: "", invite: false };
           },
         },
         signedIn: who !== null && !pending,
@@ -1617,6 +1625,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     clientPortalRoutes({
       portal: portalDeps,
       clientOf,
+      chooseClient: (cookieHeader, clientUserId) => {
+        const chosen = chooseClient(portalDeps, cookieHeader, clientUserId);
+        return chosen.ok ? { name: chosen.value.name, cookie: portalClientCookie(chosen.value.id) } : null;
+      },
       sign: signNotice,
       addressOf: (incoming) => clientAddressOf(incoming as IncomingMessage),
       allowAttempt: sqliteRateLimit(db, { name: "portal-sign-in", max: config.attemptsPerMinute ?? 10, windowMs: 60_000 }),

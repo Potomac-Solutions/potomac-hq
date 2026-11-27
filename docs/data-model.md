@@ -460,7 +460,7 @@ operational estimates.
 | --- | --- | --- |
 | `id` | id | |
 | `project_id` | id | Required |
-| `category` | `software`, `hosting`, `domain`, `contractor`, `hardware`, `travel`, `supplies`, `other` | Required |
+| `category` | `software`, `hosting`, `domain`, `contractor`, `hardware`, `travel`, `supplies`, `training`, `licenses`, `other` (the two from migration 0090) | Required |
 | `amount_minor`, `currency` | money | Above zero |
 | `spent_on` | date | Not in the future |
 | `note` | text | Optional |
@@ -559,16 +559,17 @@ Decided 2026-11-16 while Mikey was away. Needs his approval.
 
 Someone at a client who may sign in to the portal. Separate from a User: a
 client user has no role and no permission, and belongs to exactly one client
-organization.
+organization. One person may have a client user at more than one client,
+all sharing one portal account (decision 0022).
 
 | Field | Type | Rule |
 | --- | --- | --- |
 | `id` | id | |
 | `organization_id` | id | Never changes |
 | `name` | text | Required |
-| `email` | text | Lower case, unique across all client users |
+| `email` | text | Lower case, unique within a client (decision 0022). At a second client only if they are a contact there |
 | `status` | `invited`, `active`, `disabled` | `invited` until they use their link |
-| `portal_account` | text | The account they sign in with. Empty until they accept |
+| `portal_account` | text | The account they sign in with. Empty until they accept. Shared by the same person's client users at other clients |
 | `invited_by` | id | The HQ user who invited them |
 
 - A client user gets in by a link that works once and lasts a week. With
@@ -577,8 +578,11 @@ organization.
   never written to the activity log.
 - Using the link sets their password, makes them `active` and signs them in.
 - A new link is how a forgotten password is fixed.
-- Turning access off makes them `disabled`, ends their sessions at once, and
-  refuses their password and any link. Turning it back on makes them
+- A session is at one of the person's clients at a time; they switch in the
+  portal's top bar (decision 0022).
+- Turning access off makes them `disabled` and ends their access at that
+  client at once. Their sessions end, and their password and any link are
+  refused, only when no other client is open to them. Turning it back on makes them
   `active` if they had set a password, and `invited` if not.
 - Passwords and sessions are kept by a second instance of the kit's `staff`
   module, in `kit_document` collections that start `portal:`, with a cookie

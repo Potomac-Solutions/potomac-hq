@@ -6,7 +6,7 @@
 <script>
   'use layout /portal root'
   export async function load({ context }) {
-    return { title: 'Potomac Solutions client portal', who: context.portal.session ? context.portal.session.name : '', contact: context.portal.contact, preview: context.portal.preview }
+    return { title: 'Potomac Solutions client portal', who: context.portal.session ? context.portal.session.name : '', clients: context.portal.clients, contact: context.portal.contact, preview: context.portal.preview }
   }
 </script>
 <style>
@@ -16,6 +16,8 @@
   .portal-brand img { width: 1.75rem; height: 1.75rem; }
   .portal-who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; color: var(--muted-foreground); font-size: 0.9rem; }
   .portal-who form { margin: 0; }
+  .portal-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+  .portal-switch select { min-height: 2.75rem; padding: 0 0.6rem; font: inherit; font-size: 0.9rem; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); }
   .portal-out { min-height: 2.75rem; padding: 0 0.9rem; font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
   .portal-preview { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.6rem 1rem; font-weight: 600; color: var(--label-amber-fg); background: var(--label-amber-bg); }
   .portal-preview form { margin: 0; }
@@ -25,7 +27,7 @@
   .portal-foot p { margin: 0.25rem 0; }
   .portal-foot a { font-weight: 600; }
 </style>
-<hq-portal who="" contact={{}} preview={null}>
+<hq-portal who="" clients={[]} contact={{}} preview={null}>
   <a class="skip-link" href="#main">Skip to content</a>
   <div zb-if={preview} class="portal-preview" role="status">
     <span>You’re viewing {preview.name}’s portal at {preview.clientName}, as they see it. Nothing can be changed, and they aren’t told.</span>
@@ -34,6 +36,13 @@
   <header class="portal-bar">
     <a class="portal-brand" href="/portal"><img src="/assets/potomac-mark.webp" alt="" width="28" height="28"> Potomac Solutions</a>
     <div zb-if={who && !preview} class="portal-who">
+      <form zb-if={clients.length > 1} method="post" action="/portal/client" class="portal-switch">
+        <label for="portal-client">Showing</label>
+        <select id="portal-client" name="clientUserId">
+          <zb-each items={clients} as="one" key={one.id}><option value={one.id} selected={one.current}>{one.name}</option></zb-each>
+        </select>
+        <button class="portal-out" type="submit">Switch</button>
+      </form>
       <span>{who}</span>
       <form method="post" action="/portal/sign-out"><button class="portal-out" type="submit">Sign out</button></form>
     </div>

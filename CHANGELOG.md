@@ -16,7 +16,24 @@ moves those lines under a version heading. See `docs/conventions.md`.
   no deliverables or portal, and its time is never billable. The Board now
   shows everyone's to-dos beside every active project's tasks, so the whole
   company's work is on one board; a to-do moves only between To do and
-  Done. New permission `project.start` (admin and manager).
+  Done. New permission `project.start` (admin and manager). A company
+  project's Money tab keeps its expenses and time, without invoices, so
+  what company work costs is a business expense in the tax pack; two new
+  expense categories, **Training and certifications** and **Licenses,
+  permits and filing fees** (migration 0090).
+- **Invite a contact to the portal from their row.** On a client's page,
+  Contacts has a Portal column: *Invite to the portal* beside anyone with
+  an email, or where they stand once invited (invited, has access, access
+  turned off), matched by email. The old form stays, renamed "Invite
+  someone who isn't a contact".
+- **One person, more than one client, in the portal** (decision 0022,
+  migration 0091). The same email can have portal access at several
+  clients, with one password, but a second client only where they are
+  listed under that client's Contacts; a matching email alone never joins
+  two clients. The portal shows one client at a time, with a *Showing*
+  menu to switch, checked on every request. Turning access off at one
+  client leaves their others open; their sign-in closes only when none is
+  left.
 
 ## [0.19.0] - 2026-11-27
 

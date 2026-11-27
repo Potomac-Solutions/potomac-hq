@@ -21,7 +21,9 @@ export function sqlitePeopleLookup(db: Database): PeopleLookup {
     match(keys) {
       if (!keys.email && !keys.phone) return null;
       const rows = everyone.all() as unknown as Row[];
-      const hit = rows.find((row) => (keys.email !== null && emailKey(row.email) === keys.email) || (keys.phone !== null && phoneKey(row.phone) === keys.phone));
+      const matches = (row: Row) => (keys.email !== null && emailKey(row.email) === keys.email) || (keys.phone !== null && phoneKey(row.phone) === keys.phone);
+      // One person may have access at more than one client (decision 0022): one turned off doesn't hide the others.
+      const hit = rows.find((row) => matches(row) && row.status !== "disabled") ?? rows.find(matches);
       if (!hit) return null;
       // The link goes to the person who matched if they have an account; else to anyone at that client who does; else to the matched email.
       const users = rows.filter((row) => row.kind === "user" && row.organization_id === hit.organization_id);

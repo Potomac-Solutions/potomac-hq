@@ -5,7 +5,7 @@ import type { Id } from "../../shared/domain/id.ts";
 import { parseAmount, type Money } from "../../shared/domain/money.ts";
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 
-export const EXPENSE_CATEGORIES = ["software", "hosting", "domain", "contractor", "hardware", "travel", "supplies", "other"] as const;
+export const EXPENSE_CATEGORIES = ["software", "hosting", "domain", "contractor", "hardware", "travel", "supplies", "training", "licenses", "other"] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
 export type Expense = {

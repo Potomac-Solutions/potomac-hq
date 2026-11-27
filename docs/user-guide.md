@@ -161,10 +161,23 @@ leave a page with something typed and not saved, it asks first.
 
 ## The client portal
 
-On a client's page, "Invite someone to the portal". They get a link, choose
+On a client's page, under Contacts, press "Invite to the portal" beside the
+person (they need an email address). The Portal column then shows where
+they stand: invited, has access, or access turned off. For someone who
+isn't a contact, use "Invite someone who isn't a contact" under Client
+portal. The client is the one whose page you're on, and that never
+changes. They get a link, choose
 a password, and see only their own organization's projects, shared
 deliverables, shared proposals and sent invoices. They can approve work,
 accept a proposal by typing their name, send a message and ask for a call.
+**Someone at more than one client**, like a bookkeeper or an owner of two
+businesses: invite them at each client from their row under Contacts. HQ
+gives a second client only to someone listed as a contact there. They keep
+one email and password, the new client shows in their portal straight
+away, and a *Showing* menu at the top switches between them; each page
+shows one client's work only. Turning their access off at one client
+leaves the others open.
+
 What a client does in the portal shows on your dashboard under "From your
 clients", and the project's owner is emailed if email is set up.
 Call requests show on your dashboard, with the number to call back on if

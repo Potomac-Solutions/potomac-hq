@@ -1,7 +1,7 @@
 // What HQ's own users do about the portal: invite a client, turn their access
 // off, post an update for them to read, and answer a call request. Each one
 // checks permission first and writes its activity event.
-import { answerCall, newClientUser, newUpdate, setAccess, type CallRequest, type ClientSession, type ClientUser, type InviteError, type ProjectUpdate } from "../domain/client-user.ts";
+import { answerCall, mayAddClient, newClientUser, newUpdate, opensAnyClient, setAccess, type CallRequest, type ClientSession, type ClientUser, type InviteError, type ProjectUpdate } from "../domain/client-user.ts";
 import { CLIENT_UPLOAD, formatSize } from "../../files/index.ts";
 import type { FinanceDeps } from "../../finance/index.ts";
 import { authorize } from "../../identity/index.ts";
@@ -67,18 +67,38 @@ export function previewBanner(deps: PortalDeps, session: ClientSession | null): 
 
 /** A one-time link for a client: the address they open to choose their password. */
 export type PortalLink = { readonly user: ClientUser; readonly path: string };
+/** An invite: a link to send, or null when they already sign in to the portal at another client (decision 0022). */
+export type Invited = { readonly user: ClientUser; readonly path: string | null };
 
 /**
  * Invites someone at a client to the portal. They belong to that client from
- * then on. The answer carries a one-time link: the caller emails it, or shows
+ * then on. Someone already in the portal at another client is given this one
+ * too only if they are listed as a contact here (decision 0022), and signs in
+ * with the password they have: then there's no link (`path` is null), and the
+ * client is in their portal at once, or opens with the invite they already have.
+ * Otherwise the answer carries a one-time link: the caller emails it, or shows
  * it to the inviter once. The link itself is never written to the audit log.
  */
-export async function inviteClientUser(deps: PortalDeps, actorId: Id | null, organizationId: Id, input: { readonly name: string; readonly email: string }): Promise<Result<PortalLink, Refused | InviteError | "already-invited">> {
+export async function inviteClientUser(deps: PortalDeps, actorId: Id | null, organizationId: Id, input: { readonly name: string; readonly email: string }): Promise<Result<Invited, Refused | InviteError | "already-invited" | "not-a-contact">> {
   if (!allowed(deps, actorId, "portal.manage")) return err("forbidden");
   if (!deps.clients.get(organizationId)) return err("not-found");
   const user = newClientUser({ id: deps.newId(), organizationId, invitedBy: actorId }, input);
   if (!user.ok) return user;
-  if (deps.clientUsers.byEmail(user.value.email)) return err("already-invited");
+  const existing = deps.clientUsers.allByEmail(user.value.email);
+  const isContact = deps.contacts.listFor(organizationId).some((contact) => contact.email !== null && contact.email.toLowerCase() === user.value.email);
+  const may = mayAddClient(existing, organizationId, isContact);
+  if (!may.ok) return may;
+  if (existing.length > 0) {
+    // Their sign-in, if they have one, opens this client too; an invite not yet used will open it when it is.
+    const joined = may.value.account === null ? user.value : { ...user.value, portalAccount: may.value.account, status: "active" as const };
+    // A sign-in shut because every client it opened was turned off opens again, for this client only.
+    if (joined.portalAccount !== null && !opensAnyClient(existing)) await deps.auth.setDisabled(joined.portalAccount, false);
+    deps.transact(() => {
+      deps.clientUsers.insert(joined, deps.clock());
+      recordActivity(deps, { actorId, action: "client-user.invited", recordType: "client-user", recordId: joined.id, context: { organizationId, alsoAt: existing.length } });
+    });
+    return ok({ user: joined, path: null });
+  }
   const token = await deps.auth.invite(user.value.email, user.value.name);
   if (token === null) return err("already-invited");
   deps.transact(() => {
@@ -102,14 +122,22 @@ export async function issuePortalLink(deps: PortalDeps, actorId: Id | null, clie
   return ok({ user, path: `/portal/accept?token=${token}` });
 }
 
-/** Turns a client's portal access off, ending their sessions at once, or back on. */
+/**
+ * Turns a person's portal access at this client off, or back on. Off ends it
+ * at this client at once (every request checks). Their sign-in itself is shut,
+ * ending their sessions, only when no other client is open to them; their
+ * access at other clients is untouched (decision 0022).
+ */
 export async function setClientAccess(deps: PortalDeps, actorId: Id | null, clientUserId: Id, on: boolean): Promise<Result<ClientUser, Refused | "unchanged">> {
   if (!allowed(deps, actorId, "portal.manage")) return err("forbidden");
   const user = deps.clientUsers.get(clientUserId);
   if (!user) return err("not-found");
   const changed = setAccess(user, on);
   if (!changed.ok) return changed;
-  if (user.portalAccount !== null) await deps.auth.setDisabled(user.portalAccount, !on);
+  if (user.portalAccount !== null) {
+    const others = deps.clientUsers.allByAccount(user.portalAccount).filter((one) => one.id !== user.id);
+    if (!opensAnyClient(others)) await deps.auth.setDisabled(user.portalAccount, !on);
+  }
   deps.transact(() => {
     deps.clientUsers.update(changed.value, deps.clock());
     recordActivity(deps, { actorId, action: "client-user.status-changed", recordType: "client-user", recordId: user.id, context: { organizationId: user.organizationId, from: user.status, to: changed.value.status } });

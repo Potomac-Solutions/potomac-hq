@@ -1,6 +1,6 @@
 # 0021. Company projects and the company board
 
-Status: decided 2026-11-27 at Mikey's request. He asked for one shared board
+Status: decided 2026-11-27 at Mikey's request; expenses added the same day. He asked for one shared board
 where he and Jayanti see every task in the company, and can give each other
 tasks: for example, Jayanti's cloud and networking certificates (Cisco,
 AWS, Google Cloud, Azure) and his own commerce and CMS certificates
@@ -43,9 +43,16 @@ changed in review.
 - **Shown as "Company work"** where a client's name would be: the
   projects list, the dashboard, reports, search, time and expenses.
 - **Never billed.** An invoice or a recurring invoice on one is refused
-  (`company-project`), and no deposit is ever drafted. **Default:** the
-  project's Money tab is hidden; time and expenses are still logged and
-  show on the Time and Money pages.
+  (`company-project`), and no deposit is ever drafted.
+- **Its costs are business expenses.** Mikey asked (2026-11-27) that what
+  company work costs, like certification exams and courses, be tracked as
+  business expenses. The project's Money tab stays, with its expenses,
+  time, budget and hours by phase, but without payment status, change
+  requests, invoices, recurring invoices or margin. Two expense categories
+  are added for any project (migration 0090): **Training and
+  certifications** (`training`) and **Licenses, permits and filing fees**
+  (`licenses`, like forming the LLC). Company expenses are in the expense
+  lists and the tax pack, under "Company work".
 - **Its time isn't billable.** A timer started by moving one of its tasks
   to *Working on*, or time logged by hand, is saved as not billable.
 - **Nothing client-facing.** No deliverables, no updates for the client,
