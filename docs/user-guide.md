@@ -74,6 +74,10 @@ HQ first shows what each would take with it, and which it keeps. A real
 client's payments and signed agreements are never deleted: mark the client
 Former instead, or mark it a demo if it was only ever a test.
 
+Deleting a contact also turns off their portal access at that client, since
+someone sees a client in the portal only where they're listed as a contact.
+Their other clients stay open. Putting the contact back turns it on again.
+
 A delete goes to the **Trash** (Company → Trash), with everything that went
 with it. *Undo* puts it back straight away; from the Trash, *Put back* does
 for 30 days, exactly as it was. After that it's deleted for good, or sooner

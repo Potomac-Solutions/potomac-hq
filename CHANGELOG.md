@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Deleting a contact turns off their portal access at that client**
+  (decisions 0022 and 0023). Before, a contact moved to the Trash could
+  still sign in to that client's portal. Now their access there is turned
+  off when the last contact at the client with their email goes, and turned
+  back on when the contact is put back. Their access at other clients isn't
+  touched. The page that asks first, and the Trash, say so.
 - **Before and after on client websites.** A site whose content file has
   a `beforeAfter` list gets a Before and after section in the portal and
   on its page in HQ: add a pair with both photos and its words at once

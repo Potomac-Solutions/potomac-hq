@@ -77,16 +77,29 @@ const NAMED: readonly (readonly [string, string, string])[] = [
   ["renewal", "renewal", "renewals"],
 ];
 
+/**
+ * Not a row that goes, but counted with them: a deleted contact's portal
+ * access at their client, turned off (decision 0022).
+ */
+export const ACCESS_OFF = "client_user.access_off";
+
+/** How many rows go, leaving out what's only turned off. */
+export function rowsIn(counts: Readonly<Record<string, number>>): number {
+  return Object.entries(counts).reduce((sum, [table, n]) => (table === ACCESS_OFF ? sum : sum + n), 0);
+}
+
 /** "2 projects, 14 tasks, 3 invoices and 40 other records", leaving out the record itself. */
 export function describeCounts(counts: Readonly<Record<string, number>>, rootTable: string): string {
   const left = { ...counts, [rootTable]: Math.max(0, (counts[rootTable] ?? 0) - 1) };
   const parts: string[] = [];
   let other = 0;
-  const named = new Set(NAMED.map(([table]) => table));
+  const named = new Set([...NAMED.map(([table]) => table), ACCESS_OFF]);
   for (const [table, one, many] of NAMED) {
     const n = left[table] ?? 0;
     if (n > 0) parts.push(`${n} ${n === 1 ? one : many}`);
   }
+  const off = left[ACCESS_OFF] ?? 0;
+  if (off > 0) parts.push(off === 1 ? "their portal access here (turned off)" : `portal access here for ${off} people (turned off)`);
   for (const [table, n] of Object.entries(left)) if (!named.has(table)) other += n;
   if (other > 0) parts.push(`${other} other record${other === 1 ? "" : "s"}`);
   if (parts.length === 0) return "nothing else";

@@ -19,7 +19,10 @@ Each goes with everything that belongs to it:
 - **A proposal:** its versions, the client's answer and any agreement.
 - **A project:** its phases, milestones, tasks, time, expenses, invoices,
   deliverables and files.
-- **A contact:** only the contact.
+- **A contact:** only the contact. If they were the last contact at the
+  client with their email, that person's portal access there is turned off
+  (decision 0022), not deleted: their messages and approvals stay. Putting
+  the contact back turns it on again, unless someone has changed it since.
 
 What only *mentions* a deleted record stays, with that link cleared: another
 client's deal it referred, a logged call with a contact, the client's
