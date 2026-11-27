@@ -1,6 +1,7 @@
 <!--
-  The working board: open tasks from every active project, by status. This is
-  the screen a working week is run from.
+  The company board: open tasks from every active project, client and company
+  alike, and everyone's to-dos, by status (decision 0021). This is the screen
+  a working week is run from.
 -->
 <script>
   'use route /board'
@@ -15,15 +16,15 @@
     return { title: 'Board', view: view.value, done: context.notice.done, problem: context.notice.problem }
   }
 </script>
-<hq-board view={{ columns: [], statuses: [], total: 0, mine: false }} done="" problem="">
+<hq-board view={{ columns: [], statuses: [], todoStatuses: [], total: 0, mine: false }} done="" problem="">
   <div class="hq-page">
     <h1>Board</h1>
     <div zb-if={done || problem} class="hq-notices">
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p><a zb-if={view.mine} href="/board">Show everyone’s tasks</a><a zb-else href="/board?mine=1">Show only mine</a> · Tasks from every active project. Finished ones stay for two weeks.</p>
-    <empty-state zb-if={view.total === 0} heading={view.mine ? "Nothing assigned to you" : "No tasks yet"}>Tasks are added on a project’s Tasks page.</empty-state>
+    <p><a zb-if={view.mine} href="/board">Show everyone’s tasks</a><a zb-else href="/board?mine=1">Show only mine</a> · Tasks from every active project, company projects included, and everyone’s to-dos. A to-do goes only to To do or Done. Finished ones stay for two weeks.</p>
+    <empty-state zb-if={view.total === 0} heading={view.mine ? "Nothing assigned to you" : "No tasks yet"}>Add a to-do with <a href="/add">Quick add</a>, or tasks on a project’s Tasks page.</empty-state>
     <task-board zb-else board={view}></task-board>
   </div>
 </hq-board>

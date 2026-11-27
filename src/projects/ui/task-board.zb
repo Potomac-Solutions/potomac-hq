@@ -18,6 +18,10 @@
   let touching = ''
   let said = ''
   let touch = null
+  // A to-do moves only between to do and done (decision 0021).
+  let onlyEnds = false
+  const ENDS = ['todo', 'done']
+  const mayGo = (status) => !onlyEnds || ENDS.includes(status)
   const statusAt = (index) => board.columns[index]
   const indexOf = (status) => board.columns.findIndex((column) => column.status === status)
 
@@ -33,7 +37,7 @@
     card.animate([{ transform: 'translate(' + (first.left - last.left) + 'px, ' + (first.top - last.top) + 'px)' }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
   }
   function moveTo(id, status) {
-    const allowed = from !== '' && status && status !== from
+    const allowed = from !== '' && status && status !== from && mayGo(status)
     end()
     if (!allowed || !/^[0-9a-f-]{36}$/.test(id)) return false
     const form = document.getElementById('move-' + id)
@@ -50,18 +54,20 @@
     over = ''
     held = ''
     touching = ''
+    onlyEnds = false
   }
 
   // ── With a mouse ──
-  function start(event, id, status) {
+  function start(event, id, status, todo) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', id)
     from = status
+    onlyEnds = todo === true
     // Let the browser take its picture of the card before it fades.
     requestAnimationFrame(() => { if (from) dragging = id })
   }
   function enter(event, status) {
-    if (!from || status === from) return
+    if (!from || status === from || !mayGo(status)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
     over = status
@@ -84,8 +90,9 @@
         held = card.id
         dragging = card.id
         from = column.status
+        onlyEnds = card.todo === true
         over = ''
-        said = 'Picked up ' + card.title + ', in ' + column.label + '. Left and right arrows choose a column, Space drops it, Escape puts it back.'
+        said = 'Picked up ' + card.title + ', in ' + column.label + '. Left and right arrows choose a column, Space drops it, Escape puts it back.' + (onlyEnds ? ' A to-do goes only to To do or Done.' : '')
         return
       }
       const target = board.columns.find((one) => one.status === over)
@@ -106,7 +113,7 @@
       event.preventDefault()
       const step = event.key === 'ArrowLeft' ? -1 : 1
       let index = indexOf(over || from) + step
-      if (statusAt(index) && statusAt(index).status === from) index += step
+      while (statusAt(index) && (statusAt(index).status === from || !mayGo(statusAt(index).status))) index += step
       const target = statusAt(index)
       if (!target) return
       over = target.status
@@ -115,13 +122,14 @@
   }
 
   // ── With a finger, by the grip ──
-  function touchStart(event, id, status) {
+  function touchStart(event, id, status, todo) {
     if (event.pointerType === 'mouse' || !board.canMove) return
     event.preventDefault()
     const grip = event.currentTarget
     try { grip.setPointerCapture(event.pointerId) } catch {}
     touch = { card: grip.closest('li'), x: event.clientX, y: event.clientY, scroll: scrollY, id }
     from = status
+    onlyEnds = todo === true
     dragging = id
     touching = id
   }
@@ -136,7 +144,7 @@
       const box = section.getBoundingClientRect()
       return event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom
     })
-    over = lane && lane.dataset.status !== from ? lane.dataset.status : ''
+    over = lane && lane.dataset.status !== from && mayGo(lane.dataset.status) ? lane.dataset.status : ''
   }
   function touchEnd(cancelled) {
     if (!touch) return
@@ -180,24 +188,24 @@
   .board-move button { height: 2rem; padding: 0 0.7rem; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); cursor: pointer; }
   .board-empty { margin: 0; color: var(--muted-foreground); font-size: 0.9rem; }
 </style>
-<task-board board={{ columns: [], statuses: [], canMove: false, returnTo: "", project: null }}>
+<task-board board={{ columns: [], statuses: [], todoStatuses: [], canMove: false, returnTo: "", project: null }}>
   <p zb-if={board.canMove} id="board-how" class="sr-only">Drag a card by its grip to another column. With the keyboard, press Space, then the arrow keys, then Space again.</p>
   <p class="sr-only" aria-live="assertive">{said}</p>
   <div class="board" class:board-dragging={dragging !== ''}>
     <zb-each items={board.columns} as="column" key={column.status}>
-      <section class="board-column" data-status={column.status} class:board-over={over === column.status} class:board-home={dragging !== '' && from === column.status} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
+      <section class="board-column" data-status={column.status} class:board-over={over === column.status} class:board-home={dragging !== '' && (from === column.status || !mayGo(column.status))} aria-labelledby="column-{column.status}" ondragenter={(event) => enter(event, column.status)} ondragover={(event) => enter(event, column.status)} ondragleave={(event) => leave(event, column.status)} ondrop={(event) => drop(event, column.status)}>
         <h2 id="column-{column.status}"><span>{column.label}</span> <status-badge>{column.cards.length}</status-badge></h2>
-        <div zb-if={dragging !== '' && from !== column.status} class="board-drop-hint" aria-hidden="true">Drop to move here</div>
+        <div zb-if={dragging !== '' && from !== column.status && mayGo(column.status)} class="board-drop-hint" aria-hidden="true">Drop to move here</div>
         <p zb-if={column.cards.length === 0 && dragging === ''} class="board-empty">Nothing here.</p>
         <ul class="board-cards">
           <zb-each items={column.cards} as="card" key={card.id}>
-            <li class="board-card" data-vt="card-{card.id}" class:board-card-dragging={dragging === card.id && held === '' && touching === ''} class:board-card-held={held === card.id} class:board-card-lifted={touching === card.id} draggable={board.canMove ? "true" : "false"} tabindex={board.canMove ? "0" : null} aria-roledescription={board.canMove ? "movable card" : null} aria-describedby={board.canMove ? "board-how" : null} aria-label="{card.title}, {column.label}" ondragstart={(event) => start(event, card.id, card.status)} ondragend={() => end()} onkeydown={(event) => key(event, card, column)} onblur={(event) => { if (held === card.id && !event.currentTarget.contains(event.relatedTarget)) end() }}>
-              <span zb-if={board.canMove} class="board-grip-handle" aria-hidden="true" onpointerdown={(event) => touchStart(event, card.id, card.status)} onpointermove={touchMove} onpointerup={() => touchEnd(false)} onpointercancel={() => touchEnd(true)}><svg class="board-grip" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg></span>
+            <li class="board-card" data-vt="card-{card.id}" class:board-card-dragging={dragging === card.id && held === '' && touching === ''} class:board-card-held={held === card.id} class:board-card-lifted={touching === card.id} draggable={board.canMove ? "true" : "false"} tabindex={board.canMove ? "0" : null} aria-roledescription={board.canMove ? "movable card" : null} aria-describedby={board.canMove ? "board-how" : null} aria-label="{card.title}, {column.label}" ondragstart={(event) => start(event, card.id, card.status, card.todo)} ondragend={() => end()} onkeydown={(event) => key(event, card, column)} onblur={(event) => { if (held === card.id && !event.currentTarget.contains(event.relatedTarget)) end() }}>
+              <span zb-if={board.canMove} class="board-grip-handle" aria-hidden="true" onpointerdown={(event) => touchStart(event, card.id, card.status, card.todo)} onpointermove={touchMove} onpointerup={() => touchEnd(false)} onpointercancel={() => touchEnd(true)}><svg class="board-grip" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg></span>
               <p><a draggable="false" href="/tasks/{card.id}"><strong>{card.title}</strong></a></p>
               <p zb-if={card.labels.length > 0}><label-chips labels={card.labels}></label-chips></p>
               <p zb-if={card.subtasks || card.waiting > 0} class="board-meta"><span zb-if={card.subtasks}>Subtasks {card.subtasks}</span><span zb-if={card.subtasks && card.waiting > 0}> · </span><span zb-if={card.waiting > 0}>Waiting on {card.waiting}</span></p>
               <p zb-if={card.repeats} class="board-meta">Repeats</p>
-              <p zb-if={!board.project} class="board-meta">{card.projectName}</p>
+              <p zb-if={!board.project} class="board-meta"><status-badge zb-if={card.todo} variant="outline">To-do</status-badge><span zb-else>{card.projectName}</span></p>
               <p class="board-meta">{card.assigneeName || "Nobody yet"}<span zb-if={card.estimate}> · {card.estimate} h</span></p>
               <p zb-if={card.pressing || card.dueOn}>
                 <status-badge zb-if={card.pressing}>{card.priorityLabel}</status-badge>
@@ -207,7 +215,7 @@
               <form zb-if={board.canMove} id="move-{card.id}" method="post" action="/tasks/{card.id}/status" class="board-move">
                 <input type="hidden" name="returnTo" value={board.returnTo}>
                 <select name="to" data-now={card.status} aria-label="Move {card.title} to">
-                  <zb-each items={board.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === card.status}>{status.label}</option></zb-each>
+                  <zb-each items={card.todo ? board.todoStatuses : board.statuses} as="status" key={status.value}><option value={status.value} selected={status.value === card.status}>{status.label}</option></zb-each>
                 </select>
                 <button type="submit" aria-label="Move: {card.title}">Move</button>
               </form>
