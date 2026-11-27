@@ -16,7 +16,8 @@ create table site_qr_code (
   created_by_client_user  text references client_user (id),
   created_at              text not null,
   updated_at              text not null,
-  check ((created_by is null) <> (created_by_client_user is null)),
+  -- Never both. Neither, only if whoever made it was deleted with the Trash.
+  check (created_by is null or created_by_client_user is null),
   unique (organization_id, code)
 ) strict;
 

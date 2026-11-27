@@ -92,6 +92,8 @@ export const PERMISSIONS = [
   "demo.manage",
   // QR codes a client prints (decision 0024)
   "site-qr.manage",
+  // The Trash (decision 0023)
+  "record.delete",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -109,6 +111,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   "webhook.manage",
   "site.build",
   "ai.manage",
+  "record.delete",
 ];
 
 const MANAGER_AND_UP: readonly Permission[] = [

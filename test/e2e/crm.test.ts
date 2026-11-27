@@ -157,7 +157,8 @@ test("prospect to project, through the pages", async () => {
   // The client is now active, and the dashboard shows what happened.
   await page.goto(origin + "/clients");
   const row = page.getByRole("row", { name: /Mt\. Storm Bakery/ });
-  assert.equal(await row.getByRole("cell").nth(1).textContent(), "Active");
+  // An admin's list starts with a tick box to pick rows for deleting (decision 0023), so Status is the third cell.
+  assert.equal(await row.getByRole("cell").nth(2).textContent(), "Active");
   await page.goto(origin + "/");
   assert.match(await text(page, "section[aria-labelledby=recent-activity]"), /Mikey Nichols started a project/);
   assert.doesNotMatch(await text(page, "section[aria-labelledby=follow-ups-due]"), /Bakery website/, "a won deal's follow-up is no longer due");

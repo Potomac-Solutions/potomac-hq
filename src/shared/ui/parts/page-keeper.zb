@@ -44,6 +44,8 @@
     { test: /^\/settings\/two-factor\/recovery-codes$/, say: 'Make new recovery codes? The ones you have now stop working.', yes: 'Make new codes' },
     { test: /^\/people\/[^/]+\/two-factor-reset$/, say: 'Reset their two-step sign-in? They’ll have to set it up again.', yes: 'Reset it' },
     { test: /^\/people\/[^/]+\/status$/, when: (form) => form.elements.on && form.elements.on.value === '0', say: 'Turn this account off? They’re signed out at once.', yes: 'Turn account off' },
+    { test: /^\/trash\/purge$/, say: 'Delete this for good? It can’t be put back after this.', yes: 'Delete for good' },
+    { test: /^\/trash\/empty$/, say: 'Empty the Trash? Everything in it is deleted for good and can’t be put back.', yes: 'Empty the Trash' },
     { test: /^\/clients\/[^/]+\/merge$/, say: 'Merge this client into the other? Everything it has moves over, and the two can’t be split apart again.', yes: 'Merge them' },
     { test: /^\/(webhooks|automations)\/[^/]+\/secret$/, say: 'Make a new secret? The old one stops working right away, so update wherever it’s used.', yes: 'Make a new secret' },
   ]

@@ -74,6 +74,8 @@ import { websiteDownloads, websitePortalRoutes, websiteStaffRoutes } from "./web
 import { referralDownloads, referralRoutes } from "./referrals/api/referral-routes.ts";
 import { codesView, type CodesView } from "./site-qr/index.ts";
 import { siteQrDownloads, siteQrHookRoutes, siteQrPortalRoutes, siteQrStaffRoutes } from "./site-qr/api/site-qr-routes.ts";
+import { isTrashKind, mayDeleteRecords, previewDelete, trashView } from "./trash/index.ts";
+import { trashRoutes } from "./trash/api/trash-routes.ts";
 import { confirmLinkWorks, issueDetail, newsletterOverview, unsubscribeLinkWorks } from "./newsletter/index.ts";
 import { keepLeadTouch, leadOrigin, leadSources, touchFields, type LeadOrigin } from "./leads/index.ts";
 import { allFreePages, clientFreePage, portalFreePage, type FreePageView, type PortalFreePage, type SiteArchive } from "./free-pages/index.ts";
@@ -468,6 +470,13 @@ export type PageContext = {
     budget(): ReturnType<typeof financeOverview>;
   };
   readonly referrals: { list(): ReturnType<typeof referralLinks> };
+  /** The Trash (decision 0023): what a delete would take, and what's in it. Admins only. */
+  readonly trash: {
+    /** Whether this person may delete records. */
+    readonly can: boolean;
+    preview(kind: string, ids: readonly string[] | "demo-clients"): ReturnType<typeof previewDelete> | null;
+    view(): ReturnType<typeof trashView>;
+  };
   /** The Lab's demos, and who opened them (decision 0013, section 8). */
   readonly demos: {
     list(): ReturnType<typeof demosList>;
@@ -1183,6 +1192,11 @@ export async function createApp(config: AppConfig): Promise<App> {
             return parsed.ok ? codesView(services.siteQr, { kind: "staff", actorId: actor, organizationId: parsed.value }, `${(config.publicUrl ?? "").replace(/\/$/, "")}/hooks/site-qr`) : null;
           },
         },
+        trash: {
+          can: mayDeleteRecords(services.trash, actor),
+          preview: (kind, ids) => (isTrashKind(kind) ? previewDelete(services.trash, actor, kind, ids) : null),
+          view: () => trashView(services.trash, actor),
+        },
         demos: {
           list: () => demosList(services.demos, actor),
           forOpportunity: (id) => {
@@ -1769,6 +1783,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   forms.route("/", referralRoutes({ referrals: services.referrals, actorOf, sign: signNotice }));
   forms.route("/", siteQrPortalRoutes({ siteQr: services.siteQr, clientOf, sign: signNotice }));
   forms.route("/", siteQrStaffRoutes({ siteQr: services.siteQr, actorOf, sign: signNotice }));
+  forms.route("/", trashRoutes({ trash: services.trash, actorOf, sign: signNotice }));
   forms.route("/", freePageStaffRoutes({ freePages: services.freePages, actorOf, sign: signNotice }));
   forms.route("/", freePagePortalRoutes({ freePages: services.freePages, clientOf, sign: signNotice }));
   forms.route("/", renewalPortalRoutes({ renewals: services.renewals, clientOf, sign: signNotice }));
