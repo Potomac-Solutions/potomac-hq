@@ -678,7 +678,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   };
   const publicSite: PublicSiteDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, site: sqliteSiteSettings(db), tokens: siteTokens, siteUrl: (options.siteUrl ?? "https://potomac.solutions").replace(/\/$/, "") };
   const renewals: RenewalsDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, renewals: sqliteRenewalStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, billing: renewalBilling };
-  const social: SocialDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, timeZone: BUSINESS_TIME_ZONE, social: sqliteSocialStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null };
+  const social: SocialDeps = { users, transact: sqliteTransact(db), activityLog: sqliteActivityLog(db), clock, newId, today, timeZone: BUSINESS_TIME_ZONE, social: sqliteSocialStore(db), clientName: (id) => crm.clients.get(id)?.name ?? null, pictures: { users, transact: sqliteTransact(db), activityLog: eventLog, clock, newId, files: sqliteFileRecordStore(db), blobs: sqliteBlobStore(db), digest: sha256Hex } };
   const calendarLinks = sqliteCalendarLinkStore(db);
   const outside = options.outsideFetch ?? outsideFetch;
   const booking: BookingDeps = {
