@@ -3,7 +3,7 @@
 // that belongs to it; the rules here decide on the counts, not on tables.
 import { err, ok, type Result } from "../../shared/domain/result.ts";
 
-export const TRASH_KINDS = ["client", "contact", "opportunity", "proposal", "project"] as const;
+export const TRASH_KINDS = ["client", "contact", "opportunity", "proposal", "project", "portal-person"] as const;
 export type TrashKind = (typeof TRASH_KINDS)[number];
 export const isTrashKind = (value: string): value is TrashKind => (TRASH_KINDS as readonly string[]).includes(value);
 
@@ -19,6 +19,7 @@ export const KIND_LABELS: Readonly<Record<TrashKind, { readonly one: string; rea
   opportunity: { one: "deal", many: "deals" },
   proposal: { one: "proposal", many: "proposals" },
   project: { one: "project", many: "projects" },
+  "portal-person": { one: "portal person", many: "portal people" },
 };
 
 export const countOf = (kind: TrashKind, n: number): string => `${n} ${n === 1 ? KIND_LABELS[kind].one : KIND_LABELS[kind].many}`;
@@ -75,6 +76,13 @@ const NAMED: readonly (readonly [string, string, string])[] = [
   ["client_user", "portal person", "portal people"],
   ["booking", "booking", "bookings"],
   ["renewal", "renewal", "renewals"],
+  // What a portal person sent from their portal, named so the page that asks first says what goes.
+  ["project_update", "message", "messages"],
+  ["client_request", "request", "requests"],
+  ["call_request", "call request", "call requests"],
+  ["schedule_invite", "invite to pick call times", "invites to pick call times"],
+  ["client_intake", "intake form", "intake forms"],
+  ["project_feedback", "feedback", "feedback"],
 ];
 
 /**

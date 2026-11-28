@@ -307,6 +307,7 @@
                   <input type="hidden" name="on" value={person.status === "disabled" ? "1" : "0"}>
                   <button class="hq-button secondary small" type="submit" aria-label="{person.status === 'disabled' ? 'Turn access on' : 'Turn access off'} for {person.name}">{person.status === "disabled" ? "Turn access on" : "Turn access off"}</button>
                 </form>
+                <a zb-if={canDelete} class="hq-small" href="/delete?kind=portal-person&ids={person.id}&back=/clients/{view.client.id}%23portal" aria-label="Delete {person.name} from the portal">Delete</a>
               </td>
             </tr>
           </zb-each>
