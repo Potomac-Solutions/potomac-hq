@@ -9,6 +9,12 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **A removed member stays removed** (decision 0025). Turning an account
+  back on, changing its roles and making a new sign-in link now refuse
+  someone removed from HQ, as the People page's "That record doesn't exist".
+  Before, a form from a People page left open, or a hand-made request, could
+  turn a removed person back on, make them an admin and give them a working
+  link, while they stayed hidden from People.
 - **Pictures on social posts** (decision 0011, slice 3, migration 0095). A
   post takes its picture as a file, shrunk in the browser first, and
   checked as a JPEG, PNG or WebP of up to 3 MB, the rule website photos
@@ -27,6 +33,7 @@ moves those lines under a version heading. See `docs/conventions.md`.
   stays on everything they did, and the audit history can still be
   filtered by them. Nobody removes themselves; the last active admin can't
   be removed. New permission `user.remove` (admin).
+
 ## [0.20.0] - 2026-11-27
 
 - **Deleting a contact turns off their portal access at that client**
