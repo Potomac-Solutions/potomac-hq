@@ -22,6 +22,8 @@ export const POST_WORDS = 3000;
 export const BLOG_WORDS = 20000;
 export const TITLE_MAX = 120;
 export const PICTURE_MAX = 500;
+/** The file service's owner for a post's picture. The trash takes a post's pictures with the post (decision 0023). */
+export const PICTURE_OWNER = "social-post";
 export const NOTE_MAX = 1000;
 /** Days a sent post waits for the client before it counts as approved (decision 0011, confirmed). */
 export const APPROVE_AFTER_DAYS = 3;
@@ -100,6 +102,8 @@ export type PostKind = (typeof POST_KINDS)[number];
 export const POST_STATUSES = ["draft", "sent", "changes", "approved", "posted", "skipped"] as const;
 export type PostStatus = (typeof POST_STATUSES)[number];
 export const STATUS_LABELS: Readonly<Record<PostStatus, string>> = { draft: "Draft", sent: "With the client", changes: "Changes asked", approved: "Approved", posted: "Up", skipped: "Skipped" };
+/** The statuses a client sees in their portal: sent to them, asked about, approved, or up. */
+export const SHOWN_TO_CLIENT: readonly PostStatus[] = ["sent", "changes", "approved", "posted"];
 
 /** Who said yes: the client in the portal, Potomac recording what the client said, or three days of quiet. */
 export type ApprovedBy = "client" | "staff" | "auto";
@@ -118,6 +122,8 @@ export type SocialPost = {
   readonly link: string | null;
   /** What the picture shows. */
   readonly picture: string;
+  /** The uploaded picture, kept in the file service. Null until one is uploaded. */
+  readonly pictureFileId: Id | null;
   readonly status: PostStatus;
   readonly sentAt: string | null;
   readonly approvedAt: string | null;
@@ -193,7 +199,7 @@ function readWritten(plan: SocialPlan, input: PostInput): Result<Written, PostEr
 export function newPost(ids: { readonly id: Id; readonly organizationId: Id }, plan: SocialPlan, input: PostInput): Result<SocialPost, PostError> {
   const written = readWritten(plan, input);
   if (!written.ok) return written;
-  return ok({ ...ids, ...written.value, status: "draft", sentAt: null, approvedAt: null, approvedBy: null, approvalNote: "", clientNote: "", postedAt: null, postedLinks: {}, skipReason: "" });
+  return ok({ ...ids, ...written.value, status: "draft", pictureFileId: null, sentAt: null, approvedAt: null, approvedBy: null, approvalNote: "", clientNote: "", postedAt: null, postedLinks: {}, skipReason: "" });
 }
 
 export type ChangeError = "already-up" | "not-sent" | "not-approved" | "instagram-needs-picture" | "note-missing" | "note-too-long" | "invalid-link" | "nothing-to-send";
@@ -209,10 +215,19 @@ export function editPost(post: SocialPost, plan: SocialPlan, input: PostInput): 
   return ok({ ...post, ...written.value, status: "draft", sentAt: null, approvedAt: null, approvedBy: null, approvalNote: "" });
 }
 
-/** Sent to the client to approve. A post to Instagram needs its picture first. */
+/**
+ * The post with its picture changed: a new one, or none. Anything the client
+ * has seen goes back to a draft, as an edit does. Not one that's up.
+ */
+export function pictured(post: SocialPost, fileId: Id | null): Result<SocialPost, "already-up"> {
+  if (post.status === "posted" || post.status === "skipped") return err("already-up");
+  return ok({ ...post, pictureFileId: fileId, status: "draft", sentAt: null, approvedAt: null, approvedBy: null, approvalNote: "" });
+}
+
+/** Sent to the client to approve. A post to Instagram needs its picture uploaded first. */
 export function sent(post: SocialPost, at: string): Result<SocialPost, ChangeError> {
   if (post.status !== "draft") return err("nothing-to-send");
-  if (post.kind === "post" && post.networks.includes("instagram") && !post.picture) return err("instagram-needs-picture");
+  if (post.kind === "post" && post.networks.includes("instagram") && !post.pictureFileId) return err("instagram-needs-picture");
   return ok({ ...post, status: "sent", sentAt: at, clientNote: "" });
 }
 

@@ -181,8 +181,8 @@ for every sign-in.
 - **Append-only.** There is no code path that updates or deletes an event, and
   database triggers reject any update, delete or replace.
 - **`actor_id` is not a foreign key.** The audit table must never be the
-  reason a change is refused. Users are disabled, never deleted, so the id
-  always resolves.
+  reason a change is refused. Users are disabled or removed, never deleted
+  (decision 0025), so the id always resolves.
 - **`action` is a dotted lower-case key** and `record_type` is one lower-case
   name.
 - **A context key that names a secret is refused**, at any depth: a password,

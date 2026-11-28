@@ -1,6 +1,7 @@
 <!--
   Who can sign in to HQ. Everyone sees the list. An admin invites people,
-  changes roles, switches an account off and makes a new link.
+  changes roles, switches an account off, makes a new link, and removes
+  someone (decision 0025).
 -->
 <script>
   'use route /people'
@@ -39,7 +40,7 @@
           <li>
             <p><strong>{person.name}</strong> <status-badge zb-if={person.you}>You</status-badge> <span class="hq-muted">{person.email}</span></p>
             <p class="hq-small">{person.roleLabels} · {person.statusLabel}<span zb-if={person.twoFactor}> · Two-factor on</span></p>
-            <details zb-if={view.can.setRoles || view.can.setStatus || view.can.reset} class="hq-more">
+            <details zb-if={view.can.setRoles || view.can.setStatus || view.can.reset || view.can.remove} class="hq-more">
               <summary>Change {person.name}</summary>
               <form zb-if={view.can.setRoles} method="post" action="/people/{person.id}/roles" class="hq-form">
                 <fieldset class="hq-choice">
@@ -61,6 +62,10 @@
                 <input type="hidden" name="on" value={person.active ? "0" : "1"}>
                 <button class="hq-button secondary" type="submit" aria-label="{person.active ? 'Turn off' : 'Turn on'} the account of {person.name}">{person.active ? "Turn account off" : "Turn account on"}</button>
               </form>
+              <p zb-if={view.can.remove && !person.you} class="hq-form-row" data-spaced>
+                <a class="hq-button secondary" href="/people/{person.id}/remove" aria-label="Remove {person.name} from HQ">Remove from HQ</a>
+                <span class="hq-muted hq-small">Hands their open work to someone and keeps their name on past work.</span>
+              </p>
             </details>
           </li>
         </zb-each>

@@ -1,0 +1,64 @@
+<!--
+  Removing someone from HQ (decision 0025): what they still have open, who
+  takes it over, and what happens. Admins only.
+-->
+<script>
+  'use route /people/:id/remove'
+  import { notFound } from '@zubra/router'
+  import '../../shared/ui/zubra/alert-banner.zb'
+  export async function load({ context, params }) {
+    const stop = context.guard()
+    if (stop) return stop
+    const view = context.people.removal(params.id)
+    if (!view) return notFound()
+    if (!view.ok) return view.error === 'forbidden' ? context.forbidden() : notFound()
+    return { title: `Remove ${view.value.name}`, view: view.value, problem: context.notice.problem }
+  }
+</script>
+<hq-people-remove view={{ id: "", name: "", email: "", work: [], takers: [] }} problem="">
+  <div class="hq-page">
+    <p><a href="/people">← People</a></p>
+    <h1>Remove {view.name} from HQ</h1>
+    <div zb-if={problem} class="hq-notices">
+      <alert-banner variant="danger">{problem}</alert-banner>
+    </div>
+
+    <section class="hq-panel" aria-labelledby="remove-what">
+      <h2 id="remove-what">What happens</h2>
+      <ul>
+        <li>{view.name} can’t sign in again, and every session they have ends now.</li>
+        <li>They leave the People page and every list a person is chosen from.</li>
+        <li>Their name stays on everything they did: time, notes, comments, money and the activity log.</li>
+        <li>What was only theirs is deleted: settings, two-factor sign-in, passkeys, their calendar feed, private filters, pins and assistant chats.</li>
+        <li>{view.email} is free to be invited again, as someone new.</li>
+      </ul>
+      <p><strong>This can’t be undone.</strong> To stop them signing in for now, <a href="/people">turn their account off</a> instead.</p>
+    </section>
+
+    <section class="hq-panel" aria-labelledby="remove-work">
+      <h2 id="remove-work">Their open work</h2>
+      <ul zb-if={view.work.length > 0}>
+        <zb-each items={view.work} as="line" key={line.key}>
+          <li>{line.label}</li>
+        </zb-each>
+      </ul>
+      <p zb-else class="hq-muted">{view.name} has no open work. Nothing is handed over.</p>
+
+      <form zb-if={view.takers.length > 0} method="post" action="/people/{view.id}/remove" class="hq-form">
+        <div class="hq-field">
+          <label for="remove-taker">Who takes over their open work</label>
+          <select id="remove-taker" name="taker" required>
+            <zb-each items={view.takers} as="taker" key={taker.id}>
+              <option value={taker.id} selected={taker.you}>{taker.you ? `${taker.name} (you)` : taker.name}</option>
+            </zb-each>
+          </select>
+        </div>
+        <label class="hq-check"><input type="checkbox" name="sure" value="1" required> I understand {view.name} is removed for good</label>
+        <div class="hq-actions">
+          <button class="hq-button danger" type="submit">Remove {view.name}</button>
+          <a class="hq-button secondary" href="/people">Keep them</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</hq-people-remove>

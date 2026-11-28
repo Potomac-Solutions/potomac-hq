@@ -252,9 +252,10 @@ or less), and a few lines about the business: how they talk and what to
 stay away from. Those lines show beside every post you write.
 
 1. **Write the month.** On the calendar, add each post with its day, its
-   networks, the words, and what the picture shows. An Instagram post
-   needs its picture. Blog posts are under "Write a blog post". The count
-   at the top says how the month stands against the plan.
+   networks, the words, and its picture: the file, and what it shows for
+   someone who can't see it. An Instagram post needs its picture before it
+   can be sent. Blog posts are under "Write a blog post". The count at the
+   top says how the month stands against the plan.
 2. **Send it.** "Send the drafts to the client" puts them in the client's
    portal, under "Your social media", and on their "Waiting on you".
 3. **They answer.** They approve the month in one go, or ask for a change
@@ -263,11 +264,13 @@ stay away from. Those lines show beside every post you write.
    approved, and says so. If they said yes by phone or text, use "The
    client said yes by phone or text" and say how.
 4. **Put it up.** On its day, an approved post shows on Today. Open it,
-   "Copy the words", "Open Facebook" (or the rest), post it there, then
+   "Copy the words", "Download the picture", "Open Facebook" (or the rest),
+   post it there, then
    "It's up" with the link if you have it. The client sees the link in
    their portal. "Skip or remove" takes a post off with a reason.
 
-Editing a post the client has seen makes it a draft again, to send again.
+Editing a post the client has seen, or changing or taking off its picture,
+makes it a draft again, to send again.
 HQ doesn't post to the networks by itself yet; that needs Potomac to be
 a registered business and Meta and LinkedIn to approve the app.
 

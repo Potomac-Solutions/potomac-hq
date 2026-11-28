@@ -15,6 +15,7 @@ import {
   monthName,
   monthOf,
   newPost,
+  pictured,
   posted,
   readMonth,
   readPlan,
@@ -24,6 +25,8 @@ import {
   wordsLimit,
   INSTAGRAM_WORDS,
   NETWORK_LABELS,
+  PICTURE_OWNER,
+  SHOWN_TO_CLIENT,
   NETWORKS,
   POST_WORDS,
   STATUS_LABELS,
@@ -37,7 +40,9 @@ import {
   type SocialPost,
 } from "../domain/social.ts";
 import { authorize, type IdentityUserStore } from "../../identity/index.ts";
-import { dueText, err, friendlyDay, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact } from "../../shared/index.ts";
+import { checkUpload, removeFile, saveFile, type FilesDeps, type UploadError } from "../../files/index.ts";
+import { checkPhoto, type PhotoError } from "../../websites/index.ts";
+import { dueText, err, friendlyDay, ok, recordActivity, type ActivityDeps, type Id, type Result, type Transact, type UploadedFile } from "../../shared/index.ts";
 import type { ClientNames, SocialStore } from "./ports.ts";
 
 export type SocialDeps = ActivityDeps & {
@@ -48,6 +53,8 @@ export type SocialDeps = ActivityDeps & {
   readonly today: () => string;
   /** The business's time zone: when a post was approved is a day there. */
   readonly timeZone: string;
+  /** Picture files, kept in the file service. A client can open a picture only while its post is shown to them. */
+  readonly pictures: FilesDeps;
 };
 
 /** A client signed in to the portal. The same shape as the portal's session. */
@@ -58,6 +65,36 @@ const may = (deps: SocialDeps, actorId: Id | null, action: string): actorId is I
 
 function event(deps: SocialDeps, actorId: Id | null, action: string, recordType: string, recordId: Id, context: Record<string, string | number | boolean>): void {
   recordActivity(deps, { actorId, action, recordType, recordId, context });
+}
+
+/** A picture for a post, checked as an upload and then as a web photo: JPEG, PNG or WebP, up to 3 MB, the rule website photos follow. */
+function pictureUpload(upload: UploadedFile | null | undefined): Result<UploadedFile | null, UploadError | PhotoError> {
+  if (!upload) return ok(null);
+  const checked = checkUpload(upload);
+  if (!checked.ok) return checked;
+  const photo = checkPhoto(upload.bytes);
+  return photo.ok ? ok(upload) : photo;
+}
+
+/** Stores a post's picture in the file service, in the caller's transaction. The file belongs to the post's client. */
+function storePicture(deps: SocialDeps, actorId: Id | null, post: SocialPost, picture: UploadedFile): Result<Id, UploadError | "forbidden"> {
+  const saved = saveFile(deps.pictures, actorId, { name: picture.name, bytes: picture.bytes, ownerType: PICTURE_OWNER, ownerId: post.id, organizationId: post.organizationId });
+  return saved.ok ? ok(saved.value.id) : saved;
+}
+
+/**
+ * Saves a post. Its picture is shown to the client only while the post is
+ * shown to them (decision 0011, section 4), so the file follows the status.
+ */
+function save(deps: SocialDeps, post: SocialPost, at: string): void {
+  deps.social.updatePost(post, at);
+  if (post.pictureFileId) deps.pictures.files.setClientVisible(post.pictureFileId, SHOWN_TO_CLIENT.includes(post.status));
+}
+
+/** Deletes a file that a post no longer points at: its record and its bytes. */
+function dropPicture(deps: SocialDeps, actorId: Id | null, fileId: Id | null): void {
+  const record = fileId ? deps.pictures.files.get(fileId) : null;
+  if (record) removeFile(deps.pictures, actorId, record, null);
 }
 
 // ---------------------------------------------------------------- the plan
@@ -79,8 +116,8 @@ export function setPlan(deps: SocialDeps, actorId: Id | null, organizationId: Id
 
 // ---------------------------------------------------------------- writing
 
-/** A new draft on the client's calendar. Needs a plan. Permission: `social.edit`. */
-export function writePost(deps: SocialDeps, actorId: Id | null, organizationId: Id, input: PostInput): Result<SocialPost, Refused | PostError | "no-plan"> {
+/** A new draft on the client's calendar, with its picture if one is sent. Needs a plan. Permission: `social.edit`. */
+export function writePost(deps: SocialDeps, actorId: Id | null, organizationId: Id, input: PostInput, upload: UploadedFile | null = null): Result<SocialPost, Refused | PostError | UploadError | PhotoError | "no-plan"> {
   if (!may(deps, actorId, "social.edit")) return err("forbidden");
   return deps.transact(() => {
     if (deps.clientName(organizationId) === null) return err("not-found");
@@ -88,14 +125,22 @@ export function writePost(deps: SocialDeps, actorId: Id | null, organizationId: 
     if (!plan) return err("no-plan");
     const made = newPost({ id: deps.newId(), organizationId }, plan, input);
     if (!made.ok) return made;
-    deps.social.insertPost(made.value, actorId, deps.clock());
-    event(deps, actorId, "social-post.written", "social-post", made.value.id, { organizationId, kind: made.value.kind, day: made.value.day });
-    return ok(made.value);
+    const picture = pictureUpload(upload);
+    if (!picture.ok) return picture;
+    let post = made.value;
+    if (picture.value) {
+      const stored = storePicture(deps, actorId, post, picture.value);
+      if (!stored.ok) return stored;
+      post = { ...post, pictureFileId: stored.value };
+    }
+    deps.social.insertPost(post, actorId, deps.clock());
+    event(deps, actorId, "social-post.written", "social-post", post.id, { organizationId, kind: post.kind, day: post.day, picture: picture.value ? 1 : 0 });
+    return ok(post);
   });
 }
 
-/** Rewrites a post. One the client has seen goes back to a draft. Permission: `social.edit`. */
-export function changePost(deps: SocialDeps, actorId: Id | null, id: Id, input: Omit<PostInput, "kind">): Result<SocialPost, Refused | PostError | "already-up"> {
+/** Rewrites a post, with a new picture if one is sent. One the client has seen goes back to a draft. Permission: `social.edit`. */
+export function changePost(deps: SocialDeps, actorId: Id | null, id: Id, input: Omit<PostInput, "kind">, upload: UploadedFile | null = null): Result<SocialPost, Refused | PostError | UploadError | PhotoError | "already-up"> {
   if (!may(deps, actorId, "social.edit")) return err("forbidden");
   return deps.transact(() => {
     const found = deps.social.post(id);
@@ -103,9 +148,19 @@ export function changePost(deps: SocialDeps, actorId: Id | null, id: Id, input: 
     if (!found || !plan) return err("not-found");
     const next = editPost(found, plan, { ...input, kind: found.kind });
     if (!next.ok) return next;
-    deps.social.updatePost(next.value, deps.clock());
-    event(deps, actorId, "social-post.edited", "social-post", id, { organizationId: found.organizationId, was: found.status, day: next.value.day });
-    return ok(next.value);
+    const picture = pictureUpload(upload);
+    if (!picture.ok) return picture;
+    let post = next.value;
+    if (picture.value) {
+      const stored = storePicture(deps, actorId, post, picture.value);
+      if (!stored.ok) return stored;
+      post = { ...post, pictureFileId: stored.value };
+    }
+    save(deps, post, deps.clock());
+    // The old picture goes once the post points at the new one.
+    if (picture.value) dropPicture(deps, actorId, found.pictureFileId);
+    event(deps, actorId, "social-post.edited", "social-post", id, { organizationId: found.organizationId, was: found.status, day: post.day, picture: picture.value ? 1 : 0 });
+    return ok(post);
   });
 }
 
@@ -117,8 +172,25 @@ export function removePost(deps: SocialDeps, actorId: Id | null, id: Id): Result
     if (!found) return err("not-found");
     if (found.status === "posted") return err("already-up");
     deps.social.removePost(id);
+    dropPicture(deps, actorId, found.pictureFileId);
     event(deps, actorId, "social-post.removed", "social-post", id, { organizationId: found.organizationId, kind: found.kind, day: found.day, was: found.status });
     return ok(found);
+  });
+}
+
+/** Takes a post's picture off. The post goes back to a draft, as an edit does. Permission: `social.edit`. */
+export function removePicture(deps: SocialDeps, actorId: Id | null, id: Id): Result<SocialPost, Refused | "no-picture" | "already-up"> {
+  if (!may(deps, actorId, "social.edit")) return err("forbidden");
+  return deps.transact(() => {
+    const found = deps.social.post(id);
+    if (!found) return err("not-found");
+    if (!found.pictureFileId) return err("no-picture");
+    const next = pictured(found, null);
+    if (!next.ok) return next;
+    save(deps, next.value, deps.clock());
+    dropPicture(deps, actorId, found.pictureFileId);
+    event(deps, actorId, "social-post.picture-removed", "social-post", id, { organizationId: found.organizationId, day: found.day, was: found.status });
+    return ok(next.value);
   });
 }
 
@@ -142,7 +214,7 @@ export function sendMonth(deps: SocialDeps, actorId: Id | null, organizationId: 
       if (!out.ok) return out;
       ready.push(out.value);
     }
-    for (const one of ready) deps.social.updatePost(one, at);
+    for (const one of ready) save(deps, one, at);
     event(deps, actorId, "social-post.sent", "social-month", organizationId, { organizationId, month, count: ready.length });
     return ok(ready.length);
   });
@@ -161,7 +233,7 @@ export function recordApproval(deps: SocialDeps, actorId: Id | null, organizatio
       if (!yes.ok) return yes;
       done.push(yes.value);
     }
-    for (const one of done) deps.social.updatePost(one, at);
+    for (const one of done) save(deps, one, at);
     event(deps, actorId, "social-post.approved", "social-month", organizationId, { organizationId, month, count: done.length, by: "staff" });
     return ok(done.length);
   });
@@ -176,7 +248,7 @@ export function approveMonth(deps: SocialDeps, client: SocialClient | null, mont
     if (waiting.length === 0) return err("not-sent");
     for (const one of waiting) {
       const yes = approved(one, "client", at);
-      if (yes.ok) deps.social.updatePost(yes.value, at);
+      if (yes.ok) save(deps, yes.value, at);
     }
     recordActivity(deps, { actorId: null, action: "social-post.approved", recordType: "social-month", recordId: client.organizationId, context: { organizationId: client.organizationId, month, count: waiting.length, by: "client", clientUserId: client.clientUserId } });
     return ok(waiting.length);
@@ -192,7 +264,7 @@ export function askForChanges(deps: SocialDeps, client: SocialClient | null, id:
     if (!found || found.organizationId !== client.organizationId) return err("not-found");
     const next = changesAsked(found, note);
     if (!next.ok) return next;
-    deps.social.updatePost(next.value, deps.clock());
+    save(deps, next.value, deps.clock());
     recordActivity(deps, { actorId: null, action: "social-post.changes-asked", recordType: "social-post", recordId: id, context: { organizationId: client.organizationId, day: found.day, clientUserId: client.clientUserId } });
     return ok(next.value);
   });
@@ -207,7 +279,7 @@ export function approveQuietPosts(deps: SocialDeps): number {
       if (!approvalIsDue(one, now)) continue;
       const yes = approved(one, "auto", now);
       if (!yes.ok) continue;
-      deps.social.updatePost(yes.value, now);
+      save(deps, yes.value, now);
       recordActivity(deps, { actorId: null, action: "social-post.approved", recordType: "social-post", recordId: one.id, context: { organizationId: one.organizationId, day: one.day, by: "auto" } });
       count += 1;
     }
@@ -225,7 +297,7 @@ export function markPosted(deps: SocialDeps, actorId: Id | null, id: Id, links: 
     if (!found) return err("not-found");
     const next = posted(found, links, deps.clock());
     if (!next.ok) return next;
-    deps.social.updatePost(next.value, deps.clock());
+    save(deps, next.value, deps.clock());
     event(deps, actorId, "social-post.posted", "social-post", id, { organizationId: found.organizationId, day: found.day, links: Object.keys(next.value.postedLinks).length });
     return ok(next.value);
   });
@@ -239,7 +311,7 @@ export function skipPost(deps: SocialDeps, actorId: Id | null, id: Id, reason: s
     if (!found) return err("not-found");
     const next = skipped(found, reason);
     if (!next.ok) return next;
-    deps.social.updatePost(next.value, deps.clock());
+    save(deps, next.value, deps.clock());
     event(deps, actorId, "social-post.skipped", "social-post", id, { organizationId: found.organizationId, day: found.day });
     return ok(next.value);
   });
@@ -288,6 +360,10 @@ export type PostLine = {
   readonly words: string;
   readonly link: string;
   readonly picture: string;
+  /** The picture's file, shown on the post's page. Empty when there is none. */
+  readonly pictureFileId: string;
+  /** What the picture shows, for its alt text. */
+  readonly pictureAlt: string;
   readonly status: SocialPost["status"];
   readonly statusLabel: string;
   readonly tone: "neutral" | "primary" | "warning" | "success" | "danger";
@@ -335,6 +411,8 @@ function lineOf(post: SocialPost, plan: SocialPlan | null, today: string, zone: 
     words: post.words,
     link: post.link ?? "",
     picture: post.picture,
+    pictureFileId: post.pictureFileId ?? "",
+    pictureAlt: post.picture || "The picture for this post",
     status: post.status,
     statusLabel: STATUS_LABELS[post.status],
     tone: TONES[post.status],
@@ -501,6 +579,8 @@ export type PortalPostLine = {
   readonly words: string;
   readonly link: string;
   readonly picture: string;
+  readonly pictureFileId: string;
+  readonly pictureAlt: string;
   readonly status: "sent" | "changes" | "approved" | "posted";
   readonly statusLabel: string;
   readonly clientNote: string;
@@ -543,7 +623,7 @@ export function portalSocial(deps: SocialDeps, client: SocialClient | null, mont
     summary: planView(plan).summary,
     posts: shown.map((one) => {
       const line = lineOf(one, plan, today, deps.timeZone);
-      return { id: line.id, kindLabel: line.kindLabel, dayText: longDay(one.day), where: line.where, title: line.title, words: line.words, link: line.link, picture: line.picture, status: one.status, statusLabel: PORTAL_LABELS[one.status], clientNote: line.clientNote, postedLinks: line.postedLinks };
+      return { id: line.id, kindLabel: line.kindLabel, dayText: longDay(one.day), where: line.where, title: line.title, words: line.words, link: line.link, picture: line.picture, pictureFileId: line.pictureFileId, pictureAlt: line.pictureAlt, status: one.status, statusLabel: PORTAL_LABELS[one.status], clientNote: line.clientNote, postedLinks: line.postedLinks };
     }),
     waiting: waiting.length,
     approvesBy: oldest ? longInstantDay(oldest, deps.timeZone) : "",

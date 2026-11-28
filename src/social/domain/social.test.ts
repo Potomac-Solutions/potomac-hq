@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approvalIsDue, approved, approvesBy, changesAsked, dueToPost, editPost, monthCount, newPost, posted, readMonth, readPlan, sent, shiftMonth, skipped, type SocialPlan } from "./social.ts";
+import { approvalIsDue, approved, approvesBy, changesAsked, dueToPost, editPost, monthCount, newPost, pictured, posted, readMonth, readPlan, SHOWN_TO_CLIENT, sent, shiftMonth, skipped, type SocialPlan } from "./social.ts";
 import type { Id } from "../../shared/domain/id.ts";
 
 const org = "22222222-2222-4222-8222-222222222222" as Id;
 const planIds = { id: "11111111-1111-4111-8111-111111111111" as Id, organizationId: org };
 const postIds = { id: "33333333-3333-4333-8333-333333333333" as Id, organizationId: org };
+const fileId = "44444444-4444-4444-8444-444444444444" as Id;
 
 function plan(networks = ["facebook", "instagram"]): SocialPlan {
   const made = readPlan(planIds, { networks, pages: { facebook: "facebook.com/feedstore" }, postsPerMonth: "8", blogsPerMonth: "1", about: " Friendly, local. " });
@@ -56,9 +57,12 @@ test("sent, asked to change, edited, sent again, approved, posted", () => {
   const draft = newPost(postIds, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi" });
   assert.ok(draft.ok);
   assert.deepEqual(sent(draft.value, "2026-12-01T12:00:00Z"), { ok: false, error: "instagram-needs-picture" });
-  const pictured = editPost(draft.value, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi", picture: "The barn" });
-  assert.ok(pictured.ok);
-  const out = sent(pictured.value, "2026-12-01T12:00:00Z");
+  const edited = editPost(draft.value, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi", picture: "The barn" });
+  assert.ok(edited.ok);
+  assert.deepEqual(sent(edited.value, "2026-12-01T12:00:00Z"), { ok: false, error: "instagram-needs-picture" });
+  const withPicture = pictured(edited.value, fileId);
+  assert.ok(withPicture.ok);
+  const out = sent(withPicture.value, "2026-12-01T12:00:00Z");
   assert.ok(out.ok);
   assert.equal(out.value.status, "sent");
   assert.deepEqual(sent(out.value, "2026-12-01T12:00:00Z"), { ok: false, error: "nothing-to-send" });
@@ -68,6 +72,7 @@ test("sent, asked to change, edited, sent again, approved, posted", () => {
   const fixed = editPost(asked.value, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi, open Saturday", picture: "The barn" });
   assert.ok(fixed.ok);
   assert.deepEqual([fixed.value.status, fixed.value.clientNote], ["draft", "Say Saturday too"]);
+  assert.equal(fixed.value.pictureFileId, fileId, "an edit keeps the picture");
   const again = sent(fixed.value, "2026-12-02T12:00:00Z");
   assert.ok(again.ok);
   assert.equal(again.value.clientNote, "");
@@ -120,4 +125,25 @@ test("the month's count against the plan, over it, and what's due", () => {
   assert.equal(readMonth("2027-01", "2026-11-25"), "2027-01");
   assert.equal(shiftMonth("2026-12", 1), "2027-01");
   assert.equal(shiftMonth("2026-01", -1), "2025-12");
+});
+
+test("a picture is attached to a draft, kept through edits, and taken off; a post that's up keeps its picture", () => {
+  const p = plan();
+  const draft = newPost(postIds, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi" });
+  assert.ok(draft.ok);
+  assert.equal(draft.value.pictureFileId, null);
+  const attached = pictured(draft.value, fileId);
+  assert.ok(attached.ok);
+  assert.equal(attached.value.pictureFileId, fileId);
+  const edited = editPost(attached.value, p, { kind: "post", day: "2026-12-04", networks: ["instagram"], words: "Hi again" });
+  assert.ok(edited.ok);
+  assert.equal(edited.value.pictureFileId, fileId);
+  const taken = pictured(edited.value, null);
+  assert.ok(taken.ok);
+  assert.deepEqual([taken.value.pictureFileId, taken.value.status], [null, "draft"]);
+  assert.deepEqual(pictured({ ...draft.value, status: "posted" }, fileId), { ok: false, error: "already-up" });
+  assert.deepEqual(pictured({ ...draft.value, status: "skipped" }, null), { ok: false, error: "already-up" });
+  assert.ok(SHOWN_TO_CLIENT.includes("sent") && SHOWN_TO_CLIENT.includes("posted"));
+  assert.equal(SHOWN_TO_CLIENT.includes("draft"), false);
+  assert.equal(SHOWN_TO_CLIENT.includes("skipped"), false);
 });

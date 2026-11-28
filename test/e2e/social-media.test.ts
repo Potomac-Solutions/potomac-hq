@@ -1,14 +1,15 @@
 // Social media in a real browser (decision 0011): set a plan, write a
-// post, send the month, the client approves it in their portal, and the
-// post is marked up. Each screen is checked for accessibility, light and
-// dark.
+// post with its picture, send the month, the client approves it in their
+// portal, and the post is marked up. Each screen is checked for
+// accessibility, light and dark.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { chromium, type Browser } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { assertAccessible, setUpAdmin, text, watch } from "../support/browser.ts";
 import { PASSWORD, TEST_PASSWORD_COST, testApp, unwrap, type TestApp } from "../support/harness.ts";
+import { jpegSize, png } from "../support/png.ts";
 
 let t: TestApp;
 let browser: Browser;
@@ -20,6 +21,15 @@ after(async () => {
   await browser?.close();
   await t.stop();
 });
+
+/** The picture a page shows is the one the browser made before it was sent: a 1600-pixel-wide JPEG. */
+async function assertShrunkPicture(page: Page, selector: string): Promise<void> {
+  const src = await page.locator(selector).first().getAttribute("src");
+  assert.ok(src, `${selector} shows a picture`);
+  const stored = await page.request.get(new URL(src, t.origin).href);
+  assert.equal(stored.headers()["content-type"], "image/jpeg");
+  assert.equal(jpegSize(new Uint8Array(await stored.body()))?.width, 1600);
+}
 
 test("a month of posts: planned, written, sent, approved in the portal, put up", async () => {
   const staff = await (await browser.newContext()).newPage();
@@ -39,12 +49,15 @@ test("a month of posts: planned, written, sent, approved in the portal, put up",
   await staff.getByRole("button", { name: "Save the plan" }).click();
   await staff.getByText("Plan saved.").waitFor();
 
-  // A post, sent to the client.
+  // A post with its picture, sent to the client. The browser makes the photo a 1600-pixel JPEG before it's uploaded.
   await staff.getByLabel("Goes up on").first().fill(today);
   await staff.locator("#write").getByLabel("Instagram").uncheck();
   await staff.locator("#write").getByLabel("Words").first().fill("Sweet corn is in.");
+  await staff.locator("#write").getByLabel("What it shows").first().fill("Corn in a crate by the stand");
+  await staff.locator("#new-picture").setInputFiles({ name: "corn.png", mimeType: "image/png", buffer: Buffer.from(png(2400, 1600)) });
   await staff.getByRole("button", { name: "Add the draft" }).click();
   await staff.getByText("Post added as a draft.").waitFor();
+  await assertShrunkPicture(staff, "img.social-picture");
   await assertAccessible(staff, "a client's month with a draft");
   await staff.getByRole("button", { name: "Send the draft to the client" }).click();
   await staff.getByText(/^Sent 1 to the client/).waitFor();
@@ -65,6 +78,7 @@ test("a month of posts: planned, written, sent, approved in the portal, put up",
   assert.match(await text(pat), /Approve your posts for/);
   await pat.getByRole("link", { name: /Look them over/ }).click();
   await pat.waitForURL((url) => url.pathname === "/portal/social");
+  await assertShrunkPicture(pat, "img.ps-picture");
   for (const colorScheme of ["light", "dark"] as const) {
     await pat.emulateMedia({ colorScheme });
     await assertAccessible(pat, `the client's social media waiting on them (${colorScheme})`);

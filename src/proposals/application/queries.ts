@@ -153,7 +153,7 @@ export function proposalDetail(deps: ProposalsDeps, actorId: Id | null, proposal
   const open = isOpenProposal(proposal);
   const decision = deps.proposals.decision(proposalId);
   const project = deps.projects.byOpportunity(opportunity.id);
-  const names = new Map(deps.users.list().map((user) => [user.id as string, user.name]));
+  const names = new Map(deps.users.listEverybody().map((user) => [user.id as string, user.name]));
   const stageOk = opportunity.stage === "consulted" || opportunity.stage === "quoted";
   const filled = proposal.lines.map((line, index) => ({ index, ...lineView(line), rate: (line.rate.minor / 100).toFixed(2) }));
   const spare = Array.from({ length: SPARE_ROWS }, (_, i) => ({ index: filled.length + i, item: "", kind: "hours", quantity: "", rate: "", total: "" }));

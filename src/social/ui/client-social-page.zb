@@ -19,6 +19,48 @@
     return { title: `Social media: ${view.client.name}`, view, done: context.notice.done, problem: context.notice.problem }
   }
 
+  // A picture is shrunk in the browser before it's sent, as the site editor's photos are.
+  const PICTURE_SIDE = 1600
+
+  async function shrinkOne(input) {
+    const file = input.files && input.files[0]
+    if (!file) return
+    try {
+      const picture = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      const scale = Math.min(1, PICTURE_SIDE / Math.max(picture.width, picture.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(picture.width * scale))
+      canvas.height = Math.max(1, Math.round(picture.height * scale))
+      const pen = canvas.getContext('2d')
+      // White behind a see-through PNG, which a JPEG would otherwise turn black.
+      pen.fillStyle = '#fff'
+      pen.fillRect(0, 0, canvas.width, canvas.height)
+      pen.drawImage(picture, 0, 0, canvas.width, canvas.height)
+      const small = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
+      if (small) {
+        const files = new DataTransfer()
+        files.items.add(new File([small], 'picture.jpg', { type: 'image/jpeg' }))
+        input.files = files.files
+      }
+    } catch {
+      // Not a picture the browser can read. HQ says so when it arrives.
+    }
+  }
+
+  async function shrink(event) {
+    const form = event.currentTarget
+    const inputs = [...form.querySelectorAll('input[type=file]')]
+    // Nothing to shrink, or a browser that can't: send the form as it is.
+    if (!inputs.some((input) => input.files && input.files[0]) || form.dataset.ready === 'yes' || !window.createImageBitmap || !window.DataTransfer || !form.reportValidity()) return
+    event.preventDefault()
+    const button = form.querySelector('button[type=submit]')
+    if (button) button.disabled = true
+    for (const input of inputs) await shrinkOne(input)
+    form.dataset.ready = 'yes'
+    if (button) button.disabled = false
+    form.submit()
+  }
+
   let copied = ''
   async function copy(id, text) {
     try {
@@ -42,6 +84,8 @@
   .social-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; border: 0; margin: 0; padding: 0; }
   .social-checks legend { font-weight: 600; margin-bottom: 0.35rem; padding: 0; }
   .social-due { border-left: 3px solid var(--warning, #b45309); padding-left: 0.75rem; }
+  .social-picture-row { display: grid; gap: 0.35rem; justify-items: start; }
+  .social-picture { display: block; width: 100%; max-width: 18rem; height: auto; border-radius: 0.25rem; }
 </style>
 <hq-client-social view={{ client: {}, plan: null, planChoices: [], posts: [], count: {} }} done="" problem="">
   <div class="hq-page">
@@ -113,7 +157,11 @@
             <p zb-if={one.title}><strong>{one.title}</strong></p>
             <p class="social-words">{one.words}</p>
             <p zb-if={one.link} class="hq-small">Link: <a href={one.link} rel="noopener noreferrer" target="_blank">{one.link}</a></p>
-            <p zb-if={one.picture} class="hq-small">Picture: {one.picture}</p>
+            <p zb-if={one.picture} class="hq-small">Shows: {one.picture}</p>
+            <div zb-if={one.pictureFileId} class="social-picture-row">
+              <img class="social-picture" src="/files/{one.pictureFileId}" alt={one.pictureAlt} loading="lazy">
+              <p class="hq-small"><a href="/files/{one.pictureFileId}" download>Download the picture</a></p>
+            </div>
             <p zb-if={one.clientNote} class="hq-small"><strong>The client asked:</strong> {one.clientNote}</p>
             <p zb-if={one.approval} class="hq-small hq-muted">{one.approval}</p>
             <p zb-if={one.skipReason} class="hq-small hq-muted">Skipped: {one.skipReason}</p>
@@ -137,7 +185,7 @@
               </details>
               <details zb-if={one.canChange} class="hq-more">
                 <summary>Change<span class="sr-only">: {one.dayText}</span></summary>
-                <form method="post" action="/social/posts/{one.id}" class="hq-form">
+                <form method="post" action="/social/posts/{one.id}" class="hq-form" enctype="multipart/form-data" onsubmit={shrink}>
                   <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
                   <p zb-if={one.status !== 'draft'} class="hq-small hq-muted">Saving makes it a draft again, to send to the client again.</p>
                   <text-field label="Goes up on" name="day" type="date" value={one.day} required={true}></text-field>
@@ -150,8 +198,17 @@
                   <text-field zb-if={one.kind === 'blog'} label="Title" name="title" value={one.title} required={true}></text-field>
                   <text-field label="Words" name="words" rows={one.kind === 'blog' ? 14 : 6} value={one.words} required={true} description={one.kind === 'blog' ? 'Up to 20,000 characters' : view.wordsHelp}></text-field>
                   <text-field label="Link" name="link" value={one.link}></text-field>
-                  <text-field label="Picture" name="picture" value={one.picture} description="What it shows. An Instagram post needs one."></text-field>
+                  <text-field label="What it shows" name="picture" value={one.picture} description="Read aloud to someone who can’t see the picture."></text-field>
+                  <div class="hq-field">
+                    <label for="change-picture-{one.id}">{one.pictureFileId ? 'Replace the picture' : 'Add a picture'}</label>
+                    <input id="change-picture-{one.id}" name="picture-file" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="change-picture-rule-{one.id}">
+                    <p id="change-picture-rule-{one.id}" class="hq-muted hq-small">JPEG, PNG or WebP. An Instagram post needs its picture before it’s sent.</p>
+                  </div>
                   <button class="hq-button" type="submit">Save</button>
+                </form>
+                <form zb-if={one.pictureFileId} method="post" action="/social/posts/{one.id}/picture/remove" class="hq-form">
+                  <input type="hidden" name="month" value={view.month}><input type="hidden" name="clientId" value={view.client.id}>
+                  <button class="hq-button secondary" type="submit">Take the picture off</button>
                 </form>
               </details>
               <details zb-if={one.canChange} class="hq-more">
@@ -175,7 +232,7 @@
     <section zb-if={view.plan && view.canEdit} class="hq-panel" id="write" aria-labelledby="social-write">
       <h2 id="social-write">Write a post</h2>
       <p zb-if={view.plan.about} class="social-words hq-small hq-muted">{view.plan.about}</p>
-      <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form">
+      <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form" enctype="multipart/form-data" onsubmit={shrink}>
         <input type="hidden" name="month" value={view.month}>
         <input type="hidden" name="kind" value="post">
         <text-field label="Goes up on" name="day" type="date" value={view.suggestDay} required={true}></text-field>
@@ -187,19 +244,28 @@
         </fieldset>
         <text-field label="Words" name="words" rows={6} required={true} description={view.wordsHelp}></text-field>
         <text-field label="Link" name="link"></text-field>
-        <text-field label="Picture" name="picture" description="What it shows. An Instagram post needs one."></text-field>
+        <text-field label="What it shows" name="picture" description="Read aloud to someone who can’t see the picture."></text-field>
+        <div class="hq-field">
+          <label for="new-picture">Picture</label>
+          <input id="new-picture" name="picture-file" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="new-picture-rule">
+          <p id="new-picture-rule" class="hq-muted hq-small">JPEG, PNG or WebP. An Instagram post needs its picture before it’s sent.</p>
+        </div>
         <button class="hq-button" type="submit">Add the draft</button>
       </form>
       <details class="hq-more">
         <summary>Write a blog post</summary>
-        <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form">
+        <form method="post" action="/clients/{view.client.id}/social/posts" class="hq-form" enctype="multipart/form-data" onsubmit={shrink}>
           <input type="hidden" name="month" value={view.month}>
           <input type="hidden" name="kind" value="blog">
           <text-field label="Goes up on" name="day" type="date" value={view.suggestDay} required={true}></text-field>
           <text-field label="Title" name="title" required={true}></text-field>
           <text-field label="The post" name="words" rows={14} required={true} description="Up to 20,000 characters"></text-field>
           <text-field label="Link" name="link"></text-field>
-          <text-field label="Picture" name="picture"></text-field>
+          <text-field label="What it shows" name="picture"></text-field>
+          <div class="hq-field">
+            <label for="new-blog-picture">Picture</label>
+            <input id="new-blog-picture" name="picture-file" type="file" accept="image/jpeg,image/png,image/webp">
+          </div>
           <button class="hq-button" type="submit">Add the blog post as a draft</button>
         </form>
       </details>

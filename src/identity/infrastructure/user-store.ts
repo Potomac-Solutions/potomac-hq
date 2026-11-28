@@ -6,7 +6,7 @@ import type { User, UserInvite, UserStatus } from "../domain/user.ts";
 import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
-type UserRow = { id: string; staff_account: string; name: string; email: string; status: string };
+type UserRow = { id: string; staff_account: string; name: string; email: string; status: string; removed_at: string | null };
 
 function toUser(row: UserRow): User {
   return {
@@ -15,14 +15,15 @@ function toUser(row: UserRow): User {
     name: row.name,
     email: row.email,
     status: row.status as UserStatus,
+    ...(row.removed_at ? { removedAt: row.removed_at } : {}),
   };
 }
 
 export function sqliteUserStore(db: Database): UserStore {
-  const columns = "id, staff_account, name, email, status";
+  const columns = "id, staff_account, name, email, status, removed_at";
   const countUsers = db.prepare("select count(*) as n from user");
   const insertUser = db.prepare(
-    `insert into user (${columns}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)`,
+    "insert into user (id, staff_account, name, email, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
   );
   const insertUserRole = db.prepare(
     "insert into user_role (user_id, role_id) select ?, id from role where key = ?",
@@ -36,7 +37,9 @@ export function sqliteUserStore(db: Database): UserStore {
       where ur.user_id = ?`,
   );
 
-  const listUsers = db.prepare(`select ${columns} from user order by name collate nocase, id`);
+  const listUsers = db.prepare(`select ${columns} from user where removed_at is null order by name collate nocase, id`);
+  const listEverybody = db.prepare(`select ${columns} from user order by name collate nocase, id`);
+  const markRemoved = db.prepare("update user set status = 'disabled', email = ?, removed_at = ?, updated_at = ? where id = ?");
   const themeOf = db.prepare("select theme from user_preference where user_id = ?");
   const setTheme = db.prepare(
     `insert into user_preference (user_id, theme, updated_at) values (?, ?, ?)
@@ -84,6 +87,13 @@ export function sqliteUserStore(db: Database): UserStore {
     },
     list() {
       return (listUsers.all() as UserRow[]).map(toUser);
+    },
+    listEverybody() {
+      return (listEverybody.all() as UserRow[]).map(toUser);
+    },
+    markRemoved(userId, email, at) {
+      clearRoles.run(userId);
+      markRemoved.run(email, at, at, userId);
     },
     themeOf(userId) {
       const theme = (themeOf.get(userId) as { theme: string } | undefined)?.theme;

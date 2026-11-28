@@ -47,7 +47,7 @@ import { peopleRoutes } from "./identity/api/people-routes.ts";
 import { forgotRoutes } from "./identity/api/forgot-routes.ts";
 import { settingsRoutes } from "./identity/api/settings-routes.ts";
 import { staffRoutes } from "./identity/api/staff-routes.ts";
-import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
+import { authorize, establishUser, listPeople, mustTurnOnTwoFactor, removalFor, needsSecondStep, recordRefusal, refusedAttempts, requestPasswordReset, shouldTurnOnTwoFactor, THEME_LABELS, twoFactorStatus, type SignedInAccount, type Theme } from "./identity/index.ts";
 import { sessionKeyOf } from "./identity/adapters.ts";
 import { twoFactorAppRoute, twoFactorQrRoute, twoFactorRoutes } from "./identity/api/two-factor-routes.ts";
 import { bookingByLink, bookingOpen, bookingSetup, openInvites, staffInvite, clientInvites, invitesWaitingOn, guestInvite, calendarLinks, bookingLinks, bookingLinkPage, weeklyGrid, weekGrid, callLine, callsForClient, callsView, nextCalls, openTimes, type BusyCalendar, type OutsideFetch, type CallLine, type OpenTimesView } from "./booking/index.ts";
@@ -633,7 +633,7 @@ export type PageContext = {
     /** A call booked from the public page, by its private link. */
     byLink(token: string): CallLine | null;
   };
-  readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean } };
+  readonly people: { list(): ReturnType<typeof listPeople>; twoFactorRule(): { readonly on: boolean; readonly canSet: boolean; readonly yoursOn: boolean }; removal(id: string): ReturnType<typeof removalFor> | null };
   readonly search: (q: string) => ReturnType<typeof search>;
   /** The sidebar's hubs for this person and address (decision 0015). `search` is the address's `?…`, for pinned filters. */
   nav(path: string, search: string): readonly NavHub[];
@@ -704,7 +704,8 @@ const MAX_FORM_BYTES = 16 * 1024;
 const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files|portal\/intake)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
-const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
+// A social post's picture follows the same rule (decision 0011, slice 3).
+const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots|clients\/[0-9a-f-]{36}\/social\/posts|social\/posts\/[0-9a-f-]{36})$/;
 /** A before-and-after pair: two photos in one form. */
 const PAIR_PATHS = /^\/(portal\/website|websites\/[0-9a-f-]{36})\/before-after$/;
 const MAX_PAIR_FORM_BYTES = 2 * MAX_PHOTO_BYTES + 64 * 1024;
@@ -1378,6 +1379,10 @@ export async function createApp(config: AppConfig): Promise<App> {
         people: {
           list: () => listPeople(sessionDeps, actor, (id) => twoFactorDeps.twoFactor.get(id)?.confirmed === true),
           twoFactorRule: () => ({ on: twoFactorDeps.twoFactor.requiredForAdmins(), canSet: authorize(sessionDeps, actor, "user.set-roles").ok, yoursOn: actor !== null && twoFactorDeps.twoFactor.get(actor)?.confirmed === true }),
+          removal: (id) => {
+            const parsed = parseId(id);
+            return parsed.ok ? removalFor(services.removal, actor, parsed.value) : null;
+          },
         },
         search: (q) => search(services.search, actor, q, placesFor(actor)),
         pins: (href) => {
@@ -1700,6 +1705,7 @@ export async function createApp(config: AppConfig): Promise<App> {
     "/",
     peopleRoutes({
       people: sessionDeps,
+      removal: services.removal,
       actorOf,
       sign: signNotice,
       publicUrl,
