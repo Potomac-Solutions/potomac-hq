@@ -33,7 +33,7 @@
       <alert-banner zb-if={problem} variant="danger">{problem}</alert-banner>
       <alert-banner zb-if={done} variant="success">{done}</alert-banner>
     </div>
-    <p class="hq-muted">Deleted clients, contacts, deals, proposals and projects stay here for 30 days, with everything that went with them. Put one back and it’s exactly as it was. After 30 days it’s deleted for good.</p>
+    <p class="hq-muted">Deleted clients, contacts, deals, proposals, projects and portal people stay here for 30 days, with everything that went with them. Put one back and it’s exactly as it was. After 30 days it’s deleted for good.</p>
     <section class="hq-panel" aria-labelledby="trash-list">
       <h2 id="trash-list" class="sr-only">Deleted</h2>
       <empty-state zb-if={view.items.length === 0} heading="The Trash is empty">What you delete waits here for 30 days.</empty-state>

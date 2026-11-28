@@ -30,7 +30,7 @@
 </style>
 <hq-delete view={null} problem="" back="/trash">
   <div class="hq-page">
-    <h1 zb-if={view}>Delete {view.count === 1 ? 'this ' + view.kindLabel : view.count + ' ' + view.kindLabel + 's'}?</h1>
+    <h1 zb-if={view}>Delete {view.count === 1 ? 'this ' + view.kindLabel : view.count + ' ' + view.kindMany}?</h1>
     <h1 zb-else>Nothing to delete</h1>
     <div zb-if={problem} class="hq-notices"><alert-banner variant="danger">{problem}</alert-banner></div>
     <section zb-if={view} class="hq-panel" aria-labelledby="delete-what">
