@@ -114,7 +114,8 @@ export function acceptInvite(deps: ManageUsersDeps, who: { readonly account: str
 export async function issueUserLink(deps: ManageUsersDeps, actorId: Id | null, userId: Id): Promise<Result<UserLink, "forbidden" | "not-found" | "turned-off">> {
   if (!authorize(deps, actorId, "user.reset").ok) return err("forbidden");
   const user = deps.users.get(userId);
-  if (!user) return err("not-found");
+  // Someone removed from HQ stays removed (decision 0025): nothing here brings them back.
+  if (!user || user.removedAt) return err("not-found");
   if (user.status !== "active") return err("turned-off");
   const token = await deps.accounts.resetLink(user.staffAccount);
   if (token === null) return err("not-found");
@@ -130,7 +131,8 @@ type Change = "forbidden" | "not-found" | ChangeRefused | "refused";
 export async function setUserStatus(deps: ManageUsersDeps, actorId: Id | null, userId: Id, active: boolean): Promise<Result<User, Change>> {
   if (!authorize(deps, actorId, "user.set-status").ok) return err("forbidden");
   const user = deps.users.get(userId);
-  if (!user) return err("not-found");
+  // Someone removed from HQ stays removed (decision 0025): nothing here brings them back.
+  if (!user || user.removedAt) return err("not-found");
   if ((user.status === "active") === active) return ok(user);
   if (!active) {
     if (user.id === actorId) return err("yourself");
@@ -149,7 +151,8 @@ export async function setUserStatus(deps: ManageUsersDeps, actorId: Id | null, u
 export async function setUserRoles(deps: ManageUsersDeps, actorId: Id | null, userId: Id, given: readonly string[]): Promise<Result<User, Change | RolesError>> {
   if (!authorize(deps, actorId, "user.set-roles").ok) return err("forbidden");
   const user = deps.users.get(userId);
-  if (!user) return err("not-found");
+  // Someone removed from HQ stays removed (decision 0025): nothing here brings them back.
+  if (!user || user.removedAt) return err("not-found");
   const roles = cleanRoles(given);
   if (!roles.ok) return roles;
   const before = deps.users.rolesOf(user.id);

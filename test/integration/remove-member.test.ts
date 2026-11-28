@@ -123,6 +123,15 @@ test("removed: Sam's work is Mikey's, what was only his is gone, and his name st
   assert.equal(problemOf(await admin.post(`/people/${samId}/remove`, { taker: mikey })), "That record doesn’t exist.");
 });
 
+test("a removed member stays removed: no turning back on, no roles, no new link", async () => {
+  const notThere = "That record doesn’t exist.";
+  assert.equal(problemOf(await admin.post(`/people/${samId}/status`, { on: "1" })), notThere);
+  assert.equal(problemOf(await admin.post(`/people/${samId}/roles`, { "role-admin": "1" })), notThere);
+  assert.equal(problemOf(await admin.post(`/people/${samId}/link`, {})), notThere);
+  assert.deepEqual({ ...one("select status, removed_at is not null as removed from user where id = ?", samId) }, { status: "disabled", removed: 1 });
+  assert.equal(t.db.prepare("select count(*) as n from user_role where user_id = ?").get(samId)?.["n"], 0);
+});
+
 test("his email can be invited again, as someone new", async () => {
   const invited = await admin.post("/people", { name: "Sam Helper", email: "sam@example.com", "role-member": "1" });
   assert.equal(invited.status, 200, problemOf(invited));
