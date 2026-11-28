@@ -704,7 +704,8 @@ const MAX_FORM_BYTES = 16 * 1024;
 const UPLOAD_PATHS = /^\/(tasks\/[0-9a-f-]{36}\/files|projects\/[0-9a-f-]{36}\/(deliverables|expenses|import|ai\/receipt)|proposals\/[0-9a-f-]{36}\/agreement|portal\/projects\/[0-9a-f-]{36}\/files|portal\/intake)$/;
 // A photo for a website. Smaller than other files: it is shown on a web page.
 // A photo or logo for the site builder, shrunk the same way (decision 0010).
-const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots)$/;
+// A social post's picture follows the same rule (decision 0011, slice 3).
+const PHOTO_PATHS = /^\/(portal\/website\/photos|websites\/[0-9a-f-]{36}\/photos|builder\/[0-9a-f-]{36}\/images|case-studies\/[0-9a-f-]{36}\/shots|clients\/[0-9a-f-]{36}\/social\/posts|social\/posts\/[0-9a-f-]{36})$/;
 /** A before-and-after pair: two photos in one form. */
 const PAIR_PATHS = /^\/(portal\/website|websites\/[0-9a-f-]{36})\/before-after$/;
 const MAX_PAIR_FORM_BYTES = 2 * MAX_PHOTO_BYTES + 64 * 1024;

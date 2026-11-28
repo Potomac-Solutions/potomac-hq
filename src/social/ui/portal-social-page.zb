@@ -25,6 +25,7 @@
   .ps-posts > li:first-child { border-top: 0; }
   .ps-posts p { margin: 0; overflow-wrap: anywhere; }
   .ps-words { white-space: pre-wrap; max-width: 65ch; }
+  .ps-picture { display: block; width: 100%; max-width: 22rem; height: auto; border-radius: 0.25rem; }
 </style>
 <hq-portal-social view={{ posts: [] }} done="" problem="">
   <div class="hq-page">
@@ -60,6 +61,7 @@
             <p zb-if={one.title}><strong>{one.title}</strong></p>
             <p class="ps-words">{one.words}</p>
             <p zb-if={one.link} class="hq-small">Link: <a href={one.link} rel="noopener noreferrer" target="_blank">{one.link}</a></p>
+            <div zb-if={one.pictureFileId}><img class="ps-picture" src="/portal/files/{one.pictureFileId}" alt={one.pictureAlt} loading="lazy"></div>
             <p zb-if={one.picture} class="hq-small">Picture: {one.picture}</p>
             <p zb-if={one.clientNote} class="hq-small">You asked: {one.clientNote}</p>
             <ul zb-if={one.postedLinks.length > 0} class="hq-list hq-small">

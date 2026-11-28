@@ -28,7 +28,14 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "picture-too-long": "Keep what the picture shows under 500 characters.",
   "already-up": "That post is already up or skipped, so it can’t change.",
   "nothing-to-send": "There are no drafts this month to send.",
-  "instagram-needs-picture": "An Instagram post needs its picture. Say what it shows on each Instagram post before sending.",
+  "instagram-needs-picture": "An Instagram post needs its picture. Upload the picture on each Instagram post before sending.",
+  "no-picture": "This post has no picture to take off.",
+  "photo-not-a-photo": "Use a JPEG, PNG or WebP picture.",
+  "photo-too-large": "That picture is too big. Try again in a current browser, which shrinks it for you, or send a smaller copy.",
+  "file-type-not-allowed": "Use a JPEG, PNG or WebP picture.",
+  "file-too-large": "That picture is too big. Try again in a current browser, which shrinks it for you, or send a smaller copy.",
+  "file-content-mismatch": "That file isn’t what its name says it is.",
+  "file-name-invalid": "Rename the picture file, then try again.",
   "not-sent": "There’s nothing waiting for an answer.",
   "not-approved": "Only an approved post can go up.",
   "note-missing": "Say what to change, or how the client said yes.",
@@ -68,12 +75,12 @@ export function socialStaffRoutes(deps: SocialRoutesDeps): Hono {
   );
   post(
     "/clients/:id/social/posts",
-    (actor, f, id) => social.writePost(deps.social, actor, id as Id, { kind: f["kind"] ?? "", ...postInput(f) }),
+    (actor, f, id, files) => social.writePost(deps.social, actor, id as Id, { kind: f["kind"] ?? "", ...postInput(f) }, files["picture-file"] ?? null),
     { done: (made, id) => `/clients/${id}/social?month=${made.day.slice(0, 7)}#post-${made.id}`, back: (id, f) => calendar(id, f, "write"), message: (made) => (made.kind === "blog" ? "Blog post added as a draft." : "Post added as a draft.") },
   );
   post(
     "/social/posts/:id",
-    (actor, f, id) => social.changePost(deps.social, actor, id as Id, postInput(f)),
+    (actor, f, id, files) => social.changePost(deps.social, actor, id as Id, postInput(f), files["picture-file"] ?? null),
     { done: (changed, _id, f) => `${calendar(null, { ...f, month: changed.day.slice(0, 7) })}#post-${changed.id}`, back: (id, f) => calendar(null, f, `post-${id}`), message: "Saved as a draft. Send it to the client again when it’s ready." },
   );
   post("/social/posts/:id/remove", (actor, _f, id) => social.removePost(deps.social, actor, id as Id), { done: (_v, _id, f) => calendar(null, f), back: (id, f) => calendar(null, f, `post-${id}`), message: "Removed from the calendar." });
@@ -93,6 +100,7 @@ export function socialStaffRoutes(deps: SocialRoutesDeps): Hono {
     { done: (_v, id, f) => (f["back"] === "today" ? "/today" : calendar(null, f, `post-${id}`)), back: (id, f) => calendar(null, f, `post-${id}`), message: "Marked up." },
   );
   post("/social/posts/:id/skip", (actor, f, id) => social.skipPost(deps.social, actor, id as Id, f["reason"] ?? ""), { done: (_v, id, f) => calendar(null, f, `post-${id}`), back: (id, f) => calendar(null, f, `post-${id}`), message: "Skipped. It no longer counts toward the plan." });
+  post("/social/posts/:id/picture/remove", (actor, _f, id) => social.removePicture(deps.social, actor, id as Id), { done: (_v, _id, f) => calendar(null, f), back: (id, f) => calendar(null, f, `post-${id}`), message: "Picture removed. The post is a draft again." });
   return app;
 }
 

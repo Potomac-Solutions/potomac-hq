@@ -4,7 +4,7 @@ import type { Database } from "../../shared/adapters.ts";
 import type { Id } from "../../shared/index.ts";
 
 const PLAN = "id, organization_id, pages, posts_per_month, blogs_per_month, about, paused";
-const POST = "id, organization_id, kind, day, networks, title, words, link, picture, status, sent_at, approved_at, approved_by, approval_note, client_note, posted_at, posted_links, skip_reason";
+const POST = "id, organization_id, kind, day, networks, title, words, link, picture, picture_file_id, status, sent_at, approved_at, approved_by, approval_note, client_note, posted_at, posted_links, skip_reason";
 
 const text = (value: unknown) => (value === null || value === undefined ? null : String(value));
 
@@ -31,6 +31,7 @@ function toPost(row: Record<string, unknown>): SocialPost {
     words: String(row["words"]),
     link: text(row["link"]),
     picture: String(row["picture"]),
+    pictureFileId: text(row["picture_file_id"]) as Id | null,
     status: row["status"] as PostStatus,
     sentAt: text(row["sent_at"]),
     approvedAt: text(row["approved_at"]),
@@ -43,7 +44,7 @@ function toPost(row: Record<string, unknown>): SocialPost {
   };
 }
 
-const postValues = (p: SocialPost) => [p.kind, p.day, p.day.slice(0, 7), JSON.stringify(p.networks), p.title, p.words, p.link, p.picture, p.status, p.sentAt, p.approvedAt, p.approvedBy, p.approvalNote, p.clientNote, p.postedAt, JSON.stringify(p.postedLinks), p.skipReason];
+const postValues = (p: SocialPost) => [p.kind, p.day, p.day.slice(0, 7), JSON.stringify(p.networks), p.title, p.words, p.link, p.picture, p.pictureFileId, p.status, p.sentAt, p.approvedAt, p.approvedBy, p.approvalNote, p.clientNote, p.postedAt, JSON.stringify(p.postedLinks), p.skipReason];
 
 export function sqliteSocialStore(db: Database): SocialStore {
   const insertPlan = db.prepare(`insert into social_plan (${PLAN}, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -51,10 +52,10 @@ export function sqliteSocialStore(db: Database): SocialStore {
   const planFor = db.prepare(`select ${PLAN} from social_plan where organization_id = ?`);
   const plans = db.prepare(`select ${PLAN} from social_plan`);
   const insertPost = db.prepare(
-    "insert into social_post (id, organization_id, kind, day, month, networks, title, words, link, picture, status, sent_at, approved_at, approved_by, approval_note, client_note, posted_at, posted_links, skip_reason, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "insert into social_post (id, organization_id, kind, day, month, networks, title, words, link, picture, picture_file_id, status, sent_at, approved_at, approved_by, approval_note, client_note, posted_at, posted_links, skip_reason, created_by, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const updatePost = db.prepare(
-    "update social_post set kind = ?, day = ?, month = ?, networks = ?, title = ?, words = ?, link = ?, picture = ?, status = ?, sent_at = ?, approved_at = ?, approved_by = ?, approval_note = ?, client_note = ?, posted_at = ?, posted_links = ?, skip_reason = ?, updated_at = ? where id = ?",
+    "update social_post set kind = ?, day = ?, month = ?, networks = ?, title = ?, words = ?, link = ?, picture = ?, picture_file_id = ?, status = ?, sent_at = ?, approved_at = ?, approved_by = ?, approval_note = ?, client_note = ?, posted_at = ?, posted_links = ?, skip_reason = ?, updated_at = ? where id = ?",
   );
   const removePost = db.prepare("delete from social_post where id = ?");
   const getPost = db.prepare(`select ${POST} from social_post where id = ?`);

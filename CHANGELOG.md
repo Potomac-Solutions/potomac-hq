@@ -9,6 +9,13 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+- **Pictures on social posts** (decision 0011, slice 3, migration 0095). A
+  post takes its picture as a file, shrunk in the browser first, and
+  checked as a JPEG, PNG or WebP of up to 3 MB, the rule website photos
+  follow. An Instagram post can't be sent to the
+  client without its picture. The client sees the picture in their portal
+  once the post is sent, and it goes out of sight if the post becomes a
+  draft again. Staff can download it to post it.
 - **Remove a member from HQ** (decision 0025, migration 0094). On People,
   an admin opens *Remove from HQ* for someone: the page lists their open
   work (open deals, active projects, tasks and to-dos not done, upcoming

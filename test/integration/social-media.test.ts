@@ -7,7 +7,9 @@ import { after, before, test } from "node:test";
 import * as crm from "../../src/crm/index.ts";
 import type { Id } from "../../src/shared/index.ts";
 import { actions, addUser, clientSignedIn, signIn, testApp, textOf, unwrap, type Client, type TestApp } from "../support/harness.ts";
+import { png } from "../support/png.ts";
 import { approveQuietPosts, setPlan, writePost } from "../../src/social/index.ts";
+import { MAX_PHOTO_BYTES } from "../../src/websites/index.ts";
 
 let t: TestApp;
 let admin: Client;
@@ -54,10 +56,10 @@ test("drafts are checked against the plan; an Instagram post needs its picture b
   assert.equal(doneOf(await admin.post(`/clients/${farmId}/social/posts`, { kind: "post", day, "network-facebook": "1", words: "Open Saturday." })), "Post added as a draft.");
   assert.equal(doneOf(await admin.post(`/clients/${farmId}/social/posts`, { kind: "blog", day, title: "Why we grow heirlooms", words: "Because they taste like summer." })), "Blog post added as a draft.");
   assert.match(textOf(await admin.page(`/clients/${farmId}/social`)), /2 of 8 posts, 1 of 1 blog post/);
-  assert.equal(problemOf(await admin.post(`/clients/${farmId}/social/send`, { month: month() })), "An Instagram post needs its picture. Say what it shows on each Instagram post before sending.");
+  assert.equal(problemOf(await admin.post(`/clients/${farmId}/social/send`, { month: month() })), "An Instagram post needs its picture. Upload the picture on each Instagram post before sending.");
   assert.equal(statusOf("Sweet corn is in.").status, "draft", "nothing was sent");
   const id = idOf("Sweet corn is in.");
-  assert.match(doneOf(await admin.post(`/social/posts/${id}`, { clientId: farmId, month: month(), day, "network-facebook": "1", "network-instagram": "1", words: "Sweet corn is in.", picture: "Corn in a crate by the stand" })), /^Saved as a draft/);
+  assert.match(doneOf(await admin.upload(`/social/posts/${id}`, { clientId: farmId, month: month(), day, "network-facebook": "1", "network-instagram": "1", words: "Sweet corn is in.", picture: "Corn in a crate by the stand" }, { field: "picture-file", name: "corn.png", bytes: png(1200, 800), type: "image/png" })), /^Saved as a draft/);
   assert.equal(doneOf(await admin.post(`/clients/${farmId}/social/send`, { month: month() })), "Sent 3 to the client. It’s in their portal, and counts as approved in 3 days if they say nothing.");
 });
 
@@ -107,4 +109,48 @@ test("a member can work the calendar; a disabled permission refuses", async () =
   const nobody = addUser(t.db, null, "No Roles");
   assert.deepEqual(writePost(t.services.social, nobody, farmId, { kind: "post", day: today().toString(), networks: ["facebook"], words: "Nope" }), { ok: false, error: "forbidden" });
   assert.deepEqual(setPlan(t.services.social, nobody, farmId, { networks: ["facebook"], pages: {}, postsPerMonth: "1", blogsPerMonth: "0" }), { ok: false, error: "forbidden" });
+});
+
+test("a picture goes up with a post: the client sees it once it's sent, and it can be taken off", async () => {
+  const dana = await clientSignedIn(t, admin, dinerId, "Dana Diner", "dana@example.com");
+  const day = today().toString();
+  assert.equal(doneOf(await admin.post(`/clients/${dinerId}/social/posts`, { kind: "post", day, "network-facebook": "1", words: "Pie with a picture" })), "Post added as a draft.");
+  const id = idOf("Pie with a picture");
+  const fields = { clientId: dinerId, month: month(), day, "network-facebook": "1", words: "Pie with a picture" };
+  // Not a picture, or a file whose contents don't match its name: refused, and nothing is stored.
+  assert.equal(problemOf(await admin.upload(`/social/posts/${id}`, fields, { field: "picture-file", name: "notes.txt", bytes: new TextEncoder().encode("Pie notes"), type: "text/plain" })), "Use a JPEG, PNG or WebP picture.");
+  assert.equal(problemOf(await admin.upload(`/social/posts/${id}`, fields, { field: "picture-file", name: "pie.png", bytes: new TextEncoder().encode("Pie notes"), type: "image/png" })), "That file isn’t what its name says it is.");
+  // A picture over 3 MB hasn't been shrunk: refused, as a website photo is.
+  const tooBig = new Uint8Array(MAX_PHOTO_BYTES + 1);
+  tooBig.set(png(4, 4).subarray(0, 8));
+  assert.match(problemOf(await admin.upload(`/social/posts/${id}`, fields, { field: "picture-file", name: "big.png", bytes: tooBig, type: "image/png" })), /^That picture is too big\./);
+  assert.equal(t.db.prepare("select picture_file_id from social_post where id = ?").get(id)?.["picture_file_id"], null);
+  // A picture with the post is a draft: the client can't open it until it's sent.
+  assert.match(doneOf(await admin.upload(`/social/posts/${id}`, fields, { field: "picture-file", name: "pie.png", bytes: png(900, 600), type: "image/png" })), /^Saved as a draft/);
+  const pictureId = t.db.prepare("select picture_file_id from social_post where id = ?").get(id)?.["picture_file_id"] as string;
+  assert.ok(pictureId);
+  const staffCopy = await admin.get(`/files/${pictureId}`);
+  assert.equal(staffCopy.status, 200);
+  assert.equal(staffCopy.headers.get("content-type"), "image/png");
+  assert.equal((await dana.get(`/portal/files/${pictureId}`)).status, 404);
+  // A new post can take its picture as it's written. A file that isn't a picture is refused, and no post is made.
+  assert.equal(problemOf(await admin.upload(`/clients/${dinerId}/social/posts`, { kind: "post", day, "network-facebook": "1", words: "Pie crust, from scratch" }, { field: "picture-file", name: "notes.txt", bytes: new TextEncoder().encode("Pie notes"), type: "text/plain" })), "Use a JPEG, PNG or WebP picture.");
+  assert.equal(t.db.prepare("select count(*) as n from social_post where words = ?").get("Pie crust, from scratch")?.["n"], 0);
+  assert.equal(doneOf(await admin.upload(`/clients/${dinerId}/social/posts`, { kind: "post", day, "network-facebook": "1", words: "Pie crust, from scratch" }, { field: "picture-file", name: "crust.png", bytes: png(640, 480), type: "image/png" })), "Post added as a draft.");
+  const crustPictureId = t.db.prepare("select picture_file_id from social_post where words = ?").get("Pie crust, from scratch")?.["picture_file_id"] as string;
+  assert.ok(crustPictureId);
+  assert.equal((await dana.get(`/portal/files/${crustPictureId}`)).status, 404);
+  // Sent, the client can see both pictures in the portal.
+  assert.match(doneOf(await admin.post(`/clients/${dinerId}/social/send`, { month: month() })), /^Sent 2 to the client/);
+  assert.equal((await dana.get(`/portal/files/${pictureId}`)).status, 200);
+  assert.equal((await dana.get(`/portal/files/${crustPictureId}`)).status, 200);
+  assert.match(textOf(await dana.page("/portal/social")), /Pie with a picture/);
+  // Taken off: the post is a draft again, and the file is gone for everyone.
+  assert.equal(doneOf(await admin.post(`/social/posts/${id}/picture/remove`, { clientId: dinerId, month: month() })), "Picture removed. The post is a draft again.");
+  assert.equal(statusOf("Pie with a picture").status, "draft");
+  assert.equal((await admin.get(`/files/${pictureId}`)).status, 404);
+  assert.equal((await dana.get(`/portal/files/${pictureId}`)).status, 404);
+  assert.equal(t.db.prepare("select count(*) as n from file where id = ?").get(pictureId)?.["n"], 0);
+  // Taking one post's picture off leaves another post's picture alone.
+  assert.equal((await dana.get(`/portal/files/${crustPictureId}`)).status, 200);
 });
