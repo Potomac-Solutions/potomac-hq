@@ -31,6 +31,19 @@ billing contact. Restoring puts the link back.
 **Confirmed:** invoices, tasks and other records aren't deleted one by one
 here; they have their own void, archive and remove.
 
+- **A portal person** (added 2026-11-28, Mikey's choice): one of a
+  client's portal people, from *Delete* beside them under Client portal on
+  the client's page. What they sent from the portal goes with them: their
+  messages on projects, requests, call requests, invites to pick call
+  times, intake forms, feedback and text-message records. What is the
+  client's stays, with their name cleared: approvals and change decisions
+  on deliverables, files they uploaded, bookings, renewal answers, autopay
+  and QR codes. A task their request made stays. Their access at their
+  other clients isn't touched, and their sign-in stays, as when all of
+  someone's clients are deleted. Nothing they send holds money records, so
+  a portal person is never refused. Putting them back fails if the same
+  email has been invited at that client since.
+
 ### 2. The Trash, then purge (Mikey's choice)
 
 - A delete moves the record and what went with it to the **Trash**, as an

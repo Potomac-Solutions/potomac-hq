@@ -13,6 +13,9 @@
 // A contact's portal access is matched by email, with no foreign key. It
 // isn't deleted with them (their messages and approvals stay), but turned
 // off at that client, and on again on restore (decisions 0022 and 0023).
+// Deleting a portal person themselves takes what they sent (messages,
+// requests, call requests, intake, feedback) and clears their name from
+// what is the client's (approvals, uploaded files, bookings, autopay).
 //
 // Each delete is one transaction. Foreign keys are checked when it commits,
 // so if anything still pointed at a deleted row the whole delete is undone.
@@ -28,14 +31,15 @@ type Saved = { readonly table: string; readonly row: Row };
 type Cleared = { readonly table: string; readonly key: Row; readonly column: string; readonly value: Value; readonly to?: Value };
 type Snapshot = { readonly rows: readonly Saved[]; readonly cleared: readonly Cleared[] };
 
-const ROOT_TABLE: Readonly<Record<TrashKind, string>> = { client: "client_organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project" };
+const ROOT_TABLE: Readonly<Record<TrashKind, string>> = { client: "client_organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project", "portal-person": "client_user" };
 export const rootTable = (kind: TrashKind): string => ROOT_TABLE[kind];
 
 // A column with one of these names says who a row belongs to, even when it may be empty:
 // a client's bookings and files, a project's invoices and to-dos.
 const OWNER_COLUMNS = new Set(["organization_id", "crm_client_id", "project_id", "proposal_id"]);
 // A won deal's project is the deal's, though the column may be empty for company work (0089).
-const OWNER_EDGES = new Set(["project.opportunity_id"]);
+// A portal person's messages on a project are theirs, though staff messages leave the column empty.
+const OWNER_EDGES = new Set(["project.opportunity_id", "project_update.client_user_id"]);
 // Pointers by kind and id: [table, kind column, id column]. A kind is the
 // table's name with hyphens ("client-organization"), or one of the extras.
 const BY_KIND: readonly (readonly [string, string, string])[] = [

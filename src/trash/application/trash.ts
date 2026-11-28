@@ -1,4 +1,4 @@
-// Deleting clients, contacts, deals, proposals and projects into the Trash,
+// Deleting clients, contacts, deals, proposals, projects and portal people into the Trash,
 // putting them back, and purging them (decision 0023). Admins only
 // (`record.delete`). Each record goes in its own transaction, so one that
 // can't go doesn't hold up the rest of a bulk delete.
@@ -22,14 +22,16 @@ const may = (deps: TrashDeps, actorId: Id | null): actorId is Id => actorId !== 
 export const mayDeleteRecords = (deps: TrashDeps, actorId: Id | null): boolean => may(deps, actorId);
 
 // What each kind is called in the activity log.
-const RECORD_TYPE: Readonly<Record<TrashKind, string>> = { client: "client-organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project" };
-const ROOT: Readonly<Record<TrashKind, string>> = { client: "client_organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project" };
+const RECORD_TYPE: Readonly<Record<TrashKind, string>> = { client: "client-organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project", "portal-person": "client-user" };
+const ROOT: Readonly<Record<TrashKind, string>> = { client: "client_organization", contact: "contact", opportunity: "opportunity", proposal: "proposal", project: "project", "portal-person": "client_user" };
 
 const cleanIds = (ids: readonly string[]): string[] => [...new Set(ids.map((id) => id.trim()).filter((id) => /^[0-9a-f-]{36}$/.test(id)))];
 
 export type DeletePreview = {
   readonly kind: TrashKind;
   readonly kindLabel: string;
+  /** The kind, for more than one ("portal people"). */
+  readonly kindMany: string;
   readonly items: readonly { readonly id: string; readonly label: string; readonly clientName: string; readonly takes: string; readonly refused: string }[];
   /** The ones that may go, comma-separated, for the form. */
   readonly ids: string;
@@ -51,7 +53,7 @@ export function previewDelete(deps: TrashDeps, actorId: Id | null, kind: TrashKi
   });
   if (items.length === 0) return err("not-found");
   const going = items.filter((item) => !item.refused);
-  return ok({ kind, kindLabel: KIND_LABELS[kind].one, items, ids: going.map((item) => item.id).join(","), count: going.length, refusedCount: items.length - going.length });
+  return ok({ kind, kindLabel: KIND_LABELS[kind].one, kindMany: KIND_LABELS[kind].many, items, ids: going.map((item) => item.id).join(","), count: going.length, refusedCount: items.length - going.length });
 }
 
 export type DeleteResult = { readonly trashIds: readonly string[]; readonly deleted: number; readonly refused: number; readonly message: string };

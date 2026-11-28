@@ -9,6 +9,16 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-28
+
+- **Delete a portal person** (decision 0023, amended; migration 0096). On
+  a client's page, an admin can now press *Delete* beside someone under
+  Client portal. Before, a portal person could only be turned off, so
+  test and mistaken invites stayed on the list for good. They go to the
+  Trash with what they sent from the portal (messages, requests, call
+  requests, intake forms, feedback) and can be put back for 30 days. What
+  is the client's (approvals, uploaded files, bookings) stays, without
+  their name. Their access at their other clients isn't touched.
 - **A removed member stays removed** (decision 0025). Turning an account
   back on, changing its roles and making a new sign-in link now refuse
   someone removed from HQ, as the People page's "That record doesn't exist".
