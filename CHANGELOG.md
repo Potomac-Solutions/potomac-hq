@@ -9,6 +9,8 @@ moves those lines under a version heading. See `docs/conventions.md`.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-28
+
 - **Delete a portal person** (decision 0023, amended; migration 0096). On
   a client's page, an admin can now press *Delete* beside someone under
   Client portal. Before, a portal person could only be turned off, so
